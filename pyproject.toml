@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omni-describer-custom"
+version = "1.0.0"
+description = "Accessible audio description tool for blind and visually impaired users"
+requires-python = ">=3.11"
+dependencies = [
+    "wxpython>=4.2",
+    "pillow>=10.0",
+    "python-vlc>=3.0",
+    "edge-tts>=6.1",
+    "pyttsx3>=2.90",
+    "accessible-output2>=0.17",
+    "google-generativeai>=0.7",
+    "openai>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+omni_describer_custom = ["*.py"]

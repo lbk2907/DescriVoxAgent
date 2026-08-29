@@ -1,0 +1,256 @@
+"""
+Omni Describer Custom — Described Video Player.
+
+VLC-based player with audio descriptions overlay.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from typing import Any
+
+import wx
+
+from ..core.project_store import ProjectStore
+from ..core.tts_engine import TTSEngine
+from ..i18n.strings import I18n, t
+
+logger = logging.getLogger(__name__)
+
+
+class PlayerWindow(wx.Frame):
+    """
+    Described Video Player with TTS audio descriptions.
+    """
+
+    def __init__(self, parent, project_store: ProjectStore, tts_engine: TTSEngine):
+        self.project = project_store.current
+        self.store = project_store
+        self.tts = tts_engine
+        self._current_desc_idx = 0
+        self._playing = False
+        self._timer: wx.Timer | None = None
+        self._position = 0.0  # Current playback position in seconds
+        self._vlc = None
+        self._vlc_instance = None
+
+        super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
+                         size=(1000, 700))
+
+        self._build_ui()
+        self._load_descriptions()
+
+        # Timer for checking playback position
+        self._timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
+
+        logger.info("PlayerWindow opened")
+
+    def _build_ui(self):
+        """Build player UI."""
+        panel = wx.Panel(self)
+        panel.SetName("player_panel")
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        panel.SetSizer(sizer)
+
+        # ── Video Area ─────────────────────────────────────────
+        self.video_panel = wx.Panel(panel, size=(854, 480), name="video_area")
+        self.video_panel.SetBackgroundColour(wx.Colour(0, 0, 0))
+        sizer.Add(self.video_panel, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        # ── Transport Controls ─────────────────────────────────
+        controls = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.play_btn = wx.Button(panel, label=t("player.play"), name="play")
+        self.pause_btn = wx.Button(panel, label=t("player.pause"), name="pause")
+        self.stop_btn = wx.Button(panel, label=t("player.stop"), name="stop_player")
+
+        self.rewind_btn = wx.Button(panel, label="<< 10s", name="rewind")
+        self.forward_btn = wx.Button(panel, label="10s >>", name="forward")
+
+        controls.Add(self.play_btn, 0, wx.ALL, 5)
+        controls.Add(self.pause_btn, 0, wx.ALL, 5)
+        controls.Add(self.stop_btn, 0, wx.ALL, 5)
+        controls.AddStretchSpacer()
+        controls.Add(self.rewind_btn, 0, wx.ALL, 5)
+        controls.Add(self.forward_btn, 0, wx.ALL, 5)
+
+        sizer.Add(controls, 0, wx.ALL | wx.EXPAND, 5)
+
+        # ── Timeline Slider ────────────────────────────────────
+        timeline_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.position_slider = wx.Slider(panel, value=0, minValue=0, maxValue=1000,
+                                         style=wx.SL_HORIZONTAL, name="timeline")
+        self.time_label = wx.StaticText(panel, label="00:00 / 00:00", name="time_display")
+        timeline_row.Add(self.position_slider, 1, wx.ALL | wx.EXPAND, 5)
+        timeline_row.Add(self.time_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(timeline_row, 0, wx.ALL | wx.EXPAND, 5)
+
+        # ── Description Display ────────────────────────────────
+        desc_box = wx.StaticBox(panel, label=t("player.current_desc"))
+        desc_sizer = wx.StaticBoxSizer(desc_box, wx.VERTICAL)
+
+        self.current_desc_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
+                                             size=(-1, 80), name="current_description")
+        self.current_desc_text.SetValue("")
+        desc_sizer.Add(self.current_desc_text, 1, wx.ALL | wx.EXPAND, 5)
+
+        # Upcoming
+        upcoming_row = wx.BoxSizer(wx.HORIZONTAL)
+        upcoming_label = wx.StaticText(panel, label=t("player.upcoming"), name="upcoming_label")
+        self.upcoming_text = wx.TextCtrl(panel, style=wx.TE_READONLY, size=(-1, -1),
+                                         name="upcoming_description")
+        upcoming_row.Add(upcoming_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        upcoming_row.Add(self.upcoming_text, 1, wx.ALL | wx.EXPAND, 5)
+        desc_sizer.Add(upcoming_row, 0, wx.EXPAND)
+
+        sizer.Add(desc_sizer, 0, wx.ALL | wx.EXPAND, 10)
+
+        # ── Action Buttons ─────────────────────────────────────
+        action_row = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.edit_btn = wx.Button(panel, label=t("editor.title"), name="edit_descriptions")
+        self.ask_btn = wx.Button(panel, label=t("player.ask_more"), name="ask_more")
+        self.explore_btn = wx.Button(panel, label=t("player.explore"), name="explore")
+
+        action_row.Add(self.edit_btn, 0, wx.ALL, 5)
+        action_row.Add(self.ask_btn, 0, wx.ALL, 5)
+        action_row.Add(self.explore_btn, 0, wx.ALL, 5)
+
+        sizer.Add(action_row, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+
+        # ── Status ─────────────────────────────────────────────
+        self.status_text = wx.StaticText(panel, label="", name="player_status")
+        sizer.Add(self.status_text, 0, wx.ALL, 5)
+
+        # ── Bindings ───────────────────────────────────────────
+        self.play_btn.Bind(wx.EVT_BUTTON, self._on_play)
+        self.pause_btn.Bind(wx.EVT_BUTTON, self._on_pause)
+        self.stop_btn.Bind(wx.EVT_BUTTON, self._on_stop)
+        self.rewind_btn.Bind(wx.EVT_BUTTON, self._on_rewind)
+        self.forward_btn.Bind(wx.EVT_BUTTON, self._on_forward)
+        self.position_slider.Bind(wx.EVT_SLIDER, self._on_seek)
+        self.edit_btn.Bind(wx.EVT_BUTTON, self._on_edit)
+        self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
+        self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
+        self.Bind(wx.EVT_CLOSE, self._on_close)
+
+        # Start timer
+        self._timer.Start(500)  # 500ms interval
+
+        panel.Layout()
+
+    def _load_descriptions(self):
+        """Load descriptions from current project."""
+        if not self.project or not self.project.descriptions:
+            self.current_desc_text.SetValue("No descriptions available.")
+            return
+        self._update_desc_display()
+
+    def _update_desc_display(self):
+        """Update current + upcoming description display."""
+        if not self.project or not self.project.descriptions:
+            return
+
+        descs = self.project.descriptions
+        self._current_desc_idx = 0
+
+        # Find description matching current position
+        for i, desc in enumerate(descs):
+            if desc.start_time <= self._position < desc.end_time:
+                self._current_desc_idx = i
+                break
+            elif desc.start_time > self._position:
+                self._current_desc_idx = max(0, i - 1)
+                break
+
+        current = descs[self._current_desc_idx]
+        self.current_desc_text.SetValue(current.text)
+
+        if self._current_desc_idx + 1 < len(descs):
+            upcoming = descs[self._current_desc_idx + 1]
+            self.upcoming_text.SetValue(f"[{upcoming.start_time:.1f}s] {upcoming.text[:80]}...")
+        else:
+            self.upcoming_text.SetValue("(end)")
+
+        # Update time label
+        self._update_time_label()
+
+    def _update_time_label(self):
+        """Update time display."""
+        if self.project:
+            dur = self.project.video_duration
+        else:
+            dur = 0
+        pos_str = self._format_time(self._position)
+        dur_str = self._format_time(dur)
+        self.time_label.SetLabel(f"{pos_str} / {dur_str}")
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        """Format seconds to MM:SS."""
+        m = int(seconds) // 60
+        s = int(seconds) % 60
+        return f"{m:02d}:{s:02d}"
+
+    def _on_timer(self, event):
+        """Periodic update from playback."""
+        if self._playing:
+            self._position += 0.5  # 500ms tick
+            self._update_desc_display()
+            self.position_slider.SetValue(int(self._position * 10))
+
+    def _on_play(self, event):
+        self._playing = True
+        self.status_text.SetLabel("Playing...")
+        self._timer.Start(500)
+
+    def _on_pause(self, event):
+        self._playing = False
+        self.status_text.SetLabel("Paused")
+        self._timer.Stop()
+
+    def _on_stop(self, event):
+        self._playing = False
+        self._position = 0.0
+        self.position_slider.SetValue(0)
+        self._update_desc_display()
+        self.status_text.SetLabel("Stopped")
+
+    def _on_rewind(self, event):
+        self._position = max(0, self._position - 10)
+        self._update_desc_display()
+
+    def _on_forward(self, event):
+        self._position += 10
+        self._update_desc_display()
+
+    def _on_seek(self, event):
+        self._position = self.position_slider.GetValue() / 10.0
+        self._update_desc_display()
+
+    def _on_edit(self, event):
+        """Open description editor."""
+        editor = EditorWindow(self, self.store, self.tts)
+        editor.Show()
+
+    def _on_ask(self, event):
+        """Open 'ask more' dialog."""
+        from .ask_more_dialog import AskMoreDialog
+        dlg = AskMoreDialog(self, self.ai_engine if hasattr(self, 'ai_engine') else None)
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def _on_explore(self, event):
+        """Open scene explorer."""
+        from .scene_explorer import SceneExplorer
+        explorer = SceneExplorer(self, None, None)
+        explorer.Show()
+
+    def _on_close(self, event):
+        self._playing = False
+        if self._timer:
+            self._timer.Stop()
+        self.Destroy()
