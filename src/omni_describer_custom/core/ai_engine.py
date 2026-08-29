@@ -65,9 +65,9 @@ class GeminiProvider(AIProvider):
         "gemini-2.0-flash",
     ]
 
-    def __init__(self, api_key: str = ""):
+    def __init__(self, api_key: str = "", base_url: str = ""):
         self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        self.base_url = base_url or "https://generativelanguage.googleapis.com/v1beta"
 
     async def describe_image(
         self, image_path: str, prompt: str, model: str = ""
@@ -120,6 +120,36 @@ class GeminiProvider(AIProvider):
                 desc = f"(error: {e})"
             results.append(desc)
         return results
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("Gemini API key not configured")
+        model = model or self.models[0]
+        contents: list[dict] = []
+        for msg in (history or []):
+            role = "user" if msg.get("role") == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+        contents.append({"role": "user", "parts": [{"text": question}]})
+
+        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+        payload = {
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 1024},
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"Gemini error: {data['error']}")
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    return "(no response from Gemini)"
+                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                return text or "(empty response)"
+
 
 
 class OpenAIProvider(AIProvider):
@@ -190,6 +220,35 @@ class OpenAIProvider(AIProvider):
                 desc = f"(error: {e})"
             results.append(desc)
         return results
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("OpenAI API key not configured")
+        model = model or self.models[0]
+        messages: list[dict] = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (history or [])
+        ]
+        messages.append({"role": "user", "content": question})
+        url = f"{self.base_url}/chat/completions"
+        payload = {"model": model, "max_tokens": 1024, "messages": messages}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"OpenAI error: {data['error']}")
+                choices = data.get("choices", [])
+                if not choices:
+                    return "(no response from OpenAI)"
+                return choices[0]["message"]["content"]
+
 
 
 class OpusProvider(AIProvider):
@@ -268,6 +327,37 @@ class OpusProvider(AIProvider):
                 desc = f"(error: {e})"
             results.append(desc)
         return results
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("Opus Proxy API key not configured")
+        model = model or self.models[0]
+        messages: list[dict] = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (history or [])
+        ]
+        messages.append({"role": "user", "content": question})
+        url = f"{self.base_url}/messages"
+        payload = {"model": model, "max_tokens": 1024, "messages": messages}
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=120)
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"Opus Proxy HTTP {resp.status}: {body[:200]}")
+                data = await resp.json()
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        return block["text"]
+                return "(no text in Opus response)"
+
 
 
 # Custom provider API format constants
@@ -317,7 +407,7 @@ class CustomProvider(AIProvider):
         fmt = self._detect_format()
         img_b64, mime = self._load_image_b64(image_path)
 
-        if fmt == self.FORMAT_ANTHROPIC:
+        if fmt == FORMAT_ANTHROPIC:
             return await self._call_anthropic(model, prompt, img_b64, mime)
         return await self._call_openai(model, prompt, img_b64, mime)
 
@@ -437,8 +527,6 @@ class AIEngine:
         cls = self.PROVIDERS[name]
         if name == "custom":
             self._providers[name] = cls(api_key=api_key, base_url=base_url, model=model, api_format=api_format or FORMAT_AUTO)
-        elif name == "openai" and base_url:
-            self._providers[name] = cls(api_key=api_key, base_url=base_url)
         else:
             self._providers[name] = cls(api_key=api_key, base_url=base_url)
         self._default_provider = name
@@ -459,6 +547,23 @@ class AIEngine:
         if name not in self._providers:
             raise ValueError(f"Provider not configured: {name}")
         return self._providers[name]
+
+    async def ask(
+        self,
+        question: str,
+        history: list[dict] | None = None,
+        provider: str = "",
+        model: str = "",
+    ) -> str:
+        """Free-form text question to the current provider (no image)."""
+        provider_name = provider or self._default_provider
+        if not provider_name or provider_name not in self._providers:
+            raise ValueError("No AI provider configured. Call set_provider() first.")
+        prov = self._providers[provider_name]
+        ask_fn = getattr(prov, "ask_text", None)
+        if ask_fn is None:
+            raise ValueError(f"Provider '{provider_name}' does not support text questions.")
+        return await ask_fn(question, history, model)
 
     async def describe_frame(
         self,

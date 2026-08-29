@@ -25,10 +25,17 @@ class PlayerWindow(wx.Frame):
     Described Video Player with TTS audio descriptions.
     """
 
-    def __init__(self, parent, project_store: ProjectStore, tts_engine: TTSEngine):
+    def __init__(
+        self,
+        parent,
+        project_store: ProjectStore,
+        tts_engine: TTSEngine,
+        ai_engine=None,
+    ):
         self.project = project_store.current
         self.store = project_store
         self.tts = tts_engine
+        self.ai_engine = ai_engine
         self._current_desc_idx = 0
         self._playing = False
         self._timer: wx.Timer | None = None
@@ -243,7 +250,7 @@ class PlayerWindow(wx.Frame):
     def _on_ask(self, event):
         """Open 'ask more' dialog."""
         from .ask_more_dialog import AskMoreDialog
-        dlg = AskMoreDialog(self, self.ai_engine if hasattr(self, 'ai_engine') else None)
+        dlg = AskMoreDialog(self, self.ai_engine)
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -251,9 +258,9 @@ class PlayerWindow(wx.Frame):
         """Open scene explorer."""
         from .scene_explorer import SceneExplorer
         video_path = ""
-        if self.store.current and self.store.current.source_path:
-            video_path = self.store.current.source_path
-        explorer = SceneExplorer(self, None, video_path)
+        if self.store.current:
+            video_path = self.store.current.video_path
+        explorer = SceneExplorer(self, self.ai_engine, video_path)
         explorer.Show()
 
     def _on_speak(self, event):

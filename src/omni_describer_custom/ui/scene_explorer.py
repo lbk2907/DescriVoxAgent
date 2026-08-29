@@ -117,12 +117,13 @@ class SceneExplorer(wx.Frame):
             self._show_frame(0)
 
     def _load_sample_frames(self):
-        """Load sample frames from memory vault for testing."""
-        import glob
-        frame_paths = sorted(glob.glob("C:/Users/USER/Documents/MemoryVault/raw/watched/ocing-kena-guna-guna-2026-08-29/frame_*.jpg"))
-        self.frames = [{"path": p, "time": i * 0.5} for i, p in enumerate(frame_paths)]
-        if self.frames:
-            self._show_frame(0)
+        """No video available — leave frame list empty and inform the user."""
+        self.frames = []
+        self.frame_info.SetLabel("Frame 0 / 0")
+        self.status_text.SetLabel(
+            "No video loaded. Open a project or process a video first."
+        )
+        logger.info("SceneExplorer opened without a video source")
 
     def _show_frame(self, idx: int):
         """Display frame at index."""

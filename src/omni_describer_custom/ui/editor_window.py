@@ -150,11 +150,17 @@ class EditorWindow(wx.Frame):
         text = self.text_ctrl.GetValue().strip()
         if not text:
             return
-        # Run TTS in background
+        # Run TTS in background (async engine.speak needs an event loop)
         def speak():
-            engine = self.tts._engines.get(self.tts._current_engine)
-            if engine:
-                engine.speak(text)
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.tts.speak(text))
+            except Exception as e:
+                logger.error("TTS speak error: %s", e)
+            finally:
+                loop.close()
         threading.Thread(target=speak, daemon=True).start()
 
     def _on_close(self, event):

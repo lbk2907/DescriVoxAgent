@@ -16,6 +16,9 @@ dependencies = [
     "accessible-output2>=0.17",
     "google-generativeai>=0.7",
     "openai>=1.0",
+    "aiohttp>=3.9",
+    "pywin32>=306; sys_platform == 'win32'",
+    "yt-dlp>=2024.1.0",
 ]
 
 [project.optional-dependencies]

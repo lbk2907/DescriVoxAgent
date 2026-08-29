@@ -268,12 +268,14 @@ class SettingsDialog(wx.Dialog):
 
     def _on_toggle_key(self, event):
         """Toggle API key visibility."""
+        value = self.api_key_text.GetValue()
         if event.IsChecked():
-            self.api_key_text.SetWindowStyleFlag(wx.TE_PASSWORD ^ wx.TE_PASSWORD)
+            self.api_key_text.SetWindowStyleFlag(wx.TE_PROCESS_ENTER)
             self.show_key_btn.SetLabel("Hide")
         else:
             self.api_key_text.SetWindowStyleFlag(wx.TE_PASSWORD)
             self.show_key_btn.SetLabel("Show")
+        self.api_key_text.ChangeValue(value)
         self.api_key_text.SetFocus()
 
     def _on_provider_changed(self, event):

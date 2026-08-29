@@ -393,7 +393,13 @@ class MainFrame(wx.Frame):
             self._on_settings(None)
             return
 
-        self.ai_engine.set_provider(provider, api_key=prov_config["api_key"])
+        self.ai_engine.set_provider(
+            provider,
+            api_key=prov_config["api_key"],
+            base_url=prov_config.get("base_url", ""),
+            model=prov_config.get("model", ""),
+            api_format=prov_config.get("api_format", ""),
+        )
 
         self._processing = True
         self.btn_preset_open.Disable()
@@ -500,6 +506,16 @@ class MainFrame(wx.Frame):
         self.prompt_choice.SetItems(names)
         if names:
             self.prompt_choice.SetSelection(0)
+
+    def _open_player(self):
+        """Open the described video player window."""
+        from .player_window import PlayerWindow
+        try:
+            win = PlayerWindow(self, self.project_store, self.tts_engine, self.ai_engine)
+            win.Show()
+        except Exception as e:
+            logger.error("Failed to open PlayerWindow: %s", e)
+            self._log("ERROR opening player: " + str(e))
 
     def _log(self, message: str):
         """Append a line to the status log."""

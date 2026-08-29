@@ -65,7 +65,7 @@ class VideoProcessor:
         candidates = [
             Path(__file__).parent.parent.parent / "bin" / "ffmpeg.exe",
             Path(__file__).parent.parent / "bin" / "ffmpeg.exe",
-            Path("C:/Users/USER/Documents/omni_describer/bin/ffmpeg.exe"),
+            Path.cwd() / "bin" / "ffmpeg.exe",
         ]
         for c in candidates:
             if c.exists():
@@ -83,7 +83,7 @@ class VideoProcessor:
         candidates = [
             Path(__file__).parent.parent.parent / "bin" / "yt-dlp.exe",
             Path(__file__).parent.parent / "bin" / "yt-dlp.exe",
-            Path("C:/Users/USER/Documents/omni_describer/bin/yt-dlp.exe"),
+            Path.cwd() / "bin" / "yt-dlp.exe",
         ]
         for c in candidates:
             if c.exists():
@@ -124,7 +124,12 @@ class VideoProcessor:
                 if stream.get("codec_type") == "video":
                     info.width = stream.get("width", 0)
                     info.height = stream.get("height", 0)
-                    info.fps = eval(stream.get("r_frame_rate", "0/1"))
+                    rate = stream.get("r_frame_rate", "0/1")
+                    try:
+                        num, _, den = rate.partition("/")
+                        info.fps = float(num) / float(den or 1)
+                    except (ValueError, ZeroDivisionError):
+                        info.fps = 0.0
                 elif stream.get("codec_type") == "audio":
                     info.has_audio = True
 
@@ -133,6 +138,40 @@ class VideoProcessor:
             info.has_audio = False
 
         return info
+
+    async def resolve_source(self, path_or_url: str) -> str:
+        """
+        Resolve a video source. Remote URLs (YouTube etc.) are downloaded
+        via yt-dlp into a temp dir; local paths are returned unchanged.
+        """
+        if Path(path_or_url).exists():
+            return str(Path(path_or_url).resolve())
+        if not (path_or_url.startswith("http://") or path_or_url.startswith("https://")):
+            return path_or_url
+
+        out_dir = tempfile.mkdtemp(prefix="odc_video_")
+        out_tmpl = str(Path(out_dir) / "video.%(ext)s")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.ytdlp,
+                "-f", "best[ext=mp4]/best",
+                "-o", out_tmpl,
+                "--no-playlist",
+                path_or_url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+            if proc.returncode != 0:
+                logger.error("yt-dlp error: %s", stderr.decode()[:300])
+                return path_or_url
+            files = list(Path(out_dir).glob("video.*"))
+            if files:
+                logger.info("Downloaded source: %s", files[0])
+                return str(files[0])
+        except Exception as e:
+            logger.error("yt-dlp download failed: %s", e)
+        return path_or_url
 
     async def extract_frames(
         self,
@@ -145,6 +184,7 @@ class VideoProcessor:
         Extract frames at specified FPS.
         Optionally detect scene changes (skip similar consecutive frames).
         """
+        video_path = await self.resolve_source(video_path)
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 
