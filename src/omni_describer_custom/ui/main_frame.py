@@ -22,6 +22,7 @@ from ..core.project_store import ProjectStore
 from ..core.settings_store import SettingsStore
 from ..core.prompt_manager import PromptManager
 from ..i18n.strings import I18n, t
+from .settings_dialog import PROVIDER_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +107,19 @@ class MainFrame(wx.Frame):
         prov_row = wx.BoxSizer(wx.HORIZONTAL)
         prov_label = wx.StaticText(panel, label=t("main.provider"),
                                    name="provider_label")
-        self.provider_choice = wx.Choice(panel, choices=["opus", "gemini", "openai"],
+        self.provider_choice = wx.Choice(panel, choices=["opus", "gemini", "openai", "custom"],
                                          name="provider_choice")
         self.provider_choice.SetLabel(t("main.provider"))
         prov_row.Add(prov_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        prov_row.Add(self.provider_choice, 1, wx.ALL | wx.EXPAND, 5)
+        prov_row.Add(self.provider_choice, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Model dropdown
+        self.model_choice = wx.Choice(panel, name="model_choice")
+        self._refresh_model_list()
+        prov_row.Add(wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        prov_row.Add(self.model_choice, 1, wx.ALL | wx.EXPAND, 5)
+        self.provider_choice.Bind(wx.EVT_CHOICE, self._on_main_provider_changed)
+        self.model_choice.Bind(wx.EVT_CHOICE, self._on_main_model_changed)
 
         # Prompt preset
         prompt_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -211,6 +220,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_open_project, id=wx.ID_OPEN)
         self.Bind(wx.EVT_MENU, self._on_save_project, id=wx.ID_SAVE)
         self.Bind(wx.EVT_MENU, self._on_close, id=wx.ID_CLOSE)
+        self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
         self.Bind(wx.EVT_CLOSE, self._on_close_window)
 
     def _on_browse(self, event):
@@ -339,6 +349,18 @@ class MainFrame(wx.Frame):
         """Exit application."""
         self.Close()
 
+    def _on_about(self, event):
+        """Show About dialog."""
+        info = wx.adv.AboutDialogInfo()
+        info.SetName("Omni Describer Custom")
+        info.SetVersion("1.0.0")
+        info.SetDescription(
+            "Accessible audio description tool for blind and visually impaired users. "
+            "Describes video frames using AI and narrates them via text-to-speech."
+        )
+        info.SetCopyright("(C) 2026 Omni Describer Custom")
+        wx.adv.AboutBox(info)
+
     def _on_close_window(self, event):
         """Handle window close."""
         self._processing = False
@@ -448,10 +470,46 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
         self._load_provider_settings()
 
+    def _on_main_provider_changed(self, event):
+        """Update model list when main provider changes."""
+        provider = self.provider_choice.GetStringSelection()
+        self._refresh_model_list()
+        # Load model from settings
+        prov_config = self.settings.get_ai_provider(provider)
+        if prov_config.get("model"):
+            self.model_choice.SetStringSelection(prov_config["model"])
+        self.settings.set("ai.default_provider", provider)
+
+    def _on_main_model_changed(self, event):
+        """Save selected model when changed."""
+        provider = self.provider_choice.GetStringSelection()
+        model = self.model_choice.GetStringSelection()
+        if provider and model:
+            config = self.settings.get_ai_provider(provider)
+            config["model"] = model
+            self.settings.set_ai_provider(provider, config)
+
+    def _refresh_model_list(self):
+        """Refresh model dropdown from provider presets."""
+        provider = self.provider_choice.GetStringSelection()
+        models = PROVIDER_MODELS.get(provider, [])
+        if provider == "custom":
+            # For custom, load the saved model name if available
+            config = self.settings.get_ai_provider("custom")
+            saved = config.get("model", "")
+            models = [saved] if saved else ["(enter model in Settings)"]
+        self.model_choice.SetItems(models)
+        if models:
+            self.model_choice.SetSelection(0)
+
     def _load_provider_settings(self):
-        """Load current provider into UI."""
+        """Load current provider and model into UI."""
         default = self.settings.get("ai.default_provider", "opus")
         self.provider_choice.SetStringSelection(default)
+        self._refresh_model_list()
+        prov_config = self.settings.get_ai_provider(default)
+        if prov_config.get("model"):
+            self.model_choice.SetStringSelection(prov_config["model"])
 
     def _refresh_prompt_list(self):
         """Refresh prompt preset dropdown."""

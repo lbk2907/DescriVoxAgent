@@ -40,18 +40,7 @@ def main():
     # Create wx App
     app = wx.App(False)
 
-    # Set app info
-    info = wx.adv.AboutDialogInfo()
-    info.SetName("Omni Describer Custom")
-    info.SetVersion("1.0.0")
-    info.SetDescription(
-        "Accessible audio description tool for blind and visually impaired users. "
-        "Describes video frames using AI and narrates them via text-to-speech."
-    )
-    info.SetCopyright("(C) 2026 Omni Describer Custom")
-    wx.adv.AboutBox(info)
-
-    # Add src/ to path for package imports
+    # Add src/ to path for package imports (before any omni_describer imports)
     src_dir = str(Path(__file__).parent / "src")
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)

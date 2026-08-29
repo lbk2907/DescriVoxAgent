@@ -270,6 +270,146 @@ class OpusProvider(AIProvider):
         return results
 
 
+# Custom provider API format constants
+FORMAT_OPENAI = "openai"
+FORMAT_ANTHROPIC = "anthropic"
+FORMAT_AUTO = "auto"
+
+
+class CustomProvider(AIProvider):
+    """Custom AI provider — user supplies base_url + model name.
+    Auto-detects API format (OpenAI-compatible vs Anthropic) from base_url
+    or explicit format selector."""
+
+    name = "custom"
+    models = []  # Dynamic — user provides their own
+
+    def __init__(
+        self,
+        api_key: str = "",
+        base_url: str = "",
+        model: str = "",
+        api_format: str = FORMAT_AUTO,
+    ):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/") if base_url else ""
+        self.model = model or "custom-model"
+        self.api_format = api_format
+
+    def _detect_format(self) -> str:
+        """Auto-detect API format from base_url."""
+        if self.api_format != self.FORMAT_AUTO:
+            return self.api_format
+        url = self.base_url.lower()
+        if "anthropic" in url or "claude" in url:
+            return self.FORMAT_ANTHROPIC
+        return self.FORMAT_OPENAI
+
+    async def describe_image(
+        self, image_path: str, prompt: str, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("Custom provider: no API key configured")
+        if not self.base_url:
+            raise ValueError("Custom provider: no base URL configured")
+
+        model = model or self.model
+        fmt = self._detect_format()
+        img_b64, mime = self._load_image_b64(image_path)
+
+        if fmt == self.FORMAT_ANTHROPIC:
+            return await self._call_anthropic(model, prompt, img_b64, mime)
+        return await self._call_openai(model, prompt, img_b64, mime)
+
+    async def _call_openai(self, model: str, prompt: str, img_b64: str, mime: str) -> str:
+        """OpenAI-compatible chat completions (vision)."""
+        data_url = f"data:{mime};base64,{img_b64}"
+        url = f"{self.base_url}/chat/completions"
+        payload = {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }],
+        }
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"Custom API error: {data['error']}")
+                choices = data.get("choices", [])
+                if not choices:
+                    return "(no response from custom API)"
+                return choices[0]["message"]["content"]
+
+    async def _call_anthropic(self, model: str, prompt: str, img_b64: str, mime: str) -> str:
+        """Anthropic Messages API format."""
+        url = f"{self.base_url}/messages"
+        payload = {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {
+                        "type": "base64", "media_type": mime, "data": img_b64,
+                    }},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        }
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
+                data = await resp.json()
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        return block["text"]
+                return "(no text in custom API response)"
+
+    async def describe_frames_batch(
+        self, frames: list[str], prompt: str, model: str = ""
+    ) -> list[str]:
+        results = []
+        for frame in frames:
+            try:
+                desc = await self.describe_image(frame, prompt, model)
+            except Exception as e:
+                logger.warning("Custom provider frame error: %s", e)
+                desc = f"(error: {e})"
+            results.append(desc)
+        return results
+
+    async def ask_about_scene(
+        self, image_path: str, question: str, model: str = ""
+    ) -> str:
+        return await self.describe_image(image_path, question, model)
+
+
 class AIEngine:
     """
     High-level AI engine with provider management and auto-fallback.
@@ -283,23 +423,26 @@ class AIEngine:
         "gemini": GeminiProvider,
         "openai": OpenAIProvider,
         "opus": OpusProvider,
+        "custom": CustomProvider,
     }
 
     def __init__(self):
         self._providers: dict[str, AIProvider] = {}
         self._default_provider: str = ""
 
-    def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "") -> None:
+    def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "", api_format: str = "") -> None:
         """Configure a provider with credentials."""
         if name not in self.PROVIDERS:
             raise ValueError(f"Unknown provider: {name}. Available: {list(self.PROVIDERS)}")
         cls = self.PROVIDERS[name]
-        if name == "openai" and base_url:
+        if name == "custom":
+            self._providers[name] = cls(api_key=api_key, base_url=base_url, model=model, api_format=api_format or FORMAT_AUTO)
+        elif name == "openai" and base_url:
             self._providers[name] = cls(api_key=api_key, base_url=base_url)
         else:
-            self._providers[name] = cls(api_key=api_key, base_url=base_url or model and base_url or "")
+            self._providers[name] = cls(api_key=api_key, base_url=base_url)
         self._default_provider = name
-        logger.info("AI provider set: %s", name)
+        logger.info("AI provider set: %s (model=%s)", name, model or "default")
 
     def set_default(self, name: str) -> None:
         """Set which provider to use by default."""

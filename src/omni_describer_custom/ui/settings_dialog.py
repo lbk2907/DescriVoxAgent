@@ -2,25 +2,58 @@
 Omni Describer Custom — Settings Dialog.
 
 Tabbed dialog: AI, TTS, General settings.
+Supports custom AI providers (user-supplied base_url + model).
 """
 
 from __future__ import annotations
 
 import logging
 import wx
+from typing import Any
+
 from ..i18n.strings import I18n, t
 
 logger = logging.getLogger(__name__)
+
+# Provider model presets
+PROVIDER_MODELS: dict[str, list[str]] = {
+    "opus": [
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5",
+    ],
+    "gemini": [
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ],
+    "openai": [
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "o4-mini",
+    ],
+    "custom": [],  # user provides their own
+}
+
+API_FORMATS = [
+    ("auto", "settings.format_auto"),
+    ("openai", "settings.format_openai"),
+    ("anthropic", "settings.format_anthropic"),
+]
 
 
 class SettingsDialog(wx.Dialog):
     """Settings dialog with tabbed interface."""
 
     def __init__(self, parent, settings):
-        super().__init__(parent, title=t("settings.title"), size=(600, 500),
+        super().__init__(parent, title=t("settings.title"), size=(650, 560),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.settings = settings
-        self._temp_changes: dict[str, Any] = {}
+        self._custom_visible = False
         self._build_ui()
         self._load_values()
         logger.info("SettingsDialog opened")
@@ -34,7 +67,6 @@ class SettingsDialog(wx.Dialog):
 
         # Notebook (tabs)
         self.notebook = wx.Notebook(panel, name="settings_notebook")
-        self.notebook.SetLabel(t("settings.title"))
 
         # Tab 1: AI Settings
         ai_panel = self._build_ai_tab()
@@ -73,25 +105,63 @@ class SettingsDialog(wx.Dialog):
         panel.Layout()
 
     def _build_ai_tab(self) -> wx.Panel:
-        """Build AI settings tab."""
+        """Build AI settings tab with provider, model, and custom fields."""
         panel = wx.ScrolledWindow(self.notebook)
         panel.SetScrollRate(5, 5)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Provider
         sizer.Add(wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5)
-        self.provider_choice = wx.Choice(panel, choices=["opus", "gemini", "openai"], name="ai_provider")
+        self.provider_choice = wx.Choice(
+            panel,
+            choices=["opus", "gemini", "openai", "custom"],
+            name="ai_provider",
+        )
         self.provider_choice.SetLabel(t("settings.provider"))
         sizer.Add(self.provider_choice, 0, wx.ALL | wx.EXPAND, 5)
-
-        # Provider changes -> update model list
         self.provider_choice.Bind(wx.EVT_CHOICE, self._on_provider_changed)
 
-        # Model
-        sizer.Add(wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL, 5)
+        # Model (dropdown for built-in, text field for custom)
+        model_sizer = wx.BoxSizer(wx.VERTICAL)
+        model_sizer.Add(wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL, 5)
+
         self.model_choice = wx.Choice(panel, name="ai_model")
         self.model_choice.SetLabel(t("settings.model"))
-        sizer.Add(self.model_choice, 0, wx.ALL | wx.EXPAND, 5)
+        model_sizer.Add(self.model_choice, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Custom model text input (hidden by default)
+        self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
+        self.custom_model_text.SetHint("e.g. my-model-v1")
+        self.custom_model_text.Hide()
+        model_sizer.Add(self.custom_model_text, 0, wx.ALL | wx.EXPAND, 5)
+
+        sizer.Add(model_sizer, 0, wx.EXPAND)
+
+        # ── Custom provider fields (hidden by default) ──────────
+        self.custom_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Base URL
+        self.custom_sizer.Add(
+            wx.StaticText(panel, label=t("settings.base_url"), name="base_url_label"),
+            0, wx.ALL, 5,
+        )
+        self.base_url_text = wx.TextCtrl(panel, name="custom_base_url")
+        self.base_url_text.SetHint(t("settings.base_url_placeholder"))
+        self.base_url_text.SetLabel(t("settings.base_url"))
+        self.custom_sizer.Add(self.base_url_text, 0, wx.ALL | wx.EXPAND, 5)
+
+        # API Format
+        self.custom_sizer.Add(
+            wx.StaticText(panel, label=t("settings.api_format"), name="api_format_label"),
+            0, wx.ALL, 5,
+        )
+        fmt_labels = [t(label_key) for _, label_key in API_FORMATS]
+        self.format_choice = wx.Choice(panel, choices=fmt_labels, name="api_format")
+        self.custom_sizer.Add(self.format_choice, 0, wx.ALL | wx.EXPAND, 5)
+
+        sizer.Add(self.custom_sizer, 0, wx.EXPAND)
+        self._custom_sizer_items = list(self.custom_sizer.GetChildren())
+        self._hide_custom_fields()
 
         # API Key
         sizer.Add(wx.StaticText(panel, label=t("settings.api_key"), name="api_key_label"), 0, wx.ALL, 5)
@@ -173,6 +243,27 @@ class SettingsDialog(wx.Dialog):
         panel.SetSizer(sizer)
         return panel
 
+    # ── Custom Provider UI Helpers ────────────────────────────
+
+    def _hide_custom_fields(self):
+        """Hide custom provider fields."""
+        for child_info in self._custom_sizer_items:
+            win = child_info.GetWindow()
+            if win:
+                win.Hide()
+        self._custom_visible = False
+        self.custom_model_text.Hide()
+
+    def _show_custom_fields(self):
+        """Show custom provider fields."""
+        for child_info in self._custom_sizer_items:
+            win = child_info.GetWindow()
+            if win:
+                win.Show()
+        self.custom_model_text.Show()
+        self._custom_visible = True
+        self.Layout()
+
     # ── Event Handlers ─────────────────────────────────────────
 
     def _on_toggle_key(self, event):
@@ -186,16 +277,44 @@ class SettingsDialog(wx.Dialog):
         self.api_key_text.SetFocus()
 
     def _on_provider_changed(self, event):
-        """Update model list when provider changes."""
+        """Update model list and show/hide custom fields when provider changes."""
         provider = self.provider_choice.GetStringSelection()
-        providers = self.settings.get("ai.providers", {})
-        if provider in providers:
-            model = providers[provider].get("model", "")
-            self.model_choice.SetStringSelection(model)
-            # Load existing key
-            config = self.settings.get_ai_provider(provider)
+
+        if provider == "custom":
+            self._show_custom_fields()
+            self.model_choice.Hide()
+            self.custom_model_text.Show()
+            self.custom_model_text.SetFocus()
+            # Load custom config
+            config = self.settings.get_ai_provider("custom")
+            if config.get("model"):
+                self.custom_model_text.SetValue(config["model"])
+            if config.get("base_url"):
+                self.base_url_text.SetValue(config["base_url"])
+            fmt_val = config.get("api_format", "auto")
+            fmt_idx = next((i for i, (v, _) in enumerate(API_FORMATS) if v == fmt_val), 0)
+            self.format_choice.SetSelection(fmt_idx)
             if config.get("api_key"):
                 self.api_key_text.SetValue(config["api_key"])
+        else:
+            self._hide_custom_fields()
+            self.custom_model_text.Hide()
+            self.model_choice.Show()
+            # Populate model list from presets
+            models = PROVIDER_MODELS.get(provider, [])
+            self.model_choice.SetItems(models)
+            # Load existing config
+            prov_config = self.settings.get_ai_provider(provider)
+            if prov_config.get("model"):
+                self.model_choice.SetStringSelection(prov_config["model"])
+            elif models:
+                self.model_choice.SetSelection(0)
+            if prov_config.get("api_key"):
+                self.api_key_text.SetValue(prov_config["api_key"])
+            else:
+                self.api_key_text.SetValue("")
+
+        self.Layout()
 
     def _on_tts_engine_changed(self, event):
         """Update voice list when TTS engine changes."""
@@ -216,48 +335,83 @@ class SettingsDialog(wx.Dialog):
         provider = self.provider_choice.GetStringSelection()
         api_key = self.api_key_text.GetValue().strip()
 
-        if not api_key:
-            self.test_result.SetLabel("No API key entered")
+        if provider == "custom" and not self.base_url_text.GetValue().strip():
+            self.test_result.SetLabel(t("settings.test_no_url"))
             return
 
-        self.test_result.SetLabel("Testing...")
+        if not api_key:
+            self.test_result.SetLabel(t("settings.test_no_key"))
+            return
+
+        self.test_result.SetLabel(t("settings.testing"))
         wx.Yield()
 
-        # Test in background thread
         def test():
             try:
                 from ..core.ai_engine import AIEngine
                 engine = AIEngine()
-                engine.set_provider(provider, api_key=api_key)
-                # Simple test: list models or describe a test image
+
+                if provider == "custom":
+                    engine.set_provider(
+                        "custom",
+                        api_key=api_key,
+                        base_url=self.base_url_text.GetValue().strip(),
+                        model=self.custom_model_text.GetValue().strip(),
+                        api_format=API_FORMATS[self.format_choice.GetSelection()][0],
+                    )
+                else:
+                    engine.set_provider(provider, api_key=api_key)
+
                 import asyncio
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
                     engine.describe_frame(
-                        "",  # No image = text-only test
-                        "Say 'OK' in one word"
+                        "",
+                        "Say 'OK' in one word",
+                        model=(
+                            self.custom_model_text.GetValue().strip()
+                            if provider == "custom"
+                            else ""
+                        ),
                     )
                 )
                 loop.close()
-                wx.CallAfter(self.test_result.SetLabel, f"OK: {result[:50]}")
+                wx.CallAfter(self.test_result.SetLabel, t("settings.test_ok", result=result[:60]))
             except Exception as e:
-                wx.CallAfter(self.test_result.SetLabel, f"Error: {str(e)[:100]}")
+                wx.CallAfter(self.test_result.SetLabel, t("settings.test_error", error=str(e)[:100]))
 
+        import threading
         threading.Thread(target=test, daemon=True).start()
 
     def _on_apply(self, event):
         """Apply settings."""
         provider = self.provider_choice.GetStringSelection()
-        model = self.model_choice.GetStringSelection()
-        api_key = self.api_key_text.GetValue().strip()
 
-        # Update provider config
-        config = self.settings.get_ai_provider(provider)
-        config["api_key"] = api_key
-        config["model"] = model
-        self.settings.set_ai_provider(provider, config)
-        self.settings.set("ai.default_provider", provider)
+        if provider == "custom":
+            model = self.custom_model_text.GetValue().strip()
+            base_url = self.base_url_text.GetValue().strip()
+            api_format = API_FORMATS[self.format_choice.GetSelection()][0]
+            api_key = self.api_key_text.GetValue().strip()
+            if not model:
+                wx.MessageBox(t("settings.enter_model_name"), t("settings.title"),
+                              wx.OK | wx.ICON_WARNING)
+                return
+            config = self.settings.get_ai_provider("custom")
+            config["api_key"] = api_key
+            config["model"] = model
+            config["base_url"] = base_url
+            config["api_format"] = api_format
+            self.settings.set_ai_provider("custom", config)
+            self.settings.set("ai.default_provider", "custom")
+        else:
+            model = self.model_choice.GetStringSelection()
+            api_key = self.api_key_text.GetValue().strip()
+            config = self.settings.get_ai_provider(provider)
+            config["api_key"] = api_key
+            config["model"] = model
+            self.settings.set_ai_provider(provider, config)
+            self.settings.set("ai.default_provider", provider)
 
         # Update TTS
         tts_engine = self.tts_engine_choice.GetStringSelection()
@@ -286,15 +440,9 @@ class SettingsDialog(wx.Dialog):
 
     def _load_values(self):
         """Load current settings into UI."""
-        # AI
         default_provider = self.settings.get("ai.default_provider", "opus")
         self.provider_choice.SetStringSelection(default_provider)
-
-        prov_config = self.settings.get_ai_provider(default_provider)
-        if prov_config:
-            self.model_choice.SetStringSelection(prov_config.get("model", ""))
-            if prov_config.get("api_key"):
-                self.api_key_text.SetValue(prov_config["api_key"])
+        self._on_provider_changed(None)  # Refresh model list + fields
 
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")
