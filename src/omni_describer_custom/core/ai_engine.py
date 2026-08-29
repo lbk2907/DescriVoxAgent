@@ -298,12 +298,12 @@ class CustomProvider(AIProvider):
 
     def _detect_format(self) -> str:
         """Auto-detect API format from base_url."""
-        if self.api_format != self.FORMAT_AUTO:
+        if self.api_format != FORMAT_AUTO:
             return self.api_format
         url = self.base_url.lower()
         if "anthropic" in url or "claude" in url:
-            return self.FORMAT_ANTHROPIC
-        return self.FORMAT_OPENAI
+            return FORMAT_ANTHROPIC
+        return FORMAT_OPENAI
 
     async def describe_image(
         self, image_path: str, prompt: str, model: str = ""

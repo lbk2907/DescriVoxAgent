@@ -1,7 +1,15 @@
 """
 Omni Describer Custom — Main Application Frame.
 
-Main window: video source, provider, prompt, processing controls.
+Replicates the original Omni Describer v2.1.2 UI layout:
+  - Menu bar: System, Help
+  - 4 source buttons (Local File / Direct URL / YouTube / Web Platform)
+  - Prompt preset ComboBox + Open button
+  - Multi-line custom prompt text area
+  - Status Log (read-only)
+  - Settings + Exit buttons
+
+Accessible for screen readers: labels, keyboard nav.
 """
 
 from __future__ import annotations
@@ -21,17 +29,22 @@ from ..core.tts_engine import TTSEngine
 from ..core.project_store import ProjectStore
 from ..core.settings_store import SettingsStore
 from ..core.prompt_manager import PromptManager
+from ..core.video_processor import VideoProcessor
 from ..i18n.strings import I18n, t
 from .settings_dialog import PROVIDER_MODELS
 
 logger = logging.getLogger(__name__)
 
+# Spacing constants (match original compact feel)
+_BORDER = 10
+_BTN_H = 28
+_COMBO_H = 23
+_EDIT_H = 80
+_LOG_H = 110
+
 
 class MainFrame(wx.Frame):
-    """
-    Main application window.
-    Accessible for screen readers: labels, keyboard nav.
-    """
+    """Main application window — mirrors Omni Describer v2.1.2 layout."""
 
     def __init__(self):
         self.settings = SettingsStore()
@@ -42,284 +55,286 @@ class MainFrame(wx.Frame):
         self._processing = False
         self._worker: threading.Thread | None = None
         self._current_frames: list[str] = []
+        self._current_source: str = ""
 
-        # Set language from settings
+        # Language
         lang = self.settings.get("general.language", "en")
         I18n.set_language(lang)
 
         title = t("main.title")
-        super().__init__(None, title=title, size=(900, 600),
-                         style=wx.DEFAULT_FRAME_STYLE | wx.MAXIMIZE)
+        super().__init__(
+            None,
+            title=title,
+            size=(784, 591),
+            style=wx.DEFAULT_FRAME_STYLE,
+        )
 
         self._build_ui()
-        self._bind_events()
-        self._load_provider_settings()
-
-        # Menu bar
         self._build_menu()
+        self._bind_events()
+        self._load_settings()
 
         self.SetStatusBar(self._create_statusbar())
         self.SetStatusText(t("main.ready"))
 
-        logger.info("MainFrame initialized")
+        logger.info("MainFrame initialized (v2.1.2 layout)")
 
-    # ── UI Builders ─────────────────────────────────────────────
+    # ── UI ────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        """Build main UI layout."""
+        """Build UI mirroring original layout: source buttons → preset → text → log → bottom buttons."""
         panel = wx.Panel(self)
         panel.SetName("main_panel")
-        panel.SetLabel(t("main.title"))
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        panel.SetSizer(sizer)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        panel.SetSizer(outer)
 
-        # ── Video Source Section ────────────────────────────────
-        video_box = wx.StaticBox(panel, label=t("main.video_source"))
-        video_sizer = wx.StaticBoxSizer(video_box, wx.VERTICAL)
+        # ── 1. Source Buttons (stacked vertically, full width) ───
+        outer.AddSpacer(_BORDER)
 
-        # File path + browse
-        file_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.file_text = wx.TextCtrl(panel, value="", size=(500, -1),
-                                     name="video_file_path")
-        self.file_text.SetLabel(t("main.video_source"))
-        self.browse_btn = wx.Button(panel, label=t("main.select_file"),
-                                    name="browse_video")
-        file_row.Add(self.file_text, 1, wx.ALL | wx.EXPAND, 5)
-        file_row.Add(self.browse_btn, 0, wx.ALL, 5)
+        self.btn_local = wx.Button(panel, label="Local Video File",
+                                   name="source_local")
+        self.btn_url = wx.Button(panel, label="Direct Video URL",
+                                 name="source_url")
+        self.btn_youtube = wx.Button(panel, label="YouTube Video URL",
+                                     name="source_youtube")
 
-        # URL
-        url_row = wx.BoxSizer(wx.HORIZONTAL)
-        url_label = wx.StaticText(panel, label=t("main.url"), name="url_label")
-        self.url_text = wx.TextCtrl(panel, value="", size=(500, -1),
-                                    name="video_url")
-        url_row.Add(url_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        url_row.Add(self.url_text, 1, wx.ALL | wx.EXPAND, 5)
+        for btn in (self.btn_local, self.btn_url, self.btn_youtube):
+            btn.SetMinSize((-1, _BTN_H))
+            outer.Add(btn, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
-        video_sizer.Add(file_row, 0, wx.EXPAND)
-        video_sizer.Add(url_row, 0, wx.EXPAND)
-        sizer.Add(video_sizer, 0, wx.ALL | wx.EXPAND, 10)
+        outer.AddSpacer(8)
 
-        # ── AI Settings Section ─────────────────────────────────
-        ai_box = wx.StaticBox(panel, label=t("settings.ai_tab"))
-        ai_sizer = wx.StaticBoxSizer(ai_box, wx.VERTICAL)
+        # ── 2. Prompt preset row (ComboBox + Open button) ────────
+        preset_row = wx.BoxSizer(wx.HORIZONTAL)
 
-        # Provider + Model
-        prov_row = wx.BoxSizer(wx.HORIZONTAL)
-        prov_label = wx.StaticText(panel, label=t("main.provider"),
-                                   name="provider_label")
-        self.provider_choice = wx.Choice(panel, choices=["opus", "gemini", "openai", "custom"],
-                                         name="provider_choice")
-        self.provider_choice.SetLabel(t("main.provider"))
-        prov_row.Add(prov_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        prov_row.Add(self.provider_choice, 0, wx.ALL | wx.EXPAND, 5)
+        preset_label = wx.StaticText(
+            panel,
+            label="Optional: Select a prompt preset to enhance generation:",
+            name="preset_label",
+        )
+        outer.Add(preset_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
 
-        # Model dropdown
-        self.model_choice = wx.Choice(panel, name="model_choice")
-        self._refresh_model_list()
-        prov_row.Add(wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        prov_row.Add(self.model_choice, 1, wx.ALL | wx.EXPAND, 5)
-        self.provider_choice.Bind(wx.EVT_CHOICE, self._on_main_provider_changed)
-        self.model_choice.Bind(wx.EVT_CHOICE, self._on_main_model_changed)
-
-        # Prompt preset
-        prompt_row = wx.BoxSizer(wx.HORIZONTAL)
-        prompt_label = wx.StaticText(panel, label=t("main.prompt"),
-                                     name="prompt_label")
+        combo_row = wx.BoxSizer(wx.HORIZONTAL)
         self.prompt_choice = wx.Choice(panel, name="prompt_choice")
-        self.prompt_choice.SetLabel(t("main.prompt"))
+        self.prompt_choice.SetMinSize((-1, _COMBO_H))
         self._refresh_prompt_list()
-        prompt_row.Add(prompt_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        prompt_row.Add(self.prompt_choice, 1, wx.ALL | wx.EXPAND, 5)
 
-        ai_sizer.Add(prov_row, 0, wx.EXPAND)
-        ai_sizer.Add(prompt_row, 0, wx.EXPAND)
-        sizer.Add(ai_sizer, 0, wx.ALL | wx.EXPAND, 10)
+        self.btn_preset_open = wx.Button(panel, label="Open",
+                                         name="preset_open")
+        self.btn_preset_open.SetMinSize((50, _COMBO_H))
 
-        # ── Action Buttons ──────────────────────────────────────
-        btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.start_btn = wx.Button(panel, label=t("main.start"),
-                                   name="start_processing")
-        self.start_btn.SetLabel(t("main.start"))
-        self.stop_btn = wx.Button(panel, label=t("main.stop"),
-                                  name="stop_processing")
-        self.stop_btn.SetLabel(t("main.stop"))
-        self.stop_btn.Disable()
+        combo_row.Add(self.prompt_choice, 1, wx.RIGHT | wx.EXPAND, 5)
+        combo_row.Add(self.btn_preset_open, 0, wx.RIGHT, _BORDER)
+        outer.Add(combo_row, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
-        self.player_btn = wx.Button(panel, label=t("player.title"),
-                                    name="open_player")
-        self.player_btn.SetLabel(t("player.title"))
-        self.player_btn.Disable()
+        outer.AddSpacer(5)
 
-        btn_row.Add(self.start_btn, 0, wx.ALL, 5)
-        btn_row.Add(self.stop_btn, 0, wx.ALL, 5)
-        btn_row.Add(self.player_btn, 0, wx.ALL, 5)
-        sizer.Add(btn_row, 0, wx.ALL | wx.ALIGN_CENTER, 5)
+        # ── 3. Custom prompt text area ───────────────────────────
+        outer.Add(wx.StaticText(panel, label="Custom Prompt:",
+                                name="custom_prompt_label"),
+                  0, wx.LEFT | wx.RIGHT, _BORDER)
+        self.custom_prompt = wx.TextCtrl(
+            panel,
+            value="",
+            style=wx.TE_MULTILINE,
+            name="custom_prompt",
+        )
+        self.custom_prompt.SetMinSize((-1, _EDIT_H))
+        outer.Add(self.custom_prompt, 0,
+                  wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
-        # ── Progress + Log ──────────────────────────────────────
-        prog_row = wx.BoxSizer(wx.HORIZONTAL)
-        prog_label = wx.StaticText(panel, label=t("main.progress"),
-                                   name="progress_label")
-        self.progress_bar = wx.Gauge(panel, range=100, size=(400, 20),
-                                     name="progress_bar")
-        prog_row.Add(prog_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        prog_row.Add(self.progress_bar, 1, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(prog_row, 0, wx.ALL | wx.EXPAND, 10)
+        outer.AddSpacer(8)
 
-        self.log_text = wx.TextCtrl(panel, value="", style=wx.TE_MULTILINE | wx.TE_READONLY,
-                                    size=(-1, 200), name="log_output")
-        sizer.Add(self.log_text, 1, wx.ALL | wx.EXPAND, 10)
+        # ── 4. Status Log ────────────────────────────────────────
+        outer.Add(wx.StaticText(panel, label="Status Log",
+                                name="log_label"),
+                  0, wx.LEFT | wx.RIGHT, _BORDER)
+        self.log_text = wx.TextCtrl(
+            panel,
+            value="",
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            name="log_output",
+        )
+        self.log_text.SetMinSize((-1, _LOG_H))
+        outer.Add(self.log_text, 1,
+                  wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
+
+        outer.AddSpacer(8)
+
+        # ── 5. Bottom buttons: Settings ... Exit ─────────────────
+        bottom_row = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.btn_settings = wx.Button(panel, label="Settings...",
+                                      name="open_settings")
+        self.btn_settings.SetMinSize((90, _BTN_H))
+
+        self.btn_exit = wx.Button(panel, label="Exit",
+                                  name="exit_app")
+        self.btn_exit.SetMinSize((90, _BTN_H))
+
+        bottom_row.Add(self.btn_settings, 0, wx.LEFT, _BORDER)
+        bottom_row.AddStretchSpacer(1)
+        bottom_row.Add(self.btn_exit, 0, wx.RIGHT, _BORDER)
+
+        outer.Add(bottom_row, 0, wx.EXPAND)
+        outer.AddSpacer(_BORDER)
 
         panel.Layout()
 
     def _create_statusbar(self) -> wx.StatusBar:
-        """Create accessible status bar."""
         sb = wx.StatusBar(self)
         sb.SetFieldsCount(2)
         sb.SetStatusWidths([-3, -1])
         return sb
 
+    # ── Menu Bar ──────────────────────────────────────────────────
+
     def _build_menu(self):
-        """Build menu bar."""
+        """Mirror original: System, Help."""
         menubar = wx.MenuBar()
 
-        # File menu
+        # System — dropdown
+        system_menu = wx.Menu()
+        system_menu.Append(wx.ID_PREFERENCES, "Settings...")
+        system_menu.Append(wx.ID_EXIT, "Exit")
+        menubar.Append(system_menu, "System")
+
+        # File — dropdown
         file_menu = wx.Menu()
-        file_menu.Append(wx.ID_NEW, t("menu.new_project"))
-        file_menu.Append(wx.ID_OPEN, t("menu.open_project"))
-        file_menu.Append(wx.ID_SAVE, t("menu.save_project"))
-        file_menu.Append(wx.ID_CLOSE, t("menu.close_project"))
+        file_menu.Append(wx.ID_NEW, "New Project...")
+        file_menu.Append(wx.ID_OPEN, "Open Project...")
+        file_menu.Append(wx.ID_SAVE, "Save Project")
         file_menu.AppendSeparator()
-        file_menu.Append(wx.ID_PREFERENCES, t("menu.settings"))
-        file_menu.AppendSeparator()
-        file_menu.Append(wx.ID_EXIT, t("menu.exit"))
-        menubar.Append(file_menu, t("menu.file"))
+        file_menu.Append(wx.ID_EXIT, "Exit")
+        menubar.Append(file_menu, "File")
 
-        # Edit menu
-        edit_menu = wx.Menu()
-        edit_menu.Append(wx.ID_UNDO, _("&Undo\tCtrl+Z"))
-        menubar.Append(edit_menu, t("menu.edit"))
-
-        # Help menu
+        # Help — dropdown
         help_menu = wx.Menu()
         help_menu.Append(wx.ID_ABOUT, "About")
-        menubar.Append(help_menu, t("menu.help"))
+        menubar.Append(help_menu, "Help")
 
         self.SetMenuBar(menubar)
 
-    # ── Events ──────────────────────────────────────────────────
+    # ── Events ────────────────────────────────────────────────────
 
     def _bind_events(self):
-        """Bind UI events."""
-        self.browse_btn.Bind(wx.EVT_BUTTON, self._on_browse)
-        self.start_btn.Bind(wx.EVT_BUTTON, self._on_start)
-        self.stop_btn.Bind(wx.EVT_BUTTON, self._on_stop)
-        self.player_btn.Bind(wx.EVT_BUTTON, self._on_player)
+        """Bind all UI events."""
+        # Source buttons
+        self.btn_local.Bind(wx.EVT_BUTTON, self._on_local_file)
+        self.btn_url.Bind(wx.EVT_BUTTON, self._on_direct_url)
+        self.btn_youtube.Bind(wx.EVT_BUTTON, self._on_youtube_url)
+
+        # Preset Open button
+        self.btn_preset_open.Bind(wx.EVT_BUTTON, self._on_preset_open)
+
+        # Bottom buttons
+        self.btn_settings.Bind(wx.EVT_BUTTON, self._on_settings)
+        self.btn_exit.Bind(wx.EVT_BUTTON, self._on_exit)
+
+        # Menu
         self.Bind(wx.EVT_MENU, self._on_settings, id=wx.ID_PREFERENCES)
         self.Bind(wx.EVT_MENU, self._on_exit, id=wx.ID_EXIT)
         self.Bind(wx.EVT_MENU, self._on_new_project, id=wx.ID_NEW)
         self.Bind(wx.EVT_MENU, self._on_open_project, id=wx.ID_OPEN)
         self.Bind(wx.EVT_MENU, self._on_save_project, id=wx.ID_SAVE)
-        self.Bind(wx.EVT_MENU, self._on_close, id=wx.ID_CLOSE)
         self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
         self.Bind(wx.EVT_CLOSE, self._on_close_window)
 
-    def _on_browse(self, event):
-        """Browse for video file."""
-        wildcard = "Video files|*.mp4;*.avi;*.mkv;*.mov;*.wmv;*.flv;*.webm|All files|*.*"
-        dlg = wx.FileDialog(self, t("main.select_file"), wildcard=wildcard,
-                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+    # ── Source Handlers ───────────────────────────────────────────
+
+    def _on_local_file(self, event):
+        """Browse for local video file."""
+        wildcard = ("Video files|*.mp4;*.avi;*.mkv;*.mov;*.wmv;*.flv;*.webm"
+                    "|All files|*.*")
+        dlg = wx.FileDialog(
+            self, t("main.select_file"), wildcard=wildcard,
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
-            self.file_text.SetValue(path)
-            self.url_text.SetValue("")
+            self._current_source = path
             self._log(f"Selected: {path}")
+            self.SetStatusText(f"File: {Path(path).name}")
         dlg.Destroy()
 
-    def _on_start(self, event):
-        """Start processing the video."""
-        if self._processing:
-            return
-
-        # Validate input
-        file_path = self.file_text.GetValue().strip()
-        url = self.url_text.GetValue().strip()
-
-        if not file_path and not url:
-            wx.MessageBox(t("error.no_video"), t("settings.title"),
-                          wx.OK | wx.ICON_ERROR)
-            return
-
-        # Validate provider
-        provider = self.provider_choice.GetStringSelection()
-        prov_config = self.settings.get_ai_provider(provider)
-        if not prov_config.get("api_key"):
-            wx.MessageBox(
-                t("status.no_api_key", provider=provider),
-                t("settings.title"),
-                wx.OK | wx.ICON_WARNING
-            )
-            self._show_settings()
-            return
-
-        # Set provider
-        self.ai_engine.set_provider(provider, api_key=prov_config["api_key"])
-
-        # Get prompt
-        prompt_name = self.prompt_choice.GetStringSelection()
-        prompt = self.prompt_mgr.get_preset(prompt_name)
-
-        # Disable buttons
-        self._processing = True
-        self.start_btn.Disable()
-        self.stop_btn.Enable()
-        self.progress_bar.SetValue(0)
-
-        # Run in background thread
-        self._worker = threading.Thread(
-            target=self._process_video,
-            args=(file_path or url, prompt),
-            daemon=True
+    def _on_direct_url(self, event):
+        """Open dialog to enter a direct video URL."""
+        dlg = wx.TextEntryDialog(
+            self, "Enter video URL:", "Direct Video URL",
         )
-        self._worker.start()
+        if dlg.ShowModal() == wx.ID_OK:
+            url = dlg.GetValue().strip()
+            if url:
+                self._current_source = url
+                self._log(f"URL: {url}")
+                self.SetStatusText(f"URL: {url[:60]}")
+        dlg.Destroy()
 
-    def _on_stop(self, event):
-        """Stop processing."""
-        self._processing = False
-        self.stop_btn.Disable()
-        self.SetStatusText(t("main.status"))
+    def _on_youtube_url(self, event):
+        """Open dialog to enter a YouTube URL."""
+        dlg = wx.TextEntryDialog(
+            self, "Enter YouTube video URL:", "YouTube Video URL",
+        )
+        if dlg.ShowModal() == wx.ID_OK:
+            url = dlg.GetValue().strip()
+            if url:
+                self._current_source = url
+                self._log(f"YouTube: {url}")
+                self.SetStatusText(f"YouTube: {url[:60]}")
+        dlg.Destroy()
 
-    def _on_player(self, event):
-        """Open described video player."""
-        if not self.project_store.current:
-            wx.MessageBox(t("editor.no_descriptions"), t("main.title"),
-                          wx.OK | wx.ICON_INFORMATION)
+    # ── Preset Handler ─────────────────────────────────���──────────
+
+    def _on_preset_open(self, event):
+        """Apply the selected prompt preset and start processing."""
+        preset_name = self.prompt_choice.GetStringSelection()
+        if not preset_name:
+            wx.MessageBox("Please select a prompt preset.", "Prompt",
+                          wx.OK | wx.ICON_WARNING)
             return
-        player = PlayerWindow(self, self.project_store, self.tts_engine)
-        player.Show()
+
+        # Get preset text
+        prompt = self.prompt_mgr.get_preset(preset_name)
+
+        # Check if user added custom prompt text
+        custom = self.custom_prompt.GetValue().strip()
+        if custom:
+            prompt = f"{prompt}\n\nUser notes: {custom}"
+
+        self._log(f"Preset: {preset_name}")
+        self._start_processing(prompt)
+
+    # ── Settings / Exit ───────────────────────────────────────────
 
     def _on_settings(self, event):
         """Open settings dialog."""
-        self._show_settings()
+        from .settings_dialog import SettingsDialog
+        dlg = SettingsDialog(self, self.settings)
+        dlg.ShowModal()
+        dlg.Destroy()
+        self._load_settings()
+
+    def _on_exit(self, event):
+        """Exit the application."""
+        self._processing = False
+        self.Close()
 
     def _on_new_project(self, event):
-        """Create new project."""
         name_dlg = wx.TextEntryDialog(self, "Project name:", "New Project")
         if name_dlg.ShowModal() == wx.ID_OK:
             name = name_dlg.GetValue().strip()
             if name:
-                proj = self.project_store.create_project(name, "")
+                self.project_store.create_project(name, "")
                 self._log(f"Project created: {name}")
                 self.SetStatusText(f"Project: {name}")
         name_dlg.Destroy()
 
     def _on_open_project(self, event):
-        """Open existing project."""
         projects = self.project_store.list_projects()
         if not projects:
             wx.MessageBox("No saved projects found.", "Open Project",
                           wx.OK | wx.ICON_INFORMATION)
             return
-
         choices = [f"{p['name']} (updated: {p['updated_at']})" for p in projects]
         dlg = wx.SingleChoiceDialog(self, "Select project:", "Open Project", choices)
         if dlg.ShowModal() == wx.ID_OK:
@@ -327,36 +342,24 @@ class MainFrame(wx.Frame):
             proj = self.project_store.open_project(projects[idx]["id"])
             if proj:
                 self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
-                self.player_btn.Enable()
         dlg.Destroy()
 
     def _on_save_project(self, event):
-        """Save current project."""
         if not self.project_store.current:
-            wx.MessageBox("No project open.", t("settings.title"),
+            wx.MessageBox("No project open.", "Save",
                           wx.OK | wx.ICON_INFORMATION)
             return
         self.project_store.save_descriptions(self.project_store.current.descriptions)
         self._log("Project saved")
 
-    def _on_close(self, event):
-        """Close current project."""
-        self.project_store._current = None
-        self.player_btn.Disable()
-        self._log("Project closed")
-
-    def _on_exit(self, event):
-        """Exit application."""
-        self.Close()
-
     def _on_about(self, event):
-        """Show About dialog."""
         info = wx.adv.AboutDialogInfo()
         info.SetName("Omni Describer Custom")
         info.SetVersion("1.0.0")
         info.SetDescription(
-            "Accessible audio description tool for blind and visually impaired users. "
-            "Describes video frames using AI and narrates them via text-to-speech."
+            "Accessible audio description tool for blind and visually "
+            "impaired users. Describes video frames using AI and narrates "
+            "them via text-to-speech."
         )
         info.SetCopyright("(C) 2026 Omni Describer Custom")
         wx.adv.AboutBox(info)
@@ -366,29 +369,56 @@ class MainFrame(wx.Frame):
         self._processing = False
         self.Destroy()
 
-    # ── Processing ──────────────────────────────────────────────
+    # ── Processing ────────────────────────────────────────────────
+
+    def _start_processing(self, prompt: str):
+        """Start video processing in background thread."""
+        if self._processing:
+            return
+
+        source = self._current_source
+        if not source:
+            wx.MessageBox(t("error.no_video"), t("settings.title"),
+                          wx.OK | wx.ICON_ERROR)
+            return
+
+        # Validate provider
+        provider = self.settings.get("ai.default_provider", "opus")
+        prov_config = self.settings.get_ai_provider(provider)
+        if not prov_config.get("api_key"):
+            wx.MessageBox(
+                t("status.no_api_key", provider=provider),
+                t("settings.title"), wx.OK | wx.ICON_WARNING,
+            )
+            self._on_settings(None)
+            return
+
+        self.ai_engine.set_provider(provider, api_key=prov_config["api_key"])
+
+        self._processing = True
+        self.btn_preset_open.Disable()
+        self.btn_local.Disable()
+        self.btn_url.Disable()
+        self.btn_youtube.Disable()
+
+        self._worker = threading.Thread(
+            target=self._process_video,
+            args=(source, prompt),
+            daemon=True,
+        )
+        self._worker.start()
 
     def _process_video(self, source: str, prompt: str):
-        """
-        Background video processing pipeline.
-        1. Get video info
-        2. Extract frames
-        3. Describe frames with AI
-        4. Save descriptions
-        """
+        """Background video processing pipeline."""
         try:
-            from ..core.video_processor import VideoProcessor
-            import asyncio
-
             vp = VideoProcessor()
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            loop = __import__("asyncio").new_event_loop()
+            __import__("asyncio").set_event_loop(loop)
 
             # Step 1: Video info
             wx.CallAfter(self.SetStatusText, t("status.loading_video"))
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
-            wx.CallAfter(self.progress_bar.SetValue, 10)
 
             # Step 2: Extract frames
             wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
@@ -397,13 +427,12 @@ class MainFrame(wx.Frame):
             frames = loop.run_until_complete(
                 vp.extract_frames(source, fps=5, output_dir=frame_dir)
             )
-            self._current_frames = [f.path for f in frames]
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames")
-            wx.CallAfter(self.progress_bar.SetValue, 30)
 
             if not frames:
                 wx.CallAfter(self._log, "ERROR: No frames extracted")
                 wx.CallAfter(self._processing_done)
+                loop.close()
                 return
 
             # Step 3: Describe frames
@@ -413,38 +442,29 @@ class MainFrame(wx.Frame):
                 self.ai_engine.describe_frames(frame_paths, prompt)
             )
 
-            wx.CallAfter(self.progress_bar.SetValue, 80)
-
             # Step 4: Save
             wx.CallAfter(self.SetStatusText, t("status.generating_descriptions"))
 
-            # Create project if needed
             if not self.project_store.current:
                 video_name = Path(source).name if Path(source).exists() else source
-                proj = self.project_store.create_project(video_name, source)
-            else:
-                proj = self.project_store.current
+                self.project_store.create_project(video_name, source)
 
-            # Save descriptions
             desc_objects = []
             for i, (frame, text) in enumerate(zip(frames, descriptions)):
                 if text and not text.startswith("(error:"):
-                    desc_objects.append(type('Obj', (), {
-                        'id': 0,
-                        'start_time': frame.timestamp,
-                        'end_time': frame.timestamp + 1.0,
-                        'text': text,
-                        'edited': False,
-                        'created_at': '',
-                        'frame_path': frame.path,
+                    desc_objects.append(type("Obj", (), {
+                        "id": 0,
+                        "start_time": frame.timestamp,
+                        "end_time": frame.timestamp + 1.0,
+                        "text": text,
+                        "edited": False,
+                        "created_at": "",
+                        "frame_path": frame.path,
                     })())
 
             self.project_store.save_descriptions(desc_objects)
-
             wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
-            wx.CallAfter(self.progress_bar.SetValue, 100)
             wx.CallAfter(self.SetStatusText, t("status.complete"))
-            wx.CallAfter(self.player_btn.Enable)
 
             loop.close()
 
@@ -458,58 +478,16 @@ class MainFrame(wx.Frame):
     def _processing_done(self):
         """Reset UI after processing."""
         self._processing = False
-        self.start_btn.Enable()
-        self.stop_btn.Disable()
+        self.btn_preset_open.Enable()
+        self.btn_local.Enable()
+        self.btn_url.Enable()
+        self.btn_youtube.Enable()
 
-    # ── Helpers ─────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────
 
-    def _show_settings(self):
-        """Open settings dialog."""
-        dlg = SettingsDialog(self, self.settings)
-        dlg.ShowModal()
-        dlg.Destroy()
-        self._load_provider_settings()
-
-    def _on_main_provider_changed(self, event):
-        """Update model list when main provider changes."""
-        provider = self.provider_choice.GetStringSelection()
-        self._refresh_model_list()
-        # Load model from settings
-        prov_config = self.settings.get_ai_provider(provider)
-        if prov_config.get("model"):
-            self.model_choice.SetStringSelection(prov_config["model"])
-        self.settings.set("ai.default_provider", provider)
-
-    def _on_main_model_changed(self, event):
-        """Save selected model when changed."""
-        provider = self.provider_choice.GetStringSelection()
-        model = self.model_choice.GetStringSelection()
-        if provider and model:
-            config = self.settings.get_ai_provider(provider)
-            config["model"] = model
-            self.settings.set_ai_provider(provider, config)
-
-    def _refresh_model_list(self):
-        """Refresh model dropdown from provider presets."""
-        provider = self.provider_choice.GetStringSelection()
-        models = PROVIDER_MODELS.get(provider, [])
-        if provider == "custom":
-            # For custom, load the saved model name if available
-            config = self.settings.get_ai_provider("custom")
-            saved = config.get("model", "")
-            models = [saved] if saved else ["(enter model in Settings)"]
-        self.model_choice.SetItems(models)
-        if models:
-            self.model_choice.SetSelection(0)
-
-    def _load_provider_settings(self):
-        """Load current provider and model into UI."""
-        default = self.settings.get("ai.default_provider", "opus")
-        self.provider_choice.SetStringSelection(default)
-        self._refresh_model_list()
-        prov_config = self.settings.get_ai_provider(default)
-        if prov_config.get("model"):
-            self.model_choice.SetStringSelection(prov_config["model"])
+    def _load_settings(self):
+        """Load current settings into UI."""
+        self._refresh_prompt_list()
 
     def _refresh_prompt_list(self):
         """Refresh prompt preset dropdown."""
@@ -519,12 +497,6 @@ class MainFrame(wx.Frame):
             self.prompt_choice.SetSelection(0)
 
     def _log(self, message: str):
-        """Append a line to the log."""
+        """Append a line to the status log."""
         self.log_text.AppendText(message + "\n")
-        # Scroll to bottom
         self.log_text.ShowPosition(self.log_text.GetLastPosition())
-
-
-# Fix import issue with underscore
-import gettext as _gettext
-_ = _gettext.gettext

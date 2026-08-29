@@ -46,8 +46,9 @@ EN_STRINGS: dict[str, str] = {
     "main.progress": "Progress:",
     "main.ready": "Ready",
     "main.processing": "Processing...",
-    "main.complete": "Complete",
-    "main.failed": "Failed",
+    "status.complete": "Complete",
+    "status.failed": "Failed",
+    "main.no_video": "No video loaded.",
 
     # Settings Dialog
     "settings.title": "Settings",
@@ -200,8 +201,8 @@ MS_STRINGS: dict[str, str] = {
     "main.progress": "Kemajuan:",
     "main.ready": "Sedia",
     "main.processing": "Memproses...",
-    "main.complete": "Selesai",
-    "main.failed": "Gagal",
+    "status.complete": "Selesai",
+    "status.failed": "Gagal",
 
     # Settings Dialog
     "settings.title": "Tetapan",
