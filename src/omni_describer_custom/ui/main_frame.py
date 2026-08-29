@@ -476,12 +476,17 @@ class MainFrame(wx.Frame):
         wx.CallAfter(self._processing_done)
 
     def _processing_done(self):
-        """Reset UI after processing."""
+        """Reset UI after processing and open PlayerWindow."""
         self._processing = False
         self.btn_preset_open.Enable()
         self.btn_local.Enable()
         self.btn_url.Enable()
         self.btn_youtube.Enable()
+
+        # Auto-open PlayerWindow if descriptions were generated
+        if self.project_store.current and self.project_store.current.descriptions:
+            self._log("Opening Player Window...")
+            wx.CallAfter(self._open_player)
 
     # ── Helpers ───────────────────────────────────────────────────
 

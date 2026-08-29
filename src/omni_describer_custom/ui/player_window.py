@@ -114,10 +114,13 @@ class PlayerWindow(wx.Frame):
         self.edit_btn = wx.Button(panel, label=t("editor.title"), name="edit_descriptions")
         self.ask_btn = wx.Button(panel, label=t("player.ask_more"), name="ask_more")
         self.explore_btn = wx.Button(panel, label=t("player.explore"), name="explore")
+        speaker = chr(0x1F50A)
+        self.speak_btn = wx.Button(panel, label=speaker + " Read Description", name="speak_desc")
 
         action_row.Add(self.edit_btn, 0, wx.ALL, 5)
         action_row.Add(self.ask_btn, 0, wx.ALL, 5)
         action_row.Add(self.explore_btn, 0, wx.ALL, 5)
+        action_row.Add(self.speak_btn, 0, wx.ALL, 5)
 
         sizer.Add(action_row, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
@@ -135,6 +138,7 @@ class PlayerWindow(wx.Frame):
         self.edit_btn.Bind(wx.EVT_BUTTON, self._on_edit)
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
+        self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
         # Start timer
@@ -246,11 +250,39 @@ class PlayerWindow(wx.Frame):
     def _on_explore(self, event):
         """Open scene explorer."""
         from .scene_explorer import SceneExplorer
-        explorer = SceneExplorer(self, None, None)
+        video_path = ""
+        if self.store.current and self.store.current.source_path:
+            video_path = self.store.current.source_path
+        explorer = SceneExplorer(self, None, video_path)
         explorer.Show()
+
+    def _on_speak(self, event):
+        """Read current description aloud via TTS."""
+        desc_text = self.current_desc_text.GetValue().strip()
+        if not desc_text:
+            return
+        self.status_text.SetLabel("Speaking...")
+        self.tts.stop()
+
+        def _speak_bg():
+            loop = __import__("asyncio").new_event_loop()
+            __import__("asyncio").set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self.tts.speak(desc_text, engine="edge"))
+                if result:
+                    wx.CallAfter(self.status_text.SetLabel, "Spoken")
+                else:
+                    wx.CallAfter(self.status_text.SetLabel, "TTS failed")
+            except Exception as e:
+                wx.CallAfter(self.status_text.SetLabel, "TTS error: " + str(e))
+            finally:
+                loop.close()
+
+        __import__("threading").Thread(target=_speak_bg, daemon=True).start()
 
     def _on_close(self, event):
         self._playing = False
+        self.tts.stop()
         if self._timer:
             self._timer.Stop()
         self.Destroy()
