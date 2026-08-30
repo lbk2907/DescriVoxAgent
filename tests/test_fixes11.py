@@ -190,8 +190,64 @@ def test_default_no_cap():
         frame.Destroy()
         shutil.rmtree(tmp, ignore_errors=True)
 
+def test_settings_dialog_cap_roundtrip():
+    """REAL SettingsDialog: widget -> store -> widget round-trip, plus both
+    language keys exist (blind users depend on the localized label)."""
+    import wx
+    from omni_describer_custom.core.settings_store import SettingsStore
+    from omni_describer_custom.ui.settings_dialog import SettingsDialog
+    from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS
+    tmp = tempfile.mkdtemp(prefix="cap11c_")
+    dlg = None
+    try:
+        store = SettingsStore(config_dir=tmp)
+        assert store.get("general.frame_cap", None) == 0, "default must be 0"
+        dlg = SettingsDialog(None, store)
+        assert hasattr(dlg, "frame_cap_spin"), "dialog lacks the cap widget"
+        assert dlg.frame_cap_spin.GetValue() == 0
+        # Drive the REAL modal dialog: wx.MessageBox is a native modal that
+        # cannot be driven from Python (documented wx boundary), so it is
+        # stubbed; everything else (widget write, Apply, persistence) is real.
+        orig_box = wx.MessageBox
+        wx.MessageBox = lambda *a, **k: wx.OK
+        errors = []
+
+        def drive():
+            try:
+                dlg.frame_cap_spin.SetValue(75)
+                dlg._on_apply(None)   # ends the modal with ID_OK
+            except Exception as e:
+                errors.append(e)
+                dlg.EndModal(wx.ID_CANCEL)
+
+        wx.CallAfter(drive)
+        wx.CallLater(15000, lambda: dlg.EndModal(wx.ID_CANCEL))  # watchdog
+        ret = dlg.ShowModal()
+        wx.MessageBox = orig_box
+        dlg.Destroy(); dlg = None
+        assert ret == wx.ID_OK and not errors, f"ret={ret} errors={errors}"
+        reread = SettingsStore(config_dir=tmp)
+        assert reread.get("general.frame_cap") == 75, \
+            f"persisted: {reread.get('general.frame_cap')}"
+        # Re-open: the dialog must load the stored value back.
+        dlg2 = SettingsDialog(None, reread)
+        assert dlg2.frame_cap_spin.GetValue() == 75, "dialog did not reload cap"
+        dlg2.Destroy(); dlg2 = None
+        # Both locales must carry the label key (missing key = English
+        # fallback would silently break the Malay UI).
+        assert "settings.frame_cap" in EN_STRINGS, "missing EN key"
+        assert "settings.frame_cap" in MS_STRINGS, "missing MS key"
+    finally:
+        if dlg is not None:
+            try:
+                dlg.Destroy()
+            except Exception:
+                pass
+        shutil.rmtree(tmp, ignore_errors=True)
+
 check("frame_cap=2 limits REAL AI requests, keeps full-video timestamps", test_cap_limits_requests)
 check("default (no cap) analyses every frame - behaviour unchanged", test_default_no_cap)
+check("REAL Settings dialog round-trips frame_cap (widget -> store -> widget)", test_settings_dialog_cap_roundtrip)
 
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
