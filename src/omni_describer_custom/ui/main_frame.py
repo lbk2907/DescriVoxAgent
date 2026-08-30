@@ -514,6 +514,19 @@ class MainFrame(wx.Frame):
                 return
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
 
+            # OPT-IN FRAME CAP (30 Aug): an optional user setting limits how
+            # many extracted frames are sent for AI analysis, keeping long
+            # videos affordable (17 min at 5 fps would otherwise mean ~5000
+            # API calls). Default 0 = NO limit (behaviour unchanged). The
+            # analysis still covers the WHOLE video: AI requests and the
+            # player timeline keep full-video timestamps, so descriptions
+            # stay synced with playback.
+            cap = int(self.settings.get("general.frame_cap", 0) or 0)
+            total_extracted = len(frames)
+            if cap > 0 and total_extracted > cap:
+                frames = frames[:cap]
+                wx.CallAfter(self._log, t("process.frame_capped", cap=cap, total=total_extracted))
+
             if not frames:
                 wx.CallAfter(self._log, "ERROR: No frames extracted")
                 wx.CallAfter(self._close_download_progress)

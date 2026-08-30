@@ -67,6 +67,9 @@ class SettingsStore:
         "general": {
             "language": "en",
             "frame_rate": 5,
+            # Optional cap on analysed frames per video (0 = no limit).
+            # Default keeps existing behaviour unchanged.
+            "frame_cap": 0,
             "output_dir": str(Path.home() / "Documents" / "OmniDescriber" / "output"),
             "chunk_long_videos": True,
             "auto_save": True,

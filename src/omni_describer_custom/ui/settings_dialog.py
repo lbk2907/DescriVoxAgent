@@ -230,6 +230,11 @@ class SettingsDialog(wx.Dialog):
         self.fps_choice.SetLabel(t("settings.frame_rate"))
         sizer.Add(self.fps_choice, 0, wx.ALL | wx.EXPAND, 5)
 
+        # Frame cap (0 = no limit; default keeps current behaviour)
+        sizer.Add(wx.StaticText(panel, label=t("settings.frame_cap"), name="frame_cap_label"), 0, wx.ALL, 5)
+        self.frame_cap_spin = wx.SpinCtrl(panel, min=0, max=100000, initial=0, name="frame_cap")
+        sizer.Add(self.frame_cap_spin, 0, wx.ALL | wx.EXPAND, 5)
+
         # Output directory
         sizer.Add(wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"), 0, wx.ALL, 5)
         out_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -475,6 +480,8 @@ class SettingsDialog(wx.Dialog):
         fps = self.fps_choice.GetStringSelection()
         self.settings.set("general.frame_rate", int(fps))
 
+        self.settings.set("general.frame_cap", int(self.frame_cap_spin.GetValue()))
+
         output_dir = self.output_text.GetValue().strip()
         if output_dir:
             self.settings.set("general.output_dir", output_dir)
@@ -520,6 +527,8 @@ class SettingsDialog(wx.Dialog):
         fps_items = [self.fps_choice.GetString(i) for i in range(self.fps_choice.GetCount())]
         if fps in fps_items:
             self.fps_choice.SetStringSelection(fps)
+
+        self.frame_cap_spin.SetValue(int(self.settings.get("general.frame_cap", 0) or 0))
 
         output_dir = self.settings.get("general.output_dir", "")
         if output_dir:

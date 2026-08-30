@@ -77,6 +77,7 @@ EN_STRINGS: dict[str, str] = {
     "settings.voice": "Voice:",
     "settings.speed": "Speed:",
     "settings.frame_rate": "Frame Rate (FPS):",
+    "settings.frame_cap": "Max frames per video (0 = no limit):",
     "settings.language": "Language:",
     "settings.output_dir": "Output Directory:",
     "settings.apply": "Apply",
@@ -154,6 +155,7 @@ EN_STRINGS: dict[str, str] = {
     "download.extracting": "Extracting frames...",
     "download.extract_progress": "Extracting frames: {count} frames",
     "download.analyzing": "AI analysis: {done}/{total} frames",
+    "process.frame_capped": "Frame cap reached: analyzing the first {cap} of {total} frames",
     "download.cancel_analysis": "Cancelling AI analysis...",
     "download.saving": "Saving project...",
 
@@ -245,6 +247,7 @@ MS_STRINGS: dict[str, str] = {
     "settings.voice": "Suara:",
     "settings.speed": "Kelajuan:",
     "settings.frame_rate": "Kadar Kerangka (FPS):",
+    "settings.frame_cap": "Had Maksimum Frame Setiap Video (0 = tiada had):",
     "settings.language": "Bahasa:",
     "settings.output_dir": "Direktori Output:",
     "settings.apply": "Terapkan",
@@ -322,6 +325,7 @@ MS_STRINGS: dict[str, str] = {
     "download.extracting": "Mengekstrak frame...",
     "download.extract_progress": "Mengekstrak frame: {count} frame",
     "download.analyzing": "Analisis AI: {done}/{total} frame",
+    "process.frame_capped": "Had frame dicapai: menganalisis {cap} frame pertama daripada {total}",
     "download.cancel_analysis": "Membatalkan analisis AI...",
     "download.saving": "Menyimpan projek...",
 
