@@ -239,7 +239,9 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"), 0, wx.ALL, 5)
         out_row = wx.BoxSizer(wx.HORIZONTAL)
         self.output_text = wx.TextCtrl(panel, name="output_dir")
-        browse_out = wx.Button(panel, label="...", name="browse_output")
+        # Accessible label (was "..."): screen readers announce a real name,
+        # so a blind user knows this opens the folder picker.
+        browse_out = wx.Button(panel, label=t("settings.browse"), name="browse_output")
         out_row.Add(self.output_text, 1, wx.ALL | wx.EXPAND, 5)
         out_row.Add(browse_out, 0, wx.ALL, 5)
         browse_out.Bind(wx.EVT_BUTTON, self._on_browse_output)

@@ -122,6 +122,9 @@ class PlayerWindow(wx.Frame):
         timeline_row = wx.BoxSizer(wx.HORIZONTAL)
         self.position_slider = wx.Slider(panel, value=0, minValue=0, maxValue=1000,
                                          style=wx.SL_HORIZONTAL, name="timeline")
+        # Accessible name for screen readers: without it NVDA/JAWS announce
+        # nothing meaningful for this control.
+        self.position_slider.SetLabel(t("player.timeline"))
         self.time_label = wx.StaticText(panel, label="00:00 / 00:00", name="time_display")
         timeline_row.Add(self.position_slider, 1, wx.ALL | wx.EXPAND, 5)
         timeline_row.Add(self.time_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
