@@ -16,9 +16,17 @@ import tempfile
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+
+class SourceError(RuntimeError):
+    """Raised when a video source (URL or file) cannot be resolved/downloaded.
+
+    Carries a user-presentable message so the UI can show the REAL reason
+    instead of a generic "No frames extracted".
+    """
 
 
 @dataclass
@@ -116,9 +124,45 @@ class VideoProcessor:
                 return str(c)
         return "yt-dlp"
 
+    async def _probe_url(self, url: str) -> dict:
+        """Fetch remote metadata via yt-dlp --dump-json (no download)."""
+        proc = await asyncio.create_subprocess_exec(
+            self.ytdlp,
+            "--dump-json", "--no-playlist", "--no-warnings",
+            url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise SourceError(f"Could not reach video metadata for {url} (timeout)") from None
+        if proc.returncode != 0:
+            raise SourceError(
+                self._ytdlp_error_text(url, stderr, fallback="video metadata unavailable"))
+        try:
+            return json.loads(stdout.decode("utf-8", errors="replace"))
+        except json.JSONDecodeError as e:
+            raise SourceError(f"Could not parse video metadata for {url}: {e}") from e
+
     async def get_video_info(self, path_or_url: str) -> VideoInfo:
-        """Get video metadata using ffprobe."""
+        """Get video metadata using ffprobe (local) or yt-dlp (remote URL)."""
         info = VideoInfo(path=path_or_url)
+
+        if path_or_url.startswith(("http://", "https://")) and not Path(path_or_url).exists():
+            # Remote: use yt-dlp metadata. This also surfaces the REAL error
+            # (e.g. private video, network failure) instead of a later crash.
+            try:
+                meta = await self._probe_url(path_or_url)
+            except SourceError as e:
+                logger.error("yt-dlp metadata failed: %s", e)
+                raise
+            info.title = str(meta.get("title", "")) or "video"
+            info.duration = float(meta.get("duration") or 0.0)
+            if meta.get("filesize") or meta.get("filesize_approx"):
+                info.file_size_mb = float(meta.get("filesize") or meta.get("filesize_approx")) / (1024 * 1024)
+            return info
 
         if Path(path_or_url).exists():
             info.path = str(Path(path_or_url).resolve())
@@ -162,39 +206,104 @@ class VideoProcessor:
 
         return info
 
-    async def resolve_source(self, path_or_url: str) -> str:
+    @staticmethod
+    def _ytdlp_error_text(url: str, stderr: bytes, fallback: str = "download failed") -> str:
+        """User-presentable message from yt-dlp stderr (skip download progress lines)."""
+        lines = [ln.strip() for ln in stderr.decode("utf-8", errors="replace").splitlines() if ln.strip()]
+        for ln in reversed(lines):
+            if ln.startswith("ERROR:"):
+                return f"{ln} ({url})"
+        return f"{fallback} ({url}): {lines[-1][:200] if lines else 'no details'}"
+
+    async def download_video(
+        self,
+        url: str,
+        out_dir: str = "",
+        on_progress: Callable[[str], None] | None = None,
+        max_height: int = 1080,
+    ) -> str:
+        """Download a remote video via yt-dlp and return the local file path.
+
+        - Format selector ``bv*[height<=1080]+ba/b`` picks separate best video
+          (capped at ``max_height`` to keep descriptions fast) + audio and lets
+          yt-dlp merge them with ffmpeg. The old ``best[ext=mp4]/best``
+          selector FAILED on modern YouTube because most videos no longer
+          offer a combined video+audio stream
+          ("Requested format is not available").
+        - Raises SourceError with the real yt-dlp message instead of silently
+          returning the URL.
+        - on_progress is called with short status lines for the UI.
+        """
+        out_dir = out_dir or tempfile.mkdtemp(prefix="odc_video_")
+        out_tmpl = str(Path(out_dir) / "video.%(ext)s")
+        args = [
+            self.ytdlp,
+            "-f", f"bv*[height<={max_height}]+ba/b",  # merge-capable; height cap keeps it fast
+            "--merge-output-format", "mp4",
+            "-o", out_tmpl,
+            "--no-playlist",
+            "--newline",  # one progress line per update, parseable
+            url,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            err_lines: list[str] = []
+
+            async def pump(stream, is_err: bool = False) -> None:
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    text = line.decode("utf-8", errors="replace").strip()
+                    if not text:
+                        continue
+                    if is_err:
+                        err_lines.append(text)
+                    elif on_progress:
+                        on_progress(text[:120])
+            await asyncio.wait_for(
+                asyncio.gather(pump(proc.stdout), pump(proc.stderr, True), proc.wait()),
+                timeout=1800,
+            )
+        except asyncio.TimeoutError as e:
+            proc.kill()
+            raise SourceError(f"Download timed out after 30 minutes ({url})") from e
+        except SourceError:
+            raise
+        except Exception as e:
+            raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
+        if proc.returncode != 0:
+            msg = self._ytdlp_error_text(
+                url, "\n".join(err_lines).encode("utf-8", "replace"))
+            raise SourceError(msg)
+        files = sorted(Path(out_dir).glob("video.*"))
+        if files:
+            logger.info("Downloaded source: %s", files[0])
+            return str(files[0])
+        raise SourceError(f"Download finished but no video file found in {out_dir} ({url})")
+
+    async def resolve_source(
+        self,
+        path_or_url: str,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> str:
         """
         Resolve a video source. Remote URLs (YouTube etc.) are downloaded
         via yt-dlp into a temp dir; local paths are returned unchanged.
+
+        Raises SourceError with the REAL reason (bad URL, private video,
+        network failure) instead of silently returning the URL, which used
+        to surface later as a misleading "ERROR: No frames extracted".
         """
         if Path(path_or_url).exists():
             return str(Path(path_or_url).resolve())
         if not (path_or_url.startswith("http://") or path_or_url.startswith("https://")):
             return path_or_url
-
-        out_dir = tempfile.mkdtemp(prefix="odc_video_")
-        out_tmpl = str(Path(out_dir) / "video.%(ext)s")
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                self.ytdlp,
-                "-f", "best[ext=mp4]/best",
-                "-o", out_tmpl,
-                "--no-playlist",
-                path_or_url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-            if proc.returncode != 0:
-                logger.error("yt-dlp error: %s", stderr.decode()[:300])
-                return path_or_url
-            files = list(Path(out_dir).glob("video.*"))
-            if files:
-                logger.info("Downloaded source: %s", files[0])
-                return str(files[0])
-        except Exception as e:
-            logger.error("yt-dlp download failed: %s", e)
-        return path_or_url
+        return await self.download_video(path_or_url, on_progress=on_progress)
 
     async def extract_frames(
         self,
@@ -202,12 +311,16 @@ class VideoProcessor:
         fps: int = 5,
         output_dir: str = "",
         detect_scene_changes: bool = True,
+        on_progress: Callable[[str], None] | None = None,
     ) -> list[Frame]:
         """
         Extract frames at specified FPS.
         Optionally detect scene changes (skip similar consecutive frames).
+
+        Remote URLs are downloaded first (on_progress receives download
+        status lines). Raises SourceError when the source cannot be resolved.
         """
-        video_path = await self.resolve_source(video_path)
+        video_path = await self.resolve_source(video_path, on_progress=on_progress)
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 

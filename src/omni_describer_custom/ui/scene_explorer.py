@@ -14,7 +14,7 @@ from typing import Any
 import wx
 
 from ..core.ai_engine import AIEngine
-from ..core.video_processor import VideoProcessor
+from ..core.video_processor import VideoProcessor, SourceError
 from ..i18n.strings import I18n, t
 
 logger = logging.getLogger(__name__)
@@ -112,26 +112,34 @@ class SceneExplorer(wx.Frame):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             tmp = tempfile.mkdtemp(prefix="odc_explorer_")
+            error_msg = ""
             try:
                 self.frames = [
                     {"path": f.path, "time": f.timestamp}
                     for f in loop.run_until_complete(vp.extract_frames(self.video_path, fps=2, output_dir=tmp))
                 ]
+            except SourceError as e:
+                # Real reason: bad URL, private video, network failure...
+                logger.error("Source error: %s", e)
+                error_msg = str(e)
+                self.frames = []
             except Exception as e:
                 logger.error("Frame loading error: %s", e)
                 self.frames = []
             finally:
                 loop.close()
             # Always notify the UI thread, success or failure
-            wx.CallAfter(self._frames_loaded, self.frames, tmp)
+            wx.CallAfter(self._frames_loaded, self.frames, tmp, error_msg)
         threading.Thread(target=run, daemon=True).start()
 
-    def _frames_loaded(self, frames: list[dict], frames_dir: str):
+    def _frames_loaded(self, frames: list[dict], frames_dir: str, error_msg: str = ""):
         """Called on the UI thread when background extraction finishes."""
         self.frames = frames
         self._frames_dir = frames_dir
         if self.frames:
             self._show_frame(0)
+        elif error_msg:
+            self.status_text.SetLabel(f"Error: {error_msg}")
         else:
             self.status_text.SetLabel(
                 "Could not extract frames from this video."

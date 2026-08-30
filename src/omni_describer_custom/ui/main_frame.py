@@ -29,7 +29,7 @@ from ..core.tts_engine import TTSEngine
 from ..core.project_store import ProjectStore
 from ..core.settings_store import SettingsStore
 from ..core.prompt_manager import PromptManager
-from ..core.video_processor import VideoProcessor
+from ..core.video_processor import VideoProcessor, SourceError
 from ..i18n.strings import I18n, t
 from .settings_dialog import PROVIDER_MODELS
 
@@ -429,14 +429,26 @@ class MainFrame(wx.Frame):
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
-            # Step 2: Extract frames (FPS from settings)
+            # Step 2: Extract frames (FPS from settings). For URLs this first
+            # downloads via yt-dlp; on_progress relays download progress to the
+            # status bar so a blind user hears (via screen reader) that work
+            # is happening instead of a silent multi-minute wait.
             wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
             import tempfile
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
+            last_progress = [0.0]
+            def download_progress(text: str) -> None:
+                import time
+                now = time.monotonic()
+                if now - last_progress[0] < 2.0:
+                    return  # throttle: >=2s between status updates
+                last_progress[0] = now
+                wx.CallAfter(self.SetStatusText, f"{t('status.extracting_frames')} {text}")
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
                 frames = loop.run_until_complete(
-                    vp.extract_frames(source, fps=fps, output_dir=frame_dir)
+                    vp.extract_frames(source, fps=fps, output_dir=frame_dir,
+                                      on_progress=download_progress)
                 )
             finally:
                 self._cleanup_dir(frame_dir)
@@ -484,6 +496,13 @@ class MainFrame(wx.Frame):
 
             loop.close()
 
+        except SourceError as e:
+            logger.error("Source resolution failed: %s", e)
+            msg = str(e)
+            wx.CallAfter(self._log, f"ERROR: {msg}")
+            wx.CallAfter(self.SetStatusText, t("status.error", error=msg))
+            wx.CallAfter(self._processing_done)
+            return
         except Exception as e:
             logger.error("Processing error: %s", e)
             wx.CallAfter(self._log, f"ERROR: {e}")
