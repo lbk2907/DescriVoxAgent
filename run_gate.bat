@@ -5,7 +5,7 @@ set FAIL=0
 
 %PY% -m compileall -q omni_describer_custom >nul 2>&1 && (echo COMPILEALL_PASS) || (echo COMPILEALL_FAIL & set FAIL=1)
 
-for %%T in (run_checks test_fixes test_fixes2 test_fixes3 test_fixes4 test_fixes5 test_fixes6 test_fixes7 test_fixes8 test_fixes9 test_acceptance test_gui_smoke) do (
+for %%T in (run_checks test_fixes test_fixes2 test_fixes3 test_fixes4 test_fixes5 test_fixes6 test_fixes7 test_fixes8 test_fixes9 test_fixes10 test_acceptance test_gui_smoke) do (
   %PY% -u tests\%%T.py > "%TEMP%\gate_%%T.txt" 2>&1 && (echo %%T: PASS) || (echo %%T: FAIL & type "%TEMP%\gate_%%T.txt" & set FAIL=1)
 )
 
