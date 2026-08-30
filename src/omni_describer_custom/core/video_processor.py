@@ -61,6 +61,31 @@ class VideoProcessor:
         self.ytdlp = ytdlp_path or self._find_ytdlp()
         logger.info("VideoProcessor: ffmpeg=%s, ytdlp=%s", self.ffmpeg, self.ytdlp)
 
+    @staticmethod
+    def _stderr_tail(stderr: bytes, limit: int = 500) -> str:
+        """Extract the useful part of ffmpeg/ffprobe stderr.
+
+        ffmpeg prints its banner FIRST and the actual error LAST, so the
+        tail (not the head) carries the diagnostic information.
+        """
+        text = stderr.decode("utf-8", errors="replace")
+        lines = [
+            ln for ln in text.splitlines()
+            if ln.strip() and not ln.startswith((
+                "ffmpeg version", "ffprobe version", "built with",
+                "configuration:", "libav", "  ",
+            ))
+        ]
+        return "\n".join(lines)[-limit:]
+
+    def _ffprobe_path(self) -> str:
+        """ffprobe next to ffmpeg when possible, else PATH."""
+        if self.ffmpeg.lower().endswith("ffmpeg.exe"):
+            candidate = Path(self.ffmpeg).with_name("ffprobe.exe")
+            if candidate.exists():
+                return str(candidate)
+        return "ffprobe"
+
     def _find_ffmpeg(self) -> str:
         """Find ffmpeg in bundled bin or PATH."""
         candidates = [
@@ -99,9 +124,7 @@ class VideoProcessor:
             info.path = str(Path(path_or_url).resolve())
             info.file_size_mb = Path(path_or_url).stat().st_size / (1024 * 1024)
 
-        ffprobe = self.ffmpeg.replace("ffmpeg.exe", "ffprobe.exe")
-        if not Path(ffprobe).exists():
-            ffprobe = "ffprobe"
+        ffprobe = self._ffprobe_path()
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -115,7 +138,6 @@ class VideoProcessor:
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
             data = json.loads(stdout)
-
             fmt = data.get("format", {})
             info.duration = float(fmt.get("duration", 0))
             info.file_size_mb = float(fmt.get("size", 0)) / (1024 * 1024)
@@ -135,7 +157,7 @@ class VideoProcessor:
                     info.has_audio = True
 
         except Exception as e:
-            logger.error("ffprobe error: %s", e)
+            logger.error("ffprobe error (%s): %s", ffprobe, e)
             info.has_audio = False
 
         return info
@@ -189,6 +211,12 @@ class VideoProcessor:
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 
+        # Fail fast with a CLEAR reason for local files that do not exist,
+        # instead of running ffmpeg and hiding the real error in a banner.
+        if not Path(video_path).exists():
+            logger.error("Frame extraction aborted: source not found: %s", video_path)
+            return []
+
         # ffmpeg frame extraction
         pattern = str(output / "frame_%04d.jpg")
         try:
@@ -202,9 +230,11 @@ class VideoProcessor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
             if proc.returncode != 0:
-                logger.error("ffmpeg error: %s", stderr.decode()[:200])
+                # Log the TAIL of stderr: ffmpeg puts the real error last,
+                # the head is only the version banner.
+                logger.error("ffmpeg error (rc=%d): %s", proc.returncode, self._stderr_tail(stderr))
                 return []
         except Exception as e:
             logger.error("Frame extraction failed: %s", e)
