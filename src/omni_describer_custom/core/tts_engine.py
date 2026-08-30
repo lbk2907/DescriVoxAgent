@@ -144,6 +144,7 @@ class EdgeTTSEngine(TTSEngineBase):
 
     def __init__(self):
         self.available = False
+        self._voices_cache: list[dict] | None = None
         self._setup()
 
     def _setup(self):
@@ -179,13 +180,18 @@ class EdgeTTSEngine(TTSEngineBase):
     async def get_voices(self) -> list[dict]:
         if not self.available:
             return []
+        # Cached after first fetch: list_voices is a network call that
+        # would otherwise freeze the UI thread on every settings open.
+        if self._voices_cache is not None:
+            return self._voices_cache
         try:
             import edge_tts
             voices = await edge_tts.list_voices()
-            return [
+            self._voices_cache = [
                 {"id": v["ShortName"], "name": v["FriendlyName"], "lang": v["Locale"]}
                 for v in voices[:50]  # Limit for performance
             ]
+            return self._voices_cache
         except Exception as e:
             logger.error("Edge TTS list_voices error: %s", e)
             return []

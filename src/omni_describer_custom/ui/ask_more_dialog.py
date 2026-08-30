@@ -91,6 +91,8 @@ class AskMoreDialog(wx.Dialog):
                 result = loop.run_until_complete(
                     self.ai.ask(question, self._history[-5:] if self._history else None)
                 )
+                # Record assistant reply so follow-ups keep context
+                self._history.append({"role": "assistant", "content": result})
                 wx.CallAfter(self.history_text.AppendText, f"AI: {result}\n\n")
                 wx.CallAfter(self.submit_btn.Enable)
             except Exception as e:

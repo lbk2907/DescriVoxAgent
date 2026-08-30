@@ -344,7 +344,7 @@ class PlayerWindow(wx.Frame):
             loop = __import__("asyncio").new_event_loop()
             __import__("asyncio").set_event_loop(loop)
             try:
-                result = loop.run_until_complete(self.tts.speak(desc_text, engine="edge"))
+                result = loop.run_until_complete(self.tts.speak(desc_text))
                 if result:
                     wx.CallAfter(self.status_text.SetLabel, "Spoken")
                 else:

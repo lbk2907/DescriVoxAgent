@@ -481,6 +481,7 @@ class SettingsDialog(wx.Dialog):
 
         self._load_values()
         wx.MessageBox("Settings saved.", t("settings.title"), wx.OK | wx.ICON_INFORMATION)
+        self.EndModal(wx.ID_OK)
 
     def _on_cancel(self, event):
         """Close dialog without saving."""
