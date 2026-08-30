@@ -287,6 +287,85 @@ def test_player_shows_real_descriptions():
         shutil.rmtree(tmp, ignore_errors=True)
 check("Player opens via real path and SHOWS real AI text (not empty)", test_player_shows_real_descriptions)
 
+# 4. THE user's actual first action: a YouTube URL. One continuous run:
+#    real yt-dlp download -> real extraction -> loopback AI -> SQLite ->
+#    _processing_done auto-opens the real PlayerWindow with real text.
+def test_full_url_to_player():
+    import subprocess as sp
+    try:
+        sp.run(["yt-dlp", "--version"], capture_output=True, check=True)
+    except Exception:
+        print("  (yt-dlp not on PATH, skipping)")
+        return
+    import wx
+    srv = LoopbackAI()
+    tmp = tempfile.mkdtemp(prefix="url2player_")
+    player = None
+    frame = None
+    try:
+        from omni_describer_custom.core.ai_engine import AIEngine
+        from omni_describer_custom.core.project_store import ProjectStore
+        from omni_describer_custom.ui.main_frame import MainFrame
+        from omni_describer_custom.ui.player_window import PlayerWindow
+
+        engine = AIEngine()
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
+                            model="loop-model")
+        frame = MainFrame()
+        frame.ai_engine = engine
+        frame.project_store = ProjectStore(
+            projects_dir=str(Path(tmp) / "projects"))
+        frame.settings = {"general.frame_rate": 1}
+        frame._processing = True
+
+        frame._process_video("https://www.youtube.com/watch?v=jNQXAC9IVRw",
+                             "describe each frame")
+        proj = frame.project_store.current
+        assert proj is not None, "project not created from URL"
+        assert proj.descriptions, "no descriptions from real URL pipeline"
+        assert srv.hits >= 1, "AI server never contacted"
+        for d in proj.descriptions:
+            assert Path(d.frame_path).exists(), f"frame missing: {d.frame_path}"
+
+        # Stop HTTP before wx window interaction (documented IOCP crash).
+        srv.stop()
+        # _processing_done auto-opens the player via wx.CallAfter. Full
+        # wx.Yield() re-enters window messaging and crashes with VLC COM
+        # (measured: RPC_E_DISCONNECTED / access violation), so run the
+        # pending event queue with the lighter ProcessPendingEvents API.
+        frame._processing_done()
+        deadline = time.monotonic() + 8
+        while player is None and time.monotonic() < deadline:
+            wx.GetApp().ProcessPendingEvents()
+            time.sleep(0.02)
+            player = next(
+                (w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)),
+                None)
+        assert player is not None, "player did not auto-open"
+        text = player.current_desc_text.GetValue()
+        assert text.startswith("loopback desc"), f"player text: {text!r}"
+    finally:
+        try:
+            if player is not None:
+                player.Destroy()
+        except Exception:
+            pass
+        try:
+            if frame is not None:
+                frame.Destroy()
+        except Exception:
+            pass
+        srv.stop()
+        shutil.rmtree(tmp, ignore_errors=True)
+check("REAL YouTube URL -> download -> extract -> AI -> save -> player auto-opens", test_full_url_to_player)
+
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
-sys.exit(1 if fail else 0)
+# KNOWN CONSTRAINT (measured): wx + VLC native teardown can access-violate
+# AFTER all tests pass (crash traced to interpreter shutdown, no Python
+# frames). All results are printed above, so exit the process directly to
+# keep the real exit code faithful to the test results.
+sys.stdout.flush()
+sys.stderr.flush()
+import os
+os._exit(1 if fail else 0)
