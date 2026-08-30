@@ -48,11 +48,6 @@ class PlayerWindow(wx.Frame):
 
         self._build_ui()
         self._load_descriptions()
-
-        # Timer for checking playback position
-        self._timer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
-
         logger.info("PlayerWindow opened")
 
     def _build_ui(self):
@@ -148,7 +143,9 @@ class PlayerWindow(wx.Frame):
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
-        # Start timer
+        # Start timer (created here so EVT_TIMER binding is already in place)
+        self._timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
         self._timer.Start(500)  # 500ms interval
 
         panel.Layout()
@@ -210,6 +207,11 @@ class PlayerWindow(wx.Frame):
         """Periodic update from playback."""
         if self._playing:
             self._position += 0.5  # 500ms tick
+            dur = self.project.video_duration if self.project else 0.0
+            if dur > 0 and self._position >= dur:
+                self._position = dur
+                self._playing = False
+                self.status_text.SetLabel("Ended")
             self._update_desc_display()
             self.position_slider.SetValue(int(self._position * 10))
 
@@ -244,6 +246,7 @@ class PlayerWindow(wx.Frame):
 
     def _on_edit(self, event):
         """Open description editor."""
+        from .editor_window import EditorWindow
         editor = EditorWindow(self, self.store, self.tts)
         editor.Show()
 

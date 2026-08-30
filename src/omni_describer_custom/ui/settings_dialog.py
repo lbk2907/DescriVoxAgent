@@ -367,18 +367,11 @@ class SettingsDialog(wx.Dialog):
                 import asyncio
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(
-                    engine.describe_frame(
-                        "",
-                        "Say 'OK' in one word",
-                        model=(
-                            self.custom_model_text.GetValue().strip()
-                            if provider == "custom"
-                            else ""
-                        ),
-                    )
-                )
-                loop.close()
+                try:
+                    # Text-only call — describe_frame requires a real image file
+                    result = loop.run_until_complete(engine.ask("Say 'OK' in one word"))
+                finally:
+                    loop.close()
                 wx.CallAfter(self.test_result.SetLabel, t("settings.test_ok", result=result[:60]))
             except Exception as e:
                 wx.CallAfter(self.test_result.SetLabel, t("settings.test_error", error=str(e)[:100]))

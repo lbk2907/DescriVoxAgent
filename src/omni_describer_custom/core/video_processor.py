@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -240,7 +241,8 @@ class VideoProcessor:
             pixels = list(small.getdata())
             avg = sum(pixels) / len(pixels)
             bits = "".join("1" if p > avg else "0" for p in pixels)
-            return hex(int(bits, 2))[2:].zfill(4)
+            # Fixed 64-char hex so leading zero bits are preserved
+            return f"{int(bits, 2):064x}"
         except Exception:
             return ""
 
@@ -251,7 +253,9 @@ class VideoProcessor:
 
         def similarity(h1: str, h2: str) -> float:
             if not h1 or not h2:
-                return 1.0
+                # Unknown hashes: never treat frames as duplicates,
+                # otherwise all frames would be dropped.
+                return 0.0
             matches = sum(c1 == c2 for c1, c2 in zip(h1, h2))
             return matches / max(len(h1), len(h2))
 
@@ -259,9 +263,7 @@ class VideoProcessor:
         for frame in frames[1:]:
             if similarity(deduped[-1].scene_hash, frame.scene_hash) < threshold:
                 deduped.append(frame)
-            else:
-                # Keep but mark as duplicate
-                frame.scene_hash = deduped[-1].scene_hash + "_dup"
+            # else: near-duplicate of previous frame, skip
 
         removed = len(frames) - len(deduped)
         if removed > 0:
@@ -318,19 +320,28 @@ class VideoProcessor:
             return []
 
     def _parse_vtt(self, vtt_path: str) -> list[TranscriptSegment]:
-        """Parse WebVTT subtitle file."""
-        segments = []
+        """Parse WebVTT subtitle file (block-based, tolerant of cue ids/settings)."""
+        segments: list[TranscriptSegment] = []
         try:
-            text = Path(vtt_path).read_text(encoding="utf-8")
-            for line in text.split("\n"):
-                line = line.strip()
-                if "-->" in line:
-                    # Timestamp line
-                    parts = line.split("-->")
-                    start = self._parse_time(parts[0].strip())
-                    end = self._parse_time(parts[1].strip())
-                elif line and not line.startswith("WEBVTT") and not line.startswith("Kind"):
-                    segments.append(TranscriptSegment(start=start, end=end, text=line))
+            text = Path(vtt_path).read_text(encoding="utf-8", errors="replace")
+            # Cues are separated by blank lines; each block may contain an
+            # optional identifier line, a timestamp line, and cue text lines.
+            blocks = re.split(r"\n\s*\n", text)
+            for block in blocks:
+                lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+                if not lines:
+                    continue
+                ts_idx = next((i for i, ln in enumerate(lines) if "-->" in ln), -1)
+                if ts_idx == -1:
+                    continue  # header, NOTE, STYLE, REGION, cue id without cue, etc.
+                parts = lines[ts_idx].split("-->")
+                start = self._parse_time(parts[0].strip())
+                # Strip trailing cue settings (e.g. "align:start position:50%")
+                end_raw = parts[1].strip().split()[0] if parts[1].strip() else "00:00:00.000"
+                end = self._parse_time(end_raw)
+                cue_text = " ".join(lines[ts_idx + 1:]).strip()
+                if cue_text:
+                    segments.append(TranscriptSegment(start=start, end=end, text=cue_text))
         except Exception as e:
             logger.error("VTT parse error: %s", e)
         return segments

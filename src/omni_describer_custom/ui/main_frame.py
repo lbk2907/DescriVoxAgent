@@ -426,14 +426,21 @@ class MainFrame(wx.Frame):
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
-            # Step 2: Extract frames
+            # Step 2: Extract frames (FPS from settings)
             wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
             import tempfile
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
-            frames = loop.run_until_complete(
-                vp.extract_frames(source, fps=5, output_dir=frame_dir)
-            )
-            wx.CallAfter(self._log, f"Extracted {len(frames)} frames")
+            try:
+                fps = int(self.settings.get("general.frame_rate", 5) or 5)
+                frames = loop.run_until_complete(
+                    vp.extract_frames(source, fps=fps, output_dir=frame_dir)
+                )
+            finally:
+                # Store video duration for the player timeline
+                if self.project_store.current:
+                    self.project_store.current.video_duration = info.duration
+                self._cleanup_dir(frame_dir)
+            wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
 
             if not frames:
                 wx.CallAfter(self._log, "ERROR: No frames extracted")
@@ -493,6 +500,15 @@ class MainFrame(wx.Frame):
         if self.project_store.current and self.project_store.current.descriptions:
             self._log("Opening Player Window...")
             wx.CallAfter(self._open_player)
+
+    @staticmethod
+    def _cleanup_dir(path: str):
+        """Best-effort removal of a temporary directory tree."""
+        import shutil
+        try:
+            shutil.rmtree(path, ignore_errors=True)
+        except Exception as e:
+            logger.debug("Cleanup failed for %s: %s", path, e)
 
     # ── Helpers ───────────────────────────────────────────────────
 

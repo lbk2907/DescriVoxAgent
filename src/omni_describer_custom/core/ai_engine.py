@@ -499,6 +499,63 @@ class CustomProvider(AIProvider):
     ) -> str:
         return await self.describe_image(image_path, question, model)
 
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        """Free-form text question (no image) via OpenAI- or Anthropic-style API."""
+        if not self.api_key:
+            raise ValueError("Custom provider: no API key configured")
+        if not self.base_url:
+            raise ValueError("Custom provider: no base URL configured")
+        model = model or self.model
+        fmt = self._detect_format()
+        messages = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (history or [])
+        ]
+        messages.append({"role": "user", "content": question})
+        async with aiohttp.ClientSession() as session:
+            if fmt == FORMAT_ANTHROPIC:
+                url = f"{self.base_url}/messages"
+                payload = {"model": model, "max_tokens": 1024, "messages": messages}
+                headers = {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                }
+                async with session.post(
+                    url, json=payload, headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=120),
+                ) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
+                    data = await resp.json()
+                    for block in data.get("content", []):
+                        if block.get("type") == "text":
+                            return block["text"]
+                    return "(no text in custom API response)"
+            url = f"{self.base_url}/chat/completions"
+            payload = {"model": model, "max_tokens": 1024, "messages": messages}
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            async with session.post(
+                url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"Custom API error: {data['error']}")
+                choices = data.get("choices", [])
+                if not choices:
+                    return "(no response from custom API)"
+                return choices[0]["message"]["content"]
+
 
 class AIEngine:
     """

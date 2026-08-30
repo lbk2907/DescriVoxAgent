@@ -186,7 +186,11 @@ class SceneExplorer(wx.Frame):
             asyncio.set_event_loop(loop)
             try:
                 result = loop.run_until_complete(
-                    self.ai.describe_frame(frame["path"], t("explorer.description"))
+                    self.ai.describe_frame(
+                        frame["path"],
+                        "Describe this video frame in detail for a blind or visually impaired user. "
+                        "Cover the scene, people, actions, on-screen text, and important visual context.",
+                    )
                 )
                 wx.CallAfter(self.desc_text.SetValue, result)
                 wx.CallAfter(self.status_text.SetLabel, t("status.ready"))

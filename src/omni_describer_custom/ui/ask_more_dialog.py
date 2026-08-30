@@ -104,4 +104,7 @@ class AskMoreDialog(wx.Dialog):
         self.question_text.SetValue("")
 
     def _on_cancel(self, event):
-        self.EndModal(wx.ID_CANCEL)
+        if self.IsModal():
+            self.EndModal(wx.ID_CANCEL)
+        else:
+            self.Destroy()
