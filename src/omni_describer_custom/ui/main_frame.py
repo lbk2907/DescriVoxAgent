@@ -421,11 +421,25 @@ class MainFrame(wx.Frame):
         self._worker.start()
 
     def _process_video(self, source: str, prompt: str):
-        """Background video processing pipeline."""
+        """Background video processing pipeline.
+
+        Frame lifecycle (fix for the "frames deleted before AI" bug): the
+        temp frame dir stays alive until the AI describe step has finished
+        and the project is saved, and every used frame is copied into the
+        project folder so the player keeps a permanent copy. The progress
+        dialog now covers the whole pipeline (download -> merge ->
+        extraction -> AI analysis -> save) so it never looks stuck on one
+        phase, and Cancel aborts the AI loop between frames.
+        """
+        frame_dir: str | None = None
         try:
             vp = VideoProcessor()
             loop = __import__("asyncio").new_event_loop()
             __import__("asyncio").set_event_loop(loop)
+            import shutil
+            import tempfile
+            import threading
+            import time as _time
 
             # Step 1: Video info
             wx.CallAfter(self.SetStatusText, t("status.loading_video"))
@@ -437,18 +451,41 @@ class MainFrame(wx.Frame):
             # MB downloaded of MB total, speed and ETA (user request 30 Aug).
             # The dialog is created lazily on the first download event so
             # local files never see an empty dialog.
+            # FIX (30 Aug): during the silent ffmpeg extraction a background
+            # counter keeps the dialog moving ("Extracting frames: N").
             wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
-            import tempfile
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
             last_ui_update = [0.0]
-            def download_progress(p) -> None:
-                import time
-                now = time.monotonic()
+            stop_counter = threading.Event()
+
+            def _ui_throttled(fn, *args) -> None:
+                """Run fn on the UI thread, throttled to >=0.5s apart."""
+                now = _time.monotonic()
                 if now - last_ui_update[0] < 0.5:
-                    return  # throttle UI updates: >=0.5s apart
+                    return
                 last_ui_update[0] = now
-                wx.CallAfter(self._ensure_download_progress)
-                wx.CallAfter(self._download_progress_tick, p)
+                wx.CallAfter(fn, *args)
+
+            def _ui_now(fn, *args) -> None:
+                wx.CallAfter(fn, *args)
+
+            def count_frames() -> None:
+                """Keep the dialog alive while ffmpeg extracts silently."""
+                while not stop_counter.wait(0.7):
+                    try:
+                        n = sum(1 for _ in Path(frame_dir).glob("frame_*.jpg")) if frame_dir else 0
+                    except Exception:
+                        continue
+                    if n:
+                        wx.CallAfter(self._ensure_download_progress)
+                        _ui_throttled(self._frame_count_tick, n)
+
+            counter_thread = threading.Thread(target=count_frames, daemon=True)
+            counter_thread.start()
+
+            def download_progress(p) -> None:
+                _ui_now(self._ensure_download_progress)
+                _ui_now(self._download_progress_tick, p)
             cancelled = False
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
@@ -464,27 +501,46 @@ class MainFrame(wx.Frame):
                 else:
                     raise
             finally:
-                self._cleanup_dir(frame_dir)
-                wx.CallAfter(self._close_download_progress)
+                stop_counter.set()
             if cancelled:
                 wx.CallAfter(self._log, t("download.cancelled_log"))
+                wx.CallAfter(self._close_download_progress)
                 wx.CallAfter(self.SetStatusText, t("status.ready"))
                 wx.CallAfter(self._processing_done)
+                self._cleanup_dir(frame_dir)
+                frame_dir = None
                 loop.close()
                 return
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
 
             if not frames:
                 wx.CallAfter(self._log, "ERROR: No frames extracted")
+                wx.CallAfter(self._close_download_progress)
                 wx.CallAfter(self._processing_done)
+                self._cleanup_dir(frame_dir)
+                frame_dir = None
                 loop.close()
                 return
 
-            # Step 3: Describe frames
+            # Step 3: Describe frames. The same dialog now shows real
+            # per-frame AI progress (done/total); Cancel aborts the AI loop
+            # between frames and keeps whatever is already done.
             wx.CallAfter(self.SetStatusText, t("status.analyzing"))
+            self._ai_cancelled = False
             frame_paths = [f.path for f in frames]
+
+            def ai_progress(done: int, tot: int) -> None:
+                _ui_now(self._ai_progress_tick, done, tot)
+
             descriptions = loop.run_until_complete(
-                self.ai_engine.describe_frames(frame_paths, prompt)
+                self.ai_engine.describe_frames(
+                    frame_paths, prompt,
+                    on_progress=ai_progress,
+                    is_cancelled=lambda: bool(
+                        getattr(self, "_ai_cancelled", False)
+                        or getattr(self, "_dl_cancelled", False)
+                    ),
+                )
             )
 
             # Step 4: Save
@@ -497,23 +553,44 @@ class MainFrame(wx.Frame):
             # Persist video duration for the player timeline
             self.project_store.set_video_duration(info.duration)
 
+            # FIX (30 Aug): copy each used frame from the temp dir into the
+            # project folder BEFORE saving, so the player survives the temp
+            # cleanup below and frames are never deleted before use.
+            frames_dir = Path(self.project_store.projects_dir) / f"project_{self.project_store.current.id}" / "frames"
+            frames_dir.mkdir(parents=True, exist_ok=True)
             desc_objects = []
             for i, (frame, text) in enumerate(zip(frames, descriptions)):
-                if text and not text.startswith("(error:"):
-                    desc_objects.append(type("Obj", (), {
-                        "id": 0,
-                        "start_time": frame.timestamp,
-                        "end_time": frame.timestamp + 1.0,
-                        "text": text,
-                        "edited": False,
-                        "created_at": "",
-                        "frame_path": frame.path,
-                    })())
+                if not text or text.startswith("(error:") or text == "(cancelled)":
+                    continue
+                perm = frames_dir / Path(frame.path).name
+                try:
+                    if not perm.exists():
+                        shutil.copy2(frame.path, perm)
+                except Exception as e:
+                    logger.warning("Frame copy failed (%s): %s", frame.path, e)
+                    continue
+                desc_objects.append(type("Obj", (), {
+                    "id": 0,
+                    "start_time": frame.timestamp,
+                    "end_time": frame.timestamp + 1.0,
+                    "text": text,
+                    "edited": False,
+                    "created_at": "",
+                    "frame_path": str(perm),
+                })())
 
+            wx.CallAfter(self._ensure_download_progress)
+            wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
             self.project_store.save_descriptions(desc_objects)
             wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
+            if getattr(self, "_ai_cancelled", False):
+                wx.CallAfter(self._log, "AI analysis cancelled; partial descriptions saved")
+            wx.CallAfter(self._close_download_progress)
             wx.CallAfter(self.SetStatusText, t("status.complete"))
 
+            # Temp frames are no longer needed: used frames were copied.
+            self._cleanup_dir(frame_dir)
+            frame_dir = None
             loop.close()
 
         except SourceError as e:
@@ -521,12 +598,18 @@ class MainFrame(wx.Frame):
             msg = str(e)
             wx.CallAfter(self._log, f"ERROR: {msg}")
             wx.CallAfter(self.SetStatusText, t("status.error", error=msg))
+            wx.CallAfter(self._close_download_progress)
             wx.CallAfter(self._processing_done)
+            if frame_dir:
+                self._cleanup_dir(frame_dir)
             return
         except Exception as e:
             logger.error("Processing error: %s", e)
             wx.CallAfter(self._log, f"ERROR: {e}")
             wx.CallAfter(self.SetStatusText, t("status.error", error=str(e)))
+            wx.CallAfter(self._close_download_progress)
+            if frame_dir:
+                self._cleanup_dir(frame_dir)
 
         wx.CallAfter(self._processing_done)
 
@@ -567,7 +650,42 @@ class MainFrame(wx.Frame):
             # User pressed Cancel
             self._dl_cancelled = True
             dlg.Update(0, t("download.cancelling"))
-            dlg.DoClose()
+            self._close_download_progress()
+
+    def _frame_count_tick(self, count: int):
+        """Show extraction progress in the dialog (UI thread)."""
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        line = t("download.extract_progress", count=count)
+        ok = dlg.Pulse(line)[0]
+        if not ok:
+            self._dl_cancelled = True
+            dlg.Update(0, t("download.cancelling"))
+            self._close_download_progress()
+
+    def _ai_progress_tick(self, done: int, total: int):
+        """Show real per-frame AI progress in the dialog (UI thread)."""
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        line = t("download.analyzing", done=done, total=total)
+        pct = int(done * 100 / total) if total else 0
+        ok = dlg.Update(pct, line)[0]
+        if not ok:
+            self._ai_cancelled = True
+            dlg.Update(pct, t("download.cancel_analysis"))
+            self._close_download_progress()
+
+    def _download_progress_tick_text(self, text: str, percent: int):
+        """Show an arbitrary phase text in the dialog (UI thread)."""
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        if percent < 0:
+            dlg.Pulse(text)
+        else:
+            dlg.Update(percent, text)
 
     def _format_progress(self, p) -> str:
         """Format one progress line: percent, MB of MB, speed, ETA."""

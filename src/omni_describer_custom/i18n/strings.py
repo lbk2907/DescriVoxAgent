@@ -151,6 +151,11 @@ EN_STRINGS: dict[str, str] = {
     "download.merging": "Merging video and audio with ffmpeg...",
     "download.cancelling": "Cancelling download...",
     "download.cancelled_log": "Download cancelled by user.",
+    "download.extracting": "Extracting frames...",
+    "download.extract_progress": "Extracting frames: {count} frames",
+    "download.analyzing": "AI analysis: {done}/{total} frames",
+    "download.cancel_analysis": "Cancelling AI analysis...",
+    "download.saving": "Saving project...",
 
     # Errors
     "error.no_video": "No video loaded.",
@@ -314,6 +319,11 @@ MS_STRINGS: dict[str, str] = {
     "download.merging": "Menggabungkan video dan audio dengan ffmpeg...",
     "download.cancelling": "Membatalkan muat turun...",
     "download.cancelled_log": "Muat turun dibatalkan oleh pengguna.",
+    "download.extracting": "Mengekstrak frame...",
+    "download.extract_progress": "Mengekstrak frame: {count} frame",
+    "download.analyzing": "Analisis AI: {done}/{total} frame",
+    "download.cancel_analysis": "Membatalkan analisis AI...",
+    "download.saving": "Menyimpan projek...",
 
     # Errors
     "error.no_video": "Tiada video dimuatkan.",

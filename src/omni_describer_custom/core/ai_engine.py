@@ -14,7 +14,7 @@ import logging
 import mimetypes
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import aiohttp
 
@@ -36,9 +36,17 @@ class AIProvider(ABC):
 
     @abstractmethod
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = ""
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
-        """Describe multiple frames in batch. Returns list of descriptions."""
+        """Describe multiple frames in batch. Returns list of descriptions.
+
+        on_progress(done, total) fires after each frame so the UI can show
+        real analysis progress instead of a silent multi-minute wait.
+        is_cancelled is polled between frames; on cancel the remaining
+        frames return "(cancelled)" and the batch ends early.
+        """
         ...
 
     async def ask_about_scene(
@@ -109,16 +117,26 @@ class GeminiProvider(AIProvider):
                 return text or "(empty response)"
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = ""
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         results = []
-        for frame in frames:
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
             try:
                 desc = await self.describe_image(frame, prompt, model)
             except Exception as e:
                 logger.warning("Gemini frame error: %s", e)
                 desc = f"(error: {e})"
             results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
         return results
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
@@ -209,16 +227,26 @@ class OpenAIProvider(AIProvider):
                 return choices[0]["message"]["content"]
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = ""
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         results = []
-        for frame in frames:
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
             try:
                 desc = await self.describe_image(frame, prompt, model)
             except Exception as e:
                 logger.warning("OpenAI frame error: %s", e)
                 desc = f"(error: {e})"
             results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
         return results
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
@@ -316,16 +344,26 @@ class OpusProvider(AIProvider):
                 return "(no text in Opus response)"
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = ""
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         results = []
-        for frame in frames:
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
             try:
                 desc = await self.describe_image(frame, prompt, model)
             except Exception as e:
                 logger.warning("Opus frame error: %s", e)
                 desc = f"(error: {e})"
             results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
         return results
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
@@ -482,16 +520,26 @@ class CustomProvider(AIProvider):
                 return "(no text in custom API response)"
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = ""
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         results = []
-        for frame in frames:
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
             try:
                 desc = await self.describe_image(frame, prompt, model)
             except Exception as e:
                 logger.warning("Custom provider frame error: %s", e)
                 desc = f"(error: {e})"
             results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
         return results
 
     async def ask_about_scene(
@@ -648,10 +696,13 @@ class AIEngine:
         prompt: str,
         provider: str = "",
         model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         """Describe multiple frames. Returns list of descriptions."""
         prov = self._provider_or_raise(provider or self._default_provider)
-        return await prov.describe_frames_batch(frames, prompt, model)
+        return await prov.describe_frames_batch(
+            frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled)
 
     async def ask_about_scene(
         self,
