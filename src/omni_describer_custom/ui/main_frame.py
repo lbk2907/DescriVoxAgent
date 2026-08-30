@@ -49,7 +49,7 @@ class MainFrame(wx.Frame):
     def __init__(self):
         self.settings = SettingsStore()
         self.ai_engine = AIEngine()
-        self.tts_engine = TTSEngine()
+        self.tts_engine = TTSEngine(self.settings.get("tts", {}))
         self.prompt_mgr = PromptManager(self.settings)
         self.project_store = ProjectStore()
         self._processing = False
@@ -309,10 +309,13 @@ class MainFrame(wx.Frame):
     def _on_settings(self, event):
         """Open settings dialog."""
         from .settings_dialog import SettingsDialog
-        dlg = SettingsDialog(self, self.settings)
+        dlg = SettingsDialog(self, self.settings, self.tts_engine)
         dlg.ShowModal()
         dlg.Destroy()
         self._load_settings()
+        # Re-apply TTS engine/voice/speed from settings
+        self.tts_engine.settings = self.settings.get("tts", {})
+        self.tts_engine._init_engines()
 
     def _on_exit(self, event):
         """Exit the application."""
@@ -436,9 +439,6 @@ class MainFrame(wx.Frame):
                     vp.extract_frames(source, fps=fps, output_dir=frame_dir)
                 )
             finally:
-                # Store video duration for the player timeline
-                if self.project_store.current:
-                    self.project_store.current.video_duration = info.duration
                 self._cleanup_dir(frame_dir)
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
 
@@ -461,6 +461,9 @@ class MainFrame(wx.Frame):
             if not self.project_store.current:
                 video_name = Path(source).name if Path(source).exists() else source
                 self.project_store.create_project(video_name, source)
+
+            # Persist video duration for the player timeline
+            self.project_store.set_video_duration(info.duration)
 
             desc_objects = []
             for i, (frame, text) in enumerate(zip(frames, descriptions)):

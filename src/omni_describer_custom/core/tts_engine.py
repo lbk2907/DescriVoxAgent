@@ -269,12 +269,22 @@ class TTSEngine:
             "sapi5": sapi5,
             "openai": openai_tts,
         }
-        # Set default to first available
-        for name in ["edge", "sapi5", "openai"]:
-            if self._engines[name].available:
+        # Prefer configured default, else first available
+        preferred = self.settings.get("default_engine", "") if isinstance(self.settings, dict) else ""
+        order = ([preferred] if preferred else []) + ["edge", "sapi5", "openai"]
+        for name in order:
+            if name and name in self._engines and self._engines[name].available:
                 self._current_engine = name
                 break
         logger.info("TTS engines initialized. Default: %s", self._current_engine)
+
+    def _engine_settings(self, engine_name: str) -> dict:
+        """Per-engine settings (voice, speed) from the settings dict."""
+        if not isinstance(self.settings, dict):
+            return {}
+        engines = self.settings.get("engines", {}) or {}
+        cfg = engines.get(engine_name, {}) or {}
+        return cfg if isinstance(cfg, dict) else {}
 
     def get_available_engines(self) -> list[str]:
         """Return list of available engine names."""
@@ -307,17 +317,29 @@ class TTSEngine:
         text: str,
         engine: str = "",
         voice: str = "",
-        speed: float = 1.0,
+        speed: float = 0.0,
     ) -> str:
         """
         Speak text using specified or default engine.
         Falls back through available engines if primary fails.
+        voice/speed default to the configured per-engine settings when
+        not explicitly passed (speed=0.0 means "use settings").
         Returns path to generated audio file, or "" on failure.
         """
+        engine_name = engine or self._current_engine
+        es = self._engine_settings(engine_name)
+        if not voice:
+            voice = es.get("voice", "") or ""
+        if not speed:
+            try:
+                speed = float(es.get("speed", 1.0) or 1.0)
+            except (TypeError, ValueError):
+                speed = 1.0
+
         # Try primary engine first
         engines_to_try = []
-        if engine and engine in self._engines and self._engines[engine].available:
-            engines_to_try.append(engine)
+        if engine_name and engine_name in self._engines and self._engines[engine_name].available:
+            engines_to_try.append(engine_name)
 
         # Then try current default
         if self._current_engine and self._current_engine not in engines_to_try:

@@ -150,6 +150,8 @@ class ProjectStore:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+        project._db_path = str(db_path)
+        self._current = project
 
         # Load descriptions
         desc_rows = conn.execute(
@@ -170,9 +172,24 @@ class ProjectStore:
         ]
 
         conn.close()
-        self._current = project
         logger.info("Project opened: id=%d name=%s (%d descriptions)", project.id, project.name, len(project.descriptions))
         return project
+
+    def set_video_duration(self, duration: float) -> None:
+        """Persist video duration for the current project (player timeline)."""
+        if not self._current:
+            return
+        self._current.video_duration = duration
+        try:
+            conn = sqlite3.connect(str(self._db_path(self._current.id)))
+            conn.execute(
+                "UPDATE projects SET video_duration = ?, updated_at = ? WHERE id = ?",
+                (duration, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error("Failed to persist video duration: %s", e)
 
     def save_descriptions(self, descriptions: list[Description]) -> None:
         """Save/update descriptions for current project."""

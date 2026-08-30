@@ -49,10 +49,11 @@ API_FORMATS = [
 class SettingsDialog(wx.Dialog):
     """Settings dialog with tabbed interface."""
 
-    def __init__(self, parent, settings):
+    def __init__(self, parent, settings, tts_engine=None):
         super().__init__(parent, title=t("settings.title"), size=(650, 560),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.settings = settings
+        self.tts_engine = tts_engine
         self._custom_visible = False
         self._build_ui()
         self._load_values()
@@ -267,16 +268,40 @@ class SettingsDialog(wx.Dialog):
     # ── Event Handlers ─────────────────────────────────────────
 
     def _on_toggle_key(self, event):
-        """Toggle API key visibility."""
+        """Toggle API key visibility.
+
+        wx.TE_PASSWORD cannot be removed at runtime on MSW, so we recreate
+        the TextCtrl with the opposite style, preserving the value.
+        """
+        is_hidden = (self.api_key_text.GetWindowStyleFlag() & wx.TE_PASSWORD) != 0
         value = self.api_key_text.GetValue()
-        if event.IsChecked():
-            self.api_key_text.SetWindowStyleFlag(wx.TE_PROCESS_ENTER)
-            self.show_key_btn.SetLabel("Hide")
-        else:
-            self.api_key_text.SetWindowStyleFlag(wx.TE_PASSWORD)
-            self.show_key_btn.SetLabel("Show")
-        self.api_key_text.ChangeValue(value)
-        self.api_key_text.SetFocus()
+        # Preserve sizer placement
+        parent = self.api_key_text.GetParent()
+        sizer = self.api_key_text.GetContainingSizer()
+        if sizer is None:
+            return
+        index = 0
+        for i, child in enumerate(sizer.GetChildren()):
+            if child.GetWindow() is self.api_key_text:
+                index = i
+                break
+        flags = sizer.GetItem(self.api_key_text).GetFlag()
+        border = sizer.GetItem(self.api_key_text).GetBorder()
+        proportion = sizer.GetItem(self.api_key_text).GetProportion()
+
+        new_style = 0 if is_hidden else wx.TE_PASSWORD
+        new_ctrl = wx.TextCtrl(parent, value=value, style=new_style,
+                               name="api_key_input")
+        # SetHint clears the value on some platforms, so re-apply afterwards
+        new_ctrl.SetHint(t("settings.api_key_placeholder"))
+        new_ctrl.SetLabel(t("settings.api_key"))
+        new_ctrl.ChangeValue(value)
+        sizer.Insert(index, new_ctrl, proportion, flags, border)
+        sizer.Detach(self.api_key_text)
+        self.api_key_text.Destroy()
+        self.api_key_text = new_ctrl
+        self.show_key_btn.SetLabel("Hide" if is_hidden else "Show")
+        self.Layout()
 
     def _on_provider_changed(self, event):
         """Update model list and show/hide custom fields when provider changes."""
@@ -320,10 +345,25 @@ class SettingsDialog(wx.Dialog):
 
     def _on_tts_engine_changed(self, event):
         """Update voice list when TTS engine changes."""
-        engine = self.tts_engine_choice.GetStringSelection()
-        # TODO: populate voice list from engine
+        self._refresh_voice_list(self.tts_engine_choice.GetStringSelection())
+
+    def _refresh_voice_list(self, engine: str):
+        """Populate voice dropdown with real voices for the given engine."""
+        current = self.voice_choice.GetStringSelection()
         self.voice_choice.SetItems(["Default"])
         self.voice_choice.SetSelection(0)
+        if not self.tts_engine:
+            return
+        try:
+            engine = engine or self.tts_engine.get_available_engines()[0]
+            voices = self.tts_engine.get_voices(engine)
+            names = [v["name"] for v in voices]
+            if names:
+                self.voice_choice.SetItems(names)
+                if current in names:
+                    self.voice_choice.SetStringSelection(current)
+        except Exception as e:
+            logger.warning("Voice list fetch failed for %s: %s", engine, e)
 
     def _on_browse_output(self, event):
         """Browse output directory."""
@@ -412,6 +452,21 @@ class SettingsDialog(wx.Dialog):
         tts_engine = self.tts_engine_choice.GetStringSelection()
         self.settings.set("tts.default_engine", tts_engine)
 
+        # Voice + speed (map display name back to voice id)
+        voice_name = self.voice_choice.GetStringSelection()
+        voice_id = ""
+        if voice_name and voice_name != "Default" and self.tts_engine:
+            try:
+                for v in self.tts_engine.get_voices(tts_engine):
+                    if v["name"] == voice_name:
+                        voice_id = v["id"]
+                        break
+            except Exception:
+                voice_id = ""
+        self.settings.set(f"tts.engines.{tts_engine}.voice", voice_id)
+        speed = self.speed_slider.GetValue() / 10.0
+        self.settings.set(f"tts.engines.{tts_engine}.speed", speed)
+
         # Update general
         lang = self.lang_choice.GetStringSelection()
         self.settings.set("general.language", lang)
@@ -442,6 +497,19 @@ class SettingsDialog(wx.Dialog):
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")
         self.tts_engine_choice.SetStringSelection(default_tts)
+        self._refresh_voice_list(default_tts)
+        # Select saved voice by id (match display name)
+        saved_voice = self.settings.get(f"tts.engines.{default_tts}.voice", "")
+        if saved_voice and self.tts_engine:
+            try:
+                for v in self.tts_engine.get_voices(default_tts):
+                    if v["id"] == saved_voice:
+                        self.voice_choice.SetStringSelection(v["name"])
+                        break
+            except Exception:
+                pass
+        saved_speed = self.settings.get(f"tts.engines.{default_tts}.speed", 1.0)
+        self.speed_slider.SetValue(int(float(saved_speed) * 10))
 
         # General
         lang = self.settings.get("general.language", "en")

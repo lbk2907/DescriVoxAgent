@@ -42,13 +42,48 @@ class PlayerWindow(wx.Frame):
         self._position = 0.0  # Current playback position in seconds
         self._vlc = None
         self._vlc_instance = None
+        self._vlc_media = None
+        self._vlc_available = False
+        self._paused_by_user = False
+        self._init_vlc()
 
         super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
                          size=(1000, 700))
 
         self._build_ui()
         self._load_descriptions()
-        logger.info("PlayerWindow opened")
+        self._attach_vlc_video()
+        logger.info("PlayerWindow opened (VLC: %s)", self._vlc_available)
+
+    def _init_vlc(self):
+        """Try to create a VLC instance. Falls back to simulated playback
+        (description walkthrough with timeline) when VLC is unavailable."""
+        try:
+            import vlc
+            self._vlc_instance = vlc.Instance("--no-video-title-show")
+            self._vlc = self._vlc_instance.media_player_new()
+            self._vlc_available = True
+        except Exception as e:
+            logger.info("VLC unavailable, using simulated playback: %s", e)
+            self._vlc_available = False
+
+    def _attach_vlc_video(self):
+        """Attach VLC output to the video panel and load media if present."""
+        if not self._vlc_available or not self.project:
+            return
+        video_path = self.project.video_path or ""
+        if not video_path or not __import__("os").path.exists(video_path):
+            logger.info("No local video file for VLC: %s", video_path)
+            return
+        try:
+            if hasattr(self._vlc, "set_hwnd"):
+                self._vlc.set_hwnd(self.video_panel.GetHandle())
+            self._vlc_media = self._vlc_instance.media_new(video_path)
+            self._vlc.set_media(self._vlc_media)
+            self.project.video_duration = self._vlc_media.get_duration() / 1000.0
+        except Exception as e:
+            logger.warning("VLC attach failed: %s", e)
+            self._vlc_available = False
 
     def _build_ui(self):
         """Build player UI."""
@@ -205,28 +240,53 @@ class PlayerWindow(wx.Frame):
 
     def _on_timer(self, event):
         """Periodic update from playback."""
-        if self._playing:
-            self._position += 0.5  # 500ms tick
-            dur = self.project.video_duration if self.project else 0.0
-            if dur > 0 and self._position >= dur:
-                self._position = dur
+        if self._vlc_available and self._vlc is not None:
+            # Sync position from real VLC playback
+            if self._vlc.is_playing():
+                self._playing = True
+                self._position = self._vlc.get_time() / 1000.0
+            elif self._playing and not self._paused_by_user:
+                # VLC stopped without user pause — end of media
                 self._playing = False
                 self.status_text.SetLabel("Ended")
-            self._update_desc_display()
-            self.position_slider.SetValue(int(self._position * 10))
+        elif self._playing:
+            self._position += 0.5  # 500ms tick (simulated playback)
+        dur = self.project.video_duration if self.project else 0.0
+        if dur > 0 and self._position >= dur:
+            self._position = dur
+            if self._playing:
+                self._playing = False
+                self.status_text.SetLabel("Ended")
+        self._update_desc_display()
+        self.position_slider.SetValue(int(self._position * 10))
 
     def _on_play(self, event):
+        self._paused_by_user = False
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.play()
+            self._playing = True
+            self.status_text.SetLabel("Playing (VLC)...")
+            return
         self._playing = True
-        self.status_text.SetLabel("Playing...")
+        self.status_text.SetLabel("Playing (simulated)...")
         self._timer.Start(500)
 
     def _on_pause(self, event):
+        self._paused_by_user = True
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.pause()
+            self._playing = self._vlc.is_playing()
+            self.status_text.SetLabel("Paused" if not self._playing else "Playing (VLC)...")
+            return
         self._playing = False
         self.status_text.SetLabel("Paused")
         self._timer.Stop()
 
     def _on_stop(self, event):
+        self._paused_by_user = True
         self._playing = False
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.stop()
         self._position = 0.0
         self.position_slider.SetValue(0)
         self._update_desc_display()
@@ -234,14 +294,20 @@ class PlayerWindow(wx.Frame):
 
     def _on_rewind(self, event):
         self._position = max(0, self._position - 10)
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.set_time(int(self._position * 1000))
         self._update_desc_display()
 
     def _on_forward(self, event):
         self._position += 10
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.set_time(int(self._position * 1000))
         self._update_desc_display()
 
     def _on_seek(self, event):
         self._position = self.position_slider.GetValue() / 10.0
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.set_time(int(self._position * 1000))
         self._update_desc_display()
 
     def _on_edit(self, event):
@@ -293,6 +359,11 @@ class PlayerWindow(wx.Frame):
     def _on_close(self, event):
         self._playing = False
         self.tts.stop()
+        if self._vlc_available and self._vlc is not None:
+            try:
+                self._vlc.stop()
+            except Exception:
+                pass
         if self._timer:
             self._timer.Stop()
         self.Destroy()
