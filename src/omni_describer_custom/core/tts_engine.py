@@ -10,6 +10,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import subprocess
+import sys
+import threading
+import time
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -44,6 +48,7 @@ class SAPI5Engine(TTSEngineBase):
     name = "sapi5"
     _engine = None
     _queue: list[str] = []
+    _lock = threading.Lock()
 
     def __init__(self):
         self.available = False
@@ -93,14 +98,17 @@ class SAPI5Engine(TTSEngineBase):
         if not self.available or not self._engine:
             return ""
         try:
-            self._engine.setProperty("rate", int(150 * speed))
-            if voice:
-                self._engine.setProperty("voice", voice)
-            # Use a temp file for async compatibility
-            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-            tmp.close()
-            self._engine.save_to_file(text, tmp.name)
-            self._engine.runAndWait()
+            # Serialize COM access: pyttsx3/SAPI5 is not thread-safe and the
+            # UI can trigger overlapping speaks (Read button + playback narration)
+            with self._lock:
+                self._engine.setProperty("rate", int(150 * speed))
+                if voice:
+                    self._engine.setProperty("voice", voice)
+                # Use a temp file for async compatibility
+                tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                tmp.close()
+                self._engine.save_to_file(text, tmp.name)
+                self._engine.runAndWait()
             if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
                 return tmp.name
             return ""
@@ -317,6 +325,84 @@ class TTSEngine:
         self._current_engine = name
         logger.info("TTS engine switched to: %s", name)
         return True
+
+    # ── Real audio playback ─────────────────────────────────────
+
+    def _play_file(self, path: str) -> bool:
+        """Play an audio file and block until finished. Returns True if played.
+
+        Playback chain (Windows-first):
+        1. winsound for WAV files (built-in, reliable)
+        2. Windows Media Control Interface (winmm.dll) for MP3/other formats
+        3. ffplay (ffmpeg) if installed
+        """
+        if not path or not os.path.isfile(path):
+            return False
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext == ".wav" and sys.platform == "win32":
+            try:
+                import winsound
+                winsound.PlaySound(path, winsound.SND_FILENAME)  # blocks until done
+                return True
+            except Exception as e:
+                logger.warning("winsound playback failed: %s", e)
+
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                winmm = ctypes.windll.winmm
+                alias = f"omni_tts_{int(time.time() * 1000)}"
+                cmd = f'open "{path}" type mpegvideo alias {alias}'
+                if winmm.mciSendStringW(cmd, None, 0, 0) == 0:
+                    try:
+                        winmm.mciSendStringW(f"play {alias} wait", None, 0, 0)
+                    finally:
+                        winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+                    return True
+            except Exception as e:
+                logger.warning("MCI playback failed: %s", e)
+
+        for player in ("ffplay",):
+            try:
+                subprocess.run(
+                    [player, "-nodisp", "-autoexit", "-loglevel", "quiet", path],
+                    timeout=120,
+                )
+                return True
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                logger.warning("%s playback failed: %s", player, e)
+        return False
+
+    def speak_and_play(self, text: str, engine: str = "", voice: str = "", speed: float = 0.0) -> bool:
+        """Generate speech, play it through the speakers, and clean up.
+
+        This is the audible path: the UI buttons should call this (directly
+        or from a background thread) so the user actually hears the text.
+        Returns True if audio was generated and played.
+        """
+        audio_path = ""
+        try:
+            loop = asyncio.new_event_loop()
+            try:
+                audio_path = loop.run_until_complete(self.speak(text, engine, voice, speed))
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error("speak_and_play generation failed: %s", e)
+            return False
+        if not audio_path:
+            return False
+        try:
+            played = self._play_file(audio_path)
+        finally:
+            try:
+                os.remove(audio_path)
+            except OSError:
+                pass
+        return played
 
     async def speak(
         self,

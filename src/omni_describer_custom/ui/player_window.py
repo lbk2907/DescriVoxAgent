@@ -45,6 +45,8 @@ class PlayerWindow(wx.Frame):
         self._vlc_media = None
         self._vlc_available = False
         self._paused_by_user = False
+        self._narrated: set[int] = set()  # description ids spoken during playback
+        self._tts_thread: threading.Thread | None = None
         self._init_vlc()
 
         super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
@@ -259,6 +261,33 @@ class PlayerWindow(wx.Frame):
                 self.status_text.SetLabel("Ended")
         self._update_desc_display()
         self.position_slider.SetValue(int(self._position * 10))
+        self._maybe_narrate()
+
+    def _maybe_narrate(self):
+        """Speak the current description aloud when playback reaches it.
+
+        This is the core accessibility path: during video playback the
+        description for the current scene must be heard, not only shown.
+        """
+        if not self._playing or not self.project or not self.project.descriptions:
+            return
+        desc = self.project.descriptions[self._current_desc_idx]
+        if desc.id in self._narrated:
+            return
+        if not desc.text.strip():
+            return
+        self._narrated.add(desc.id)
+
+        desc_text = desc.text
+
+        def _narrate_bg():
+            try:
+                self.tts.speak_and_play(desc_text)
+            except Exception as e:
+                logger.error("Narration failed: %s", e)
+
+        self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
+        self._tts_thread.start()
 
     def _on_play(self, event):
         self._paused_by_user = False
@@ -285,6 +314,7 @@ class PlayerWindow(wx.Frame):
     def _on_stop(self, event):
         self._paused_by_user = True
         self._playing = False
+        self._narrated.clear()
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.stop()
         self._position = 0.0
@@ -341,18 +371,13 @@ class PlayerWindow(wx.Frame):
         self.tts.stop()
 
         def _speak_bg():
-            loop = __import__("asyncio").new_event_loop()
-            __import__("asyncio").set_event_loop(loop)
             try:
-                result = loop.run_until_complete(self.tts.speak(desc_text))
-                if result:
+                if self.tts.speak_and_play(desc_text):
                     wx.CallAfter(self.status_text.SetLabel, "Spoken")
                 else:
                     wx.CallAfter(self.status_text.SetLabel, "TTS failed")
             except Exception as e:
                 wx.CallAfter(self.status_text.SetLabel, "TTS error: " + str(e))
-            finally:
-                loop.close()
 
         __import__("threading").Thread(target=_speak_bg, daemon=True).start()
 
