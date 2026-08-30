@@ -605,6 +605,18 @@ class AIEngine:
             raise ValueError(f"Provider not configured: {name}")
         return self._providers[name]
 
+    def _provider_or_raise(self, provider_name: str) -> AIProvider:
+        """Resolve the active provider with a clear error, never a KeyError."""
+        provider_name = provider_name or self._default_provider
+        if not provider_name:
+            raise ValueError("No AI provider configured. Call set_provider() first.")
+        if provider_name not in self._providers:
+            raise ValueError(
+                f"Provider not configured: {provider_name}. "
+                f"Configured: {list(self._providers) or 'none'}"
+            )
+        return self._providers[provider_name]
+
     async def ask(
         self,
         question: str,
@@ -613,13 +625,10 @@ class AIEngine:
         model: str = "",
     ) -> str:
         """Free-form text question to the current provider (no image)."""
-        provider_name = provider or self._default_provider
-        if not provider_name or provider_name not in self._providers:
-            raise ValueError("No AI provider configured. Call set_provider() first.")
-        prov = self._providers[provider_name]
+        prov = self._provider_or_raise(provider or self._default_provider)
         ask_fn = getattr(prov, "ask_text", None)
         if ask_fn is None:
-            raise ValueError(f"Provider '{provider_name}' does not support text questions.")
+            raise ValueError(f"Provider '{prov.name}' does not support text questions.")
         return await ask_fn(question, history, model)
 
     async def describe_frame(
@@ -630,10 +639,7 @@ class AIEngine:
         model: str = "",
     ) -> str:
         """Describe a single image/frame. Auto-fallback on failure."""
-        provider_name = provider or self._default_provider
-        if not provider_name:
-            raise ValueError("No AI provider configured. Call set_provider() first.")
-        prov = self._providers[provider_name]
+        prov = self._provider_or_raise(provider or self._default_provider)
         return await prov.describe_image(image_path, prompt, model)
 
     async def describe_frames(
@@ -644,10 +650,7 @@ class AIEngine:
         model: str = "",
     ) -> list[str]:
         """Describe multiple frames. Returns list of descriptions."""
-        provider_name = provider or self._default_provider
-        if not provider_name:
-            raise ValueError("No AI provider configured.")
-        prov = self._providers[provider_name]
+        prov = self._provider_or_raise(provider or self._default_provider)
         return await prov.describe_frames_batch(frames, prompt, model)
 
     async def ask_about_scene(
@@ -658,6 +661,5 @@ class AIEngine:
         model: str = "",
     ) -> str:
         """Ask a question about a specific frame/scene."""
-        provider_name = provider or self._default_provider
-        prov = self._providers[provider_name]
+        prov = self._provider_or_raise(provider or self._default_provider)
         return await prov.ask_about_scene(image_path, question, model)

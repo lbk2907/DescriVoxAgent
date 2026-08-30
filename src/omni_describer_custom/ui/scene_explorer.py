@@ -31,12 +31,13 @@ class SceneExplorer(wx.Frame):
         self.video_path = video_path
         self.frames: list[dict] = []
         self._current_idx = 0
+        self._frames_dir = ""
 
         super().__init__(parent, title=t("explorer.title"), size=(900, 700))
 
         self._build_ui()
         if video_path and os.path.exists(video_path):
-            self._load_frames()
+            self._load_frames_async()
         else:
             self._load_sample_frames()
 
@@ -91,30 +92,50 @@ class SceneExplorer(wx.Frame):
 
         # Key bindings
         self.Bind(wx.EVT_KEY_DOWN, self._on_key)
+        self.Bind(wx.EVT_CLOSE, self._on_close)
         panel.SetFocus()
 
         panel.Layout()
 
-    def _load_frames(self):
-        """Load frames from video."""
-        import asyncio, tempfile
-        vp = VideoProcessor()
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        tmp = tempfile.mkdtemp(prefix="odc_explorer_")
-        try:
-            self.frames = [
-                {"path": f.path, "time": f.timestamp}
-                for f in loop.run_until_complete(vp.extract_frames(self.video_path, fps=2, output_dir=tmp))
-            ]
-        except Exception as e:
-            logger.error("Frame loading error: %s", e)
-            self._load_sample_frames()
-        finally:
-            loop.close()
+    def _load_frames_async(self):
+        """Load frames from video WITHOUT blocking the UI thread.
 
+        ffmpeg extraction can take seconds to minutes; running it on the
+        UI thread made the window appear frozen (bad for screen reader
+        users who cannot see a hung window).
+        """
+        self.status_text.SetLabel("Loading frames...")
+        import asyncio, tempfile
+
+        def run():
+            vp = VideoProcessor()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            tmp = tempfile.mkdtemp(prefix="odc_explorer_")
+            try:
+                self.frames = [
+                    {"path": f.path, "time": f.timestamp}
+                    for f in loop.run_until_complete(vp.extract_frames(self.video_path, fps=2, output_dir=tmp))
+                ]
+            except Exception as e:
+                logger.error("Frame loading error: %s", e)
+                self.frames = []
+            finally:
+                loop.close()
+            # Always notify the UI thread, success or failure
+            wx.CallAfter(self._frames_loaded, self.frames, tmp)
+        threading.Thread(target=run, daemon=True).start()
+
+    def _frames_loaded(self, frames: list[dict], frames_dir: str):
+        """Called on the UI thread when background extraction finishes."""
+        self.frames = frames
+        self._frames_dir = frames_dir
         if self.frames:
             self._show_frame(0)
+        else:
+            self.status_text.SetLabel(
+                "Could not extract frames from this video."
+            )
 
     def _load_sample_frames(self):
         """No video available — leave frame list empty and inform the user."""
@@ -229,11 +250,23 @@ class SceneExplorer(wx.Frame):
         """Describe the nearest detected object."""
         self._describe_frame()  # For now, same as full description
 
+    def _on_close(self, event):
+        """Clean up extracted frames temp dir and close."""
+        if self._frames_dir:
+            import shutil
+            shutil.rmtree(self._frames_dir, ignore_errors=True)
+            self._frames_dir = ""
+        self.Destroy()
+
 
 def _pil_to_wx(img) -> wx.Bitmap:
-    """Convert PIL Image to wx.Bitmap."""
-    import io
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    wx_image = wx.Image(buf.getvalue(), wx.BITMAP_TYPE_PNG)
+    """Convert PIL Image to wx.Bitmap via raw pixel data.
+
+    The previous PNG-bytes round trip failed because wx.Image(bytes)
+    interprets its first argument as a filename, raising a confusing
+    utf-8 decode error and leaving the frame display permanently blank.
+    """
+    img_rgb = img.convert("RGB")
+    wx_image = wx.Image(img_rgb.size[0], img_rgb.size[1])
+    wx_image.SetData(img_rgb.tobytes())
     return wx.Bitmap(wx_image)
