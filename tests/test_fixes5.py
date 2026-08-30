@@ -85,6 +85,13 @@ def test_scene_explorer_async_load():
         assert win.frames, "frames not loaded in background"
         print(f"  loaded {len(win.frames)} frames asynchronously")
 
+        # The bitmap display is set by a SEPARATE UI step after the frames
+        # list fills (measured flaky here when asserted immediately), so
+        # pump the real event loop until the real widget shows it.
+        deadline = time.time() + 10
+        while time.time() < deadline and not win.frame_display.GetBitmap().IsOk():
+            pump(app, 100)
+
         # Frame mesti benar-benar dipaparkan (dahulu: blank kerana bug _pil_to_wx)
         bmp = win.frame_display.GetBitmap()
         assert bmp.IsOk(), "frame_display bitmap not ok - frame not shown"

@@ -221,6 +221,72 @@ def test_full_real_pipeline():
         shutil.rmtree(tmp, ignore_errors=True)
 check("REAL pipeline: mp4 -> ffmpeg frames -> HTTP AI -> SQLite -> permanent frames", test_full_real_pipeline)
 
+# 3. THE end-user observable outcome: after the real pipeline, the Player
+#    window opens through the REAL _open_player path and shows real AI
+#    description text - NOT "No descriptions available." (the user's
+#    original complaint: empty player after the frame-deletion bug).
+def test_player_shows_real_descriptions():
+    import wx
+    srv = LoopbackAI()
+    tmp = tempfile.mkdtemp(prefix="player_")
+    try:
+        video = Path(tmp) / "input.mp4"
+        make_video(video)
+
+        from omni_describer_custom.core.ai_engine import AIEngine
+        from omni_describer_custom.core.project_store import ProjectStore
+        from omni_describer_custom.ui.main_frame import MainFrame
+        from omni_describer_custom.ui.player_window import PlayerWindow
+
+        engine = AIEngine()
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
+                            model="loop-model")
+
+        frame = MainFrame()
+        player = None
+        try:
+            frame.ai_engine = engine
+            frame.project_store = ProjectStore(
+                projects_dir=str(Path(tmp) / "projects"))
+            frame.settings = {"general.frame_rate": 2}
+            frame._processing = True
+            frame._process_video(str(video), "describe each frame")
+            assert frame.project_store.current.descriptions, "no descriptions"
+
+            # Stop the HTTP server BEFORE wx window interaction: pumping wx
+            # messages while an asyncio proactor thread polls its IOCP has
+            # crashed with an access violation on this machine (measured).
+            # The player itself needs no further HTTP.
+            srv.stop()
+
+            # Real path used by _processing_done: _open_player. We are on
+            # the main GUI thread here, so call it synchronously.
+            frame._open_player()
+            player = next(
+                (w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)),
+                None)
+            assert player is not None, "PlayerWindow never opened"
+            text = player.current_desc_text.GetValue()
+            assert text and not text.startswith("No descriptions"), \
+                f"player looks EMPTY to the user: {text!r}"
+            assert text.startswith("loopback desc"), text
+            # Timeline shows the real ffprobe duration
+            assert player.project.video_duration > 2.9
+        finally:
+            try:
+                if player is not None:
+                    player.Destroy()
+            except Exception:
+                pass
+            try:
+                frame.Destroy()
+            except Exception:
+                pass
+    finally:
+        srv.stop()
+        shutil.rmtree(tmp, ignore_errors=True)
+check("Player opens via real path and SHOWS real AI text (not empty)", test_player_shows_real_descriptions)
+
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)
