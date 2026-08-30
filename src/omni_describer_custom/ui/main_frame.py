@@ -29,7 +29,7 @@ from ..core.tts_engine import TTSEngine
 from ..core.project_store import ProjectStore
 from ..core.settings_store import SettingsStore
 from ..core.prompt_manager import PromptManager
-from ..core.video_processor import VideoProcessor, SourceError
+from ..core.video_processor import VideoProcessor, SourceError, DownloadProgress
 from ..i18n.strings import I18n, t
 from .settings_dialog import PROVIDER_MODELS
 
@@ -53,6 +53,8 @@ class MainFrame(wx.Frame):
         self.prompt_mgr = PromptManager(self.settings)
         self.project_store = ProjectStore()
         self._processing = False
+        self._dl_dialog = None
+        self._dl_cancelled = False
         self._worker: threading.Thread | None = None
         self._current_frames: list[str] = []
         self._current_source: str = ""
@@ -405,6 +407,7 @@ class MainFrame(wx.Frame):
         )
 
         self._processing = True
+        self._dl_cancelled = False
         self.btn_preset_open.Disable()
         self.btn_local.Disable()
         self.btn_url.Disable()
@@ -430,28 +433,45 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
             # Step 2: Extract frames (FPS from settings). For URLs this first
-            # downloads via yt-dlp; on_progress relays download progress to the
-            # status bar so a blind user hears (via screen reader) that work
-            # is happening instead of a silent multi-minute wait.
+            # downloads via yt-dlp with a REAL progress dialog: percentage,
+            # MB downloaded of MB total, speed and ETA (user request 30 Aug).
+            # The dialog is created lazily on the first download event so
+            # local files never see an empty dialog.
             wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
             import tempfile
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
-            last_progress = [0.0]
-            def download_progress(text: str) -> None:
+            last_ui_update = [0.0]
+            def download_progress(p) -> None:
                 import time
                 now = time.monotonic()
-                if now - last_progress[0] < 2.0:
-                    return  # throttle: >=2s between status updates
-                last_progress[0] = now
-                wx.CallAfter(self.SetStatusText, f"{t('status.extracting_frames')} {text}")
+                if now - last_ui_update[0] < 0.5:
+                    return  # throttle UI updates: >=0.5s apart
+                last_ui_update[0] = now
+                wx.CallAfter(self._ensure_download_progress)
+                wx.CallAfter(self._download_progress_tick, p)
+            cancelled = False
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
                 frames = loop.run_until_complete(
                     vp.extract_frames(source, fps=fps, output_dir=frame_dir,
-                                      on_progress=download_progress)
+                                      on_progress=download_progress,
+                                      is_cancelled=lambda: bool(getattr(self, "_dl_cancelled", False)))
                 )
+            except SourceError as e:
+                if "cancelled" in str(e).lower():
+                    cancelled = True
+                    frames = []
+                else:
+                    raise
             finally:
                 self._cleanup_dir(frame_dir)
+                wx.CallAfter(self._close_download_progress)
+            if cancelled:
+                wx.CallAfter(self._log, t("download.cancelled_log"))
+                wx.CallAfter(self.SetStatusText, t("status.ready"))
+                wx.CallAfter(self._processing_done)
+                loop.close()
+                return
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
 
             if not frames:
@@ -509,6 +529,77 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self.SetStatusText, t("status.error", error=str(e)))
 
         wx.CallAfter(self._processing_done)
+
+    def _ensure_download_progress(self):
+        """Create the download progress dialog on first progress event.
+
+        Runs on the UI thread (via wx.CallAfter). Lazily created so local
+        files never flash an empty dialog.
+        """
+        if self._dl_dialog is not None or self.IsBeingDeleted():
+            return
+        try:
+            dlg = wx.ProgressDialog(
+                t("download.dialog_title"),
+                t("download.preparing"),
+                maximum=100,
+                parent=self,
+                style=wx.PD_CAN_ABORT | wx.PD_SMOOTH | wx.PD_AUTO_HIDE,
+            )
+            dlg.SetSize((460, 150))
+            self._dl_dialog = dlg
+        except Exception:
+            logger.debug("ProgressDialog creation failed", exc_info=True)
+            self._dl_dialog = None
+
+    def _download_progress_tick(self, p):
+        """Update the progress dialog from a DownloadProgress (UI thread)."""
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        line = self._format_progress(p)
+        if p.percent < 0:
+            # Unknown percentage: pulse the bar, show the text
+            ok = dlg.Pulse(line)[0]
+        else:
+            ok = dlg.Update(int(p.percent), line)[0]
+        if not ok:
+            # User pressed Cancel
+            self._dl_cancelled = True
+            dlg.Update(0, t("download.cancelling"))
+            dlg.DoClose()
+
+    def _format_progress(self, p) -> str:
+        """Format one progress line: percent, MB of MB, speed, ETA."""
+        if p.phase == "merge":
+            return t("download.merging")
+        if p.phase == "audio":
+            label = t("download.audio")
+        elif p.phase == "video":
+            label = t("download.video")
+        else:
+            label = t("download.preparing")
+        if p.percent < 0:
+            return label
+        if p.total_mb >= 0 and p.downloaded_mb >= 0:
+            body = f"{p.percent:.1f}% ({p.downloaded_mb:.1f}/{p.total_mb:.1f} MB"
+        else:
+            body = f"{p.percent:.1f}%"
+        if p.speed:
+            body += f", {p.speed}"
+        if p.eta:
+            body += f", ETA {p.eta}"
+        return f"{label}: {body})" if "MB" in body else f"{label}: {body}"
+
+    def _close_download_progress(self):
+        """Close and destroy the progress dialog if it exists (UI thread)."""
+        dlg, self._dl_dialog = self._dl_dialog, None
+        if dlg is not None:
+            try:
+                dlg.Destroy()
+            except Exception:
+                pass
+            self.Refresh()
 
     def _processing_done(self):
         """Reset UI after processing and open PlayerWindow."""

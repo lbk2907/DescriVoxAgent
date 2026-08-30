@@ -143,6 +143,15 @@ EN_STRINGS: dict[str, str] = {
     "status.frame_of": "Frame {current}/{total}",
     "status.processing_complete": "Processing complete! {count} descriptions generated.",
 
+    # Download progress dialog
+    "download.dialog_title": "Downloading video",
+    "download.preparing": "Preparing download...",
+    "download.video": "Video stream",
+    "download.audio": "Audio stream",
+    "download.merging": "Merging video and audio with ffmpeg...",
+    "download.cancelling": "Cancelling download...",
+    "download.cancelled_log": "Download cancelled by user.",
+
     # Errors
     "error.no_video": "No video loaded.",
     "error.no_frames": "No frames extracted.",
@@ -296,6 +305,15 @@ MS_STRINGS: dict[str, str] = {
     "status.error": "Ralat: {error}",
     "status.frame_of": "Kerangka {current}/{total}",
     "status.processing_complete": "Pemprosesan selesai! {count} penerangan dijana.",
+
+    # Dialog kemajuan muat turun
+    "download.dialog_title": "Memuat turun video",
+    "download.preparing": "Menyediakan muat turun...",
+    "download.video": "Strim video",
+    "download.audio": "Strim audio",
+    "download.merging": "Menggabungkan video dan audio dengan ffmpeg...",
+    "download.cancelling": "Membatalkan muat turun...",
+    "download.cancelled_log": "Muat turun dibatalkan oleh pengguna.",
 
     # Errors
     "error.no_video": "Tiada video dimuatkan.",

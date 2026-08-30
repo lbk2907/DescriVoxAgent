@@ -58,6 +58,17 @@ class TranscriptSegment:
     text: str
 
 
+@dataclass
+class DownloadProgress:
+    """Parsed yt-dlp progress for one download phase (video/audio/merge)."""
+    phase: str            # "preparing", "video", "audio", "merge"
+    percent: float        # 0..100; -1 when unknown
+    downloaded_mb: float  # -1 when unknown
+    total_mb: float       # -1 when unknown
+    speed: str = ""       # human-readable, e.g. "3.51MiB/s"
+    eta: str = ""         # human-readable, e.g. "00:10"
+
+
 class VideoProcessor:
     """
     Video processing: frame extraction, scene detection, transcripts.
@@ -215,12 +226,44 @@ class VideoProcessor:
                 return f"{ln} ({url})"
         return f"{fallback} ({url}): {lines[-1][:200] if lines else 'no details'}"
 
+    @staticmethod
+    def _parse_ytdlp_progress(line: str) -> "DownloadProgress | None":
+        """Parse a yt-dlp --newline progress line.
+
+        Real formats seen (captured from an actual download):
+          [download]   0.5% of  218.53KiB at   62.49KiB/s ETA 00:03
+          [download]  45.2% of ~ 51.02MiB at 3.51MiB/s ETA 00:10   (unknown total)
+          [download] 100% of  218.53KiB in 00:00:00 at 703.57KiB/s  (finished)
+        """
+        m = re.match(
+            r"\[download\]\s+(?P<pct>[\d.]+)% of\s+(?P<tilde>~)?\s*(?P<amt>[\d.]+)\s*(?P<unit>KiB|MiB|GiB)"
+            r"(?: at\s+(?P<spd>[\d.]+)\s*(?P<spdu>KiB|MiB|GiB)/s)?"
+            r"(?: ETA (?P<eta>\S+))?,?",
+            line,
+        )
+        if not m:
+            return None
+        units = {"KiB": 1.0 / 1024, "MiB": 1.0, "GiB": 1024.0}
+        amt_mb = float(m.group("amt")) * units[m.group("unit")]
+        speed = ""
+        if m.group("spd"):
+            speed = f"{m.group('spd')}{m.group('spdu')}/s"
+        return DownloadProgress(
+            phase="preparing",
+            percent=float(m.group("pct")),
+            downloaded_mb=amt_mb if m.group("tilde") is None else amt_mb * float(m.group("pct")) / 100.0,
+            total_mb=-1.0 if m.group("tilde") else amt_mb,
+            speed=speed,
+            eta=m.group("eta") or "",
+        )
+
     async def download_video(
         self,
         url: str,
         out_dir: str = "",
-        on_progress: Callable[[str], None] | None = None,
+        on_progress: Callable[[DownloadProgress], None] | None = None,
         max_height: int = 1080,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
         """Download a remote video via yt-dlp and return the local file path.
 
@@ -252,6 +295,29 @@ class VideoProcessor:
                 stderr=asyncio.subprocess.PIPE,
             )
             err_lines: list[str] = []
+            phase = ["preparing"]
+            cancel_flag = [False]
+            timed_out = [False]
+
+            def _on_line(text: str, is_err: bool) -> None:
+                if is_err:
+                    err_lines.append(text)
+                    return
+                if text.startswith("[download] Destination:"):
+                    # First destination = video stream, second = audio stream
+                    phase[0] = "audio" if phase[0] == "video" else "video"
+                    return
+                if text.startswith("[Merger]"):
+                    phase[0] = "merge"
+                    return
+                p = self._parse_ytdlp_progress(text)
+                if p:
+                    p.phase = phase[0]
+                    try:
+                        if on_progress:
+                            on_progress(p)
+                    except Exception:
+                        logger.debug("on_progress callback raised", exc_info=True)
 
             async def pump(stream, is_err: bool = False) -> None:
                 while True:
@@ -259,27 +325,46 @@ class VideoProcessor:
                     if not line:
                         break
                     text = line.decode("utf-8", errors="replace").strip()
-                    if not text:
-                        continue
-                    if is_err:
-                        err_lines.append(text)
-                    elif on_progress:
-                        on_progress(text[:120])
-            await asyncio.wait_for(
-                asyncio.gather(pump(proc.stdout), pump(proc.stderr, True), proc.wait()),
-                timeout=1800,
-            )
-        except asyncio.TimeoutError as e:
-            proc.kill()
-            raise SourceError(f"Download timed out after 30 minutes ({url})") from e
+                    if text:
+                        _on_line(text, is_err)
+
+            def _kill() -> None:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+
+            task = asyncio.ensure_future(asyncio.gather(
+                pump(proc.stdout), pump(proc.stderr, True), proc.wait()))
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 1800
+            try:
+                while not task.done():
+                    if is_cancelled is not None and is_cancelled():
+                        cancel_flag[0] = True
+                        _kill()
+                    if loop.time() > deadline:
+                        timed_out[0] = True
+                        _kill()
+                    try:
+                        await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass
+                await task
+            except Exception as e:
+                raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
+            if cancel_flag[0]:
+                raise SourceError(f"Download cancelled ({url})")
+            if timed_out[0]:
+                raise SourceError(f"Download timed out after 30 minutes ({url})")
+            if proc.returncode != 0:
+                msg = self._ytdlp_error_text(
+                    url, "\n".join(err_lines).encode("utf-8", "replace"))
+                raise SourceError(msg)
         except SourceError:
             raise
         except Exception as e:
             raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
-        if proc.returncode != 0:
-            msg = self._ytdlp_error_text(
-                url, "\n".join(err_lines).encode("utf-8", "replace"))
-            raise SourceError(msg)
         files = sorted(Path(out_dir).glob("video.*"))
         if files:
             logger.info("Downloaded source: %s", files[0])
@@ -289,7 +374,8 @@ class VideoProcessor:
     async def resolve_source(
         self,
         path_or_url: str,
-        on_progress: Callable[[str], None] | None = None,
+        on_progress: Callable[[DownloadProgress], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
         """
         Resolve a video source. Remote URLs (YouTube etc.) are downloaded
@@ -303,7 +389,8 @@ class VideoProcessor:
             return str(Path(path_or_url).resolve())
         if not (path_or_url.startswith("http://") or path_or_url.startswith("https://")):
             return path_or_url
-        return await self.download_video(path_or_url, on_progress=on_progress)
+        return await self.download_video(
+            path_or_url, on_progress=on_progress, is_cancelled=is_cancelled)
 
     async def extract_frames(
         self,
@@ -311,16 +398,19 @@ class VideoProcessor:
         fps: int = 5,
         output_dir: str = "",
         detect_scene_changes: bool = True,
-        on_progress: Callable[[str], None] | None = None,
+        on_progress: Callable[[DownloadProgress], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> list[Frame]:
         """
         Extract frames at specified FPS.
         Optionally detect scene changes (skip similar consecutive frames).
 
-        Remote URLs are downloaded first (on_progress receives download
-        status lines). Raises SourceError when the source cannot be resolved.
+        Remote URLs are downloaded first (on_progress receives structured
+        DownloadProgress: percent, MB downloaded/total, speed, ETA).
+        Raises SourceError when the source cannot be resolved.
         """
-        video_path = await self.resolve_source(video_path, on_progress=on_progress)
+        video_path = await self.resolve_source(
+            video_path, on_progress=on_progress, is_cancelled=is_cancelled)
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 
