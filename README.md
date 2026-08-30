@@ -64,9 +64,31 @@ frame). Use **File** menu items to create, open, or save projects.
 - Test suites live in `tests\` as standalone scripts
   (`test_fixes.py` ... `test_fixes11.py`, `test_acceptance.py`,
   `test_gui_smoke.py`, `run_checks.py`). Each exits nonzero on failure.
+- i18n audit (every `t("...")` key exists in both EN and MS, no
+  unlabeled buttons): `python tests\audit_i18n.py` — prints
+  `AUDIT_PASS`.
+
+## Building a distributable exe (deployment)
+
+Run `build.bat`. It does four stages and prints `BUILD_ALL_OK` when all
+succeed:
+
+1. **Compile check** of all sources.
+2. **PyInstaller** (`--onedir --windowed`) produces `dist\OmniDescriber\`
+   with an `OmniDescriber.exe` launcher, bundled `doc\` folder, and all
+   TTS/AI/PIL dependencies collected.
+3. **Smoke test** launches the real exe, waits for the
+   "Application started" log line, confirms the process stays alive,
+   then closes it (`tests\test_build_smoke.py`).
+4. **Zip**: `dist\OmniDescriber-1.0.0-win64.zip` (~271 MB) ready to copy
+   to any Windows 10/11 x64 machine. Recipients do not need Python or
+   ffmpeg for playback of local files; YouTube URLs still need
+   `yt-dlp` on PATH.
+
 - Tests deliberately exercise real paths: real ffmpeg renders, a real
   localhost HTTP AI server, real SQLite writes, and the real wx dialog
   pipeline. Known environment constraints (documented inside the tests):
   native wx message boxes cannot be driven from Python, and wx + VLC
   native teardown can crash after tests pass, so suites exit via
   `os._exit` after flushing results.
+

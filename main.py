@@ -40,10 +40,13 @@ def main():
     # Create wx App
     app = wx.App(False)
 
-    # Add src/ to path for package imports (before any omni_describer imports)
-    src_dir = str(Path(__file__).parent / "src")
-    if src_dir not in sys.path:
-        sys.path.insert(0, src_dir)
+    # Add src/ to path for package imports (before any omni_describer imports).
+    # In a PyInstaller bundle the package lives in the PYZ archive, so the
+    # src/ path hack is neither needed nor possible.
+    if not getattr(sys, "frozen", False):
+        src_dir = str(Path(__file__).parent / "src")
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
 
     try:
         from omni_describer_custom.ui.main_frame import MainFrame

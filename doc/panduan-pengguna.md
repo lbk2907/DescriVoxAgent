@@ -8,6 +8,21 @@ main balik.
 
 Versi Inggeris ringkas: `README.md`.
 
+## Memasang versi exe (tanpa Python)
+
+Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
+
+1. Dapatkan `OmniDescriber-1.0.0-win64.zip` dan nyahzip ke mana-mana
+   folder, contohnya `C:\OmniDescriber`.
+2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
+   diperlukan; dokumen panduan ini turut dibundel dalam folder `doc`.
+3. Untuk main balik video tempatan, tiada keperluan tambahan. Untuk
+   pautan YouTube, pasang `yt-dlp` dan pastikan ia boleh dijumpai
+   melalui PATH.
+
+Versi pembangun (skrip Python) masih boleh dimulakan dengan `run.bat`
+seperti di bawah.
+
 ## Memulakan aplikasi
 
 Klik dua kali `run.bat` dalam folder `omni-describer-custom`. Aplikasi
