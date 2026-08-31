@@ -54,7 +54,14 @@ frame), log itu merekod sebab sebenar setiap kegagalan.
 ## Tetapan (menu System > Settings..., atau butang Settings...)
 
 - **Tab AI**: pembekal (Gemini, OpenAI, Opus Proxy, atau Custom), kunci
-  API, model. Butang **Test** menguji sambungan sebenar.
+  API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
+  ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
+  soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
+  satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
+  papan kekunci berpindah ke situ supaya pembaca skrin terus
+  membacanya. "OK: ..." bermakna kunci sah; "Error: ..." bermakna kunci
+  salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
+  dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 - **Tab General**:
   - **Language**: `en` (Inggeris) atau `ms` (Melayu).

@@ -379,17 +379,23 @@ class SettingsDialog(wx.Dialog):
             self.output_text.SetValue(dlg.GetPath())
         dlg.Destroy()
 
+    def _show_test_result(self, text):
+        """Show the connection test result and move keyboard focus to it
+        so screen readers announce it immediately."""
+        self.test_result.SetLabel(text)
+        self.test_result.SetFocus()
+
     def _on_test(self, event):
         """Test AI provider connection."""
         provider = self.provider_choice.GetStringSelection()
         api_key = self.api_key_text.GetValue().strip()
 
         if provider == "custom" and not self.base_url_text.GetValue().strip():
-            self.test_result.SetLabel(t("settings.test_no_url"))
+            self._show_test_result(t("settings.test_no_url"))
             return
 
         if not api_key:
-            self.test_result.SetLabel(t("settings.test_no_key"))
+            self._show_test_result(t("settings.test_no_key"))
             return
 
         self.test_result.SetLabel(t("settings.testing"))
@@ -419,9 +425,11 @@ class SettingsDialog(wx.Dialog):
                     result = loop.run_until_complete(engine.ask("Say 'OK' in one word"))
                 finally:
                     loop.close()
-                wx.CallAfter(self.test_result.SetLabel, t("settings.test_ok", result=result[:60]))
+                wx.CallAfter(self._show_test_result,
+                             t("settings.test_ok", result=result[:60]))
             except Exception as e:
-                wx.CallAfter(self.test_result.SetLabel, t("settings.test_error", error=str(e)[:100]))
+                wx.CallAfter(self._show_test_result,
+                             t("settings.test_error", error=str(e)[:100]))
 
         import threading
         threading.Thread(target=test, daemon=True).start()
