@@ -95,20 +95,39 @@ class SAPI5Engine(TTSEngineBase):
             self.available = False
 
     async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
-        if not self.available or not self._engine:
+        if not self.available:
             return ""
         try:
-            # Serialize COM access: pyttsx3/SAPI5 is not thread-safe and the
-            # UI can trigger overlapping speaks (Read button + playback narration)
+            # Serialize COM access: SAPI5 is not thread-safe and the UI can
+            # trigger overlapping speaks (Read button + playback narration).
             with self._lock:
-                self._engine.setProperty("rate", int(150 * speed))
-                if voice:
-                    self._engine.setProperty("voice", voice)
-                # Use a temp file for async compatibility
+                import pythoncom
+                import win32com.client
+
                 tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                 tmp.close()
-                self._engine.save_to_file(text, tmp.name)
-                self._engine.runAndWait()
+                pythoncom.CoInitialize()
+                try:
+                    # Render straight to a WAV file via SAPI's own file
+                    # stream. This deliberately avoids pyttsx3's
+                    # runAndWait(), whose second call on a cached engine
+                    # can block forever.
+                    stream = win32com.client.Dispatch("SAPI.SpFileStream")
+                    stream.Open(tmp.name, 3, False)  # 3 = SSFMCreateForWrite
+                    tts = win32com.client.Dispatch("SAPI.SpVoice")
+                    if voice:
+                        tokens = tts.GetVoices()
+                        for i in range(tokens.Count):
+                            if tokens.Item(i).Id == voice:
+                                tts.Voice = tokens.Item(i)
+                                break
+                    # speed 1.0 == normal rate; SAPI rate range is -10..10
+                    tts.Rate = max(-10, min(10, int(round((speed - 1) * 10))))
+                    tts.AudioOutputStream = stream
+                    tts.Speak(text, 0)  # synchronous render to file
+                    stream.Close()
+                finally:
+                    pythoncom.CoUninitialize()
             if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
                 return tmp.name
             return ""
