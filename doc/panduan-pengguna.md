@@ -39,8 +39,16 @@ frame), log itu merekod sebab sebenar setiap kegagalan.
    - **Local Video File**: fail video dalam komputer anda.
    - **Direct Video URL**: pautan terus ke fail video.
    - **YouTube Video URL**: pautan halaman YouTube.
-2. Pilih pra-tetap arahan (prompt) atau taip arahan anda sendiri, kemudian
-   tekan butang **Open**.
+2. Pilih preset arahan (prompt) dari senarai juntai bawah "Preset
+   Arahan". Apabila anda memilih satu, teks penuh preset itu serta-merta
+   muncul dalam kotak "Arahan untuk dihantar" di bawah, dan pembaca
+   skrin mengumumkan "Preset dipilih: <nama>". Anda boleh membaca,
+   menyunting, atau menambah nota pada teks itu sebelum memproses.
+   Preset "default" menghuraikan semua yang kelihatan dalam setiap frame
+   secara terperinci; preset lain lebih ringkas atau memberi tumpuan
+   tertentu (aksara, teks pada skrin, dan sebagainya). Kemudian tekan
+   butang **Open** untuk mula memproses dengan arahan tersebut.
+   Menukar teks dalam kotak itu tidak mengubah preset asal.
 3. Satu dialog kemajuan akan mengiringi keseluruhan proses dan sentiasa
    mengemas kini: muat turun (peratus sebenar, MB, kelajuan, ETA),
    penggabungan, ekstraksi frame ("Extracting frames: N"), analisis AI

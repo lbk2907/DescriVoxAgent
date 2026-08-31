@@ -63,6 +63,10 @@ class MainFrame(wx.Frame):
         lang = self.settings.get("general.language", "en")
         I18n.set_language(lang)
 
+        # Keep the prompt preset manager in the same language as the UI
+        # so the dropdown lists the right language-specific presets.
+        self.prompt_mgr.language = lang
+
         title = t("main.title")
         super().__init__(
             None,
@@ -111,7 +115,7 @@ class MainFrame(wx.Frame):
 
         preset_label = wx.StaticText(
             panel,
-            label="Optional: Select a prompt preset to enhance generation:",
+            label=t("main.preset_hint"),
             name="preset_label",
         )
         outer.Add(preset_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
@@ -120,6 +124,8 @@ class MainFrame(wx.Frame):
         self.prompt_choice = wx.Choice(panel, name="prompt_choice")
         self.prompt_choice.SetMinSize((-1, _COMBO_H))
         self._refresh_prompt_list()
+        self.prompt_choice.Bind(wx.EVT_CHOICE, self._on_preset_selected)
+        self.prompt_choice.Bind(wx.EVT_SET_FOCUS, self._on_preset_focus)
 
         self.btn_preset_open = wx.Button(panel, label="Open",
                                          name="preset_open")
@@ -132,7 +138,7 @@ class MainFrame(wx.Frame):
         outer.AddSpacer(5)
 
         # ── 3. Custom prompt text area ───────────────────────────
-        outer.Add(wx.StaticText(panel, label="Custom Prompt:",
+        outer.Add(wx.StaticText(panel, label=t("main.custom_prompt"),
                                 name="custom_prompt_label"),
                   0, wx.LEFT | wx.RIGHT, _BORDER)
         self.custom_prompt = wx.TextCtrl(
@@ -291,20 +297,52 @@ class MainFrame(wx.Frame):
         """Apply the selected prompt preset and start processing."""
         preset_name = self.prompt_choice.GetStringSelection()
         if not preset_name:
-            wx.MessageBox("Please select a prompt preset.", "Prompt",
+            wx.MessageBox(t("main.no_preset"), t("settings.title"),
                           wx.OK | wx.ICON_WARNING)
             return
 
         # Get preset text
         prompt = self.prompt_mgr.get_preset(preset_name)
+        if not prompt:
+            wx.MessageBox(t("main.no_preset"), t("settings.title"),
+                          wx.OK | wx.ICON_WARNING)
+            return
 
-        # Check if user added custom prompt text
+        # Anything typed on top of the previewed preset counts as
+        # extra notes; ignore text identical to the preset itself.
         custom = self.custom_prompt.GetValue().strip()
-        if custom:
+        if custom and custom != prompt.strip():
             prompt = f"{prompt}\n\nUser notes: {custom}"
 
         self._log(f"Preset: {preset_name}")
         self._start_processing(prompt)
+
+    def _on_preset_selected(self, event):
+        """A preset was picked: show its text and announce it."""
+        self._preview_preset(event.GetString())
+        event.Skip()
+
+    def _on_preset_focus(self, event):
+        """Announce the current preset when the picker gets focus."""
+        name = self.prompt_choice.GetStringSelection()
+        if name and self.GetStatusBar():
+            self.SetStatusText(t("status.preset_selected", name=name), 0)
+        event.Skip()
+
+    def _preview_preset(self, name: str):
+        """Put the preset text into the custom prompt box and announce
+        the selection, so screen reader users can read and edit it."""
+        if not name:
+            return
+        text = self.prompt_mgr.get_preset(name)
+        box = getattr(self, "custom_prompt", None)
+        if text and box is not None:
+            box.ChangeValue(text)
+        if self.GetStatusBar():
+            self.SetStatusText(t("status.preset_selected", name=name), 0)
+        if name == "default" and getattr(self, "log_text", None) is not None:
+            self._log(t("prompts.default_hint"))
+        logger.info("Preset selected: %s", name)
 
     # ── Settings / Exit ───────────────────────────────────────────
 
@@ -775,6 +813,7 @@ class MainFrame(wx.Frame):
         self.prompt_choice.SetItems(names)
         if names:
             self.prompt_choice.SetSelection(0)
+            self._preview_preset(names[0])
 
     def _open_player(self):
         """Open the described video player window."""
