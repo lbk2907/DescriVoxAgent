@@ -1,0 +1,349 @@
+"""
+Omni Describer Custom — Timeline import/export.
+
+Import descriptions from SRT / VTT / simple text files, export
+descriptions to SRT / VTT, and render one synchronized audio file
+(TTS per description placed at its start time via ffmpeg mixing).
+
+Pure logic, no wx — standalone testable.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+from .project_store import Description
+
+logger = logging.getLogger(__name__)
+
+# ── Time formatting / parsing ────────────────────────────────────
+
+_SRT_TIME = re.compile(
+    r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?$"
+)
+
+_TIME_LINE = re.compile(
+    r"(\d{1,2}:)?(\d{1,2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}:)?(\d{1,2}):(\d{2})[,.](\d{1,3})"
+)
+
+
+def _secs(h: str | None, m: str, s: str, ms: str | None) -> float:
+    # Group may arrive with ("00:") or without ("01") the trailing colon
+    # depending on which regex captured it.
+    hours = int(h.rstrip(":")) if h else 0
+    millis = int((ms or "0").ljust(3, "0")[:3]) / 1000.0
+    return hours * 3600 + int(m) * 60 + int(s) + millis
+
+
+def fmt_srt_time(seconds: float) -> str:
+    """Format seconds as SRT timestamp HH:MM:SS,mmm."""
+    seconds = max(0.0, seconds)
+    total_ms = int(round(seconds * 1000))
+    h, rem = divmod(total_ms, 3600_000)
+    m, rem = divmod(rem, 60_000)
+    s, ms = divmod(rem, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def fmt_vtt_time(seconds: float) -> str:
+    """Format seconds as WebVTT timestamp HH:MM:SS.mmm."""
+    return fmt_srt_time(seconds).replace(",", ".")
+
+
+def parse_timestamp(value: str) -> float | None:
+    """Parse 'HH:MM:SS,mmm' / 'MM:SS.mmm' / 'H:MM:SS' style stamps."""
+    value = value.strip()
+    m = _SRT_TIME.match(value)
+    if m:
+        return _secs(m.group(1), m.group(2), m.group(3), m.group(4))
+    # Bare seconds "12.5" or "12"
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+# ── SRT / VTT parsing ────────────────────────────────────────────
+
+def _iter_cue_blocks(text: str):
+    """Yield (start, end, text_lines) from subtitle cue blocks."""
+    block: list[str] = []
+    for line in text.splitlines() + [""]:
+        if line.strip():
+            block.append(line)
+            continue
+        if block:
+            yield _parse_cue_block(block)
+            block = []
+
+
+def _parse_cue_block(block: list[str]):
+    for i, line in enumerate(block):
+        m = _TIME_LINE.search(line)
+        if m:
+            start = _secs(m.group(1), m.group(2), m.group(3), m.group(4))
+            end = _secs(m.group(5), m.group(6), m.group(7), m.group(8))
+            text_lines = [
+                re.sub(r"</?[^>]+>", "", l)  # strip basic tags
+                for l in block[i + 1:]
+                if l.strip()
+            ]
+            return start, end, "\n".join(text_lines).strip()
+    return None
+
+
+def parse_srt(path: str | Path) -> list[Description]:
+    """Parse an SRT file into timed descriptions."""
+    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    descs = []
+    for cue in _iter_cue_blocks(text):
+        if cue and cue[2]:
+            descs.append(Description(start_time=cue[0], end_time=cue[1], text=cue[2]))
+    return descs
+
+
+def parse_vtt(path: str | Path) -> list[Description]:
+    """Parse a WebVTT file into timed descriptions."""
+    return parse_srt(path)  # cue blocks are a superset; WEBVTT header yields no cue
+
+
+# ── Simple text parsing ──────────────────────────────────────────
+
+# "00:05 text", "0:00:05 text", "00:05 - 00:12 text", "90.5 text"
+_SIMPLE_LINE = re.compile(
+    r"^\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?|\d+(?:\.\d+)?)"
+    r"(?:\s*[-–—]\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?|\d+(?:\.\d+)?))?"
+    r"\s+(.+)$"
+)
+
+
+def parse_simple(path: str | Path) -> list[Description]:
+    """Parse a simple timed-text file: one description per line.
+
+    Formats: 'TIMESTAMP text' or 'START - END text'.
+    TIMESTAMP: H:MM:SS, M:SS, or bare seconds.
+    End time defaults to the next line's start (minimum 1 second).
+    """
+    descs = []
+    for raw in Path(path).read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        if not raw.strip() or raw.strip().startswith("#"):
+            continue
+        m = _SIMPLE_LINE.match(raw)
+        if not m:
+            continue
+        start = parse_timestamp(m.group(1))
+        end = parse_timestamp(m.group(2)) if m.group(2) else None
+        if start is None:
+            continue
+        if end is None or end <= start:
+            end = None
+        text = re.sub(r"</?[^>]+>", "", m.group(3)).strip()
+        descs.append(Description(start_time=start, end_time=end or 0.0,
+                                 text=text))
+    # Fill missing ends from next start
+    for i, d in enumerate(descs):
+        if d.end_time <= d.start_time:
+            nxt = descs[i + 1].start_time if i + 1 < len(descs) else d.start_time + 8.0
+            d.end_time = max(nxt - 0.05, d.start_time + 1.0)
+    return descs
+
+
+def parse_any(path: str | Path) -> list[Description]:
+    """Parse SRT/VTT/simple text, dispatching on content and extension."""
+    p = Path(path)
+    suffix = p.suffix.lower()
+    if suffix == ".srt":
+        return parse_srt(p)
+    if suffix == ".vtt":
+        return parse_vtt(p)
+    text = p.read_text(encoding="utf-8-sig", errors="replace")
+    if "WEBVTT" in text[:200] or "-->" in text:
+        return parse_srt(p)
+    return parse_simple(p)
+
+
+# ── SRT / VTT writing ────────────────────────────────────────────
+
+def to_srt(descriptions: list[Description]) -> str:
+    out = []
+    for i, d in enumerate(sorted(descriptions, key=lambda d: d.start_time), 1):
+        out.append(str(i))
+        out.append(f"{fmt_srt_time(d.start_time)} --> {fmt_srt_time(d.end_time)}")
+        out.append(d.text.replace("\r\n", "\n"))
+        out.append("")
+    return "\n".join(out)
+
+
+def to_vtt(descriptions: list[Description]) -> str:
+    out = ["WEBVTT", ""]
+    for i, d in enumerate(sorted(descriptions, key=lambda d: d.start_time), 1):
+        out.append(str(i))
+        out.append(f"{fmt_vtt_time(d.start_time)} --> {fmt_vtt_time(d.end_time)}")
+        out.append(d.text.replace("\r\n", "\n"))
+        out.append("")
+    return "\n".join(out)
+
+
+# ── Audio export ─────────────────────────────────────────────────
+
+def _ffmpeg() -> str:
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        raise RuntimeError("ffmpeg not found on PATH; audio export requires ffmpeg")
+    return exe
+
+
+def _ffprobe_duration(path: str | Path) -> float:
+    exe = shutil.which("ffprobe") or "ffprobe"
+    try:
+        out = subprocess.run(
+            [exe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()
+        return float(out.splitlines()[0])
+    except Exception:
+        # Fall back to wave module for WAV files
+        try:
+            import wave
+            with wave.open(str(path), "rb") as w:
+                return w.getnframes() / float(w.getframerate() or 1)
+        except Exception:
+            return 0.0
+
+
+def _to_wav(src: str | Path, dst: str | Path) -> None:
+    """Normalize any audio to 44.1 kHz stereo PCM WAV for safe mixing."""
+    subprocess.run(
+        [_ffmpeg(), "-y", "-v", "error", "-i", str(src),
+         "-ar", "44100", "-ac", "2", str(dst)],
+        check=True, timeout=120,
+    )
+
+
+def _mix(wavs: list[Path], delays_ms: list[int], dst: str | Path) -> None:
+    """Mix WAVs, each delayed by its delay (adelay), preserving volume."""
+    if len(wavs) == 1:
+        d = delays_ms[0]
+        filt = f"[0:a]adelay={d}|{d}[a0]" if d else "[0:a]anull[a0]"
+        subprocess.run(
+            [_ffmpeg(), "-y", "-v", "error", "-i", str(wavs[0]),
+             "-filter_complex", filt, "-map", "[a0]", str(dst)],
+            check=True, timeout=300,
+        )
+        return
+    parts = []
+    inputs = []
+    for i, (w, d) in enumerate(zip(wavs, delays_ms)):
+        inputs += ["-i", str(w)]
+        if d > 0:
+            parts.append(f"[{i}:a]adelay={d}|{d}[d{i}]")
+        else:
+            parts.append(f"[{i}:a]anull[d{i}]")
+    concat = "".join(f"[d{i}]" for i in range(len(wavs)))
+    parts.append(
+        f"{concat}amix=inputs={len(wavs)}:normalize=0:duration=longest[aout]"
+    )
+    subprocess.run(
+        [_ffmpeg(), "-y", "-v", "error", *inputs,
+         "-filter_complex", ";".join(parts), "-map", "[aout]", str(dst)],
+        check=True, timeout=600,
+    )
+
+
+def export_audio(
+    descriptions: list[Description],
+    out_path: str | Path,
+    tts,  # TTSEngine instance
+    engine: str = "",
+    voice: str = "",
+    speed: float = 0.0,
+    progress_cb=None,  # callable(done: int, total: int, skipped: int)
+) -> dict:
+    """Render every description to speech and place each clip at its
+    start time, producing one synchronized audio file.
+
+    Returns {"path": str, "rendered": int, "skipped": int}.
+    Raises RuntimeError on ffmpeg failure.
+    """
+    descs = sorted(
+        [d for d in descriptions if d.text.strip()],
+        key=lambda d: d.start_time,
+    )
+    if not descs:
+        raise ValueError("No descriptions with text to render")
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="omni_export_") as td:
+        tmp = Path(td)
+        clips: list[Path] = []
+        delays: list[int] = []
+        skipped = 0
+
+        import asyncio
+
+        async def _render_all():
+            nonlocal skipped
+            for i, d in enumerate(descs):
+                audio = await tts.speak(d.text, engine, voice, speed)
+                if progress_cb:
+                    progress_cb(i + 1, len(descs), skipped)
+                if not audio:
+                    skipped += 1
+                    continue
+                wav = tmp / f"n{len(clips):05d}.wav"
+                _to_wav(audio, wav)
+                clips.append(wav)
+                delays.append(int(round(d.start_time * 1000)))
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_render_all())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+        if not clips:
+            raise RuntimeError("All TTS clips failed to synthesize")
+
+        # Chunked mixing to keep ffmpeg command lines bounded
+        chunk_size = 16
+        level = [c for _, c in sorted(zip(delays, clips), key=lambda x: x[0])]
+        level_delays = sorted(delays)
+        stage = 0
+        while len(level) > 1:
+            nxt: list[Path] = []
+            nxt_delays: list[int] = []
+            for k in range(0, len(level), chunk_size):
+                group = level[k:k + chunk_size]
+                gdel = level_delays[k:k + chunk_size]
+                base = gdel[0]
+                gdel = [d - base for d in gdel]
+                outk = tmp / f"mix{stage}_{k // chunk_size:04d}.wav"
+                _mix(group, gdel, outk)
+                nxt.append(outk)
+                nxt_delays.append(base)
+            level, level_delays = nxt, nxt_delays
+            stage += 1
+
+        # Final encode to requested container/format
+        final_tmp = tmp / f"final{out_path.suffix or '.mp3'}"
+        if out_path.suffix.lower() == ".wav":
+            shutil.copyfile(level[0], final_tmp)
+        else:
+            subprocess.run(
+                [_ffmpeg(), "-y", "-v", "error", "-i", str(level[0]),
+                 "-c:a", "libmp3lame", "-q:a", "4", str(final_tmp)],
+                check=True, timeout=600,
+            )
+        shutil.copyfile(final_tmp, out_path)
+
+    return {"path": str(out_path), "rendered": len(descs) - skipped, "skipped": skipped}

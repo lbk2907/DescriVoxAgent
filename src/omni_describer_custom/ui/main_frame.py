@@ -213,6 +213,16 @@ class MainFrame(wx.Frame):
         file_menu.Append(wx.ID_OPEN, "Open Project...")
         file_menu.Append(wx.ID_SAVE, "Save Project")
         file_menu.AppendSeparator()
+        self._id_import = wx.NewIdRef()
+        self._id_export_srt = wx.NewIdRef()
+        self._id_export_vtt = wx.NewIdRef()
+        self._id_export_audio = wx.NewIdRef()
+        file_menu.Append(self._id_import, t("menu.import_desc"))
+        file_menu.AppendSeparator()
+        file_menu.Append(self._id_export_srt, t("menu.export_srt"))
+        file_menu.Append(self._id_export_vtt, t("menu.export_vtt"))
+        file_menu.Append(self._id_export_audio, t("menu.export_audio"))
+        file_menu.AppendSeparator()
         file_menu.Append(wx.ID_EXIT, "Exit")
         menubar.Append(file_menu, "File")
 
@@ -245,8 +255,180 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_new_project, id=wx.ID_NEW)
         self.Bind(wx.EVT_MENU, self._on_open_project, id=wx.ID_OPEN)
         self.Bind(wx.EVT_MENU, self._on_save_project, id=wx.ID_SAVE)
+        self.Bind(wx.EVT_MENU, self._on_import_descriptions, id=self._id_import)
+        self.Bind(wx.EVT_MENU, self._on_export_srt, id=self._id_export_srt)
+        self.Bind(wx.EVT_MENU, self._on_export_vtt, id=self._id_export_vtt)
+        self.Bind(wx.EVT_MENU, self._on_export_audio, id=self._id_export_audio)
         self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
         self.Bind(wx.EVT_CLOSE, self._on_close_window)
+
+    # ── Import / export descriptions ────────────────────────────
+
+    def _on_import_descriptions(self, event):
+        """Import SRT/VTT/simple timed text into a new project."""
+        from ..core import timeline_io
+        dlg = wx.FileDialog(
+            self, t("impexp.dlg_import"),
+            wildcard="Timed text (*.srt;*.vtt;*.txt)|*.srt;*.vtt;*.txt|All files (*.*)|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+        try:
+            descs = timeline_io.parse_any(path)
+        except Exception as e:
+            logger.error("Import failed: %s", e)
+            wx.MessageBox(t("impexp.import_failed", error=str(e)[:150]),
+                          t("impexp.dlg_import"), wx.OK | wx.ICON_ERROR)
+            return
+        if not descs:
+            wx.MessageBox(t("impexp.invalid_file"),
+                          t("impexp.dlg_import"), wx.OK | wx.ICON_WARNING)
+            return
+        # Default policy: each import creates its own project so an
+        # open project is never modified by accident.
+        name = Path(path).stem or "Imported"
+        self.project_store.create_project(name, "")
+        self.project_store.save_descriptions(descs)
+        msg = t("impexp.imported", count=len(descs), name=name)
+        self._log(msg)
+        self.SetStatusText(msg, 0)
+        wx.MessageBox(msg, t("impexp.dlg_import"), wx.OK | wx.ICON_INFORMATION)
+
+    def _require_project_descriptions(self):
+        """Return current descriptions or None after warning the user."""
+        cur = self.project_store.current
+        if not cur:
+            wx.MessageBox(t("impexp.no_project"), t("impexp.dlg_export"),
+                          wx.OK | wx.ICON_WARNING)
+            return None
+        if not cur.descriptions:
+            wx.MessageBox(t("impexp.nothing_to_export"), t("impexp.dlg_export"),
+                          wx.OK | wx.ICON_WARNING)
+            return None
+        return cur
+
+    def _on_export_srt(self, event):
+        """Export current project descriptions as an SRT file."""
+        from ..core import timeline_io
+        cur = self._require_project_descriptions()
+        if not cur:
+            return
+        dlg = wx.FileDialog(
+            self, t("menu.export_srt"),
+            defaultFile=f"{cur.name or 'descriptions'}.srt",
+            wildcard="SubRip (*.srt)|*.srt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+        try:
+            Path(path).write_text(timeline_io.to_srt(cur.descriptions),
+                                  encoding="utf-8")
+        except Exception as e:
+            logger.error("SRT export failed: %s", e)
+            wx.MessageBox(t("impexp.export_failed", error=str(e)[:150]),
+                          t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
+            return
+        msg = t("impexp.exported", count=len(cur.descriptions), path=path)
+        self._log(msg)
+        self.SetStatusText(msg, 0)
+
+    def _on_export_vtt(self, event):
+        """Export current project descriptions as a WebVTT file."""
+        from ..core import timeline_io
+        cur = self._require_project_descriptions()
+        if not cur:
+            return
+        dlg = wx.FileDialog(
+            self, t("menu.export_vtt"),
+            defaultFile=f"{cur.name or 'descriptions'}.vtt",
+            wildcard="WebVTT (*.vtt)|*.vtt",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+        try:
+            Path(path).write_text(timeline_io.to_vtt(cur.descriptions),
+                                  encoding="utf-8")
+        except Exception as e:
+            logger.error("VTT export failed: %s", e)
+            wx.MessageBox(t("impexp.export_failed", error=str(e)[:150]),
+                          t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
+            return
+        msg = t("impexp.exported", count=len(cur.descriptions), path=path)
+        self._log(msg)
+        self.SetStatusText(msg, 0)
+
+    def _on_export_audio(self, event):
+        """Render current descriptions to one synchronized audio file."""
+        from ..core import timeline_io
+        cur = self._require_project_descriptions()
+        if not cur:
+            return
+        if getattr(self, "_exporting", False):
+            return
+        dlg = wx.FileDialog(
+            self, t("menu.export_audio"),
+            defaultFile=f"{cur.name or 'descriptions'}.mp3",
+            wildcard="MP3 audio (*.mp3)|*.mp3|WAV audio (*.wav)|*.wav",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        path = dlg.GetPath()
+        dlg.Destroy()
+
+        self._exporting = True
+        progress = wx.ProgressDialog(
+            t("impexp.exporting_title"), t("impexp.rendering", done=0,
+                                           total=len(cur.descriptions)),
+            maximum=len(cur.descriptions), parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE,
+        )
+
+        def done_cb(result: dict | None, error: str | None):
+            def ui():
+                progress.Destroy()
+                self._exporting = False
+                if error:
+                    logger.error("Audio export failed: %s", error)
+                    wx.MessageBox(t("impexp.export_failed", error=error[:150]),
+                                  t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
+                    return
+                msg = t("impexp.audio_done", path=result["path"],
+                        rendered=result["rendered"], skipped=result["skipped"])
+                self._log(msg)
+                self.SetStatusText(msg, 0)
+                wx.MessageBox(msg, t("impexp.dlg_export"),
+                              wx.OK | wx.ICON_INFORMATION)
+            wx.CallAfter(ui)
+
+        def progress_cb(done, total, skipped):
+            wx.CallAfter(progress.Update,
+                         done, t("impexp.rendering", done=done, total=total))
+
+        def worker():
+            try:
+                result = timeline_io.export_audio(
+                    cur.descriptions, path, self.tts_engine,
+                    progress_cb=progress_cb,
+                )
+                done_cb(result, None)
+            except Exception as e:
+                done_cb(None, str(e))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # ── Source Handlers ───────────────────────────────────────────
 

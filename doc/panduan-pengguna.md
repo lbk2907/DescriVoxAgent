@@ -59,6 +59,34 @@ frame), log itu merekod sebab sebenar setiap kegagalan.
    dengan penerangan dimuatkan. Jika tiada penerangan, pemain akan
    menyatakan "No descriptions available."
 
+## Import dan eksport penerangan (menu File)
+
+Menu File kini ada empat fungsi timeline:
+
+- **Import Penerangan dari fail SRT / VTT / teks**: pilih satu fail
+  `.srt`, `.vtt`, atau `.txt`. Setiap baris masa menjadi satu
+  penerangan dalam **projek baharu** (nama projek = nama fail), jadi
+  projek sedia ada tidak terjejas. Format fail teks mudah: satu
+  penerangan satu baris, bermula dengan masa, contohnya
+  `0:05 Seorang lelaki masuk ke bilik` atau `00:10 - 00:14 Dia duduk`.
+  Baris bermula dengan `#` diabaikan. Masa boleh ditulis sebagai
+  `M:SS`, `H:MM:SS`, atau saat sahaja (contohnya `90.5`).
+- **Eksport sebagai SRT** dan **Eksport sebagai WebVTT**: simpan semua
+  penerangan projek terbuka sebagai fail sari kata bertambah waktu,
+  boleh dibuka semula di sini atau dipakai dengan pemain/penyunting
+  video lain.
+- **Eksport sebagai Audio (lisan, disegerak)**: jana satu fail MP3
+  (atau WAV) yang menyebut setiap penerangan dengan suara TTS anda
+  pada masa yang betul. Fail ini boleh didengar bersebelahan video
+  menggunakan mana-mana pemain media, tanpa perlu aplikasi ini.
+  Memerlukan ffmpeg pada PATH. Kemajuan ditunjukkan semasa jana;
+  suara, kelajuan, dan enjin mengikut tetapan TTS anda.
+
+Kegunaan biasa "describe by time": terima fail SRT penerangan yang
+disediakan oleh orang lain (atau taip sendiri dalam format teks
+mudah), import ia, pilih video sumber yang sama, dan pemain akan
+membacakan penerangan itu segerak semasa main balik.
+
 ## Tetapan (menu System > Settings..., atau butang Settings...)
 
 - **Tab AI**: pembekal (Gemini, OpenAI, Opus Proxy, atau Custom), kunci
