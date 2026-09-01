@@ -12,6 +12,7 @@ import base64
 import json
 import logging
 import mimetypes
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable
@@ -19,6 +20,54 @@ from typing import Any, Callable
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+
+# Full-video mode: the prompt suffix sent with the whole video so Gemini
+# returns a chronological, machine-parsable [MM:SS] description list.
+GEMINI_TS_PROMPT_SUFFIX = (
+    "\n\nYou are watching the full video, including its audio. Produce your "
+    "description as a chronological list covering the WHOLE video. Each "
+    "item MUST start with a timestamp in [MM:SS] or [HH:MM:SS] format, "
+    "followed by the description of what is happening at that moment. "
+    "Example format:\n"
+    "[00:00] A man in a red jacket walks into a bright kitchen.\n"
+    "[00:15] He pours coffee while talking on the phone.\n"
+    "Describe important visuals AND sounds/speech for a blind viewer. "
+    "Do not output any other text."
+)
+
+# Parses one timestamped line, e.g.:
+#   "[00:05] text" / "- 12:34 - text" / "01:02:03.500 text" / "(0:59) text"
+# Deterministic: the timestamp must be followed by a delimiter or
+# whitespace before the description, so "12:34" alone never matches.
+_TS_LINE_RE = re.compile(
+    r"^\s*[-*\u2022]?\s*[\[\(]?\s*"
+    r"(?:(?P<h>\d{1,2}):)?(?P<m>\d{1,2}):(?P<s>\d{1,2})(?:[.,](?P<f>\d{1,3}))?"
+    r"\s*[\]\)]?"
+    r"\s*[-\u2013:\u2022]?"  # optional separator like "-" or ":"
+    r"(?P<text>\s\S.*)?$"
+)
+
+
+def parse_gemini_timestamp_lines(text: str) -> list[tuple[float, str]]:
+    """Parse Gemini's timestamped output lines into (seconds, text) pairs.
+
+    Tolerates bullet markers, brackets, and optional hours/milliseconds.
+    Lines without a leading timestamp are ignored.
+    """
+    out: list[tuple[float, str]] = []
+    for raw in (text or "").splitlines():
+        m = _TS_LINE_RE.match(raw)
+        if not m:
+            continue
+        secs = (int(m.group("h") or 0) * 3600
+                + int(m.group("m")) * 60 + int(m.group("s")))
+        if m.group("f"):
+            secs += float("0." + m.group("f"))
+        desc = (m.group("text") or "").strip()
+        if desc:
+            out.append((float(secs), desc))
+    return out
 
 
 class AIProvider(ABC):
@@ -138,6 +187,191 @@ class GeminiProvider(AIProvider):
                 except Exception:
                     logger.debug("on_progress raised", exc_info=True)
         return results
+
+    # ── Full-video mode (native video understanding) ─────────────
+
+    def _video_mime(self, video_path: str) -> str:
+        return mimetypes.guess_type(video_path)[0] or "video/mp4"
+
+    async def _upload_video(
+        self, video_path: str,
+        on_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> str:
+        """Resumable upload of the whole video to the Gemini Files API.
+
+        Returns the file URI. Raises RuntimeError on HTTP failure or cancel.
+        """
+        path = Path(video_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Video not found: {video_path}")
+        size = path.stat().st_size
+        mime = self._video_mime(video_path)
+        base = self.base_url.rstrip("/")
+        url = f"{base}/files?uploadType=resumable&key={self.api_key}"
+        headers = {
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": str(size),
+            "X-Goog-Upload-Header-Content-Type": mime,
+            "Content-Type": "application/json",
+        }
+        body = {"file": {"display_name": path.name[:80]}}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=body, headers=headers,
+                                    timeout=aiohttp.ClientTimeout(total=120)) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    raise RuntimeError(
+                        f"Gemini upload init HTTP {resp.status}: {text[:200]}")
+                upload_url = resp.headers.get("X-Goog-Upload-URL", "")
+                if not upload_url:
+                    raise RuntimeError("Gemini upload: no upload URL returned")
+
+            # Send the bytes in chunks; the last chunk carries "finalize".
+            chunk = 8 * 1024 * 1024  # 8 MiB
+            uploaded = 0
+            with path.open("rb") as f:
+                while True:
+                    if is_cancelled is not None and is_cancelled():
+                        raise RuntimeError("upload cancelled")
+                    data = f.read(chunk)
+                    if not data:
+                        break
+                    is_last = uploaded + len(data) >= size
+                    up_headers = {
+                        "X-Goog-Upload-Command":
+                            "upload, finalize" if is_last else "upload",
+                        "X-Goog-Upload-Offset": str(uploaded),
+                        "Content-Length": str(len(data)),
+                    }
+                    async with session.post(upload_url, data=data,
+                                            headers=up_headers,
+                                            timeout=aiohttp.ClientTimeout(total=600)) as resp:
+                        if resp.status not in (200, 201):
+                            text = await resp.text()
+                            raise RuntimeError(
+                                f"Gemini upload HTTP {resp.status}: {text[:200]}")
+                        if is_last:
+                            payload = await resp.json()
+                            fobj = payload.get("file", {})
+                            uri = fobj.get("uri") or fobj.get("name", "")
+                            if not uri:
+                                raise RuntimeError(
+                                    "Gemini upload: no file URI in response")
+                            if on_progress:
+                                try:
+                                    on_progress(100.0)
+                                except Exception:
+                                    logger.debug("upload progress raised", exc_info=True)
+                            return uri
+                    uploaded += len(data)
+                    if on_progress:
+                        try:
+                            on_progress(uploaded * 100.0 / max(size, 1))
+                        except Exception:
+                            logger.debug("upload progress raised", exc_info=True)
+        raise RuntimeError("Gemini upload: nothing uploaded")
+
+    async def _wait_video_ready(
+        self, uri: str, timeout: float = 300.0,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> None:
+        """Poll the Files API until the video state is ACTIVE (Gemini
+        finished processing it). Raises RuntimeError on FAILED or timeout."""
+        import asyncio as _aio
+        base = self.base_url.rstrip("/")
+        name = uri.split("/v1beta/")[-1] if "/v1beta/" in uri else uri
+        url = f"{base}/{name}?key={self.api_key}"
+        loop = _aio.get_running_loop()
+        deadline = loop.time() + timeout
+        async with aiohttp.ClientSession() as session:
+            while True:
+                if is_cancelled is not None and is_cancelled():
+                    raise RuntimeError(
+                        "cancelled while waiting for Gemini to process the video")
+                async with session.get(url,
+                                       timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        raise RuntimeError(
+                            f"Gemini file status HTTP {resp.status}: {text[:200]}")
+                    data = await resp.json()
+                state = data.get("state", "")
+                if state == "ACTIVE":
+                    return
+                if state == "FAILED":
+                    raise RuntimeError(
+                        "Gemini failed to process the video: "
+                        f"{data.get('error', {}).get('message', 'unknown error')}")
+                await _aio.sleep(5)
+                if loop.time() > deadline:
+                    raise RuntimeError(
+                        "Timed out waiting for Gemini to process the video")
+
+    async def _generate_with_video(
+        self, uri: str, mime: str, prompt: str, model: str,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> str:
+        """One generateContent call carrying the whole video."""
+        base = self.base_url.rstrip("/")
+        url = f"{base}/models/{model}:generateContent?key={self.api_key}"
+        payload = {
+            "contents": [{"parts": [
+                {"text": prompt},
+                {"file_data": {"mime_type": mime, "file_uri": uri}},
+            ]}],
+            "generationConfig": {"maxOutputTokens": 8192},
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload,
+                                    timeout=aiohttp.ClientTimeout(total=600)) as resp:
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"Gemini error: {data['error']}")
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    return ""
+                return candidates[0].get("content", {}).get("parts", [{}])[0].get(
+                    "text", "")
+
+    async def describe_video_full(
+        self, video_path: str, prompt: str, model: str = "",
+        on_status: Callable[[str], None] | None = None,
+        on_upload_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[tuple[float, str]]:
+        """Watch the WHOLE video with Gemini's native video understanding.
+
+        1. Resumable upload (progress reported)
+        2. Wait until Gemini finishes processing it (ACTIVE)
+        3. generateContent with the video and a timestamped-list prompt
+        4. Parse the [MM:SS] lines into (seconds, description) pairs
+        """
+        if not self.api_key:
+            raise ValueError("Gemini API key not configured")
+        model = model or self.models[0]
+
+        def status(s: str) -> None:
+            if on_status:
+                try:
+                    on_status(s)
+                except Exception:
+                    logger.debug("on_status raised", exc_info=True)
+
+        status("uploading")
+        uri = await self._upload_video(
+            video_path, on_progress=on_upload_progress, is_cancelled=is_cancelled)
+        status("processing")
+        await self._wait_video_ready(uri, is_cancelled=is_cancelled)
+        status("describing")
+        text = await self._generate_with_video(
+            uri, self._video_mime(video_path),
+            prompt + GEMINI_TS_PROMPT_SUFFIX, model,
+            is_cancelled=is_cancelled,
+        )
+        return parse_gemini_timestamp_lines(text)
+
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
     ) -> str:
@@ -703,6 +937,35 @@ class AIEngine:
         prov = self._provider_or_raise(provider or self._default_provider)
         return await prov.describe_frames_batch(
             frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled)
+
+    async def describe_video_full(
+        self,
+        video_path: str,
+        prompt: str,
+        provider: str = "",
+        model: str = "",
+        on_status: Callable[[str], None] | None = None,
+        on_upload_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[tuple[float, str]]:
+        """Watch the WHOLE video (Gemini native video understanding).
+
+        Returns (seconds, description) pairs parsed from Gemini's
+        timestamped output. Raises ValueError when the configured
+        provider does not support full-video mode.
+        """
+        prov = self._provider_or_raise(provider or self._default_provider)
+        fn = getattr(prov, "describe_video_full", None)
+        if fn is None:
+            raise ValueError(
+                f"Provider '{prov.name}' does not support full-video mode. "
+                "Use Gemini, or switch back to frame mode.")
+        return await fn(
+            video_path, prompt, model,
+            on_status=on_status,
+            on_upload_progress=on_upload_progress,
+            is_cancelled=is_cancelled,
+        )
 
     async def ask_about_scene(
         self,

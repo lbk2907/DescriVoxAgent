@@ -715,6 +715,81 @@ class MainFrame(wx.Frame):
             def download_progress(p) -> None:
                 _ui_now(self._ensure_download_progress)
                 _ui_now(self._download_progress_tick, p)
+
+            # ── Full-video mode (Gemini native video understanding) ──
+            # ai.video_mode == "full" AND provider == gemini: upload the
+            # WHOLE video and let Gemini watch it (audio + visual) and
+            # return its own timestamped description list. No frame
+            # extraction, one AI call instead of one per frame.
+            video_mode = (
+                self.settings.get("ai.video_mode", "frames") == "full"
+                and self.settings.get("ai.default_provider", "") == "gemini"
+            )
+            if video_mode:
+                stop_counter.set()  # no frames to count in this mode
+                wx.CallAfter(self._log, t("video.mode_enabled_log"))
+                wx.CallAfter(self.SetStatusText, t("status.analyzing"))
+                try:
+                    resolved = loop.run_until_complete(vp.resolve_source(
+                        source, on_progress=download_progress,
+                        is_cancelled=lambda: bool(
+                            getattr(self, "_dl_cancelled", False)))
+                    )
+                except SourceError as e:
+                    if "cancelled" in str(e).lower():
+                        wx.CallAfter(self._log, t("download.cancelled_log"))
+                        wx.CallAfter(self._close_download_progress)
+                        wx.CallAfter(self._processing_done)
+                        loop.close()
+                        return
+                    raise
+
+                def vstatus(phase: str) -> None:
+                    wx.CallAfter(self._video_status_tick, phase)
+
+                def vprogress(pct: float) -> None:
+                    wx.CallAfter(self._video_upload_tick, pct)
+
+                try:
+                    pairs = loop.run_until_complete(
+                        self.ai_engine.describe_video_full(
+                            resolved, prompt,
+                            on_status=vstatus, on_upload_progress=vprogress,
+                            is_cancelled=lambda: bool(
+                                getattr(self, "_dl_cancelled", False)),
+                        )
+                    )
+                except Exception as e:
+                    if "cancel" in str(e).lower():
+                        wx.CallAfter(self._log, t("download.cancelled_log"))
+                        wx.CallAfter(self._close_download_progress)
+                        if loop is not None and not loop.is_closed():
+                            loop.close()
+                        wx.CallAfter(self._processing_done)
+                        return
+                    raise
+                wx.CallAfter(self._log, t("video.parsed_count", count=len(pairs)))
+                desc_objects = []
+                for secs, text in pairs:
+                    desc_objects.append(type("Obj", (), {
+                        "id": 0,
+                        "start_time": secs,
+                        # Spoken descriptions typically need a few seconds;
+                        # 3s keeps the player timeline readable.
+                        "end_time": secs + 3.0,
+                        "text": text,
+                        "edited": False,
+                        "created_at": "",
+                        "frame_path": "",  # no frame: Gemini watched the video
+                    })())
+                if not self.project_store.current:
+                    video_name = Path(source).name if Path(source).exists() else source
+                    self.project_store.create_project(video_name, source)
+                self.project_store.set_video_duration(info.duration)
+                self._save_descriptions_and_finish(
+                    desc_objects, loop, None)
+                return
+
             cancelled = False
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
@@ -972,6 +1047,80 @@ class MainFrame(wx.Frame):
             self._ai_cancelled = True
             dlg.Update(pct, t("download.cancel_analysis"))
             self._close_download_progress()
+
+    def _video_status_tick(self, phase: str):
+        """Full-video mode: announce the current phase (UI thread).
+
+        The dialog text and status bar change together so screen readers
+        pick the new phase up as it happens.
+        """
+        dlg = self._dl_dialog
+        phase_keys = {
+            "uploading": "video.phase_uploading",
+            "processing": "video.phase_processing",
+            "describing": "video.phase_describing",
+        }
+        line = t(phase_keys.get(phase, "video.phase_processing"))
+        if dlg is not None:
+            dlg.Pulse(line)
+        self.SetStatusText(line)
+
+    def _video_upload_tick(self, pct: float):
+        """Full-video mode: upload progress percentage (UI thread)."""
+        dlg = self._dl_dialog
+        line = t("video.uploading_progress", pct=int(pct))
+        if dlg is not None:
+            dlg.Update(int(pct), line)
+        self.SetStatusText(line)
+
+    def _save_descriptions_and_finish(self, desc_objects, loop, frame_dir):
+        """Shared save + notify path for both processing modes.
+
+        Runs on the worker thread; every UI touch goes through wx.CallAfter.
+        Mirrors the main path: modal guarded by IsShown() so headless runs
+        never hang.
+        """
+        if not desc_objects:
+            wx.CallAfter(self._log, "ERROR: " + t("error.ai_empty"))
+            wx.CallAfter(self.SetStatusText,
+                         t("status.error", error=t("error.ai_empty")))
+            wx.CallAfter(self._close_download_progress)
+
+            def _notify_empty() -> None:
+                if self.IsShown():
+                    wx.MessageBox(t("process.no_descriptions"),
+                                  t("process.failed_title"),
+                                  wx.OK | wx.ICON_ERROR)
+
+            wx.CallAfter(_notify_empty)
+            if frame_dir:
+                self._cleanup_dir(frame_dir)
+            if loop is not None and not loop.is_closed():
+                loop.close()
+            wx.CallAfter(self._processing_done)
+            return
+
+        wx.CallAfter(self._ensure_download_progress)
+        wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
+        self.project_store.save_descriptions(desc_objects)
+        wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
+        wx.CallAfter(self._log, t("status.processing_complete",
+                                  count=len(desc_objects)))
+
+        def _notify_done(count: int) -> None:
+            if self.IsShown():
+                wx.MessageBox(t("status.processing_complete", count=count),
+                              t("process.complete_title"),
+                              wx.OK | wx.ICON_INFORMATION)
+
+        wx.CallAfter(_notify_done, len(desc_objects))
+        wx.CallAfter(self._close_download_progress)
+        wx.CallAfter(self.SetStatusText, t("status.complete"))
+        if frame_dir:
+            self._cleanup_dir(frame_dir)
+        if loop is not None and not loop.is_closed():
+            loop.close()
+        wx.CallAfter(self._processing_done)
 
     def _download_progress_tick_text(self, text: str, percent: int):
         """Show an arbitrary phase text in the dialog (UI thread)."""

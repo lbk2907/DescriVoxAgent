@@ -48,6 +48,14 @@ EN_STRINGS: dict[str, str] = {
     "menu.open_project": "Open Project...",
     "menu.new_project": "New Project...",
     "menu.close_project": "Close Project",
+    "settings.video_mode": "Full-video mode (Gemini only)",
+    "settings.video_mode_hint": "AI watches the whole video once and gives timestamps itself. Ignored for other providers.",
+    "video.mode_enabled_log": "Full-video mode: uploading the video to Gemini (no frame extraction).",
+    "video.uploading_progress": "Uploading video to Gemini: {pct}%",
+    "video.phase_uploading": "Uploading video to Gemini...",
+    "video.phase_processing": "Gemini is watching the video (processing)...",
+    "video.phase_describing": "Gemini is writing descriptions...",
+    "video.parsed_count": "Gemini returned {count} timestamped descriptions",
 
     # Main Window
     "main.title": "Omni Describer Custom",
@@ -250,6 +258,14 @@ MS_STRINGS: dict[str, str] = {
     "menu.open_project": "Buka Projek...",
     "menu.new_project": "Projek Baharu...",
     "menu.close_project": "Tutup Projek",
+    "settings.video_mode": "Mod video penuh (Gemini sahaja)",
+    "settings.video_mode_hint": "AI menonton seluruh video sekali dan beri timestamp sendiri. Diabaikan untuk pembekal lain.",
+    "video.mode_enabled_log": "Mod video penuh: memuat naik video ke Gemini (tanpa ekstraksi frame).",
+    "video.uploading_progress": "Memuat naik video ke Gemini: {pct}%",
+    "video.phase_uploading": "Memuat naik video ke Gemini...",
+    "video.phase_processing": "Gemini sedang menonton video (pemprosesan)...",
+    "video.phase_describing": "Gemini sedang menulis penerangan...",
+    "video.parsed_count": "Gemini pulangkan {count} penerangan ber-timestamp",
 
     # Main Window
     "main.title": "Omni Describer Custom",

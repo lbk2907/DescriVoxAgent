@@ -184,6 +184,16 @@ class SettingsDialog(wx.Dialog):
         self.test_result = wx.StaticText(panel, label="", name="test_result")
         sizer.Add(self.test_result, 0, wx.ALL, 5)
 
+        # Full-video mode: only meaningful for Gemini (native video
+        # understanding). Shown/disabled by provider selection.
+        self.video_mode_cb = wx.CheckBox(
+            panel, label=t("settings.video_mode"), name="video_mode")
+        self.video_mode_cb.SetValue(
+            self.settings.get("ai.video_mode", "frames") == "full")
+        sizer.Add(self.video_mode_cb, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("settings.video_mode_hint"),
+                                name="video_mode_hint"), 0, wx.ALL, 5)
+
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
         return panel
@@ -351,6 +361,11 @@ class SettingsDialog(wx.Dialog):
             else:
                 self.api_key_text.SetValue("")
 
+        # Full-video mode checkbox is only enabled for Gemini.
+        self.video_mode_cb.Enable(provider == "gemini")
+        if provider != "gemini":
+            self.video_mode_cb.SetValue(False)
+
         self.Layout()
 
     def _on_tts_engine_changed(self, event):
@@ -466,6 +481,11 @@ class SettingsDialog(wx.Dialog):
             self.settings.set_ai_provider(provider, config)
             self.settings.set("ai.default_provider", provider)
 
+        # Full-video mode (persisted for the processing pipeline; the
+        # pipeline itself double-checks provider == gemini).
+        self.settings.set(
+            "ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
+
         # Update TTS
         tts_engine = self.tts_engine_choice.GetStringSelection()
         self.settings.set("tts.default_engine", tts_engine)
@@ -501,11 +521,17 @@ class SettingsDialog(wx.Dialog):
 
         self._load_values()
         wx.MessageBox("Settings saved.", t("settings.title"), wx.OK | wx.ICON_INFORMATION)
-        self.EndModal(wx.ID_OK)
+        if self.IsModal():
+            self.EndModal(wx.ID_OK)
+        else:
+            self.Close()
 
     def _on_cancel(self, event):
         """Close dialog without saving."""
-        self.EndModal(wx.ID_CANCEL)
+        if self.IsModal():
+            self.EndModal(wx.ID_CANCEL)
+        else:
+            self.Close()
 
     # ── Load Values ────────────────────────────────────────────
 
