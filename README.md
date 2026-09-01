@@ -1,9 +1,12 @@
 # Omni Describer Custom
 
 An accessible audio-description tool for blind and visually impaired
-users. It downloads or opens a video, extracts frames, sends them to an
-AI vision provider, and plays the video in a built-in player that reads
-out the AI descriptions in sync with playback.
+users. It downloads or opens a video and produces timestamped audio
+descriptions in two ways: the default frame mode extracts frames and
+sends them to an AI vision provider, while the optional Gemini
+full-video mode uploads the whole video and lets Gemini watch it
+(including audio) and timestamp its own descriptions. A built-in
+player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`.
 
@@ -36,7 +39,11 @@ interpreter. The log file is written to
 ## Settings (System menu > Settings...)
 
 - **AI tab**: provider (Gemini, OpenAI, Opus Proxy, or Custom), API key,
-  model; a **Test** button verifies the connection.
+  model; a **Test** button verifies the connection. For Gemini only, a
+  **Full-video mode** checkbox switches from frame extraction to
+  uploading the whole video so Gemini watches it and timestamps the
+  descriptions itself (one upload, one AI call; covers sound and
+  speech as well as visuals).
 - **TTS tab**: speech engine, voice, speed.
 - **General tab**:
   - **Language**: `en` or `ms`.
@@ -62,7 +69,7 @@ frame). Use **File** menu items to create, open, or save projects.
 - Run all checks (compileall + every test suite):
   `run_gate.bat` — prints `GATE_ALL_PASS` when everything passes.
 - Test suites live in `tests\` as standalone scripts
-  (`test_fixes.py` ... `test_fixes11.py`, `test_acceptance.py`,
+  (`test_fixes.py` ... `test_fixes12.py`, `test_acceptance.py`,
   `test_gui_smoke.py`, `run_checks.py`). Each exits nonzero on failure.
 - i18n audit (every `t("...")` key exists in both EN and MS, no
   unlabeled buttons): `python tests\audit_i18n.py` — prints
@@ -80,7 +87,8 @@ succeed:
 3. **Smoke test** launches the real exe, waits for the
    "Application started" log line, confirms the process stays alive,
    then closes it (`tests\test_build_smoke.py`).
-4. **Zip**: `dist\OmniDescriber-1.0.0-win64.zip` (~271 MB) ready to copy
+4. **Zip**: `dist\OmniDescriber-<version>-win64.zip` (~271 MB, versioned
+   from `__init__.py`) ready to copy
    to any Windows 10/11 x64 machine. Recipients do not need Python or
    ffmpeg for playback of local files; YouTube URLs still need
    `yt-dlp` on PATH.
