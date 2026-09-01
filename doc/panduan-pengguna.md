@@ -128,6 +128,23 @@ video dan audio berasingan), "Merging video and audio with ffmpeg...",
 "Extracting frames: N frames", "AI analysis: N/M frames", "Saving
 project...", dan "Muat turun selesai" selepas strim siap diambil.
 
+## Bagaimana pemprosesan berfungsi (dan kenapa)
+
+- **Video dimuat turun sekali sahaja.** Aplikasi tidak pernah "muat
+  turun per frame". Satu muat turun penuh (strim video + audio
+  digabungkan oleh ffmpeg) cukup untuk keseluruhan penerangan.
+- **Frame diekstrak secara lokal** dari video itu mengikut tetapan FPS
+  anda. Setiap frame membawa masa (timestamp) sendiri, contohnya
+  0.0s, 0.2s, 0.4s pada 5 FPS. Timestamp datang daripada proses
+  ekstraksi, bukan daripada AI.
+- **Hanya frame (imej), bukan fail video penuh, dihantar kepada AI.**
+  Model memulangkan teks penerangan untuk setiap imej; aplikasi
+  melekatkan timestamp frame pada teks itu. Itulah sebabnya
+  penerangan segerak dengan main balik video.
+- Kenapa bukan hantar video penuh ke AI: API AI yang disokong menerima
+  imej bagi setiap permintaan, bukan fail video; kaedah frame ini
+  lebih pantas dan lebih murah, dan timestamp tetap tepat.
+
 ## Projek
 
 Projek disimpan dalam `Documents\OmniDescriber\projects` (satu folder
