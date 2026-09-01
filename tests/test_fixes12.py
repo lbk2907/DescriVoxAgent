@@ -472,6 +472,125 @@ def test_process_video_full_branch_integration():
             pass
 
 
+def test_error_path_failed_state():
+    """Gemini returns FAILED for the uploaded file: the worker must end,
+    the error must be announced, buttons re-enabled, no project left
+    behind, and no misleading frame wording in full-video mode."""
+    from omni_describer_custom.core.project_store import ProjectStore
+    from omni_describer_custom.ui.main_frame import MainFrame
+
+    class FailingStub(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(length)
+            if "uploadType=resumable" in self.path:
+                self.send_response(200)
+                self.send_header(
+                    "X-Goog-Upload-URL",
+                    f"http://127.0.0.1:{self.server.server_port}/upload")
+                self.end_headers()
+                return
+            if self.path.startswith("/upload"):
+                body = json.dumps({"file": {
+                    "uri": "http://x/v1beta/files/bad1",
+                    "name": "files/bad1",
+                    "state": "PROCESSING"}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def do_GET(self):
+            body = json.dumps({"name": "files/bad1", "state": "FAILED",
+                               "error": {"message": "unsupported codec"}})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+    server = HTTPServer(("127.0.0.1", 0), FailingStub)
+    port = server.server_port
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    frame = MainFrame()
+    try:
+        frame.project_store = ProjectStore(
+            projects_dir=tempfile.mkdtemp(prefix="odc_err_proj_"))
+        frame.settings.set("ai.video_mode", "full")
+        frame.settings.set("ai.default_provider", "gemini")
+        frame.settings.set_ai_provider("gemini", {
+            "api_key": "test-key",
+            "base_url": f"http://127.0.0.1:{port}/v1beta"})
+        video = Path(tempfile.mkdtemp(prefix="odc_err_vid_")) / "clip.mp4"
+        video.write_bytes(b"\x00" * 2048)
+        frame._current_source = str(video)
+
+        import omni_describer_custom.ui.player_window as pw_mod
+        pw_mod.PlayerWindow = lambda *a, **k: None
+
+        # Same observation fakes as the happy-path check (idempotent)
+        async def fake_info(self, source, **k):
+            class I:
+                width = 640
+                height = 360
+                duration = 42.0
+            return I()
+
+        async def fake_resolve(self, source, **k):
+            return str(video)
+
+        from omni_describer_custom.ui import main_frame as mf
+        mf.VideoProcessor.get_video_info = fake_info
+        mf.VideoProcessor.resolve_source = fake_resolve
+
+        real_set_status = frame.SetStatusText
+        status_seen: list[str] = []
+
+        def rec(text, *a, **k):
+            status_seen.append(text)
+            return real_set_status(text, *a, **k)
+
+        frame.SetStatusText = rec
+        frame._start_processing("Describe this video.")
+
+        deadline = time.time() + 30
+        worker = getattr(frame, "_worker", None)
+        while time.time() < deadline and worker is not None and worker.is_alive():
+            wx.GetApp().Yield()
+            time.sleep(0.03)
+        for _ in range(5):
+            wx.GetApp().Yield()
+            time.sleep(0.03)
+
+        assert worker is not None and not worker.is_alive(), "worker hung"
+        assert any("unsupported codec" in s or "Gemini failed" in s
+                   for s in status_seen), set(status_seen)
+        # FIX (1 Sep): no frame wording may be announced in full mode
+        assert not any("Extracting frames" in s or "Analyzing frames" in s
+                       for s in status_seen), set(status_seen)
+        assert not frame._processing, "_processing stuck True"
+        assert frame.btn_preset_open.Enabled, "buttons not re-enabled"
+        assert frame._dl_dialog is None, "progress dialog left open"
+        assert frame.project_store.current is None, \
+            "project should not be created on failure"
+    finally:
+        server.shutdown()
+        try:
+            frame._close_download_progress()
+        except Exception:
+            pass
+        try:
+            frame.Destroy()
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":
     check("gemini timestamp parser", test_parser)
     check("gemini full-video flow (loopback)", test_full_video_flow)
@@ -480,5 +599,7 @@ if __name__ == "__main__":
     check("mainframe video tick handlers", test_video_ticks_on_main_frame)
     check("process_video full branch end-to-end",
           test_process_video_full_branch_integration)
+    check("error path FAILED state announced + UI recovers",
+          test_error_path_failed_state)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

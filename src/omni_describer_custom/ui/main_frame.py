@@ -675,6 +675,13 @@ class MainFrame(wx.Frame):
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
+            # Full-video mode decided ONCE here so every announcement in
+            # this pipeline stays accurate for this mode (no frame wording)
+            video_mode = (
+                self.settings.get("ai.video_mode", "frames") == "full"
+                and self.settings.get("ai.default_provider", "") == "gemini"
+            )
+
             # Step 2: Extract frames (FPS from settings). For URLs this first
             # downloads via yt-dlp with a REAL progress dialog: percentage,
             # MB downloaded of MB total, speed and ETA (user request 30 Aug).
@@ -682,7 +689,11 @@ class MainFrame(wx.Frame):
             # local files never see an empty dialog.
             # FIX (30 Aug): during the silent ffmpeg extraction a background
             # counter keeps the dialog moving ("Extracting frames: N").
-            wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
+            # FIX (1 Sep, full-video mode): announcing "Extracting
+            # frames" misleads screen-reader users when no frames are
+            # involved; frame_dir/counter stay as harmless machinery.
+            if not video_mode:
+                wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
             last_ui_update = [0.0]
             stop_counter = threading.Event()
@@ -721,14 +732,10 @@ class MainFrame(wx.Frame):
             # WHOLE video and let Gemini watch it (audio + visual) and
             # return its own timestamped description list. No frame
             # extraction, one AI call instead of one per frame.
-            video_mode = (
-                self.settings.get("ai.video_mode", "frames") == "full"
-                and self.settings.get("ai.default_provider", "") == "gemini"
-            )
             if video_mode:
                 stop_counter.set()  # no frames to count in this mode
                 wx.CallAfter(self._log, t("video.mode_enabled_log"))
-                wx.CallAfter(self.SetStatusText, t("status.analyzing"))
+                wx.CallAfter(self.SetStatusText, t("status.analyzing_video"))
                 try:
                     resolved = loop.run_until_complete(vp.resolve_source(
                         source, on_progress=download_progress,
