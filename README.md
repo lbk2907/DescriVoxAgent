@@ -36,7 +36,7 @@ interpreter. The log file is written to
 5. When processing finishes, the described-video player opens
    automatically with the descriptions loaded.
 
-## Settings (System menu > Settings...)
+## Settings (File menu > Settings...)
 
 - **AI tab**: provider (Gemini, OpenAI, Opus Proxy, or Custom), API key,
   model; a **Test** button verifies the connection. For Gemini only, a

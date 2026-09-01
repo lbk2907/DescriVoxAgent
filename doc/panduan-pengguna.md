@@ -13,7 +13,7 @@ Versi Inggeris ringkas: `README.md`.
 Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
 
 1. Dapatkan `OmniDescriber-<versi>-win64.zip` (contoh
-   `OmniDescriber-1.2.1-win64.zip`; nombor versi meningkat setiap
+   `OmniDescriber-1.2.2-win64.zip`; nombor versi meningkat setiap
    rilis baharu supaya mudah bezakan) dan nyahzip ke mana-mana
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
@@ -89,7 +89,7 @@ disediakan oleh orang lain (atau taip sendiri dalam format teks
 mudah), import ia, pilih video sumber yang sama, dan pemain akan
 membacakan penerangan itu segerak semasa main balik.
 
-## Tetapan (menu System > Settings..., atau butang Settings...)
+## Tetapan (menu File > Settings..., atau butang Settings...)
 
 - **Tab General** (kini tab pertama):
   - **Language**: `en` (Inggeris) atau `ms` (Melayu).
@@ -123,8 +123,8 @@ membacakan penerangan itu segerak semasa main balik.
     biasanya lebih pantas dan lebih murah untuk video panjang, dan
     penerangan meliputi bunyi/perkataan juga, bukan sekadar imej. Status
     diumumkan sepanjang proses: "Memuat naik video ke Gemini...",
-    "Gemini sedang memproses video...", dan "Gemini sedang menulis
-    penerangan...".
+    "Gemini sedang menonton video (pemprosesan)...", dan "Gemini sedang
+    menulis penerangan...".
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
