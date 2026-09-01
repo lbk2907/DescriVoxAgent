@@ -584,7 +584,8 @@ class MainFrame(wx.Frame):
     def _on_about(self, event):
         info = wx.adv.AboutDialogInfo()
         info.SetName("Omni Describer Custom")
-        info.SetVersion("1.0.0")
+        from omni_describer_custom import __version__
+        info.SetVersion(__version__)
         info.SetDescription(
             "Accessible audio description tool for blind and visually "
             "impaired users. Describes video frames using AI and narrates "

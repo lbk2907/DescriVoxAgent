@@ -39,6 +39,6 @@ if errorlevel 1 (echo SMOKE_FAIL & exit /b 1)
 echo SMOKE_OK
 
 echo === [4/4] zip ===
-%PY% -c "import shutil; shutil.make_archive('dist/OmniDescriber-1.0.0-win64', 'zip', 'dist', 'OmniDescriber')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
-dir dist\OmniDescriber-1.0.0-win64.zip
+%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/OmniDescriber-{v}-win64', 'zip', 'dist', 'OmniDescriber')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
+dir dist\OmniDescriber-*-win64.zip
 echo BUILD_ALL_OK

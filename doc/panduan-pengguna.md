@@ -12,7 +12,9 @@ Versi Inggeris ringkas: `README.md`.
 
 Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
 
-1. Dapatkan `OmniDescriber-1.0.0-win64.zip` dan nyahzip ke mana-mana
+1. Dapatkan `OmniDescriber-<versi>-win64.zip` (contoh
+   `OmniDescriber-1.1.0-win64.zip`; nombor versi meningkat setiap
+   rilis baharu supaya mudah bezakan) dan nyahzip ke mana-mana
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
    diperlukan; dokumen panduan ini turut dibundel dalam folder `doc`.

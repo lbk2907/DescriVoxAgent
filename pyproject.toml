@@ -2,9 +2,12 @@
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.dynamic]
+version = {attr = "omni_describer_custom.__version__"}
+
 [project]
 name = "omni-describer-custom"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Accessible audio description tool for blind and visually impaired users"
 requires-python = ">=3.11"
 dependencies = [
