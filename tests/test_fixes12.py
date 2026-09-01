@@ -242,10 +242,57 @@ def _run_settings_checks(dlg, store) -> None:
     dlg.Destroy()
 
 
+def _video_phase_text(frame, phase: str) -> str:
+    """Drive one status tick and return the status bar text."""
+    frame._video_status_tick(phase)
+    return frame.GetStatusBar().GetStatusText()
+
+
+# ── 5. MainFrame video tick handlers (real frame, no network) ────────
+
+def test_video_ticks_on_main_frame():
+    from omni_describer_custom.i18n.strings import t
+    from omni_describer_custom.ui.main_frame import MainFrame
+
+    frame = MainFrame()
+    try:
+        assert frame._dl_dialog is None  # no dialog: must not crash
+
+        for phase in ("uploading", "processing", "describing"):
+            text = _video_phase_text(frame, phase)
+            assert text and text != phase, (phase, text)
+            expected = t(f"video.phase_{phase}")
+            assert text == expected, (phase, text, expected)
+
+        # Every phase is announced with DISTINCT wording so screen
+        # reader users can tell exactly which stage is running
+        texts = {_video_phase_text(frame, p) for p in
+                 ("uploading", "processing", "describing")}
+        assert len(texts) == 3, texts
+
+        # Unknown phase falls back safely instead of raising
+        unknown = _video_phase_text(frame, "nonsense")
+        assert unknown == t("video.phase_processing")
+
+        # Upload percentage reaches dialog path and status bar without
+        # a dialog present
+        frame._dl_dialog = None
+        frame._video_upload_tick(37.4)
+        assert frame.GetStatusBar().GetStatusText() == t(
+            "video.uploading_progress").format(pct=37)
+
+        # Announced, not silent: status text is non-empty at every step
+        assert all(_video_phase_text(frame, p) for p in
+                   ("uploading", "processing", "describing"))
+    finally:
+        frame.Destroy()
+
+
 if __name__ == "__main__":
     check("gemini timestamp parser", test_parser)
     check("gemini full-video flow (loopback)", test_full_video_flow)
     check("non-gemini rejected clearly", test_engine_rejects_non_gemini)
     check("settings video-mode checkbox", test_settings_video_mode)
+    check("mainframe video tick handlers", test_video_ticks_on_main_frame)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)
