@@ -21,9 +21,12 @@ import json
 import sys
 import tempfile
 import threading
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+import wx
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
@@ -288,11 +291,194 @@ def test_video_ticks_on_main_frame():
         frame.Destroy()
 
 
+# ── 6. Full-value integration: main_frame branch end to end ──────────
+
+def test_process_video_full_branch_integration():
+    """Drive MainFrame._process_video (full-video branch) through the real
+    engine chain (AIEngine -> GeminiProvider -> stub loopback) into the
+    isolated project store. Only fakes: VideoProcessor metadata/resolve
+    (observation), PlayerWindow (observer); real user data untouched.
+    """
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from omni_describer_custom.core.project_store import ProjectStore
+    from omni_describer_custom.i18n.strings import t
+    from omni_describer_custom.ui import main_frame as mf
+    from omni_describer_custom.ui.main_frame import MainFrame
+    import omni_describer_custom.ui.player_window as pw_mod
+
+    class Stub(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(length)
+            if "uploadType=resumable" in self.path:
+                self.send_response(200)
+                self.send_header(
+                    "X-Goog-Upload-URL",
+                    f"http://127.0.0.1:{self.server.server_port}/upload")
+                self.end_headers()
+                return
+            if self.path.startswith("/upload"):
+                body = json.dumps({"file": {
+                    "uri": ("http://generativelanguage.googleapis.com"
+                            "/v1beta/files/demoabc123"),
+                    "name": "files/demoabc123",
+                    "state": "PROCESSING"}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if ":generateContent" in self.path:
+                body = json.dumps({"candidates": [{"content": {"parts": [
+                    {"text": "[00:00] A red car drives past green hills.\n"
+                             "[00:10] The narrator greets the audience."
+                     }]}}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def do_GET(self):
+            body = json.dumps({"name": "files/demoabc123",
+                               "state": "ACTIVE"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = HTTPServer(("127.0.0.1", 0), Stub)
+    port = server.server_port
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    tmp_projects = tempfile.mkdtemp(prefix="odc_integ_proj_")
+    video = Path(tempfile.mkdtemp(prefix="odc_integ_vid_")) / "clip.mp4"
+    video.write_bytes(b"\x00" * 2048)
+
+    resolve_seen: list[str] = []
+    frame = MainFrame()
+    try:
+        # Isolate user data BEFORE anything processes
+        frame.project_store = ProjectStore(projects_dir=tmp_projects)
+        frame.settings.set("ai.video_mode", "full")
+        frame.settings.set("ai.default_provider", "gemini")
+        frame.settings.set_ai_provider("gemini", {
+            "api_key": "test-key",
+            "base_url": f"http://127.0.0.1:{port}/v1beta"})
+        frame._current_source = str(video)
+
+        opened: list[int] = []
+
+        class FakePlayer:
+            def __init__(self, *a, **k):
+                opened.append(1)
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        # _open_player imports locally from the player_window module, so
+        # the patch must land on THAT module, not main_frame's attribute
+        pw_mod.PlayerWindow = FakePlayer
+
+        async def fake_info(self, source, **k):
+            class I:
+                width = 640
+                height = 360
+                duration = 42.0
+            return I()
+
+        async def fake_resolve(self, source, **k):
+            resolve_seen.append(source)
+            return str(video)
+
+        mf.VideoProcessor.get_video_info = fake_info
+        mf.VideoProcessor.resolve_source = fake_resolve
+
+        # Record every status announcement (observer only): transient
+        # phase texts can be overwritten faster than the event loop is
+        # sampled, so reading the bar afterwards is unreliable
+        real_set_status = frame.SetStatusText
+        status_seen: list[str] = []
+
+        def recording_set_status(text, *a, **k):
+            status_seen.append(text)
+            return real_set_status(text, *a, **k)
+
+        frame.SetStatusText = recording_set_status
+
+        frame._start_processing("Describe this video.")
+
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            wx.GetApp().Yield()
+            time.sleep(0.03)
+            worker = getattr(frame, "_worker", None)
+            if opened and worker is not None and not worker.is_alive():
+                for _ in range(5):
+                    wx.GetApp().Yield()
+                    time.sleep(0.03)
+                break
+
+        failures: list[str] = []
+        try:
+            if resolve_seen != [str(video)]:
+                failures.append(f"resolve calls: {resolve_seen}")
+            # processing can finish within one event-loop sample, so it
+            # is asserted at unit level (check 5) instead of here
+            for key in ("video.phase_uploading", "video.phase_describing"):
+                if t(key) not in status_seen:
+                    failures.append(
+                        f"status not announced: {key}: {set(status_seen)}")
+            if not opened:
+                failures.append("PlayerWindow was never auto-opened")
+            cur = frame.project_store.current
+            if cur is None:
+                failures.append("no current project after processing")
+            else:
+                descs = cur.descriptions
+                if len(descs) != 2:
+                    failures.append(
+                        f"expected 2 descriptions, got {len(descs)}")
+                else:
+                    if [d.start_time for d in descs] != [0.0, 10.0]:
+                        failures.append(
+                            f"times: {[d.start_time for d in descs]}")
+                    if descs[0].text != "A red car drives past green hills.":
+                        failures.append(f"text0: {descs[0].text!r}")
+                    if any(d.frame_path for d in descs):
+                        failures.append("frame_path should be empty")
+                    if [d.end_time for d in descs] != [3.0, 13.0]:
+                        failures.append(
+                            f"end times: {[d.end_time for d in descs]}")
+                if not Path(frame.project_store._db_path(cur.id)).exists():
+                    failures.append("sqlite db missing in isolated dir")
+        finally:
+            server.shutdown()
+            if failures:
+                raise AssertionError("; ".join(failures))
+    finally:
+        try:
+            frame._close_download_progress()
+        except Exception:
+            pass
+        try:
+            frame.Destroy()
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":
     check("gemini timestamp parser", test_parser)
     check("gemini full-video flow (loopback)", test_full_video_flow)
     check("non-gemini rejected clearly", test_engine_rejects_non_gemini)
     check("settings video-mode checkbox", test_settings_video_mode)
     check("mainframe video tick handlers", test_video_ticks_on_main_frame)
+    check("process_video full branch end-to-end",
+          test_process_video_full_branch_integration)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)
