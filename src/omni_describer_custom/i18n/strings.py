@@ -168,6 +168,8 @@ EN_STRINGS: dict[str, str] = {
 
     # Download progress dialog
     "download.dialog_title": "Downloading video",
+    "download.loading_info": "Loading video info...",
+    "download.download_done": "Download complete. Preparing frame extraction...",
     "download.preparing": "Preparing download...",
     "download.video": "Video stream",
     "download.audio": "Audio stream",
@@ -180,6 +182,12 @@ EN_STRINGS: dict[str, str] = {
     "process.frame_capped": "Frame cap reached: analyzing the first {cap} of {total} frames",
     "download.cancel_analysis": "Cancelling AI analysis...",
     "download.saving": "Saving project...",
+    "process.complete_title": "Processing complete",
+    "process.failed_title": "Processing failed",
+    "error.ai_empty": "AI returned no usable descriptions.",
+    "process.no_descriptions": "No descriptions were generated.\n\nThe AI provider returned no usable text. Check your API key and connection in Settings (Test Connection), then try again.\n\nDetails are in the log below.",
+    "project.dialog_title": "Open Project",
+    "project.opened_empty": "Project '{name}' has no descriptions.\n\nRun Start Processing on the video, or import descriptions from the File menu.",
 
     # Errors
     "error.no_video": "No video loaded.",
@@ -360,6 +368,8 @@ MS_STRINGS: dict[str, str] = {
 
     # Dialog kemajuan muat turun
     "download.dialog_title": "Memuat turun video",
+    "download.loading_info": "Memuatkan maklumat video...",
+    "download.download_done": "Muat turun selesai. Bersedia untuk ekstrak frame...",
     "download.preparing": "Menyediakan muat turun...",
     "download.video": "Strim video",
     "download.audio": "Strim audio",
@@ -372,6 +382,12 @@ MS_STRINGS: dict[str, str] = {
     "process.frame_capped": "Had frame dicapai: menganalisis {cap} frame pertama daripada {total}",
     "download.cancel_analysis": "Membatalkan analisis AI...",
     "download.saving": "Menyimpan projek...",
+    "process.complete_title": "Pemprosesan selesai",
+    "process.failed_title": "Pemprosesan gagal",
+    "error.ai_empty": "AI tidak memulangkan sebarang penerangan yang boleh diguna.",
+    "process.no_descriptions": "Tiada penerangan dijana.\n\nPenyedia AI tidak memulangkan teks yang boleh diguna. Semak kunci API dan sambungan dalam Tetapan (Uji Sambungan), kemudian cuba lagi.\n\nButiran ada dalam log di bawah.",
+    "project.dialog_title": "Buka Projek",
+    "project.opened_empty": "Projek '{name}' tiada penerangan.\n\nJalankan Mula Pemprosesan pada video, atau import penerangan dari menu File.",
 
     # Errors
     "error.no_video": "Tiada video dimuatkan.",

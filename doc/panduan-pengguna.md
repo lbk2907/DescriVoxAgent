@@ -89,17 +89,7 @@ membacakan penerangan itu segerak semasa main balik.
 
 ## Tetapan (menu System > Settings..., atau butang Settings...)
 
-- **Tab AI**: pembekal (Gemini, OpenAI, Opus Proxy, atau Custom), kunci
-  API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
-  ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
-  soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
-  satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
-  papan kekunci berpindah ke situ supaya pembaca skrin terus
-  membacanya. "OK: ..." bermakna kunci sah; "Error: ..." bermakna kunci
-  salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
-  dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
-- **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
-- **Tab General**:
+- **Tab General** (kini tab pertama):
   - **Language**: `en` (Inggeris) atau `ms` (Melayu).
   - **Frame Rate (FPS)**: berapa banyak frame per saat video yang
     diekstrak untuk dianalisis (1, 2, 5, atau 10). FPS lebih tinggi =
@@ -113,6 +103,30 @@ membacakan penerangan itu segerak semasa main balik.
     Contoh: video 17 minit pada 5 FPS bermakna kira-kira 5000 panggilan
     AI tanpa had.
   - **Output Directory**: lokasi eksport ditulis.
+- **Tab AI**: pembekal (Gemini, OpenAI, Opus Proxy, atau Custom), kunci
+  API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
+  ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
+  soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
+  satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
+  papan kekunci berpindah ke situ supaya pembaca skrin terus
+  membacanya. "OK: ..." bermakna kunci sah; "Error: ..." bermakna kunci
+  salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
+  dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
+- **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
+
+Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
+"Pemprosesan selesai! N penerangan dijana." Jika AI gagal atau tidak
+memulangkan teks yang boleh diguna, dialog ralat menjelaskan langkah
+susulan (semak kunci API melalui Uji Sambungan), projek kosong **tidak**
+disimpan senyap-senyap, dan membuka projek yang tiada penerangan
+memberi amaran dengan langkah susulan yang sama.
+
+Dialog kemajuan menunjukkan fasa secara jelas dari mula hingga akhir:
+"Memuatkan maklumat video..." (semak metadata, boleh ambil beberapa
+saat untuk URL), "Muat turun: peratusan, MB, kelajuan, ETA" (strim
+video dan audio berasingan), "Merging video and audio with ffmpeg...",
+"Extracting frames: N frames", "AI analysis: N/M frames", "Saving
+project...", dan "Muat turun selesai" selepas strim siap diambil.
 
 ## Projek
 

@@ -567,6 +567,10 @@ class MainFrame(wx.Frame):
             proj = self.project_store.open_project(projects[idx]["id"])
             if proj:
                 self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
+                if not proj.descriptions:
+                    wx.MessageBox(t("project.opened_empty", name=proj.name),
+                                  t("project.dialog_title"),
+                                  wx.OK | wx.ICON_WARNING)
         dlg.Destroy()
 
     def _on_save_project(self, event):
@@ -664,6 +668,13 @@ class MainFrame(wx.Frame):
 
             # Step 1: Video info
             wx.CallAfter(self.SetStatusText, t("status.loading_video"))
+            # FIX (1 Sep): for URLs the yt-dlp metadata probe can take up
+            # to 120s with NO visible feedback (the download dialog only
+            # appears at the first download event). Show the phase
+            # immediately; screen readers read the status line.
+            wx.CallAfter(self._ensure_download_progress)
+            wx.CallAfter(self._download_progress_tick_text,
+                         t("download.loading_info"), -1)
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
@@ -733,6 +744,11 @@ class MainFrame(wx.Frame):
                 loop.close()
                 return
             wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
+            # Announce the completed download phase explicitly so screen
+            # reader users know the fetch finished and what comes next.
+            wx.CallAfter(self._ensure_download_progress)
+            wx.CallAfter(self._download_progress_tick_text,
+                         t("download.download_done"), -1)
 
             # OPT-IN FRAME CAP (30 Aug): an optional user setting limits how
             # many extracted frames are sent for AI analysis, keeping long
@@ -813,10 +829,51 @@ class MainFrame(wx.Frame):
                     "frame_path": str(perm),
                 })())
 
+            # FIX (1 Sep): zero usable descriptions used to be saved
+            # silently, producing "Opened: <url> (0 descriptions)" with no
+            # explanation. Now surface a clear failure notice instead of
+            # an empty project, and clean up like the error paths do.
+            if not desc_objects:
+                wx.CallAfter(self._log, "ERROR: " + t("error.ai_empty"))
+                wx.CallAfter(self.SetStatusText,
+                             t("status.error", error=t("error.ai_empty")))
+                wx.CallAfter(self._close_download_progress)
+
+                def _notify_empty() -> None:
+                    # A modal MessageBox blocks until dismissed, which hung
+                    # an automated run that pumps the wx event loop (16 min
+                    # stuck in test_fixes9). Show the modal only when the
+                    # frame is actually on screen; headless runs get the
+                    # same information via the log + status bar lines.
+                    if self.IsShown():
+                        wx.MessageBox(t("process.no_descriptions"),
+                                      t("process.failed_title"),
+                                      wx.OK | wx.ICON_ERROR)
+
+                wx.CallAfter(_notify_empty)
+                self._cleanup_dir(frame_dir)
+                frame_dir = None
+                if loop is not None and not loop.is_closed():
+                    loop.close()
+                wx.CallAfter(self._processing_done)
+                return
+
             wx.CallAfter(self._ensure_download_progress)
             wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
             self.project_store.save_descriptions(desc_objects)
             wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
+            wx.CallAfter(self._log, t("status.processing_complete",
+                                      count=len(desc_objects)))
+
+            def _notify_done(count: int) -> None:
+                # Same guard as _notify_empty: modal only for visible
+                # frames (real users), log/status only for headless runs.
+                if self.IsShown():
+                    wx.MessageBox(t("status.processing_complete", count=count),
+                                  t("process.complete_title"),
+                                  wx.OK | wx.ICON_INFORMATION)
+
+            wx.CallAfter(_notify_done, len(desc_objects))
             if getattr(self, "_ai_cancelled", False):
                 wx.CallAfter(self._log, "AI analysis cancelled; partial descriptions saved")
             wx.CallAfter(self._close_download_progress)

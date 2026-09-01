@@ -69,17 +69,17 @@ class SettingsDialog(wx.Dialog):
         # Notebook (tabs)
         self.notebook = wx.Notebook(panel, name="settings_notebook")
 
-        # Tab 1: AI Settings
+        # Tab 1: General Settings (standard apps put General first)
+        general_panel = self._build_general_tab()
+        self.notebook.AddPage(general_panel, t("settings.general_tab"))
+
+        # Tab 2: AI Settings
         ai_panel = self._build_ai_tab()
         self.notebook.AddPage(ai_panel, t("settings.ai_tab"))
 
-        # Tab 2: TTS Settings
+        # Tab 3: TTS Settings
         tts_panel = self._build_tts_tab()
         self.notebook.AddPage(tts_panel, t("settings.tts_tab"))
-
-        # Tab 3: General Settings
-        general_panel = self._build_general_tab()
-        self.notebook.AddPage(general_panel, t("settings.general_tab"))
 
         sizer.Add(self.notebook, 1, wx.ALL | wx.EXPAND, 10)
 
