@@ -85,14 +85,11 @@ class SettingsDialog(wx.Dialog):
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.test_btn = wx.Button(panel, label=t("settings.test_connection"),
-                                  name="test_connection")
         self.apply_btn = wx.Button(panel, label=t("settings.apply"),
                                    name="apply_settings")
         self.cancel_btn = wx.Button(panel, label=t("settings.cancel"),
                                     name="cancel_settings")
 
-        btn_sizer.Add(self.test_btn, 0, wx.ALL, 5)
         btn_sizer.AddStretchSpacer()
         btn_sizer.Add(self.apply_btn, 0, wx.ALL, 5)
         btn_sizer.Add(self.cancel_btn, 0, wx.ALL, 5)
@@ -100,7 +97,6 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(btn_sizer, 0, wx.ALL | wx.EXPAND, 10)
 
         # Bindings
-        self.test_btn.Bind(wx.EVT_BUTTON, self._on_test)
         self.apply_btn.Bind(wx.EVT_BUTTON, self._on_apply)
         self.cancel_btn.Bind(wx.EVT_BUTTON, self._on_cancel)
         panel.Layout()
@@ -176,6 +172,13 @@ class SettingsDialog(wx.Dialog):
         self.show_key_btn = wx.ToggleButton(panel, label="Show", name="toggle_key")
         sizer.Add(self.show_key_btn, 0, wx.ALL, 5)
         self.show_key_btn.Bind(wx.EVT_TOGGLEBUTTON, self._on_toggle_key)
+
+        # Test connection button: lives in the AI tab only because it
+        # tests the AI provider, not the TTS engine or general settings.
+        self.test_btn = wx.Button(panel, label=t("settings.test_connection"),
+                                  name="test_connection")
+        sizer.Add(self.test_btn, 0, wx.ALL, 5)
+        self.test_btn.Bind(wx.EVT_BUTTON, self._on_test)
 
         # Test result
         self.test_result = wx.StaticText(panel, label="", name="test_result")

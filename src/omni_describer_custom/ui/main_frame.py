@@ -198,20 +198,16 @@ class MainFrame(wx.Frame):
     # ── Menu Bar ──────────────────────────────────────────────────
 
     def _build_menu(self):
-        """Mirror original: System, Help."""
+        """File, Help. Settings lives in File; Exit appears once."""
         menubar = wx.MenuBar()
-
-        # System — dropdown
-        system_menu = wx.Menu()
-        system_menu.Append(wx.ID_PREFERENCES, "Settings...")
-        system_menu.Append(wx.ID_EXIT, "Exit")
-        menubar.Append(system_menu, "System")
 
         # File — dropdown
         file_menu = wx.Menu()
-        file_menu.Append(wx.ID_NEW, "New Project...")
-        file_menu.Append(wx.ID_OPEN, "Open Project...")
-        file_menu.Append(wx.ID_SAVE, "Save Project")
+        file_menu.Append(wx.ID_PREFERENCES, t("menu.settings"))
+        file_menu.AppendSeparator()
+        file_menu.Append(wx.ID_NEW, t("menu.new_project"))
+        file_menu.Append(wx.ID_OPEN, t("menu.open_project"))
+        file_menu.Append(wx.ID_SAVE, t("menu.save_project"))
         file_menu.AppendSeparator()
         self._id_import = wx.NewIdRef()
         self._id_export_srt = wx.NewIdRef()
@@ -223,13 +219,13 @@ class MainFrame(wx.Frame):
         file_menu.Append(self._id_export_vtt, t("menu.export_vtt"))
         file_menu.Append(self._id_export_audio, t("menu.export_audio"))
         file_menu.AppendSeparator()
-        file_menu.Append(wx.ID_EXIT, "Exit")
-        menubar.Append(file_menu, "File")
+        file_menu.Append(wx.ID_EXIT, t("menu.exit"))
+        menubar.Append(file_menu, t("menu.file"))
 
         # Help — dropdown
         help_menu = wx.Menu()
-        help_menu.Append(wx.ID_ABOUT, "About")
-        menubar.Append(help_menu, "Help")
+        help_menu.Append(wx.ID_ABOUT, t("menu.about"))
+        menubar.Append(help_menu, t("menu.help"))
 
         self.SetMenuBar(menubar)
 

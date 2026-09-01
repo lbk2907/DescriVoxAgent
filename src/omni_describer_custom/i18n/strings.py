@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 EN_STRINGS: dict[str, str] = {
     # Menu
     "menu.file": "File",
+    "menu.about": "About",
     "menu.edit": "Edit",
     "menu.view": "View",
     "menu.help": "Help",
@@ -218,6 +219,7 @@ EN_STRINGS: dict[str, str] = {
 MS_STRINGS: dict[str, str] = {
     # Menu
     "menu.file": "Fail",
+    "menu.about": "Perihal",
     "menu.edit": "Sunting",
     "menu.view": "Lihat",
     "menu.help": "Bantuan",
