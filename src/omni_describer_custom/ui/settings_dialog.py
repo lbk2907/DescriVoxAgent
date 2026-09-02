@@ -39,6 +39,9 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-4.1-mini",
         "o4-mini",
     ],
+    "glm": [
+        "z-ai/glm-5.3-flash",
+    ],
     "custom": [],  # user provides their own
 }
 
@@ -114,7 +117,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5)
         self.provider_choice = wx.Choice(
             panel,
-            choices=["opus", "gemini", "minimax", "openai", "custom"],
+            choices=["opus", "gemini", "minimax", "openai", "glm", "custom"],
             name="ai_provider",
         )
         self.provider_choice.SetLabel(t("settings.provider"))

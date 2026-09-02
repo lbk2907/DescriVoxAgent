@@ -770,6 +770,106 @@ class MiniMaxProvider(AIProvider):
         return file_id
 
 
+class GLMProvider(AIProvider):
+    """GLM (Zhipu) via OpenRouter — OpenAI-compatible chat format.
+
+    Default base URL is OpenRouter (https://openrouter.ai/api/v1) with
+    the vendor-prefixed model id z-ai/glm-5.3-flash; a Zhipu direct key
+    also works by storing base_url https://open.bigmodel.cn/api/paas/v4
+    and the bare model id. Frame mode sends images as data URLs like
+    OpenAI (one request per frame, matching the GUI's per-frame
+    description model), and ask_text reuses the same endpoint.
+    """
+
+    name = "glm"
+    models = [
+        "z-ai/glm-5.3-flash",
+    ]
+
+    def __init__(self, api_key: str = "", base_url: str = ""):
+        self.api_key = api_key
+        self.base_url = (base_url or "https://openrouter.ai/api/v1").rstrip("/")
+
+    async def _chat(self, payload: dict, timeout: float) -> str:
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"GLM HTTP {resp.status}: {body[:200]}")
+                data = await resp.json()
+                if "error" in data:
+                    raise RuntimeError(f"GLM API error: {data['error']}")
+                choices = data.get("choices", [])
+                if not choices:
+                    return "(no response from GLM)"
+                return choices[0]["message"]["content"]
+
+    async def describe_image(
+        self, image_path: str, prompt: str, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("GLM API key not configured")
+        model = model or self.models[0]
+        img_b64, mime = self._load_image_b64(image_path)
+        payload = {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url",
+                     "image_url": {"url": f"data:{mime};base64,{img_b64}"}},
+                ]},
+            ],
+        }
+        return _strip_think(await self._chat(payload, timeout=120))
+
+    async def describe_frames_batch(
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[str]:
+        results = []
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
+            try:
+                desc = await self.describe_image(frame, prompt, model)
+            except Exception as e:
+                logger.warning("GLM frame error: %s", e)
+                desc = f"(error: {e})"
+            results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
+        return results
+
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("GLM API key not configured")
+        model = model or self.models[0]
+        messages: list[dict] = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (history or [])
+        ]
+        messages.append({"role": "user", "content": question})
+        payload = {"model": model, "max_tokens": 1024, "messages": messages}
+        return _strip_think(await self._chat(payload, timeout=120))
+
+
 class OpusProvider(AIProvider):
     """Opus Proxy — Anthropic Messages API format ONLY for vision."""
 
@@ -1110,6 +1210,7 @@ class AIEngine:
         "minimax": MiniMaxProvider,
         "openai": OpenAIProvider,
         "opus": OpusProvider,
+        "glm": GLMProvider,
         "custom": CustomProvider,
     }
 

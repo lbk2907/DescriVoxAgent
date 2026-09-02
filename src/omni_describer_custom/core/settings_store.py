@@ -53,6 +53,7 @@ class SettingsStore:
                 "gemini": {"api_key": "", "model": "gemini-2.5-flash"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
                 "opus": {"api_key": "", "model": "claude-opus-4-8", "base_url": "https://opus.abhibots.com/v1"},
+                "glm": {"api_key": "", "model": "z-ai/glm-5.3-flash", "base_url": "https://openrouter.ai/api/v1"},
                 "custom": {"api_key": "", "model": "", "base_url": "", "api_format": "auto"},
             },
         },

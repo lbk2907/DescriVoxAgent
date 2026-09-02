@@ -38,8 +38,12 @@ interpreter. The log file is written to
 
 ## Settings (File menu > Settings...)
 
-- **AI tab**: provider (Gemini, MiniMax, OpenAI, Opus Proxy, or
+- **AI tab**: provider (Gemini, MiniMax, OpenAI, GLM, Opus Proxy, or
   Custom), API key, model; a **Test** button verifies the connection.
+  GLM (Zhipu) runs through OpenRouter by default: pick provider `glm`,
+  model `z-ai/glm-5.3-flash`, and paste your OpenRouter key
+  (`sk-or-v1-...`); a Zhipu direct key also works via the custom
+  provider with `https://open.bigmodel.cn/api/paas/v4` as base URL.
   For Gemini and MiniMax, a **Full-video mode** checkbox switches from
   frame extraction to uploading the whole video so the AI watches it
   and timestamps the descriptions itself (one upload, one AI call;

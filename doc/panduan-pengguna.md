@@ -105,8 +105,12 @@ membacakan penerangan itu segerak semasa main balik.
     Contoh: video 17 minit pada 5 FPS bermakna kira-kira 5000 panggilan
     AI tanpa had.
   - **Output Directory**: lokasi eksport ditulis.
-- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, Opus Proxy, atau
-  Custom), kunci API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
+- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, GLM, Opus Proxy, atau
+  Custom), kunci API, model. **GLM** berjalan melalui OpenRouter secara
+  lalai: pilih pembekal `glm`, model `z-ai/glm-5.3-flash`, dan tampal
+  kunci OpenRouter anda (bermula dengan `sk-or-v1-`); kunci terus
+  Zhipu juga boleh digunakan melalui pembekal Custom dengan URL asas
+  `https://open.bigmodel.cn/api/paas/v4`. Butang **Uji Sambungan** (Test Connection) menyemak sama
   ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
   soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
   satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
