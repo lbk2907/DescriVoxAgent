@@ -3,10 +3,10 @@
 An accessible audio-description tool for blind and visually impaired
 users. It downloads or opens a video and produces timestamped audio
 descriptions in two ways: the default frame mode extracts frames and
-sends them to an AI vision provider, while the optional Gemini
-full-video mode uploads the whole video and lets Gemini watch it
-(including audio) and timestamp its own descriptions. A built-in
-player reads the descriptions in sync with playback.
+sends them to an AI vision provider, while the optional full-video
+mode (Gemini or MiniMax) uploads the whole video and lets the AI
+watch it (including audio) and timestamp its own descriptions. A
+built-in player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`.
 
@@ -38,12 +38,12 @@ interpreter. The log file is written to
 
 ## Settings (File menu > Settings...)
 
-- **AI tab**: provider (Gemini, OpenAI, Opus Proxy, or Custom), API key,
-  model; a **Test** button verifies the connection. For Gemini only, a
-  **Full-video mode** checkbox switches from frame extraction to
-  uploading the whole video so Gemini watches it and timestamps the
-  descriptions itself (one upload, one AI call; covers sound and
-  speech as well as visuals).
+- **AI tab**: provider (Gemini, MiniMax, OpenAI, Opus Proxy, or
+  Custom), API key, model; a **Test** button verifies the connection.
+  For Gemini and MiniMax, a **Full-video mode** checkbox switches from
+  frame extraction to uploading the whole video so the AI watches it
+  and timestamps the descriptions itself (one upload, one AI call;
+  covers sound and speech as well as visuals).
 - **TTS tab**: speech engine, voice, speed.
 - **General tab**:
   - **Language**: `en` or `ms`.
@@ -69,7 +69,7 @@ frame). Use **File** menu items to create, open, or save projects.
 - Run all checks (compileall + every test suite):
   `run_gate.bat` — prints `GATE_ALL_PASS` when everything passes.
 - Test suites live in `tests\` as standalone scripts
-  (`test_fixes.py` ... `test_fixes12.py`, `test_acceptance.py`,
+  (`test_fixes.py` ... `test_fixes13.py`, `test_acceptance.py`,
   `test_gui_smoke.py`, `run_checks.py`). Each exits nonzero on failure.
 - i18n audit (every `t("...")` key exists in both EN and MS, no
   unlabeled buttons): `python tests\audit_i18n.py` — prints

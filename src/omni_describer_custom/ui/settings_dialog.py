@@ -187,8 +187,9 @@ class SettingsDialog(wx.Dialog):
         self.test_result = wx.StaticText(panel, label="", name="test_result")
         sizer.Add(self.test_result, 0, wx.ALL, 5)
 
-        # Full-video mode: only meaningful for Gemini (native video
-        # understanding). Shown/disabled by provider selection.
+        # Full-video mode: only meaningful for providers with native
+        # video understanding (Gemini, MiniMax). Shown/disabled by
+        # provider selection.
         self.video_mode_cb = wx.CheckBox(
             panel, label=t("settings.video_mode"), name="video_mode")
         self.video_mode_cb.SetValue(
@@ -486,7 +487,7 @@ class SettingsDialog(wx.Dialog):
             self.settings.set("ai.default_provider", provider)
 
         # Full-video mode (persisted for the processing pipeline; the
-        # pipeline itself double-checks provider == gemini).
+        # pipeline itself double-checks provider supports full-video).
         self.settings.set(
             "ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
 

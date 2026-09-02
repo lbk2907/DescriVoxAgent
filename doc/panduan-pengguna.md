@@ -13,7 +13,7 @@ Versi Inggeris ringkas: `README.md`.
 Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
 
 1. Dapatkan `OmniDescriber-<versi>-win64.zip` (contoh
-   `OmniDescriber-1.2.2-win64.zip`; nombor versi meningkat setiap
+   `OmniDescriber-1.2.4-win64.zip`; nombor versi meningkat setiap
    rilis baharu supaya mudah bezakan) dan nyahzip ke mana-mana
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
@@ -105,8 +105,8 @@ membacakan penerangan itu segerak semasa main balik.
     Contoh: video 17 minit pada 5 FPS bermakna kira-kira 5000 panggilan
     AI tanpa had.
   - **Output Directory**: lokasi eksport ditulis.
-- **Tab AI**: pembekal (Gemini, OpenAI, Opus Proxy, atau Custom), kunci
-  API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
+- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, Opus Proxy, atau
+  Custom), kunci API, model. Butang **Uji Sambungan** (Test Connection) menyemak sama
   ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
   soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
   satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
@@ -115,16 +115,16 @@ membacakan penerangan itu segerak semasa main balik.
   salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
   dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
   - **Mod video penuh (Full-video mode)**: kotak semak ini hanya aktif
-    apabila pembekal Gemini dipilih. Bila didayakan, Gemini menerima
-    **keseluruhan fail video** (audio + visual) dan AI menontonnya
-    sendiri, kemudian memulangkan senarai penerangan ber-timestamp
-    buatannya. Tiada frame diekstrak dan tiada satu panggilan AI bagi
-    setiap frame — satu muat naik dan satu panggilan sahaja, jadi
-    biasanya lebih pantas dan lebih murah untuk video panjang, dan
-    penerangan meliputi bunyi/perkataan juga, bukan sekadar imej. Status
-    diumumkan sepanjang proses: "Memuat naik video ke Gemini...",
-    "Gemini sedang menonton video (pemprosesan)...", dan "Gemini sedang
-    menulis penerangan...".
+    apabila pembekal **Gemini atau MiniMax** dipilih. Bila didayakan,
+    AI menerima **keseluruhan fail video** (audio + visual) dan AI
+    menontonnya sendiri, kemudian memulangkan senarai penerangan
+    ber-timestamp buatannya. Tiada frame diekstrak dan tiada satu
+    panggilan AI bagi setiap frame — satu muat naik dan satu panggilan
+    sahaja, jadi biasanya lebih pantas dan lebih murah untuk video
+    panjang, dan penerangan meliputi bunyi/perkataan juga, bukan
+    sekadar imej. Status diumumkan sepanjang proses: "Memuat naik
+    video ke penyedia AI...", "AI sedang menonton video
+    (pemprosesan)...", dan "AI sedang menulis penerangan...".
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
@@ -140,9 +140,9 @@ saat untuk URL), "Muat turun: peratusan, MB, kelajuan, ETA" (strim
 video dan audio berasingan), "Merging video and audio with ffmpeg...",
 "Extracting frames: N frames", "AI analysis: N/M frames", "Saving
 project...", dan "Muat turun selesai" selepas strim siap diambil.
-Dalam mod video penuh Gemini, fasa ekstraksi/analisis frame diganti
-dengan "Uploading video to Gemini: peratus", "Gemini is watching the
-video (processing)...", dan "Gemini is writing descriptions..." —
+Dalam mod video penuh, fasa ekstraksi/analisis frame diganti dengan
+"Memuat naik video ke penyedia AI: peratus", "AI sedang menonton
+video (pemprosesan)...", dan "AI sedang menulis penerangan..." —
 tiada frasa frame diumumkan kerana tiada frame terlibat.
 
 ## Bagaimana pemprosesan berfungsi (dan kenapa)
@@ -155,11 +155,14 @@ tiada frasa frame diumumkan kerana tiada frame terlibat.
   sendiri, contohnya 0.0s, 0.2s, 0.4s pada 5 FPS. Hanya frame (imej),
   bukan fail video penuh, dihantar kepada AI; aplikasi melekatkan
   timestamp frame pada teks yang AI pulangkan.
-- **Mod video penuh (Gemini sahaja, kotak semak dalam Tab AI):** satu
-  fail video penuh dimuat naik ke Gemini Files API, AI menonton video
-  (termasuk audio) sendiri, dan timestamp datang daripada AI itu juga.
-  Ini sesuai untuk penerangan yang meliputi bunyi dan pertuturan, atau
-  bila anda mahukan proses satu langkah sahaja.
+- **Mod video penuh (Gemini atau MiniMax, kotak semak dalam Tab AI):**
+  satu fail video penuh dimuat naik (ke Gemini Files API atau MiniMax
+  Files API), AI menonton video (termasuk audio) sendiri, dan
+  timestamp datang daripada AI itu juga. Ini sesuai untuk penerangan
+  yang meliputi bunyi dan pertuturan, atau bila anda mahukan proses
+  satu langkah sahaja. Pembekal lain (OpenAI, Claude/Opus Proxy,
+  Custom) tidak menerima fail video tempatan, jadi mod ini tidak
+  tersedia untuk mereka.
 - Kedua-dua mod menghasilkan penerangan ber-timestamp yang sama
   segeraknya dengan main balik; bezanya hanya siapa yang menentukan
   masa (proses ekstraksi berbanding AI) dan apa yang dihantar (imej
