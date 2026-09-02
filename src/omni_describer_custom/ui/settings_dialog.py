@@ -201,6 +201,17 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.video_mode_hint"),
                                 name="video_mode_hint"), 0, wx.ALL, 5)
 
+        # Fast one-shot mode: burn-in timestamps + ALL frames in ONE AI
+        # request (GLM via OpenRouter). Mutually exclusive with
+        # full-video mode; frame-per-frame stays the fallback.
+        self.fast_mode_cb = wx.CheckBox(
+            panel, label=t("settings.fast_mode"), name="fast_mode")
+        self.fast_mode_cb.SetValue(
+            bool(self.settings.get("ai.fast_mode", False)))
+        sizer.Add(self.fast_mode_cb, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("settings.fast_mode_hint"),
+                                name="fast_mode_hint"), 0, wx.ALL, 5)
+
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
         return panel
@@ -373,6 +384,11 @@ class SettingsDialog(wx.Dialog):
         self.video_mode_cb.Enable(provider in ("gemini", "minimax"))
         if provider not in ("gemini", "minimax"):
             self.video_mode_cb.SetValue(False)
+        # Fast one-shot mode is only offered for GLM (OpenRouter,
+        # OpenAI-compatible vision with a huge context window).
+        self.fast_mode_cb.Enable(provider == "glm")
+        if provider != "glm":
+            self.fast_mode_cb.SetValue(False)
 
         self.Layout()
 
@@ -493,6 +509,7 @@ class SettingsDialog(wx.Dialog):
         # pipeline itself double-checks provider supports full-video).
         self.settings.set(
             "ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
+        self.settings.set("ai.fast_mode", bool(self.fast_mode_cb.GetValue()))
 
         # Update TTS
         tts_engine = self.tts_engine_choice.GetStringSelection()
@@ -548,6 +565,8 @@ class SettingsDialog(wx.Dialog):
         default_provider = self.settings.get("ai.default_provider", "opus")
         self.provider_choice.SetStringSelection(default_provider)
         self._on_provider_changed(None)  # Refresh model list + fields
+        self.fast_mode_cb.SetValue(
+            bool(self.settings.get("ai.fast_mode", False)))
 
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")

@@ -48,6 +48,14 @@ interpreter. The log file is written to
   frame extraction to uploading the whole video so the AI watches it
   and timestamps the descriptions itself (one upload, one AI call;
   covers sound and speech as well as visuals).
+  For GLM there is a **Fast one-shot mode** checkbox: frames are
+  extracted locally with a burned-in `H:MM:SS` timestamp (dark box,
+  top-left), then ALL frames go to the AI in ONE request (auto-split
+  into chunks of 150 images per request for long videos). The model
+  reads the on-screen stamps and the app snaps them back onto the
+  exact extraction grid, so timestamps stay in sync even if the model
+  misreads a stamp. One download, one (or few) AI request(s), frames
+  analysed locally.
 - **TTS tab**: speech engine, voice, speed.
 - **General tab**:
   - **Language**: `en` or `ms`.

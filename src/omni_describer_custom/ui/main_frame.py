@@ -803,6 +803,160 @@ class MainFrame(wx.Frame):
                     desc_objects, loop, None)
                 return
 
+            # ── Fast one-shot mode (GLM burn-in + ALL frames in ONE
+            # request): ai.fast_mode AND provider == glm. Frames carry a
+            # burned-in H:MM:SS stamp so ONE AI request covers them all
+            # (auto-batched at 150 images/request when needed); returned
+            # event lines are snapped onto the known extraction grid, so
+            # timestamps stay exact even if the model misreads a stamp.
+            fast_mode = (
+                bool(self.settings.get("ai.fast_mode", False))
+                and self.settings.get("ai.default_provider", "") == "glm"
+            )
+            if fast_mode:
+                stop_counter.set()  # this branch runs its own counter
+                wx.CallAfter(self.SetStatusText, t("video.fast_extracting"))
+                from ..core.ai_engine import build_fast_batch_filter
+                import re as _re
+                import subprocess as _subprocess
+                try:
+                    resolved = loop.run_until_complete(vp.resolve_source(
+                        source, on_progress=download_progress,
+                        is_cancelled=lambda: bool(
+                            getattr(self, "_dl_cancelled", False)))
+                    )
+                except SourceError as e:
+                    if "cancelled" in str(e).lower():
+                        wx.CallAfter(self._log, t("download.cancelled_log"))
+                        wx.CallAfter(self._close_download_progress)
+                        wx.CallAfter(self._processing_done)
+                        loop.close()
+                        return
+                    raise
+
+                fast_fps = int(self.settings.get("general.frame_rate", 1) or 1)
+                pattern = str(Path(frame_dir) / "frame_%05d.jpg")
+                cmd = [
+                    vp.ffmpeg, "-hide_banner", "-nostdin",
+                    "-i", resolved,
+                    "-vf", build_fast_batch_filter(fast_fps),
+                    "-q:v", "3", "-y", pattern,
+                ]
+                # Blocking run on the worker thread; cancellation is
+                # checked after (extraction of a normal video takes
+                # seconds; the dialog stays alive via Pulse text).
+                wx.CallAfter(self._download_progress_tick_text,
+                             t("video.fast_extracting"), -1)
+                try:
+                    ff = _subprocess.run(cmd, capture_output=True,
+                                         timeout=900)
+                except Exception as e:
+                    wx.CallAfter(self._log, f"ERROR: ffmpeg failed: {e}")
+                    wx.CallAfter(self._close_download_progress)
+                    wx.CallAfter(self._processing_done)
+                    self._cleanup_dir(frame_dir)
+                    frame_dir = None
+                    loop.close()
+                    return
+                if ff.returncode != 0:
+                    tail = ff.stderr.decode("utf-8", "replace")[-500:]
+                    wx.CallAfter(self._log,
+                                 f"ERROR: ffmpeg failed: {tail}")
+                    wx.CallAfter(self._close_download_progress)
+                    wx.CallAfter(self._processing_done)
+                    self._cleanup_dir(frame_dir)
+                    frame_dir = None
+                    loop.close()
+                    return
+                if bool(getattr(self, "_dl_cancelled", False)):
+                    wx.CallAfter(self._log, t("download.cancelled_log"))
+                    wx.CallAfter(self._close_download_progress)
+                    wx.CallAfter(self._processing_done)
+                    self._cleanup_dir(frame_dir)
+                    frame_dir = None
+                    loop.close()
+                    return
+
+                fast_frames = sorted(
+                    Path(frame_dir).glob("frame_*.jpg"),
+                    key=lambda p: int(_re.search(
+                        r"(\d+)\.jpg$", p.name).group(1))
+                    if _re.search(r"(\d+)\.jpg$", p.name) else 0)
+                if not fast_frames:
+                    wx.CallAfter(self._log, "ERROR: " + t("error.no_frames"))
+                    wx.CallAfter(self._close_download_progress)
+                    wx.CallAfter(self._processing_done)
+                    self._cleanup_dir(frame_dir)
+                    frame_dir = None
+                    loop.close()
+                    return
+
+                # expected_times[i] = i / fast_fps (fps filter emits its
+                # i-th output frame at exactly i/fps seconds)
+                expected_times = [i / fast_fps
+                                  for i in range(len(fast_frames))]
+                n_batches = max(
+                    1, -(-len(fast_frames) // 150))  # ceil division
+                wx.CallAfter(self._log, t(
+                    "video.fast_mode_enabled_log",
+                    count=len(fast_frames), batches=n_batches))
+                wx.CallAfter(self._download_progress_tick_text,
+                             t("video.fast_encoding",
+                               count=len(fast_frames)), -1)
+                frame_paths_fast = [str(p) for p in fast_frames]
+
+                def fast_status(phase: str) -> None:
+                    if phase == "describing":
+                        wx.CallAfter(self._download_progress_tick_text,
+                                     t("video.fast_batches",
+                                       count=len(frame_paths_fast),
+                                       batches=n_batches), -1)
+                        wx.CallAfter(self.SetStatusText,
+                                     t("status.analyzing"))
+
+                try:
+                    pairs = loop.run_until_complete(
+                        self.ai_engine.describe_video_frames_batch(
+                            frame_paths_fast, prompt,
+                            expected_times=expected_times,
+                            on_status=fast_status,
+                            is_cancelled=lambda: bool(
+                                getattr(self, "_dl_cancelled", False)),
+                        )
+                    )
+                except Exception as e:
+                    if "cancel" in str(e).lower():
+                        wx.CallAfter(self._log, t("download.cancelled_log"))
+                        wx.CallAfter(self._close_download_progress)
+                        if loop is not None and not loop.is_closed():
+                            loop.close()
+                        wx.CallAfter(self._processing_done)
+                        return
+                    raise
+                wx.CallAfter(self._log, t("video.parsed_count",
+                                          count=len(pairs)))
+                desc_objects = []
+                for secs, text in pairs:
+                    desc_objects.append(type("Obj", (), {
+                        "id": 0,
+                        "start_time": secs,
+                        # Spoken descriptions typically need a few
+                        # seconds; 3s keeps the player timeline readable.
+                        "end_time": secs + 3.0,
+                        "text": text,
+                        "edited": False,
+                        "created_at": "",
+                        "frame_path": "",
+                    })())
+                if not self.project_store.current:
+                    video_name = (Path(source).name
+                                  if Path(source).exists() else source)
+                    self.project_store.create_project(video_name, source)
+                self.project_store.set_video_duration(info.duration)
+                self._save_descriptions_and_finish(
+                    desc_objects, loop, frame_dir)
+                return
+
             cancelled = False
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)

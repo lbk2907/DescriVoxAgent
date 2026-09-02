@@ -49,6 +49,7 @@ class SettingsStore:
     DEFAULTS = {
         "ai": {
             "default_provider": "",
+            "fast_mode": False,
             "providers": {
                 "gemini": {"api_key": "", "model": "gemini-2.5-flash"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},

@@ -129,6 +129,18 @@ membacakan penerangan itu segerak semasa main balik.
     sekadar imej. Status diumumkan sepanjang proses: "Memuat naik
     video ke penyedia AI...", "AI sedang menonton video
     (pemprosesan)...", dan "AI sedang menulis penerangan...".
+  - **Mod pantas satu-request (Fast one-shot mode)**: kotak semak ini
+    hanya aktif apabila pembekal **GLM** dipilih. Frame diekstrak
+    secara lokal dengan **cap masa H:MM:SS tertera terbakar** pada
+    setiap frame (kotak gelap, penjuru kiri atas), kemudian **semua
+    frame dihantar kepada AI dalam SATU panggilan** (untuk video
+    panjang, pecahan automatik kepada pukal 150 imej setiap satu).
+    AI membaca cap masa yang tertera itu sendiri, dan aplikasi
+    melekatkan semula masa pada grid frame yang tepat — jadi walaupun
+    AI tersalah baca sesuatu cap, timestamp penerangan kekal segerak
+    dengan main balik. Satu muat turun, satu (atau sedikit) panggilan
+    AI, dan frame dianalisis secara lokal. Ini adalah cara paling
+    pantas dan paling jimat untuk GLM.
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
@@ -167,7 +179,14 @@ tiada frasa frame diumumkan kerana tiada frame terlibat.
   satu langkah sahaja. Pembekal lain (OpenAI, Claude/Opus Proxy,
   Custom) tidak menerima fail video tempatan, jadi mod ini tidak
   tersedia untuk mereka.
-- Kedua-dua mod menghasilkan penerangan ber-timestamp yang sama
+- **Mod pantas satu-request (GLM, kotak semak dalam Tab AI):** frame
+  diekstrak secara lokal seperti mod frame, tetapi setiap frame
+  dibekalkan dengan cap masa `H:MM:SS` yang tertera di atas imej.
+  Semua frame pergi dalam satu panggilan AI (pukal maksimum 150 imej),
+  AI membaca cap itu, dan aplikasi betulkan masa ke grid frame yang
+  tepat sebelum disimpan. Sesuai bila anda mahukan kelajuan mod frame
+  dengan kos panggilan AI yang hampir dengan mod video penuh.
+- Ketiga-tiga mod menghasilkan penerangan ber-timestamp yang sama
   segeraknya dengan main balik; bezanya hanya siapa yang menentukan
   masa (proses ekstraksi berbanding AI) dan apa yang dihantar (imej
   berbanding satu fail video).

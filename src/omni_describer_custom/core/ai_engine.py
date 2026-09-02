@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import bisect
 import json
 import logging
 import mimetypes
@@ -869,6 +870,148 @@ class GLMProvider(AIProvider):
         payload = {"model": model, "max_tokens": 1024, "messages": messages}
         return _strip_think(await self._chat(payload, timeout=120))
 
+    async def describe_video_frames_batch(
+        self, frames: list[str], prompt: str, model: str = "",
+        on_status: Callable[[str], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+        expected_times: list[float] | None = None,
+    ) -> list[tuple[float, str]]:
+        """One-shot mode: ALL frames in ONE request; the model READS the
+        burned-in H:MM:SS stamps instead of receiving per-frame times.
+
+        Frames are split into <=150-image batches (1 batch = 1 request,
+        requests run concurrently when more than one is needed); replies
+        are parsed for timestamped lines and snapped onto the known
+        extraction grid so a model misread of a stamp cannot desync the
+        player timeline.
+        """
+        if is_cancelled is not None and is_cancelled():
+            raise RuntimeError("cancelled")
+        if not self.api_key:
+            raise ValueError("GLM API key not configured")
+        model = model or self.models[0]
+
+        def status(s: str) -> None:
+            if on_status:
+                try:
+                    on_status(s)
+                except Exception:
+                    logger.debug("on_status raised", exc_info=True)
+
+        status("describing")
+        batches = [frames[i:i + MAX_IMAGES_PER_REQUEST]
+                   for i in range(0, len(frames), MAX_IMAGES_PER_REQUEST)]
+        async with aiohttp.ClientSession() as session:
+            texts = await asyncio.gather(*[
+                self._chat({
+                    "model": model,
+                    "temperature": 0.3,
+                    "messages": [{"role": "user",
+                                  "content": _fast_batch_content(
+                                      [Path(f) for f in batch], prompt)}],
+                }, timeout=900)
+                for batch in batches
+            ])
+        merged: list[tuple[float, str]] = []
+        for text in texts:
+            merged.extend(parse_gemini_timestamp_lines(_strip_think(text)))
+        merged = snap_timestamps(merged, expected_times)
+        merged.sort(key=lambda x: x[0])
+        return merged
+
+
+# ── Fast one-shot batch mode (burned-in timestamps) ──────────────────
+#
+# ffmpeg drawtext recipe VERIFIED on ffmpeg 8.x/Windows: the drive-letter
+# colon must be BOTH escaped AND single-quoted inside the option, and an
+# explicit fontfile is mandatory (without it drawtext loads fontconfig,
+# which crashes 0xC0000005 when no default config exists).
+FAST_BATCH_TS_PROMPT_SUFFIX = (
+    "\n\nEvery image above is a frame from ONE video and has its "
+    "timestamp H:MM:SS BURNED INTO the top-left corner on a dark box. "
+    "READ that burned-in timestamp on every frame instead of guessing "
+    "from the order. Reply with ONE line per notable event, in EXACTLY "
+    "this format and nothing else:\n"
+    "H:MM:SS - description\n"
+    "Use the burned-in timestamps verbatim. Cover the whole video in "
+    "chronological order. Write descriptions for a blind viewer. No "
+    "numbering, no markdown, no extra commentary."
+)
+_FAST_BATCH_FONTS = [
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "C:/Windows/Fonts/times.ttf",
+    "C:/Windows/Fonts/calibri.ttf",
+]
+MAX_IMAGES_PER_REQUEST = 150
+
+
+def _find_fast_batch_font() -> str:
+    for p in _FAST_BATCH_FONTS:
+        if Path(p).exists():
+            return p
+    raise RuntimeError(
+        "no TrueType font found for timestamp burn-in (searched: "
+        + ", ".join(_FAST_BATCH_FONTS) + ")")
+
+
+def build_fast_batch_filter(fps: float) -> str:
+    """Full -vf value: fps -> 720p scale -> burned-in H:MM:SS stamp."""
+    font = _find_fast_batch_font()
+    font_part = f"fontfile='{font.replace(':', chr(92) + ':')}'"
+    drawtext = f"drawtext={font_part}:{_FAST_BATCH_DRAWTEXT_BODY}"
+    fps_s = str(int(fps)) if float(fps).is_integer() else str(fps)
+    return f"fps={fps_s},scale=-2:720,{drawtext}"
+
+
+_FAST_BATCH_DRAWTEXT_BODY = (
+    "text='%{pts\\:hms}':x=10:y=10:fontsize=28:"
+    "fontcolor=white:box=1:boxcolor=black@0.6"
+)
+
+
+def _fast_batch_content(frames: list[Path], prompt: str) -> list[dict]:
+    """OpenAI-compatible multipart content: every frame as a data URL,
+    the burn-in reading instructions as the final text block."""
+    content: list[dict] = []
+    for f in frames:
+        b64 = base64.b64encode(f.read_bytes()).decode("ascii")
+        content.append({"type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+    content.append({"type": "text",
+                    "text": prompt + FAST_BATCH_TS_PROMPT_SUFFIX})
+    return content
+
+
+def snap_timestamps(
+    events: list[tuple[float, str]], grid: list[float] | None,
+    max_gap: float = 1.5,
+) -> list[tuple[float, str]]:
+    """Snap model-read timestamps onto the known extraction grid.
+
+    The pipeline knows every frame's exact time (frame i of fps N sits
+    at i/N seconds), so a model misread of a burned-in stamp is
+    corrected to the nearest real frame time; entries with no frame
+    within max_gap seconds are dropped. grid must be sorted ascending;
+    returns a new sorted list.
+    """
+    if not grid:
+        return sorted(events, key=lambda x: x[0])
+    times = sorted(set(grid))
+    out: list[tuple[float, str]] = []
+    for secs, text in events:
+        if not text:
+            continue
+        i = bisect.bisect_left(times, secs)
+        best = times[i] if i < len(times) else None
+        if i > 0 and (best is None
+                      or abs(times[i - 1] - secs) < abs(best - secs)):
+            best = times[i - 1]
+        if best is not None and abs(best - secs) <= max_gap:
+            out.append((float(best), text))
+    out.sort(key=lambda x: x[0])
+    return out
+
 
 class OpusProvider(AIProvider):
     """Opus Proxy — Anthropic Messages API format ONLY for vision."""
@@ -1324,6 +1467,33 @@ class AIEngine:
             on_status=on_status,
             on_upload_progress=on_upload_progress,
             is_cancelled=is_cancelled,
+        )
+
+    async def describe_video_frames_batch(
+        self,
+        frames: list[str],
+        prompt: str,
+        provider: str = "",
+        model: str = "",
+        expected_times: list[float] | None = None,
+        on_status: Callable[[str], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[tuple[float, str]]:
+        """Fast one-shot mode: ALL frames in ONE request; the model
+        reads the burned-in H:MM:SS stamps and returns event lines that
+        are snapped onto the known extraction grid. Raises ValueError
+        when the configured provider does not support this mode."""
+        prov = self._provider_or_raise(provider or self._default_provider)
+        fn = getattr(prov, "describe_video_frames_batch", None)
+        if fn is None:
+            raise ValueError(
+                f"Provider '{prov.name}' does not support the one-shot "
+                "batch mode. Use GLM, or switch back to frame mode.")
+        return await fn(
+            frames, prompt, model,
+            on_status=on_status,
+            is_cancelled=is_cancelled,
+            expected_times=expected_times,
         )
 
     async def ask_about_scene(
