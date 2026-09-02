@@ -13,6 +13,7 @@ import json
 import logging
 import mimetypes
 import re
+import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable
@@ -22,9 +23,10 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 
-# Full-video mode: the prompt suffix sent with the whole video so Gemini
-# returns a chronological, machine-parsable [MM:SS] description list.
-GEMINI_TS_PROMPT_SUFFIX = (
+# Full-video mode: the prompt suffix sent with the whole video so the
+# provider (Gemini or MiniMax) returns a chronological, machine-parsable
+# [MM:SS] description list.
+FULL_VIDEO_TS_PROMPT_SUFFIX = (
     "\n\nYou are watching the full video, including its audio. Produce your "
     "description as a chronological list covering the WHOLE video. Each "
     "item MUST start with a timestamp in [MM:SS] or [HH:MM:SS] format, "
@@ -68,6 +70,23 @@ def parse_gemini_timestamp_lines(text: str) -> list[tuple[float, str]]:
         if desc:
             out.append((float(secs), desc))
     return out
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_think(text: str) -> str:
+    """Remove MiniMax reasoning blocks (<think>...</think>) from replies.
+
+    MiniMax models (M3) include a reasoning block before the final answer.
+    The timestamp parser must only see the final answer text.
+    """
+    if not text:
+        return text
+    if "<think>" in text and "</think>" not in text:
+        # Truncated mid-thinking: keep only anything before the block.
+        return text.split("<think>", 1)[0].strip()
+    return _THINK_RE.sub("", text).strip()
 
 
 class AIProvider(ABC):
@@ -367,7 +386,7 @@ class GeminiProvider(AIProvider):
         status("describing")
         text = await self._generate_with_video(
             uri, self._video_mime(video_path),
-            prompt + GEMINI_TS_PROMPT_SUFFIX, model,
+            prompt + FULL_VIDEO_TS_PROMPT_SUFFIX, model,
             is_cancelled=is_cancelled,
         )
         return parse_gemini_timestamp_lines(text)
@@ -511,6 +530,244 @@ class OpenAIProvider(AIProvider):
                     return "(no response from OpenAI)"
                 return choices[0]["message"]["content"]
 
+
+
+class MiniMaxProvider(AIProvider):
+    """MiniMax: OpenAI-compatible chat + Files API video upload.
+
+    Frame mode sends images as data URLs like OpenAI. Full-video mode
+    uploads the file with purpose=video_understanding, references it as
+    mm_file://{file_id} in a video_url content block, and strips the
+    <think> reasoning block MiniMax models put in replies.
+    """
+
+    name = "minimax"
+    models = [
+        "MiniMax-M3",
+    ]
+
+    def __init__(self, api_key: str = "", base_url: str = ""):
+        self.api_key = api_key
+        self.base_url = (base_url or "https://api.minimax.io").rstrip("/")
+
+    async def describe_image(
+        self, image_path: str, prompt: str, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("MiniMax API key not configured")
+        model = model or self.models[0]
+        img_b64, mime = self._load_image_b64(image_path)
+        payload = {
+            "model": model,
+            "max_completion_tokens": 1024,
+            "messages": [
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url",
+                     "image_url": {"url": f"data:{mime};base64,{img_b64}"}},
+                ]},
+            ],
+        }
+        text = await self._chat(payload, timeout=60)
+        return _strip_think(text)
+
+    async def describe_frames_batch(
+        self, frames: list[str], prompt: str, model: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[str]:
+        results = []
+        for i, frame in enumerate(frames):
+            if is_cancelled is not None and is_cancelled():
+                results.extend(["(cancelled)"] * (len(frames) - len(results)))
+                return results
+            try:
+                desc = await self.describe_image(frame, prompt, model)
+            except Exception as e:
+                logger.warning("MiniMax frame error: %s", e)
+                desc = f"(error: {e})"
+            results.append(desc)
+            if on_progress:
+                try:
+                    on_progress(i + 1, len(frames))
+                except Exception:
+                    logger.debug("on_progress raised", exc_info=True)
+        return results
+
+    async def ask_text(
+        self, question: str, history: list[dict] | None = None, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("MiniMax API key not configured")
+        model = model or self.models[0]
+        messages: list[dict] = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (history or [])
+        ]
+        messages.append({"role": "user", "content": question})
+        text = await self._chat(
+            {"model": model, "max_completion_tokens": 1024,
+             "messages": messages}, timeout=120)
+        return _strip_think(text)
+
+    async def _chat(
+        self, payload: dict, timeout: float,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> str:
+        """POST /v1/chat/completions and return choices[0].message.content."""
+        if is_cancelled is not None and is_cancelled():
+            raise RuntimeError("cancelled")
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                data = await resp.json()
+                if resp.status != 200:
+                    raise RuntimeError(
+                        f"MiniMax HTTP {resp.status}: {str(data)[:200]}")
+                base = data.get("base_resp", {}) or {}
+                if base.get("status_code", 0) != 0:
+                    raise RuntimeError(
+                        f"MiniMax error: {base.get('status_msg', data)}")
+                choices = data.get("choices", [])
+                if not choices:
+                    return "(no response from MiniMax)"
+                return choices[0]["message"]["content"]
+
+    async def describe_video_full(
+        self, video_path: str, prompt: str, model: str = "",
+        on_status: Callable[[str], None] | None = None,
+        on_upload_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[tuple[float, str]]:
+        """Watch the WHOLE video via the MiniMax Files API.
+
+        1. multipart upload (purpose=video_understanding) -> file_id
+        2. chat request referencing mm_file://{file_id}
+        3. strip <think> and parse the same [MM:SS] lines as Gemini
+        """
+        def status(s: str) -> None:
+            if on_status:
+                try:
+                    on_status(s)
+                except Exception:
+                    logger.debug("on_status raised", exc_info=True)
+
+        if not self.api_key:
+            raise ValueError("MiniMax API key not configured")
+        model = model or self.models[0]
+
+        status("uploading")
+        file_id = await self._upload_video(
+            video_path, on_upload_progress=on_upload_progress,
+            is_cancelled=is_cancelled)
+        status("describing")
+        payload = {
+            "model": model,
+            "max_completion_tokens": 4096,
+            "messages": [
+                {"role": "user", "content": [
+                    {"type": "video_url",
+                     "video_url": {"url": f"mm_file://{file_id}"}},
+                    {"type": "text",
+                     "text": prompt + FULL_VIDEO_TS_PROMPT_SUFFIX},
+                ]},
+            ],
+        }
+        text = await self._chat(payload, timeout=600,
+                                is_cancelled=is_cancelled)
+        return parse_gemini_timestamp_lines(_strip_think(text))
+
+    async def _upload_video(
+        self, video_path: str,
+        on_upload_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> str:
+        """Multipart upload to /v1/files/upload; returns the file_id.
+
+        The body streams from disk, but Content-Length is set
+        explicitly: aiohttp cannot infer the length of a generator body
+        and silently falls back to chunked transfer-encoding, which
+        some upload endpoints mishandle (the request appears to have
+        an empty body).
+        """
+        path = Path(video_path)
+        total = path.stat().st_size
+
+        def progress_cb(current: int) -> None:
+            if on_upload_progress and total:
+                try:
+                    on_upload_progress(round(current / total * 100.0, 1))
+                except Exception:
+                    logger.debug("on_upload_progress raised", exc_info=True)
+
+        boundary = "----OmniDescriberMiniMax" + uuid.uuid4().hex
+        url = f"{self.base_url}/v1/files/upload"
+
+        head1 = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="purpose"\r\n'
+            "\r\n"
+        ).encode()
+        value1 = b"video_understanding\r\n"
+        head2 = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="file"; '
+            f'filename="{path.name}"\r\n'
+            "Content-Type: video/mp4\r\n\r\n"
+        ).encode()
+        tail = f"\r\n--{boundary}--\r\n".encode()
+        content_length = (
+            len(head1) + len(value1) + len(head2) + total + len(tail))
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(content_length),
+        }
+
+        with open(video_path, "rb") as fh:
+            async def gen():
+                yield head1
+                yield value1
+                yield head2
+                sent = 0
+                while True:
+                    chunk = fh.read(1 << 16)
+                    if not chunk:
+                        break
+                    sent += len(chunk)
+                    progress_cb(sent)
+                    yield chunk
+                    if is_cancelled is not None and is_cancelled():
+                        raise RuntimeError("upload cancelled")
+                yield f"\r\n--{boundary}--\r\n".encode()
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                        url, data=gen(), headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=600)) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        raise RuntimeError(
+                            f"MiniMax upload HTTP {resp.status}: {text[:200]}")
+                    data = await resp.json()
+
+        base = data.get("base_resp", {}) or {}
+        if base.get("status_code", 0) != 0:
+            raise RuntimeError(
+                f"MiniMax upload error: {base.get('status_msg', data)}")
+        file_id = (data.get("file") or {}).get("file_id", "")
+        if not file_id:
+            raise RuntimeError(f"MiniMax upload: no file_id in response: {data}")
+        progress_cb(total)
+        return file_id
 
 
 class OpusProvider(AIProvider):
@@ -850,6 +1107,7 @@ class AIEngine:
 
     PROVIDERS = {
         "gemini": GeminiProvider,
+        "minimax": MiniMaxProvider,
         "openai": OpenAIProvider,
         "opus": OpusProvider,
         "custom": CustomProvider,

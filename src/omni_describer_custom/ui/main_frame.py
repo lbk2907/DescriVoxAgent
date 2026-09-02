@@ -679,7 +679,8 @@ class MainFrame(wx.Frame):
             # this pipeline stays accurate for this mode (no frame wording)
             video_mode = (
                 self.settings.get("ai.video_mode", "frames") == "full"
-                and self.settings.get("ai.default_provider", "") == "gemini"
+                and self.settings.get("ai.default_provider", "")
+                in ("gemini", "minimax")
             )
 
             # Step 2: Extract frames (FPS from settings). For URLs this first
@@ -774,6 +775,11 @@ class MainFrame(wx.Frame):
                             loop.close()
                         wx.CallAfter(self._processing_done)
                         return
+                    if "mm_file" in str(e):
+                        wx.CallAfter(
+                            self._log, t("video.mm_file_error",
+                                         msg=str(e)[:300]))
+                        raise
                     raise
                 wx.CallAfter(self._log, t("video.parsed_count", count=len(pairs)))
                 desc_objects = []
@@ -787,7 +793,7 @@ class MainFrame(wx.Frame):
                         "text": text,
                         "edited": False,
                         "created_at": "",
-                        "frame_path": "",  # no frame: Gemini watched the video
+                        "frame_path": "",  # no frame: AI watched the video
                     })())
                 if not self.project_store.current:
                     video_name = Path(source).name if Path(source).exists() else source

@@ -24,6 +24,9 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "claude-sonnet-4-6",
         "claude-haiku-4-5",
     ],
+    "minimax": [
+        "MiniMax-M3",
+    ],
     "gemini": [
         "gemini-2.5-flash",
         "gemini-2.5-pro",
@@ -111,7 +114,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5)
         self.provider_choice = wx.Choice(
             panel,
-            choices=["opus", "gemini", "openai", "custom"],
+            choices=["opus", "gemini", "minimax", "openai", "custom"],
             name="ai_provider",
         )
         self.provider_choice.SetLabel(t("settings.provider"))
@@ -361,9 +364,10 @@ class SettingsDialog(wx.Dialog):
             else:
                 self.api_key_text.SetValue("")
 
-        # Full-video mode checkbox is only enabled for Gemini.
-        self.video_mode_cb.Enable(provider == "gemini")
-        if provider != "gemini":
+        # Full-video mode checkbox is only enabled for providers with
+        # native video upload (Gemini, MiniMax).
+        self.video_mode_cb.Enable(provider in ("gemini", "minimax"))
+        if provider not in ("gemini", "minimax"):
             self.video_mode_cb.SetValue(False)
 
         self.Layout()
