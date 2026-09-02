@@ -189,6 +189,39 @@ satu demi satu: kunci anak panah kiri/kanan untuk bergerak antara frame,
 `D` untuk penerangan penuh AI bagi frame semasa, `L` untuk senarai objek
 dalam frame, dan `Escape` untuk menutup.
 
+## Penerang video berdikari (baris perintah + API HTTP)
+
+Selain aplikasi GUI, repositori ini memuat pakej berdikari
+`video_describer` (tiada hubungan kod dengan GUI). Ia membakar cap masa
+`H:MM:SS` (kotak gelap, penjuru kiri atas) pada setiap frame yang
+diekstrak ffmpeg, menghantar SEMUA frame base64 dalam SATU permintaan
+`glm-5.3-flash`, membiarkan model MEMBACA cap masa yang tertera, kemudian
+mengekstrak baris `H:MM:SS - penerangan` menjadi `description.srt` dan
+`description.json` (batch automatik melebihi 150 frame; had 5 MB dan
+6000 px setiap frame).
+
+```bat
+:: Terangkan satu video tempatan (SRT + JSON ditulis di sebelahnya)
+set GLM_API_KEY=kunci-anda
+python -m video_describer describe video.mp4 --fps 1 --tts
+
+:: Parse teks model sahaja (baris H:MM:SS - penerangan)
+python -m video_describer parse output_model.txt
+
+:: API HTTP di 127.0.0.1:8765
+python -m video_describer serve --port 8765
+```
+
+Titik akhir API: `GET /health`, `POST /describe` (badan JSON
+`{"video_path": "...", "fps": 1, "tts": false}`),
+`POST /describe/upload?name=v.mp4` (bait video mentah), dan
+`POST /parse` (parse sahaja). Kunci API diambil daripada badan
+permintaan, pengepala `X-API-Key`, atau pemboleh ubah persekitaran
+`GLM_API_KEY`. Narasi TTS (`--tts`) menggunakan edge-tts (lalai
+`ms-MY-OsmanNeural`) atau SAPI5 Windows (`--tts-engine sapi`); fail
+pemangkin audio dan audio gabungan diletakkan dalam folder `audio/`
+di sebelah output.
+
 ## Jika ada masalah
 
 1. Baca log di

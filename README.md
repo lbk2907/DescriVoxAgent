@@ -64,6 +64,36 @@ Projects are stored in `Documents\OmniDescriber\projects` (one folder
 per project with a SQLite database and a permanent copy of every used
 frame). Use **File** menu items to create, open, or save projects.
 
+## Standalone video describer (CLI + HTTP API)
+
+`video_describer/` is an independent, headless pipeline that shares no
+code with the GUI. It burns an `H:MM:SS` timestamp (dark box, top-left)
+into every extracted frame, sends ALL frames base64-encoded in ONE
+`glm-5.3-flash` request, trusts the model to READ the on-screen stamps,
+then regex-parses the reply into `description.srt` + `description.json`
+(auto-batches above 150 frames; guards 5 MB / 6000 px per frame).
+
+```bat
+:: describe a local video (SRT + JSON written next to it)
+set GLM_API_KEY=your-key
+python -m video_describer describe video.mp4 --fps 1 --tts
+
+:: parse model text only (H:MM:SS - description lines)
+python -m video_describer parse model_output.txt
+
+:: HTTP API on 127.0.0.1:8765
+python -m video_describer serve --port 8765
+```
+
+Endpoints: `GET /health`, `POST /describe` (JSON body
+`{"video_path": "...", "fps": 1, "tts": false}`),
+`POST /describe/upload?name=v.mp4` (raw video bytes), and
+`POST /parse` (parse only). The API key comes from the request body,
+the `X-API-Key` header, or the `GLM_API_KEY` environment variable.
+TTS narration (`--tts`) uses edge-tts (default `ms-MY-OsmanNeural`)
+or Windows SAPI5 (`--tts-engine sapi`); cue files and a concat M4A/MP3
+land in an `audio/` folder next to the outputs.
+
 ## Development
 
 - Run all checks (compileall + every test suite):
