@@ -129,8 +129,13 @@ membacakan penerangan itu segerak semasa main balik.
     sekadar imej. Status diumumkan sepanjang proses: "Memuat naik
     video ke penyedia AI...", "AI sedang menonton video
     (pemprosesan)...", dan "AI sedang menulis penerangan...".
+  Pembekal **GLM** dipaparkan sebagai **OpenRouter** dalam senarai.
+  Untuk OpenRouter, senarai model hanya menunjukkan model yang
+  menyokong video, dan butang **Dapatkan model (Fetch models)**
+  memuat semula senarai itu dari katalog awam OpenRouter (percuma,
+  tanpa kunci atau kredit).
   - **Mod pantas satu-request (Fast one-shot mode)**: kotak semak ini
-    hanya aktif apabila pembekal **GLM** dipilih. Frame diekstrak
+    hanya aktif apabila pembekal **OpenRouter (GLM)** dipilih. Frame diekstrak
     secara lokal dengan **cap masa H:MM:SS tertera terbakar** pada
     setiap frame (kotak gelap, penjuru kiri atas), kemudian **semua
     frame dihantar kepada AI dalam SATU panggilan** (untuk video
@@ -141,6 +146,14 @@ membacakan penerangan itu segerak semasa main balik.
     dengan main balik. Satu muat turun, satu (atau sedikit) panggilan
     AI, dan frame dianalisis secara lokal. Ini adalah cara paling
     pantas dan paling jimat untuk GLM.
+  - **Mod video penuh turut tersedia untuk OpenRouter**: model yang
+    katalognya menyenaraikan input video (contoh `z-ai/glm-5.3-flash`)
+    boleh menerima **satu fail video penuh** dalam satu permintaan
+    (disahkan secara empirikal: video 60 saat guna kira-kira 9 ribu
+    token). AI menonton sendiri, termasuk bunyi dan pertuturan, dan
+    memberi timestamp sendiri. Video besar melebihi kira-kira 24 MB
+    ditolak — guna mod pantas satu-request untuk video panjang. Kedua-
+    dua kotak semak ini saling menolak.
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan

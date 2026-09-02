@@ -680,7 +680,7 @@ class MainFrame(wx.Frame):
             video_mode = (
                 self.settings.get("ai.video_mode", "frames") == "full"
                 and self.settings.get("ai.default_provider", "")
-                in ("gemini", "minimax")
+                in ("gemini", "minimax", "glm")
             )
 
             # Step 2: Extract frames (FPS from settings). For URLs this first

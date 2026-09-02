@@ -244,6 +244,45 @@ def test_fast_batch_cancelled():
         assert "cancel" in str(e).lower(), e
 
 
+def test_glm_video_full_loopback():
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    with tempfile.TemporaryDirectory() as td:
+        video = Path(td) / "clip.mp4"
+        video.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"x" * 64)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _FastStub)
+        port = server.server_address[1]
+        _FastStub.captured = []
+        th = threading.Thread(target=server.serve_forever, daemon=True)
+        th.start()
+        try:
+            prov = GLMProvider(api_key="sk-or-v1-test",
+                               base_url=f"http://127.0.0.1:{port}")
+            statuses = []
+            pairs = _run(lambda: prov.describe_video_full(
+                str(video), "Describe the video.",
+                on_status=statuses.append))
+            assert statuses[0] == "encoding" and "parsing" in statuses, \
+                statuses
+            assert (0.0, "Opening scene.") in pairs, pairs
+            cap = _FastStub.captured[0]
+            content = cap["body"]["messages"][0]["content"]
+            kinds = [b["type"] for b in content]
+            assert kinds == ["text", "video_url", "text"], kinds
+            assert content[1]["video_url"]["url"].startswith(
+                "data:video/mp4;base64,"), kinds
+            # oversized video must fail fast with a clear message
+            prov.MAX_VIDEO_BYTES = 4
+            try:
+                _run(lambda: prov.describe_video_full(
+                    str(video), "p"))
+                raise AssertionError("expected size guard to trigger")
+            except RuntimeError as e:
+                assert "too large" in str(e), e
+        finally:
+            server.shutdown()
+
+
 # ── 4. Engine + settings wiring ──────────────────────────────────────
 
 def test_engine_wires_fast_batch():
@@ -289,13 +328,11 @@ def test_settings_fast_mode_ui():
             dlg = SettingsDialog(frame, store)
             assert hasattr(dlg, "fast_mode_cb"), "checkbox must exist"
             # disabled + unchecked for non-glm providers
-            dlg.provider_choice.SetStringSelection("opus")
-            dlg._on_provider_changed(None)
+            dlg.select_provider("opus")
             assert not dlg.fast_mode_cb.IsEnabled()
             assert not dlg.fast_mode_cb.GetValue()
             # enabled for glm
-            dlg.provider_choice.SetStringSelection("glm")
-            dlg._on_provider_changed(None)
+            dlg.select_provider("glm")
             assert dlg.fast_mode_cb.IsEnabled()
             dlg.fast_mode_cb.SetValue(True)
             # persisted through the store
@@ -304,6 +341,66 @@ def test_settings_fast_mode_ui():
             dlg2 = SettingsDialog(frame, store)
             assert dlg2.fast_mode_cb.GetValue(), "fast_mode must persist"
             dlg2.Destroy()
+        finally:
+            frame.Destroy()
+
+
+def test_fetch_openrouter_video_models_loopback():
+    from omni_describer_custom.core.ai_engine import (
+        fetch_openrouter_video_models)
+
+    class _CatalogStub(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            body = json.dumps({"data": [
+                {"id": "text/only",
+                 "architecture": {"input_modalities": ["text"]}},
+                {"id": "video/model",
+                 "architecture": {"input_modalities": ["text", "video"]}},
+                {"id": "noarch/model"},
+            ]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _CatalogStub)
+    port = server.server_address[1]
+    th = threading.Thread(target=server.serve_forever, daemon=True)
+    th.start()
+    try:
+        models = _run(lambda: fetch_openrouter_video_models(
+            catalog_url=f"http://127.0.0.1:{port}/models"))
+        assert models == ["video/model"], models
+    finally:
+        server.shutdown()
+
+
+def test_provider_labels_and_select():
+    from omni_describer_custom.core.settings_store import SettingsStore
+    from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
+    with tempfile.TemporaryDirectory() as td:
+        store = SettingsStore(config_dir=td)
+        frame = wx.Frame(None)
+        try:
+            dlg = SettingsDialog(frame, store)
+            # glm must be displayed as a friendly label, not the id
+            items = dlg.provider_choice.GetItems()
+            assert "glm" not in items, items
+            assert "OpenRouter" in items, items
+            # select_provider reasons in machine ids
+            dlg.select_provider("glm")
+            assert dlg._selected_provider() == "glm"
+            assert dlg.fast_mode_cb.IsEnabled()
+            assert dlg.fetch_models_btn.IsEnabled()
+            assert dlg.video_only_hint.IsShown()
+            dlg.select_provider("opus")
+            assert not dlg.fetch_models_btn.IsEnabled()
+            dlg.Destroy()
         finally:
             frame.Destroy()
 
@@ -317,10 +414,16 @@ def main() -> int:
     check("glm fast batch auto-batch + merge (loopback)",
           test_glm_fast_batch_autobatch)
     check("fast batch cancelled raises", test_fast_batch_cancelled)
+    check("glm full-video upload via video_url (loopback)",
+          test_glm_video_full_loopback)
     check("engine wires fast batch + clear ValueError",
           test_engine_wires_fast_batch)
     check("settings fast-mode checkbox glm-only + persistence",
           test_settings_fast_mode_ui)
+    check("fetch video-capable models from catalog (loopback)",
+          test_fetch_openrouter_video_models_loopback)
+    check("provider labels + select_provider helper",
+          test_provider_labels_and_select)
     print(f"RESULT: {ok} passed, {fail} failed")
     return 1 if fail else 0
 

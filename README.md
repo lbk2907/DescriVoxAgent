@@ -40,22 +40,32 @@ interpreter. The log file is written to
 
 - **AI tab**: provider (Gemini, MiniMax, OpenAI, GLM, Opus Proxy, or
   Custom), API key, model; a **Test** button verifies the connection.
-  GLM (Zhipu) runs through OpenRouter by default: pick provider `glm`,
-  model `z-ai/glm-5.3-flash`, and paste your OpenRouter key
-  (`sk-or-v1-...`); a Zhipu direct key also works via the custom
+  The GLM entry is shown as **OpenRouter** in the dropdown. For
+  OpenRouter the model list shows video-capable models and a
+  **Fetch models** button refreshes it from the live public catalog
+  (no key or credit needed). Pick model `z-ai/glm-5.3-flash`, paste
+  your OpenRouter key (`sk-or-v1-...`); a Zhipu direct key also works
+  via the custom
   provider with `https://open.bigmodel.cn/api/paas/v4` as base URL.
   For Gemini and MiniMax, a **Full-video mode** checkbox switches from
   frame extraction to uploading the whole video so the AI watches it
   and timestamps the descriptions itself (one upload, one AI call;
   covers sound and speech as well as visuals).
-  For GLM there is a **Fast one-shot mode** checkbox: frames are
+  For OpenRouter (GLM) there is a **Fast one-shot mode** checkbox: frames are
   extracted locally with a burned-in `H:MM:SS` timestamp (dark box,
   top-left), then ALL frames go to the AI in ONE request (auto-split
   into chunks of 150 images per request for long videos). The model
   reads the on-screen stamps and the app snaps them back onto the
   exact extraction grid, so timestamps stay in sync even if the model
   misreads a stamp. One download, one (or few) AI request(s), frames
-  analysed locally.
+  analysed locally. OpenRouter models whose catalog entry includes
+  video input (for example `z-ai/glm-5.3-flash`) can also use
+  **Full-video mode**: the whole video file is sent as base64 in one
+  request (empirically verified: a 60 s clip costs about 9k prompt
+  tokens), and the AI watches it itself — including audio — and
+  timestamps the descriptions. Large videos are rejected above ~24 MB;
+  use fast one-shot mode for those. The two checkboxes are mutually
+  exclusive.
 - **TTS tab**: speech engine, voice, speed.
 - **General tab**:
   - **Language**: `en` or `ms`.
@@ -141,4 +151,3 @@ succeed:
   native wx message boxes cannot be driven from Python, and wx + VLC
   native teardown can crash after tests pass, so suites exit via
   `os._exit` after flushing results.
-

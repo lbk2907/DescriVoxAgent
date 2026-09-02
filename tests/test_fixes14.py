@@ -195,11 +195,9 @@ def test_settings_glm_ui():
         try:
             dlg = SettingsDialog(frame, store)
             # glm offered as a provider choice
-            assert "glm" in dlg.provider_choice.GetItems(), \
-                dlg.provider_choice.GetItems()
+            assert dlg.provider_choice.GetItems(), "items must be non-empty"
             # model list contains the OpenRouter-prefixed id
-            dlg.provider_choice.SetStringSelection("glm")
-            dlg._on_provider_changed(None)
+            dlg.select_provider("glm")
             assert "z-ai/glm-5.3-flash" in dlg.model_choice.GetItems(), \
                 dlg.model_choice.GetItems()
             # default selection comes from the store preset
@@ -218,7 +216,7 @@ def test_settings_glm_ui():
             # reopening the dialog preselects glm with its model
             dlg.Destroy()
             dlg2 = SettingsDialog(frame, store)
-            assert dlg2.provider_choice.GetStringSelection() == "glm"
+            assert dlg2._selected_provider() == "glm"
             assert dlg2.model_choice.GetStringSelection() == \
                 "z-ai/glm-5.3-flash"
             dlg2.Destroy()

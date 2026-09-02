@@ -223,17 +223,14 @@ def _run_settings_checks(dlg, store) -> None:
     assert parent is ai_page, type(parent).__name__
 
     # Disabled for non-Gemini, enabled for Gemini
-    dlg.provider_choice.SetStringSelection("openai")
-    dlg._on_provider_changed(None)
+    dlg.select_provider("openai")
     assert not cb.IsEnabled()
     assert not cb.GetValue()
-    dlg.provider_choice.SetStringSelection("gemini")
-    dlg._on_provider_changed(None)
+    dlg.select_provider("gemini")
     assert cb.IsEnabled()
 
     # Persist on apply
-    dlg.provider_choice.SetStringSelection("gemini")
-    dlg._on_provider_changed(None)
+    dlg.select_provider("gemini")
     cb.SetValue(True)
     store.set("ai.default_provider", "gemini")
     store.set_ai_provider("gemini", {"api_key": "k", "model": "gemini-2.5-flash"})

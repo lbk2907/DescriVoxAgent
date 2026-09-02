@@ -833,6 +833,71 @@ class GLMProvider(AIProvider):
         }
         return _strip_think(await self._chat(payload, timeout=120))
 
+    MAX_VIDEO_BYTES = 24 * 1024 * 1024  # base64 upload guard
+
+    async def describe_video_full(
+        self, video_path: str, prompt: str, model: str = "",
+        on_status: Callable[[str], None] | None = None,
+        on_upload_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> list[tuple[float, str]]:
+        """Upload a WHOLE video file as base64 via OpenRouter video_url.
+
+        Empirically verified against OpenRouter + z-ai/glm-5.3-flash
+        (probe, 2026-09): a 60 s video costs ~9.2k prompt tokens and the
+        model reads on-screen content over time (timer values at 0:00,
+        0:30, 0:58). The model timestamps events itself, so timestamps
+        cover sound and speech too, but are model-estimated.
+        """
+        path = Path(video_path)
+        size = path.stat().st_size
+        if size > self.MAX_VIDEO_BYTES:
+            raise RuntimeError(
+                f"video too large for upload: {size / 1e6:.1f} MB "
+                f"(limit {self.MAX_VIDEO_BYTES / 1e6:.0f} MB). "
+                "Use frame mode instead.")
+        if is_cancelled and is_cancelled():
+            raise RuntimeError("cancelled")
+        if on_status:
+            on_status("encoding")
+        b64 = base64.b64encode(path.read_bytes()).decode()
+        data_url = f"data:video/mp4;base64,{b64}"
+        payload = {
+            "model": model or self.models[0],
+            "max_tokens": 16000,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": (
+                        "You are given a full video file. Describe it "
+                        "for a blind viewer.\n"
+                        "Watch the WHOLE video including audio/speech.\n"
+                        "Output one event per line, each line EXACTLY in "
+                        "this format:\n"
+                        "[H:MM:SS] description\n"
+                        "Rules:\n"
+                        "- Timestamps are when the event happens in the "
+                        "video.\n"
+                        "- Order lines by time.\n"
+                        "- Describe important visuals AND sounds/speech.\n"
+                        "- No numbering, no extra text before or after "
+                        "the lines.")},
+                    {"type": "video_url", "video_url": {"url": data_url}},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        }
+        if is_cancelled and is_cancelled():
+            raise RuntimeError("cancelled")
+        if on_status:
+            on_status("uploading")
+        text = await self._chat(payload, timeout=900.0)
+        if is_cancelled and is_cancelled():
+            raise RuntimeError("cancelled")
+        if on_status:
+            on_status("parsing")
+        return parse_gemini_timestamp_lines(_strip_think(text))
+
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
@@ -1011,6 +1076,32 @@ def snap_timestamps(
             out.append((float(best), text))
     out.sort(key=lambda x: x[0])
     return out
+
+
+async def fetch_openrouter_video_models(
+    catalog_url: str = "https://openrouter.ai/api/v1/models",
+) -> list[str]:
+    """Return OpenRouter model ids whose catalog entry lists video input.
+
+    Used by the settings dialog "Fetch models" button so users only see
+    models that can actually watch a video. Cheap and safe: the public
+    catalog needs no API key and no credit, and "video in input
+    modalities" is OpenRouter's own capability declaration.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            catalog_url, timeout=aiohttp.ClientTimeout(total=60),
+        ) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"catalog HTTP {resp.status}")
+            data = await resp.json()
+    models: list[str] = []
+    for entry in data.get("data", []):
+        arch = entry.get("architecture") or {}
+        mods = arch.get("input_modalities") or []
+        if "video" in mods and entry.get("id"):
+            models.append(entry["id"])
+    return sorted(models)
 
 
 class OpusProvider(AIProvider):

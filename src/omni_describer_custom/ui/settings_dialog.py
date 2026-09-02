@@ -122,6 +122,16 @@ class SettingsDialog(wx.Dialog):
         )
         self.provider_choice.SetLabel(t("settings.provider"))
         sizer.Add(self.provider_choice, 0, wx.ALL | wx.EXPAND, 5)
+        # Show friendly provider names on screen while the stored value
+        # stays the machine id. Accessibility: "glm" means nothing to a
+        # screen-reader user; "OpenRouter" does.
+        self._provider_labels = {
+            pid: t(f"settings.provider_{pid}")
+            for pid in self.provider_choice.GetItems()
+        }
+        self.provider_choice.SetItems(
+            [self._provider_labels.get(pid, pid)
+             for pid in self.provider_choice.GetItems()])
         self.provider_choice.Bind(wx.EVT_CHOICE, self._on_provider_changed)
 
         # Model (dropdown for built-in, text field for custom)
@@ -131,6 +141,22 @@ class SettingsDialog(wx.Dialog):
         self.model_choice = wx.Choice(panel, name="ai_model")
         self.model_choice.SetLabel(t("settings.model"))
         model_sizer.Add(self.model_choice, 0, wx.ALL | wx.EXPAND, 5)
+
+        # Video-only filter notice (OpenRouter): the model list shows
+        # only catalog-verified video-capable models.
+        self.video_only_hint = wx.StaticText(
+            panel, label=t("settings.video_only_hint"),
+            name="video_only_hint")
+        self.video_only_hint.Wrap(560)
+        model_sizer.Add(self.video_only_hint, 0, wx.ALL, 5)
+
+        # Fetch models: pull the live catalog of video-capable models
+        # from OpenRouter (public endpoint, no key/credit needed).
+        self.fetch_models_btn = wx.Button(
+            panel, label=t("settings.fetch_models"),
+            name="fetch_models")
+        self.fetch_models_btn.Bind(wx.EVT_BUTTON, self._on_fetch_models)
+        model_sizer.Add(self.fetch_models_btn, 0, wx.ALL, 5)
 
         # Custom model text input (hidden by default)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
@@ -200,6 +226,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(self.video_mode_cb, 0, wx.ALL, 5)
         sizer.Add(wx.StaticText(panel, label=t("settings.video_mode_hint"),
                                 name="video_mode_hint"), 0, wx.ALL, 5)
+        self.video_mode_cb.Bind(wx.EVT_CHECKBOX, self._on_video_mode_toggle)
 
         # Fast one-shot mode: burn-in timestamps + ALL frames in ONE AI
         # request (GLM via OpenRouter). Mutually exclusive with
@@ -211,6 +238,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(self.fast_mode_cb, 0, wx.ALL, 5)
         sizer.Add(wx.StaticText(panel, label=t("settings.fast_mode_hint"),
                                 name="fast_mode_hint"), 0, wx.ALL, 5)
+        self.fast_mode_cb.Bind(wx.EVT_CHECKBOX, self._on_fast_mode_toggle)
 
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
@@ -343,7 +371,7 @@ class SettingsDialog(wx.Dialog):
 
     def _on_provider_changed(self, event):
         """Update model list and show/hide custom fields when provider changes."""
-        provider = self.provider_choice.GetStringSelection()
+        provider = self._selected_provider()
 
         if provider == "custom":
             self._show_custom_fields()
@@ -365,24 +393,39 @@ class SettingsDialog(wx.Dialog):
             self._hide_custom_fields()
             self.custom_model_text.Hide()
             self.model_choice.Show()
-            # Populate model list from presets
-            models = PROVIDER_MODELS.get(provider, [])
-            self.model_choice.SetItems(models)
+            self.fetch_models_btn.Show()
+            self.video_only_hint.Show()
+            # Populate model list from presets (glm later swaps in the
+            # video-capable catalog list when the user fetches).
+            self._model_catalog = list(PROVIDER_MODELS.get(provider, []))
+            self.model_choice.SetItems(self._model_catalog)
             # Load existing config
             prov_config = self.settings.get_ai_provider(provider)
             if prov_config.get("model"):
-                self.model_choice.SetStringSelection(prov_config["model"])
-            elif models:
+                if prov_config["model"] in self._model_catalog:
+                    self.model_choice.SetStringSelection(prov_config["model"])
+                else:
+                    # Keep a saved model reachable even if the preset
+                    # list no longer includes it.
+                    self.model_choice.Append(prov_config["model"])
+                    self.model_choice.SetStringSelection(prov_config["model"])
+            elif self._model_catalog:
                 self.model_choice.SetSelection(0)
+            # Video-only catalog filter + fetch button: OpenRouter only.
+            is_openrouter = provider == "glm"
+            self.fetch_models_btn.Enable(is_openrouter)
+            self.video_only_hint.Show(is_openrouter)
             if prov_config.get("api_key"):
                 self.api_key_text.SetValue(prov_config["api_key"])
             else:
                 self.api_key_text.SetValue("")
 
-        # Full-video mode checkbox is only enabled for providers with
-        # native video upload (Gemini, MiniMax).
-        self.video_mode_cb.Enable(provider in ("gemini", "minimax"))
-        if provider not in ("gemini", "minimax"):
+        # Full-video mode checkbox is enabled for providers that accept
+        # a whole video: native upload (Gemini, MiniMax) or base64
+        # video_url (GLM via OpenRouter, empirically verified).
+        self.video_mode_cb.Enable(
+            provider in ("gemini", "minimax", "glm"))
+        if provider not in ("gemini", "minimax", "glm"):
             self.video_mode_cb.SetValue(False)
         # Fast one-shot mode is only offered for GLM (OpenRouter,
         # OpenAI-compatible vision with a huge context window).
@@ -391,6 +434,86 @@ class SettingsDialog(wx.Dialog):
             self.fast_mode_cb.SetValue(False)
 
         self.Layout()
+
+    def _on_video_mode_toggle(self, event):
+        """Send-video and send-frames-fast are mutually exclusive."""
+        if self.video_mode_cb.GetValue() and self.fast_mode_cb.GetValue():
+            self.fast_mode_cb.SetValue(False)
+        if event is not None:
+            event.Skip()
+
+    def _on_fast_mode_toggle(self, event):
+        if self.fast_mode_cb.GetValue() and self.video_mode_cb.GetValue():
+            self.video_mode_cb.SetValue(False)
+        if event is not None:
+            event.Skip()
+
+    def _selected_provider(self) -> str:
+        """Map the displayed provider label back to its machine id."""
+        shown = self.provider_choice.GetStringSelection()
+        for pid, label in getattr(self, "_provider_labels", {}).items():
+            if label == shown:
+                return pid
+        return shown
+
+    def select_provider(self, provider_id: str) -> None:
+        """Select a provider by machine id and refresh dependent fields.
+
+        Public helper for tests and accessibility automation: the combo
+        shows friendly labels, but callers reason in plain ids
+        ("glm", "gemini", ...).
+        """
+        self.provider_choice.SetStringSelection(
+            self._provider_labels.get(provider_id, provider_id))
+        self._on_provider_changed(None)
+
+    def _on_fetch_models(self, event):
+        """Fetch video-capable model ids from the provider catalog."""
+        provider = self._selected_provider()
+        if provider != "glm":
+            return
+        self.fetch_models_btn.Disable()
+        self._show_test_result(t("settings.fetching_models"))
+
+        def fetch():
+            try:
+                from ..core.ai_engine import fetch_openrouter_video_models
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    models = loop.run_until_complete(
+                        fetch_openrouter_video_models())
+                finally:
+                    loop.close()
+                if models:
+                    wx.CallAfter(self._apply_fetched_models, models)
+                    wx.CallAfter(self._show_test_result,
+                                 t("settings.fetch_models_ok",
+                                   count=len(models)))
+                else:
+                    wx.CallAfter(self._show_test_result,
+                                 t("settings.fetch_models_none"))
+            except Exception as e:
+                wx.CallAfter(self._show_test_result,
+                             t("settings.fetch_models_error",
+                               error=str(e)[:100]))
+            finally:
+                wx.CallAfter(self.fetch_models_btn.Enable)
+
+        import threading
+        threading.Thread(target=fetch, daemon=True).start()
+
+    def _apply_fetched_models(self, models):
+        """Replace the dropdown content with fetched video models,
+        keeping the current selection reachable."""
+        self._model_catalog = list(models)
+        current = self.model_choice.GetStringSelection()
+        self.model_choice.SetItems(models)
+        if current in models:
+            self.model_choice.SetStringSelection(current)
+        else:
+            self.model_choice.SetSelection(0)
 
     def _on_tts_engine_changed(self, event):
         """Update voice list when TTS engine changes."""
@@ -429,7 +552,7 @@ class SettingsDialog(wx.Dialog):
 
     def _on_test(self, event):
         """Test AI provider connection."""
-        provider = self.provider_choice.GetStringSelection()
+        provider = self._selected_provider()
         api_key = self.api_key_text.GetValue().strip()
 
         if provider == "custom" and not self.base_url_text.GetValue().strip():
@@ -478,7 +601,7 @@ class SettingsDialog(wx.Dialog):
 
     def _on_apply(self, event):
         """Apply settings."""
-        provider = self.provider_choice.GetStringSelection()
+        provider = self._selected_provider()
 
         if provider == "custom":
             model = self.custom_model_text.GetValue().strip()
@@ -563,7 +686,9 @@ class SettingsDialog(wx.Dialog):
     def _load_values(self):
         """Load current settings into UI."""
         default_provider = self.settings.get("ai.default_provider", "opus")
-        self.provider_choice.SetStringSelection(default_provider)
+        # The dropdown shows friendly labels; map the stored machine id.
+        self.provider_choice.SetStringSelection(
+            self._provider_labels.get(default_provider, default_provider))
         self._on_provider_changed(None)  # Refresh model list + fields
         self.fast_mode_cb.SetValue(
             bool(self.settings.get("ai.fast_mode", False)))

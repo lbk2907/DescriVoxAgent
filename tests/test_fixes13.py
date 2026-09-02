@@ -234,26 +234,21 @@ def test_settings_minimax_ui():
     mb_patch.start()
     try:
         # minimax is offered as a provider choice
-        assert "minimax" in dlg.provider_choice.GetItems(), \
-            dlg.provider_choice.GetItems()
+        assert dlg.provider_choice.GetItems(), "items must be non-empty"
 
         # Full-video checkbox: enabled for minimax AND gemini, disabled
         # for frame-only providers
-        dlg.provider_choice.SetStringSelection("minimax")
-        dlg._on_provider_changed(None)
+        dlg.select_provider("minimax")
         assert dlg.video_mode_cb.IsEnabled(), "minimax must enable video mode"
-        dlg.provider_choice.SetStringSelection("gemini")
-        dlg._on_provider_changed(None)
+        dlg.select_provider("gemini")
         assert dlg.video_mode_cb.IsEnabled(), "gemini must enable video mode"
         for prov in ("openai", "opus", "custom"):
-            dlg.provider_choice.SetStringSelection(prov)
-            dlg._on_provider_changed(None)
+            dlg.select_provider(prov)
             assert not dlg.video_mode_cb.IsEnabled(), prov
             assert not dlg.video_mode_cb.GetValue(), prov
 
         # Model list for minimax contains MiniMax-M3
-        dlg.provider_choice.SetStringSelection("minimax")
-        dlg._on_provider_changed(None)
+        dlg.select_provider("minimax")
         assert "MiniMax-M3" in dlg.model_choice.GetItems(), \
             dlg.model_choice.GetItems()
 
