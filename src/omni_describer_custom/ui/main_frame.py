@@ -528,8 +528,12 @@ class MainFrame(wx.Frame):
         """Open settings dialog."""
         from .settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, self.settings, self.tts_engine)
-        dlg.ShowModal()
+        result = dlg.ShowModal()
         dlg.Destroy()
+        if result != wx.ID_OK:
+            # User cancelled: keep their current preset selection and
+            # prompt text untouched.
+            return
         self._load_settings()
         # Re-apply TTS engine/voice/speed from settings
         self.tts_engine.settings = self.settings.get("tts", {})
@@ -1363,7 +1367,15 @@ class MainFrame(wx.Frame):
     def _refresh_prompt_list(self):
         """Refresh prompt preset dropdown."""
         names = self.prompt_mgr.get_preset_names()
+        current = self.prompt_choice.GetStringSelection()
         self.prompt_choice.SetItems(names)
+        if not names:
+            return
+        if current and current in names:
+            # Keep the user's current selection (and prompt text) when
+            # the preset still exists after the refresh.
+            self.prompt_choice.SetStringSelection(current)
+            return
         if names:
             self.prompt_choice.SetSelection(0)
             self._preview_preset(names[0])
