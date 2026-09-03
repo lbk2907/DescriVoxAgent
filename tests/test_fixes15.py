@@ -271,9 +271,10 @@ def test_glm_video_full_loopback():
             assert kinds == ["text", "video_url", "text"], kinds
             assert content[1]["video_url"]["url"].startswith(
                 "data:video/mp4;base64,"), kinds
-            # oversized video triggers the compression path; the fake
-            # bytes are not a real video, so ffmpeg fails with a clear
-            # compression error (verifies the path is wired).
+            # oversized short video (probe fails on fake bytes, so the
+            # guard is tripped directly in _describe_one_part) → the
+            # compression path runs and fails on fake bytes with a
+            # clear error (verifies the path is wired).
             prov.MAX_VIDEO_BYTES = 4
             try:
                 _run(lambda: prov.describe_video_full(

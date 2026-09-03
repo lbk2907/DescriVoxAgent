@@ -360,6 +360,8 @@ class GeminiProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        chunk_seconds: int = 480,
+        on_part: Callable[[int, int], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video with Gemini's native video understanding.
 
@@ -646,6 +648,8 @@ class MiniMaxProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        chunk_seconds: int = 480,
+        on_part: Callable[[int, int], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video via the MiniMax Files API.
 
@@ -845,16 +849,74 @@ class GLMProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        chunk_seconds: int = 480,
+        on_part: Callable[[int, int], None] | None = None,
     ) -> list[tuple[float, str]]:
-        """Upload a WHOLE video file as base64 via OpenRouter video_url.
+        """Upload a video file as base64 via OpenRouter video_url.
 
-        Empirically verified against OpenRouter + z-ai/glm-5.3-flash
-        (probe, 2026-09): a 60 s video costs ~9.2k prompt tokens and the
-        model reads on-screen content over time (timer values at 0:00,
-        0:30, 0:58). The model timestamps events itself, so timestamps
-        cover sound and speech too, but are model-estimated.
+        Videos longer than chunk_seconds are split into consecutive
+        parts (split_video_for_upload); each part is described in its
+        own request and the model's part-local timestamps are shifted
+        by the part's start offset. Empirically verified against
+        OpenRouter + z-ai/glm-5.3-flash (probe, 2026-09): a 60 s video
+        costs ~9.2k prompt tokens; 50.7 MB uploads succeed, ~98 MB is
+        rejected.
         """
         path = Path(video_path)
+        try:
+            duration = self._probe_duration(path)
+        except RuntimeError:
+            # Undecodable/unreadable container: still try one part.
+            # The size guard and ffmpeg itself will surface a clear
+            # error later if the file is truly broken.
+            logger.debug("duration probe failed; using one part",
+                         exc_info=True)
+            duration = 0.0
+        parts: list[Path] = []
+        try:
+            if duration > chunk_seconds + 1.0:
+                if on_status:
+                    on_status("splitting")
+                starts, parts = self.split_video_for_upload(
+                    path, chunk_seconds,
+                    is_cancelled=is_cancelled, on_status=on_status)
+            else:
+                starts = [0.0]
+                if path.stat().st_size > self.MAX_VIDEO_BYTES:
+                    if on_status:
+                        on_status("compressing")
+                    if is_cancelled and is_cancelled():
+                        raise RuntimeError("cancelled")
+                    parts = [self.compress_video_for_upload(
+                        path, self.COMPRESS_TARGET_BYTES)]
+                else:
+                    parts = [path]
+            total = len(parts)
+            merged: list[tuple[float, str]] = []
+            for i, (part, offset) in enumerate(zip(parts, starts)):
+                if is_cancelled and is_cancelled():
+                    raise RuntimeError("cancelled")
+                if on_part:
+                    on_part(i + 1, total)
+                merged.extend(await self._describe_one_part(
+                    part, prompt, model, on_status=on_status,
+                    is_cancelled=is_cancelled, offset=offset))
+            return merged
+        finally:
+            for p in parts:
+                try:
+                    if p != path:
+                        p.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    async def _describe_one_part(
+        self, path: Path, prompt: str, model: str,
+        on_status: Callable[[str], None] | None,
+        is_cancelled: Callable[[], bool] | None,
+        offset: float = 0.0,
+    ) -> list[tuple[float, str]]:
+        """Describe one video file and shift timestamps by offset."""
         size = path.stat().st_size
         if size > self.MAX_VIDEO_BYTES:
             if on_status:
@@ -863,11 +925,6 @@ class GLMProvider(AIProvider):
                 raise RuntimeError("cancelled")
             path = self.compress_video_for_upload(
                 path, self.COMPRESS_TARGET_BYTES)
-            size = path.stat().st_size
-            if size > self.MAX_VIDEO_BYTES:
-                raise RuntimeError(
-                    f"video still too large after compression: "
-                    f"{size / 1e6:.1f} MB. Use frame mode instead.")
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
@@ -908,7 +965,8 @@ class GLMProvider(AIProvider):
             raise RuntimeError("cancelled")
         if on_status:
             on_status("parsing")
-        return parse_gemini_timestamp_lines(_strip_think(text))
+        pairs = parse_gemini_timestamp_lines(_strip_think(text))
+        return [(t + offset, d) for (t, d) in pairs]
 
     @staticmethod
     def _ffmpeg() -> str:
@@ -964,6 +1022,88 @@ class GLMProvider(AIProvider):
             logger.warning("compressed video still large: %.1f MB",
                            out.stat().st_size / 1e6)
         return out
+
+    def _probe_duration(self, path: Path) -> float:
+        """Return the video duration in seconds via ffmpeg decode."""
+        import subprocess as _sp
+        try:
+            probe = _sp.run(
+                [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
+                 str(path), "-f", "null", "-"],
+                capture_output=True, timeout=900)
+            best = 0.0
+            for m in re.finditer(
+                    r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
+                    probe.stderr.decode("utf-8", "replace")):
+                t = (int(m.group(1)) * 3600 + int(m.group(2)) * 60
+                     + float(m.group(3)))
+                best = max(best, t)
+            if best <= 0.0:
+                raise RuntimeError("ffmpeg could not read duration")
+            return best
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"ffmpeg duration probe failed: {e}") from e
+
+    def split_video_for_upload(
+        self, path: Path, chunk_seconds: int,
+        is_cancelled: Callable[[], bool] | None = None,
+        on_status: Callable[[str], None] | None = None,
+    ) -> tuple[list[float], list[Path]]:
+        """Split a video into consecutive parts of about chunk_seconds.
+
+        Uses ffmpeg segment muxer with one re-encode at the target
+        bitrate (keyframe-aligned cuts, uniform parts). Returns
+        (start_offsets_seconds, part_paths). Parts live in a temp dir;
+        the caller deletes them when done.
+        """
+        import subprocess as _sp
+        import tempfile as _tf
+        duration = self._probe_duration(path)
+        if duration <= 0:
+            raise RuntimeError("cannot split an unreadable video")
+        n_parts = max(1, int(duration / chunk_seconds + 0.999))
+        target = min(self.COMPRESS_TARGET_BYTES,
+                     max(4 * 1024 * 1024,
+                         int(self.MAX_VIDEO_BYTES * 0.8 / n_parts)))
+        kbps = max(80, int(target * 8 * 0.95 / duration / 1000))
+        out_dir = Path(_tf.mkdtemp(prefix="odc_vsplit_"))
+        pattern = out_dir / "part_%04d.mp4"
+        cmd = [
+            self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
+            "error", "-i", str(path),
+            "-vf", "scale=-2:360",
+            "-c:v", "libx264", "-preset", "veryfast",
+            "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
+            "-bufsize", f"{int(kbps * 2)}k",
+            "-pix_fmt", "yuv420p",
+            # The segment muxer only cuts at keyframes; without this,
+            # x264's default 250-frame GOP makes cuts up to ~8 s late
+            # (or produces a single part for short clips).
+            "-force_key_frames", "expr:gte(t,n_forced*2)",
+            "-f", "segment",
+            "-segment_time", str(chunk_seconds),
+            "-reset_timestamps", "1",
+            str(pattern),
+        ]
+        proc = _sp.run(cmd, capture_output=True, timeout=3600)
+        if proc.returncode != 0:
+            tail = proc.stderr.decode("utf-8", "replace")[-300:]
+            raise RuntimeError(f"video split failed: {tail}")
+        parts = sorted(out_dir.glob("part_*.mp4"))
+        if not parts:
+            raise RuntimeError("video split produced no parts")
+        # Actual part durations → start offsets (last part is shorter;
+        # keyframe-aligned cuts make real lengths drift from nominal).
+        starts: list[float] = []
+        acc = 0.0
+        for p in parts:
+            starts.append(acc)
+            acc += self._probe_duration(p)
+        if on_status:
+            on_status("splitting")
+        return starts, parts
 
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
@@ -1607,6 +1747,8 @@ class AIEngine:
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        chunk_seconds: int = 480,
+        on_part: Callable[[int, int], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -1625,6 +1767,8 @@ class AIEngine:
             on_status=on_status,
             on_upload_progress=on_upload_progress,
             is_cancelled=is_cancelled,
+            chunk_seconds=chunk_seconds,
+            on_part=on_part,
         )
 
     async def describe_video_frames_batch(

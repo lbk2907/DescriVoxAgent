@@ -762,11 +762,15 @@ class MainFrame(wx.Frame):
                 def vprogress(pct: float) -> None:
                     wx.CallAfter(self._video_upload_tick, pct)
 
+                def vpart(part: int, total: int) -> None:
+                    wx.CallAfter(self._video_part_tick, part, total)
+
                 try:
                     pairs = loop.run_until_complete(
                         self.ai_engine.describe_video_full(
                             resolved, prompt,
                             on_status=vstatus, on_upload_progress=vprogress,
+                            on_part=vpart,
                             is_cancelled=lambda: bool(
                                 getattr(self, "_dl_cancelled", False)),
                         )
@@ -1229,6 +1233,7 @@ class MainFrame(wx.Frame):
         phase_keys = {
             "uploading": "video.phase_uploading",
             "compressing": "video.phase_compressing",
+            "splitting": "video.phase_splitting",
             "processing": "video.phase_processing",
             "describing": "video.phase_describing",
         }
@@ -1243,6 +1248,14 @@ class MainFrame(wx.Frame):
         line = t("video.uploading_progress", pct=int(pct))
         if dlg is not None:
             dlg.Update(int(pct), line)
+        self.SetStatusText(line)
+
+    def _video_part_tick(self, part: int, total: int):
+        """Full-video mode: announce part counter for chunked videos."""
+        dlg = self._dl_dialog
+        line = t("video.part_of", part=part, total=total)
+        if dlg is not None:
+            dlg.Pulse(line)
         self.SetStatusText(line)
 
     def _save_descriptions_and_finish(self, desc_objects, loop, frame_dir):

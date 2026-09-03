@@ -63,11 +63,12 @@ interpreter. The log file is written to
   **Full-video mode**: the whole video file is sent as base64 in one
   request (empirically verified: a 60 s clip costs about 9k prompt
   tokens), and the AI watches it itself — including audio — and
-  timestamps the descriptions. Videos above ~50 MB are automatically
-  compressed before upload (verified against the OpenRouter endpoint:
-  50.7 MB uploads succeed, ~98 MB is rejected), so long videos work in
-  this mode too. The two checkboxes are mutually
-  exclusive.
+  timestamps the descriptions. Long videos are split into parts
+  (about 8 minutes each) and described part by part with timestamps
+  merged back onto one timeline; parts above ~50 MB are compressed
+  before upload (verified against the OpenRouter endpoint:
+  50.7 MB uploads succeed, ~98 MB is rejected). The two checkboxes are
+  mutually exclusive.
 - **TTS tab**: speech engine, voice, speed.
 - **General tab**:
   - **Language**: `en` or `ms`.
