@@ -833,7 +833,12 @@ class GLMProvider(AIProvider):
         }
         return _strip_think(await self._chat(payload, timeout=120))
 
-    MAX_VIDEO_BYTES = 24 * 1024 * 1024  # base64 upload guard
+    # Empirically verified against OpenRouter (probe, 2026-09): a
+    # 50.7 MB video (67.6 MB base64 payload) is accepted; 97.6 MB is
+    # rejected with HTTP 502. Guard sits at the verified point; larger
+    # videos are auto-compressed to 360p before upload.
+    MAX_VIDEO_BYTES = 50 * 1024 * 1024
+    COMPRESS_TARGET_BYTES = 40 * 1024 * 1024
 
     async def describe_video_full(
         self, video_path: str, prompt: str, model: str = "",
@@ -852,10 +857,17 @@ class GLMProvider(AIProvider):
         path = Path(video_path)
         size = path.stat().st_size
         if size > self.MAX_VIDEO_BYTES:
-            raise RuntimeError(
-                f"video too large for upload: {size / 1e6:.1f} MB "
-                f"(limit {self.MAX_VIDEO_BYTES / 1e6:.0f} MB). "
-                "Use frame mode instead.")
+            if on_status:
+                on_status("compressing")
+            if is_cancelled and is_cancelled():
+                raise RuntimeError("cancelled")
+            path = self.compress_video_for_upload(
+                path, self.COMPRESS_TARGET_BYTES)
+            size = path.stat().st_size
+            if size > self.MAX_VIDEO_BYTES:
+                raise RuntimeError(
+                    f"video still too large after compression: "
+                    f"{size / 1e6:.1f} MB. Use frame mode instead.")
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
@@ -891,12 +903,67 @@ class GLMProvider(AIProvider):
             raise RuntimeError("cancelled")
         if on_status:
             on_status("uploading")
-        text = await self._chat(payload, timeout=900.0)
+        text = await self._chat(payload, timeout=1800.0)
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
             on_status("parsing")
         return parse_gemini_timestamp_lines(_strip_think(text))
+
+    @staticmethod
+    def _ffmpeg() -> str:
+        import shutil
+        exe = shutil.which("ffmpeg")
+        if not exe:
+            raise RuntimeError("ffmpeg not found on PATH")
+        return exe
+
+    def compress_video_for_upload(
+        self, path: Path, target_bytes: int,
+    ) -> Path:
+        """Re-encode a video down to about target_bytes (360p).
+
+        Single-pass bitrate fit; quality is good enough for AI viewing
+        and far better than failing the whole run. Returns the temp
+        path of the compressed file.
+        """
+        import subprocess as _sp
+        import tempfile as _tf
+        out_dir = Path(_tf.mkdtemp(prefix="odc_vcompress_"))
+        out = out_dir / path.name
+        duration = 1.0
+        try:
+            probe = _sp.run(
+                [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
+                 str(path), "-f", "null", "-"],
+                capture_output=True, timeout=600)
+            m = re.search(
+                r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
+                probe.stderr.decode("utf-8", "replace"))
+            if m:
+                duration = (int(m.group(1)) * 3600
+                            + int(m.group(2)) * 60
+                            + float(m.group(3)))
+        except Exception:
+            logger.debug("duration probe failed", exc_info=True)
+        total_bits = target_bytes * 8 * 0.95
+        kbps = max(80, int(total_bits / max(duration, 1.0) / 1000))
+        proc = _sp.run([
+            self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
+            "error", "-i", str(path),
+            "-vf", "scale=-2:360",
+            "-c:v", "libx264", "-preset", "veryfast",
+            "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
+            "-bufsize", f"{int(kbps * 2)}k",
+            "-pix_fmt", "yuv420p", str(out),
+        ], capture_output=True, timeout=1800)
+        if proc.returncode != 0 or not out.exists():
+            tail = proc.stderr.decode("utf-8", "replace")[-300:]
+            raise RuntimeError(f"video compression failed: {tail}")
+        if out.stat().st_size > target_bytes * 1.3:
+            logger.warning("compressed video still large: %.1f MB",
+                           out.stat().st_size / 1e6)
+        return out
 
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",

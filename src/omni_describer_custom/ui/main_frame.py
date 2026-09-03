@@ -1224,6 +1224,7 @@ class MainFrame(wx.Frame):
         dlg = self._dl_dialog
         phase_keys = {
             "uploading": "video.phase_uploading",
+            "compressing": "video.phase_compressing",
             "processing": "video.phase_processing",
             "describing": "video.phase_describing",
         }

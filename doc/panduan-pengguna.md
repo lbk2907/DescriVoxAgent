@@ -151,8 +151,10 @@ membacakan penerangan itu segerak semasa main balik.
     boleh menerima **satu fail video penuh** dalam satu permintaan
     (disahkan secara empirikal: video 60 saat guna kira-kira 9 ribu
     token). AI menonton sendiri, termasuk bunyi dan pertuturan, dan
-    memberi timestamp sendiri. Video besar melebihi kira-kira 24 MB
-    ditolak — guna mod pantas satu-request untuk video panjang. Kedua-
+    memberi timestamp sendiri. Video besar (melebihi kira-kira 50 MB)
+    dimampatkan secara automatik sebelum dimuat naik — disahkan
+    terhadap OpenRouter: video 50.7 MB berjaya dimuat naik, kira-kira
+    98 MB ditolak — jadi video panjang boleh guna mod ini juga. Kedua-
     dua kotak semak ini saling menolak.
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
 
