@@ -191,7 +191,7 @@ def test_full_pipeline_copies_frames():
         from omni_describer_custom.core.video_processor import VideoProcessor
         vp = VideoProcessor.__new__(VideoProcessor)
 
-        async def gvi(source):
+        async def gvi(source, **kwargs):
             return FakeInfo()
 
         async def ef(source, fps=5, output_dir="", on_progress=None, is_cancelled=None):

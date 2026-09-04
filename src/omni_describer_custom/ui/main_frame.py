@@ -901,7 +901,7 @@ class MainFrame(wx.Frame):
                     getattr(self, "_dl_cancelled", False))))
             # v1.5.1: keep the REAL title (yt-dlp metadata) for the
             # project name; local files keep their filename stem.
-            self._download_title = info.title or ""
+            self._download_title = getattr(info, "title", "") or ""
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
             # v1.4.1: chunk length is user-configurable (General tab).
