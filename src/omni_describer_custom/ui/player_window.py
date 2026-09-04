@@ -58,6 +58,12 @@ class PlayerWindow(wx.Frame):
         self._build_ui()
         self._load_descriptions()
         self._attach_vlc_video()
+        # v1.3.0: in simulated mode _attach_vlc_video returns early, so
+        # auto-load the project SRT here as well (VLC path loads its own).
+        if not self._vlc_available and self.project:
+            srt = self._project_srt_path()
+            if srt.exists():
+                self._load_srt_file(str(srt), silent=True)
         logger.info("PlayerWindow opened (VLC: %s)", self._vlc_available)
 
     def _init_vlc(self):
