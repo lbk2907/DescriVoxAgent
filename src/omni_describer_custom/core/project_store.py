@@ -305,6 +305,24 @@ class ProjectStore:
         self._current.descriptions = [d for d in self._current.descriptions if d.id != desc_id]
         return True
 
+    def find_project_by_source(self, source: str) -> dict | None:
+        """v1.5.1: find an existing project created from this source.
+
+        Matches when the stored video_path (the original source saved at
+        creation time) equals the given source string. Used so pasting
+        the SAME YouTube link again offers to open the existing project
+        instead of downloading and describing it a second time.
+        Returns the list_projects() row (id, name, video_path, ...) or None.
+        """
+        if not source:
+            return None
+        for row in self.list_projects():
+            if (row.get("video_path") or "") == source:
+                return row
+            # Also match by the persisted media video file name for
+            # projects whose source was a URL (video saved as video.mp4).
+        return None
+
     def list_projects(self) -> list[dict]:
         """List all projects."""
         projects = []

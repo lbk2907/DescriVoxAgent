@@ -97,6 +97,26 @@ class VideoProcessor:
         ]
         return "\n".join(lines)[-limit:]
 
+    @staticmethod
+    def sanitize_project_name(title: str, fallback: str = "video") -> str:
+        """v1.5.1: turn a video TITLE into a safe Windows folder/DB name.
+
+        YouTube titles contain characters that are illegal in paths
+        (\\ / : * ? " < > |) and can be arbitrarily long or empty. This
+        strips/replaces illegal chars, trims length to 80, and falls
+        back when nothing usable remains.
+        """
+        import re as _re
+        text = (title or "").strip()
+        if not text:
+            return fallback
+        # Replace path-illegal characters with a space, collapse whitespace
+        text = _re.sub(r'[\\/:*?"<>|]+', " ", text)
+        text = _re.sub(r"\s+", " ", text).strip(" .")
+        if not text:
+            return fallback
+        return text[:80].rstrip(" .") or fallback
+
     def _ffprobe_path(self) -> str:
         """ffprobe next to ffmpeg when possible, else PATH."""
         if self.ffmpeg.lower().endswith("ffmpeg.exe"):
@@ -135,8 +155,16 @@ class VideoProcessor:
                 return str(c)
         return "yt-dlp"
 
-    async def _probe_url(self, url: str) -> dict:
-        """Fetch remote metadata via yt-dlp --dump-json (no download)."""
+    async def _probe_url(
+            self, url: str,
+            is_cancelled: Callable[[], bool] | None = None) -> dict:
+        """Fetch remote metadata via yt-dlp --dump-json (no download).
+
+        v1.5.1: honours is_cancelled — the probe can block up to 120s
+        (slow YouTube pages), and previously Cancel had NO effect during
+        it: the dialog kept "Loading video info..." forever (bug seen on
+        the 9-minute video test).
+        """
         proc = await asyncio.create_subprocess_exec(
             self.ytdlp,
             "--dump-json", "--no-playlist", "--no-warnings",
@@ -144,8 +172,28 @@ class VideoProcessor:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
+        async def _wait_cancellable() -> tuple[bytes, bytes]:
+            # Poll loop: kill the subprocess as soon as cancel is noticed
+            # (max 0.5s reaction time) instead of waiting out the timeout.
+            deadline = 120.0
+            waited = 0.0
+            while True:
+                if is_cancelled is not None and is_cancelled():
+                    proc.kill()
+                    raise SourceError(f"Download cancelled ({url})") from None
+                try:
+                    return await asyncio.wait_for(
+                        proc.communicate(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    waited += 0.5
+                    if waited >= deadline:
+                        proc.kill()
+                        raise SourceError(
+                            f"Could not reach video metadata for {url} (timeout)") from None
+
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            stdout, stderr = await _wait_cancellable()
         except asyncio.TimeoutError:
             proc.kill()
             raise SourceError(f"Could not reach video metadata for {url} (timeout)") from None
@@ -157,15 +205,25 @@ class VideoProcessor:
         except json.JSONDecodeError as e:
             raise SourceError(f"Could not parse video metadata for {url}: {e}") from e
 
-    async def get_video_info(self, path_or_url: str) -> VideoInfo:
-        """Get video metadata using ffprobe (local) or yt-dlp (remote URL)."""
+    async def get_video_info(
+            self, path_or_url: str,
+            is_cancelled: Callable[[], bool] | None = None) -> VideoInfo:
+        """Get video metadata using ffprobe (local) or yt-dlp (remote URL).
+
+        v1.5.1: is_cancelled is forwarded to the yt-dlp metadata probe so
+        Cancel reacts during the (up to 120s) info-loading phase.
+        """
         info = VideoInfo(path=path_or_url)
 
         if path_or_url.startswith(("http://", "https://")) and not Path(path_or_url).exists():
             # Remote: use yt-dlp metadata. This also surfaces the REAL error
             # (e.g. private video, network failure) instead of a later crash.
             try:
-                meta = await self._probe_url(path_or_url)
+                # v1.5.1: pass the cancel flag into the metadata probe so
+                # Cancel reacts within ~0.5s even before the download starts.
+                meta = await self._probe_url(
+                    path_or_url,
+                    is_cancelled=is_cancelled)
             except SourceError as e:
                 logger.error("yt-dlp metadata failed: %s", e)
                 raise
@@ -433,12 +491,51 @@ class VideoProcessor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-            if proc.returncode != 0:
-                # Log the TAIL of stderr: ffmpeg puts the real error last,
-                # the head is only the version banner.
-                logger.error("ffmpeg error (rc=%d): %s", proc.returncode, self._stderr_tail(stderr))
+            # v1.5.1: killable ffmpeg — extraction of a long video can run
+            # for minutes; Cancel must stop it immediately, not after the
+            # whole run finishes.
+            cancelled_ff = False
+            # ONE communicate task for the whole loop: shielding a fresh
+            # coroutine each iteration would leave the previous read
+            # waiting ("read() called while another coroutine is already
+            # waiting for incoming data").
+            comm_task = asyncio.ensure_future(proc.communicate())
+            try:
+                while True:
+                    if is_cancelled is not None and is_cancelled():
+                        cancelled_ff = True
+                        try:
+                            proc.kill()
+                        except ProcessLookupError:
+                            pass
+                        # kill closes the pipes, so comm_task ends promptly
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(comm_task), timeout=1.0)
+                        break
+                    except asyncio.TimeoutError:
+                        continue
+                if cancelled_ff:
+                    raise SourceError(
+                        f"Download cancelled ({video_path})")
+                _, stderr = comm_task.result()
+                if proc.returncode != 0:
+                    # Log the TAIL of stderr: ffmpeg puts the real error last,
+                    # the head is only the version banner.
+                    logger.error(
+                        "ffmpeg error (rc=%d): %s",
+                        proc.returncode,
+                        self._stderr_tail(stderr))
+                    return []
+            except SourceError:
+                raise
+            except Exception as e:
+                logger.error("Frame extraction failed: %s", e)
                 return []
+        except SourceError:
+            # v1.5.1: cancellation (and probe errors) propagate so the UI
+            # shows "cancelled" instead of "no frames".
+            raise
         except Exception as e:
             logger.error("Frame extraction failed: %s", e)
             return []

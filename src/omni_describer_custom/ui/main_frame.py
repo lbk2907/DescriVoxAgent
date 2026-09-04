@@ -55,12 +55,26 @@ class MainFrame(wx.Frame):
         self._processing = False
         self._dl_dialog = None
         self._dl_cancelled = False
+        # v1.5.1: once the user cancels, every later UI touch from the
+        # worker must be a no-op. _dl_done guards dialog re-creation,
+        # player auto-open and status changes after cancellation.
+        self._dl_done = False
         self._worker: threading.Thread | None = None
         self._current_frames: list[str] = []
         self._current_source: str = ""
         # Temp video file from resolve_source (YouTube download); copied
-        # into the project media folder at save time (v1.3.0).
+        # into the project media folder at save time (v1.5.1: also stored
+        # for the "video saved at" completion message).
         self._pending_local_video: str = ""
+        # v1.5.1: TRUE download title from yt-dlp metadata (used as the
+        # project name instead of the raw URL) and the resolved local file.
+        self._download_title: str = ""
+        # v1.5.1: heartbeat timer keeps the progress dialog responsive and
+        # shows elapsed time so long silent phases never look stuck.
+        self._hb_timer = None
+        self._hb_start = 0.0
+        self._hb_phase = ""
+        self._hb_dialog_was_destroyed = False
 
         # Language
         lang = self.settings.get("general.language", "en")
@@ -558,23 +572,119 @@ class MainFrame(wx.Frame):
         name_dlg.Destroy()
 
     def _on_open_project(self, event):
+        """v1.5.1: custom dialog with Open AND Remove buttons.
+
+        The old SingleChoiceDialog could only open a project; removing a
+        wrong/finished project required manual file deletion. Now the
+        user selects a project and can open it or remove it (DB + media
+        folder) with explicit confirmation.
+        """
         projects = self.project_store.list_projects()
         if not projects:
             wx.MessageBox("No saved projects found.", "Open Project",
                           wx.OK | wx.ICON_INFORMATION)
             return
-        choices = [f"{p['name']} (updated: {p['updated_at']})" for p in projects]
-        dlg = wx.SingleChoiceDialog(self, "Select project:", "Open Project", choices)
-        if dlg.ShowModal() == wx.ID_OK:
-            idx = dlg.GetSelection()
-            proj = self.project_store.open_project(projects[idx]["id"])
-            if proj:
-                self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
-                if not proj.descriptions:
-                    wx.MessageBox(t("project.opened_empty", name=proj.name),
-                                  t("project.dialog_title"),
-                                  wx.OK | wx.ICON_WARNING)
+
+        dlg = wx.Dialog(self, title=t("project.dialog_title"),
+                        size=(460, 300))
+        pad = 5
+        top = wx.BoxSizer(wx.VERTICAL)
+        top.Add(wx.StaticText(dlg, label=t("project.select_hint")),
+                0, wx.ALL, pad)
+        lb = wx.ListBox(dlg, choices=[
+            f"{p['name']} (updated: {p['updated_at']})" for p in projects],
+            style=wx.LB_SINGLE)
+        top.Add(lb, 1, wx.ALL | wx.EXPAND, pad)
+        btns = wx.BoxSizer(wx.HORIZONTAL)
+        open_btn = wx.Button(dlg, wx.ID_OK, t("project.open_btn"))
+        open_btn.SetDefault()
+        remove_btn = wx.Button(dlg, wx.ID_ANY, t("project.remove_btn"))
+        cancel_btn = wx.Button(dlg, wx.ID_CANCEL, "Close")
+        btns.Add(open_btn, 0, wx.ALL, pad)
+        btns.Add(remove_btn, 0, wx.ALL, pad)
+        btns.AddStretchSpacer()
+        btns.Add(cancel_btn, 0, wx.ALL, pad)
+        top.Add(btns, 0, wx.ALL | wx.EXPAND, pad)
+        dlg.SetSizer(top)
+
+        def _selected():
+            idx = lb.GetSelection()
+            return projects[idx] if idx != wx.NOT_FOUND else None
+
+        def _on_remove(evt):
+            proj = _selected()
+            if not proj:
+                wx.MessageBox(t("project.select_hint"),
+                              t("project.dialog_title"),
+                              wx.OK | wx.ICON_INFORMATION)
+                return
+            name = proj.get("name", "")
+            confirm = wx.MessageDialog(
+                dlg, t("project.remove_confirm", name=name),
+                t("project.remove_title"),
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING)
+            confirmed = confirm.ShowModal() == wx.ID_YES
+            confirm.Destroy()
+            if not confirmed:
+                return
+            ok, err = self._remove_project_files(proj["id"])
+            if ok:
+                self._log(t("project.removed_log", name=name))
+            else:
+                self._log(t("project.remove_failed", name=name, error=err))
+                wx.MessageBox(t("project.remove_failed", name=name, error=err),
+                              t("project.remove_title"),
+                              wx.OK | wx.ICON_WARNING)
+            # Refresh the list in place
+            projects[:] = self.project_store.list_projects()
+            if projects:
+                lb.Set([
+                    f"{p['name']} (updated: {p['updated_at']})"
+                    for p in projects])
+                lb.SetSelection(0)
+            else:
+                dlg.EndModal(wx.ID_CANCEL)
+
+        remove_btn.Bind(wx.EVT_BUTTON, _on_remove)
+        lb.Bind(wx.EVT_DOUBLECLICK, lambda evt: dlg.EndModal(wx.ID_OK))
+
+        # Preselect the newest project
+        lb.SetSelection(0)
+        dlg.CenterOnScreen()
+        result = dlg.ShowModal()
         dlg.Destroy()
+
+        if result == wx.ID_OK:
+            proj_row = _selected()
+            if proj_row:
+                proj = self.project_store.open_project(proj_row["id"])
+                if proj:
+                    self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
+                    if not proj.descriptions:
+                        wx.MessageBox(t("project.opened_empty", name=proj.name),
+                                      t("project.dialog_title"),
+                                      wx.OK | wx.ICON_WARNING)
+
+    def _remove_project_files(self, project_id: int):
+        """Delete a project's DB file + media folder. Returns (ok, error)."""
+        import shutil as _shutil
+        base = Path(self.project_store.projects_dir)
+        errors = []
+        db_path = base / f"project_{project_id}.db"
+        media_root = base / f"project_{project_id}"
+        try:
+            if media_root.exists():
+                _shutil.rmtree(media_root, ignore_errors=False)
+        except Exception as e:
+            errors.append(str(e))
+        try:
+            if db_path.exists():
+                db_path.unlink()
+        except Exception as e:
+            errors.append(str(e))
+        if self.project_store.current and self.project_store.current.id == project_id:
+            self.project_store._current = None
+        return (not errors, "; ".join(errors))
 
     def _on_save_project(self, event):
         if not self.project_store.current:
@@ -598,7 +708,23 @@ class MainFrame(wx.Frame):
         wx.adv.AboutBox(info)
 
     def _on_close_window(self, event):
-        """Handle window close."""
+        """Handle window close.
+
+        v1.5.1: closing during processing used to leave the worker
+        thread posting wx.CallAfter callbacks into a destroyed frame
+        (crash). Now we first signal cancel so the worker unwinds, and
+        the callbacks all check _dl_done/IsBeingDeleted before touching
+        widgets.
+        """
+        if self._processing:
+            self._dl_cancelled = True
+            self._dl_done = True
+            self._hb_stop()
+            self._close_download_progress()
+            # Give the worker a moment to observe the flag; it is a
+            # daemon thread, so even a slow subprocess teardown will not
+            # block process exit.
+            self._worker.join(timeout=3.0) if self._worker and self._worker.is_alive() else None
         self._processing = False
         self.Destroy()
 
@@ -634,8 +760,39 @@ class MainFrame(wx.Frame):
             api_format=prov_config.get("api_format", ""),
         )
 
+        # v1.5.1 dedupe: the SAME source may already have a project (it
+        # stores the original URL/path). Offer to open it instead of
+        # paying for a second download + AI pass.
+        existing = self.project_store.find_project_by_source(source)
+        if existing:
+            msg = (t("project.dedupe_found") + "\n\n"
+                   f"{existing.get('name', '')} "
+                   f"(updated: {existing.get('updated_at', '')})")
+            dlg = wx.MessageDialog(
+                self, msg, t("project.dedupe_title"),
+                wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
+            dlg.SetYesLabel(t("project.dedupe_open"))
+            dlg.SetNoLabel(t("project.dedupe_new"))
+            dlg.SetCancelLabel("Cancel")
+            choice = dlg.ShowModal()
+            dlg.Destroy()
+            if choice == wx.ID_YES:
+                proj = self.project_store.open_project(existing["id"])
+                if proj:
+                    self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
+                    self.SetStatusText(f"Project: {proj.name}")
+                    if not proj.descriptions:
+                        wx.MessageBox(t("project.opened_empty", name=proj.name),
+                                      t("project.dialog_title"),
+                                      wx.OK | wx.ICON_WARNING)
+                return
+            if choice == wx.ID_CANCEL:
+                return
+            # ID_NO: fall through and process again as a new project
+
         self._processing = True
         self._dl_cancelled = False
+        self._dl_done = False
         self.btn_preset_open.Disable()
         self.btn_local.Disable()
         self.btn_url.Disable()
@@ -647,6 +804,64 @@ class MainFrame(wx.Frame):
             daemon=True,
         )
         self._worker.start()
+
+    # ── v1.5.1 heartbeat: silent phases stay visibly alive ────────
+
+    def _hb_start_timer(self, phase: str) -> None:
+        """Start the 1s heartbeat timer (UI thread) for a phase."""
+        import time as _time
+        self._hb_phase = phase
+        self._hb_start = _time.monotonic()
+        self._hb_dialog_was_destroyed = False
+        if self._hb_timer is None:
+            self._hb_timer = wx.Timer(self)
+            self.Bind(wx.EVT_TIMER, self._hb_tick, self._hb_timer)
+        self._hb_timer.Start(1000)
+
+    def _hb_stop(self) -> None:
+        if self._hb_timer is not None:
+            self._hb_timer.Stop()
+
+    def _hb_tick(self, event):
+        """1s tick: keep the dialog responsive and show elapsed time.
+
+        Fixes the "stuck" feel (and stuck REALITY) during silent phases:
+        - metadata probe / ffmpeg merge: Pulse keeps the dialog painting
+          and the Cancel button live.
+        - only pulses when NO real progress arrived recently (>1.5s), so
+          it never fights with real percentage updates.
+        - if the dialog was destroyed by a Cancel press, nothing is
+          re-created (guarded by _dl_done).
+        """
+        if self._dl_done or self._dl_cancelled:
+            self._hb_stop()
+            return
+        import time as _time
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        now = _time.monotonic()
+        if now - getattr(self, "_last_progress_at", 0.0) < 1.5:
+            return  # real progress is flowing; stay out of the way
+        secs = int(now - self._hb_start)
+        line = t("download.heartbeat", phase=self._hb_phase, secs=secs)
+        try:
+            dlg.Pulse(line)
+        except Exception:
+            # Dialog already destroyed (e.g. user closed it): stop.
+            self._hb_stop()
+
+    def _project_display_name(self, source: str) -> str:
+        """v1.5.1: human project name for remote sources.
+
+        Remote URL -> the REAL video title from yt-dlp metadata
+        (sanitized); local file -> the filename stem. Never the raw URL.
+        """
+        if source.startswith(("http://", "https://")) and not Path(source).exists():
+            from ..core.video_processor import VideoProcessor
+            return VideoProcessor.sanitize_project_name(
+                self._download_title, fallback="video")
+        return Path(source).stem or "video"
 
     def _process_video(self, source: str, prompt: str):
         """Background video processing pipeline.
@@ -679,7 +894,14 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self._ensure_download_progress)
             wx.CallAfter(self._download_progress_tick_text,
                          t("download.loading_info"), -1)
-            info = loop.run_until_complete(vp.get_video_info(source))
+            wx.CallAfter(self._hb_start_timer, t("download.loading_info"))
+            info = loop.run_until_complete(vp.get_video_info(
+                source,
+                is_cancelled=lambda: bool(
+                    getattr(self, "_dl_cancelled", False))))
+            # v1.5.1: keep the REAL title (yt-dlp metadata) for the
+            # project name; local files keep their filename stem.
+            self._download_title = info.title or ""
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
             # v1.4.1: chunk length is user-configurable (General tab).
@@ -827,8 +1049,8 @@ class MainFrame(wx.Frame):
                         "frame_path": "",  # no frame: AI watched the video
                     })())
                 if not self.project_store.current:
-                    video_name = Path(source).name if Path(source).exists() else source
-                    self.project_store.create_project(video_name, source)
+                    name = self._project_display_name(source)
+                    self.project_store.create_project(name, source)
                 self.project_store.set_video_duration(info.duration)
                 # v1.3.0: keep the actual video file so the player can
                 # replay it after the temp dir is gone (YouTube).
@@ -987,8 +1209,9 @@ class MainFrame(wx.Frame):
                         "frame_path": "",
                     })())
                 if not self.project_store.current:
-                    video_name = (Path(source).name
-                                  if Path(source).exists() else source)
+                    video_name = (self._project_display_name(source)
+                                  if not Path(source).exists()
+                                  else Path(source).stem)
                     self.project_store.create_project(video_name, source)
                 self.project_store.set_video_duration(info.duration)
                 # v1.3.0: keep the actual video file so the player can
@@ -1080,7 +1303,9 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self.SetStatusText, t("status.generating_descriptions"))
 
             if not self.project_store.current:
-                video_name = Path(source).name if Path(source).exists() else source
+                video_name = (self._project_display_name(source)
+                              if not Path(source).exists()
+                              else Path(source).stem)
                 self.project_store.create_project(video_name, source)
 
             # Persist video duration for the player timeline
@@ -1151,19 +1376,24 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
             self.project_store.save_descriptions(desc_objects)
             self._write_project_srt()
+            video_path = self._video_saved_path()
             wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
             wx.CallAfter(self._log, t("status.processing_complete",
                                       count=len(desc_objects)))
+            if video_path:
+                wx.CallAfter(self._log, t("log.video_saved_at", path=video_path))
 
-            def _notify_done(count: int) -> None:
+            def _notify_done(count: int, vpath: str) -> None:
                 # Same guard as _notify_empty: modal only for visible
                 # frames (real users), log/status only for headless runs.
                 if self.IsShown():
-                    wx.MessageBox(t("status.processing_complete", count=count),
+                    key = ("process.complete_with_video" if vpath
+                           else "status.processing_complete")
+                    wx.MessageBox(t(key, count=count, path=vpath),
                                   t("process.complete_title"),
                                   wx.OK | wx.ICON_INFORMATION)
 
-            wx.CallAfter(_notify_done, len(desc_objects))
+            wx.CallAfter(_notify_done, len(desc_objects), video_path)
             if getattr(self, "_ai_cancelled", False):
                 wx.CallAfter(self._log, "AI analysis cancelled; partial descriptions saved")
             wx.CallAfter(self._close_download_progress)
@@ -1207,7 +1437,13 @@ class MainFrame(wx.Frame):
 
         Runs on the UI thread (via wx.CallAfter). Lazily created so local
         files never flash an empty dialog.
+
+        v1.5.1: once cancelled/done (_dl_done), this is a NO-OP so late
+        worker callbacks can never re-create a ghost dialog after the
+        user pressed Cancel.
         """
+        if getattr(self, "_dl_done", False):
+            return
         if self._dl_dialog is not None or self.IsBeingDeleted():
             return
         try:
@@ -1226,9 +1462,17 @@ class MainFrame(wx.Frame):
 
     def _download_progress_tick(self, p):
         """Update the progress dialog from a DownloadProgress (UI thread)."""
+        if getattr(self, "_dl_done", False):
+            return
         dlg = self._dl_dialog
         if dlg is None:
             return
+        # Real progress is flowing: record the time so the 1s heartbeat
+        # tick stands down (it resumes pulsing only in silent phases).
+        try:
+            self._last_progress_at = __import__("time").monotonic()
+        except Exception:
+            pass
         line = self._format_progress(p)
         if p.percent < 0:
             # Unknown percentage: pulse the bar, show the text
@@ -1247,11 +1491,15 @@ class MainFrame(wx.Frame):
         if not ok:
             # User pressed Cancel
             self._dl_cancelled = True
+            self._dl_done = True
+            self._hb_stop()
             dlg.Update(0, t("download.cancelling"))
             self._close_download_progress()
 
     def _frame_count_tick(self, count: int):
         """Show extraction progress in the dialog (UI thread)."""
+        if getattr(self, "_dl_done", False):
+            return
         dlg = self._dl_dialog
         if dlg is None:
             return
@@ -1259,11 +1507,15 @@ class MainFrame(wx.Frame):
         ok = dlg.Pulse(line)[0]
         if not ok:
             self._dl_cancelled = True
+            self._dl_done = True
+            self._hb_stop()
             dlg.Update(0, t("download.cancelling"))
             self._close_download_progress()
 
     def _ai_progress_tick(self, done: int, total: int):
         """Show real per-frame AI progress in the dialog (UI thread)."""
+        if getattr(self, "_dl_done", False):
+            return
         dlg = self._dl_dialog
         if dlg is None:
             return
@@ -1359,6 +1611,22 @@ class MainFrame(wx.Frame):
         except Exception as e:
             logger.warning("Project SRT write failed: %s", e)
 
+    def _video_saved_path(self) -> str:
+        """v1.5.1: permanent video path for the completion message.
+
+        The persisted media video if present, else the local source.
+        Empty for remote sources whose download was not persisted.
+        """
+        cur = self.project_store.current
+        if cur and cur.video_path and Path(cur.video_path).exists() \
+                and cur.video_path.startswith(str(self.project_store.projects_dir)):
+            return cur.video_path
+        source = self._current_source
+        if source and not source.startswith(("http://", "https://")) \
+                and Path(source).exists():
+            return str(Path(source).resolve())
+        return ""
+
     def _save_descriptions_and_finish(self, desc_objects, loop, frame_dir):
         """Shared save + notify path for both processing modes.
 
@@ -1390,17 +1658,22 @@ class MainFrame(wx.Frame):
         wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
         self.project_store.save_descriptions(desc_objects)
         self._write_project_srt()
+        video_path = self._video_saved_path()
         wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
         wx.CallAfter(self._log, t("status.processing_complete",
                                   count=len(desc_objects)))
+        if video_path:
+            wx.CallAfter(self._log, t("log.video_saved_at", path=video_path))
 
-        def _notify_done(count: int) -> None:
+        def _notify_done(count: int, vpath: str) -> None:
             if self.IsShown():
-                wx.MessageBox(t("status.processing_complete", count=count),
+                key = ("process.complete_with_video" if vpath
+                       else "status.processing_complete")
+                wx.MessageBox(t(key, count=count, path=vpath),
                               t("process.complete_title"),
                               wx.OK | wx.ICON_INFORMATION)
 
-        wx.CallAfter(_notify_done, len(desc_objects))
+        wx.CallAfter(_notify_done, len(desc_objects), video_path)
         wx.CallAfter(self._close_download_progress)
         wx.CallAfter(self.SetStatusText, t("status.complete"))
         if frame_dir:
@@ -1443,6 +1716,7 @@ class MainFrame(wx.Frame):
 
     def _close_download_progress(self):
         """Close and destroy the progress dialog if it exists (UI thread)."""
+        self._hb_stop()
         dlg, self._dl_dialog = self._dl_dialog, None
         if dlg is not None:
             try:
@@ -1452,12 +1726,23 @@ class MainFrame(wx.Frame):
             self.Refresh()
 
     def _processing_done(self):
-        """Reset UI after processing and open PlayerWindow."""
+        """Reset UI after processing and open PlayerWindow.
+
+        v1.5.1: after a user CANCEL this must NOT re-open the player or
+        flip the status bar (the old code auto-opened the player on the
+        partial/empty state left behind by cancellation).
+        """
+        self._hb_stop()
         self._processing = False
         self.btn_preset_open.Enable()
         self.btn_local.Enable()
         self.btn_url.Enable()
         self.btn_youtube.Enable()
+        if self._dl_cancelled or self._dl_done:
+            # v1.5.1: after cancel, never auto-open the player on the
+            # partial/empty state left behind by cancellation.
+            self.SetStatusText(t("status.ready"))
+            return
 
         # Auto-open PlayerWindow if descriptions were generated
         if self.project_store.current and self.project_store.current.descriptions:
@@ -1506,6 +1791,15 @@ class MainFrame(wx.Frame):
             self._log("ERROR opening player: " + str(e))
 
     def _log(self, message: str):
-        """Append a line to the status log."""
+        """Append a line to the status log.
+
+        v1.5.1: late wx.CallAfter(self._log, ...) from the worker after
+        the frame is destroyed must not crash the app.
+        """
+        try:
+            if self.IsBeingDeleted() or not self.log_text:
+                return
+        except Exception:
+            return
         self.log_text.AppendText(message + "\n")
         self.log_text.ShowPosition(self.log_text.GetLastPosition())

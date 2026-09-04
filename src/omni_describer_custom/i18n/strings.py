@@ -203,6 +203,9 @@ EN_STRINGS: dict[str, str] = {
     "status.error": "Error: {error}",
     "status.frame_of": "Frame {current}/{total}",
     "status.processing_complete": "Processing complete! {count} descriptions generated.",
+    "process.complete_with_video": "Processing complete! {count} descriptions generated.\n\nVideo saved at:\n{path}",
+    "log.video_saved_at": "Video saved at: {path}",
+    "download.heartbeat": "Working: {phase} ({secs}s)\nCancel is always available.",
 
     # Download progress dialog
     "download.dialog_title": "Downloading video",
@@ -226,6 +229,17 @@ EN_STRINGS: dict[str, str] = {
     "process.no_descriptions": "No descriptions were generated.\n\nThe AI provider returned no usable text. Check your API key and connection in Settings (Test Connection), then try again.\n\nDetails are in the log below.",
     "project.dialog_title": "Open Project",
     "project.opened_empty": "Project '{name}' has no descriptions.\n\nRun Start Processing on the video, or import descriptions from the File menu.",
+    "project.remove_btn": "&Remove",
+    "project.remove_confirm": "Delete project '{name}'?\n\nThis permanently removes its database, media folder (video + subtitles) and description list.\n\nThis cannot be undone.",
+    "project.remove_title": "Remove Project",
+    "project.removed_log": "Project removed: {name}",
+    "project.remove_failed": "Could not fully remove project '{name}': {error}",
+    "project.open_btn": "&Open",
+    "project.select_hint": "Select a project:",
+    "project.dedupe_found": "This video already has a project:",
+    "project.dedupe_open": "&Open existing project",
+    "project.dedupe_new": "&Process again as new project",
+    "project.dedupe_title": "Existing project found",
 
     # Errors
     "error.no_video": "No video loaded.",
@@ -441,6 +455,9 @@ MS_STRINGS: dict[str, str] = {
     "status.error": "Ralat: {error}",
     "status.frame_of": "Kerangka {current}/{total}",
     "status.processing_complete": "Pemprosesan selesai! {count} penerangan dijana.",
+    "process.complete_with_video": "Pemprosesan selesai! {count} penerangan dijana.\n\nVideo disimpan di:\n{path}",
+    "log.video_saved_at": "Video disimpan di: {path}",
+    "download.heartbeat": "Sedang bekerja: {phase} ({secs}s)\nBatal sentiasa tersedia.",
 
     # Dialog kemajuan muat turun
     "download.dialog_title": "Memuat turun video",
@@ -464,6 +481,17 @@ MS_STRINGS: dict[str, str] = {
     "process.no_descriptions": "Tiada penerangan dijana.\n\nPenyedia AI tidak memulangkan teks yang boleh diguna. Semak kunci API dan sambungan dalam Tetapan (Uji Sambungan), kemudian cuba lagi.\n\nButiran ada dalam log di bawah.",
     "project.dialog_title": "Buka Projek",
     "project.opened_empty": "Projek '{name}' tiada penerangan.\n\nJalankan Mula Pemprosesan pada video, atau import penerangan dari menu File.",
+    "project.remove_btn": "&Buang",
+    "project.remove_confirm": "Padam projek '{name}'?\n\nIni memadam kekal pangkalan data, folder media (video + sari kata) dan senarai penerangan.\n\nTindakan ini tidak boleh dibatalkan.",
+    "project.remove_title": "Buang Projek",
+    "project.removed_log": "Projek dibuang: {name}",
+    "project.remove_failed": "Tidak dapat memadam projek '{name}' sepenuhnya: {error}",
+    "project.open_btn": "&Buka",
+    "project.select_hint": "Pilih projek:",
+    "project.dedupe_found": "Video ini sudah ada projek:",
+    "project.dedupe_open": "&Buka projek sedia ada",
+    "project.dedupe_new": "&Proses semula sebagai projek baharu",
+    "project.dedupe_title": "Projek sedia ada dijumpai",
 
     # Errors
     "error.no_video": "Tiada video dimuatkan.",

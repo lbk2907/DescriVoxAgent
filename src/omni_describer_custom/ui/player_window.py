@@ -60,6 +60,12 @@ class PlayerWindow(wx.Frame):
         self._build_ui()
         self._load_descriptions()
         self._attach_vlc_video()
+        # v1.5.1: VLC attach may learn the real duration (media probe);
+        # refresh the slider scale AFTER that so seeks cover the whole
+        # video, not just the duration known at UI-build time.
+        if self.project and self.project.video_duration:
+            self._slider_dur = max(
+                0.1, float(self.project.video_duration))
         # v1.3.0: in simulated mode _attach_vlc_video returns early, so
         # auto-load the project SRT here as well (VLC path loads its own).
         if not self._vlc_available and self.project:
@@ -279,6 +285,10 @@ class PlayerWindow(wx.Frame):
 
         # ── Timeline Slider ────────────────────────────────────
         timeline_row = wx.BoxSizer(wx.HORIZONTAL)
+        # v1.5.1: fixed 0..1000 slider range mapped onto the REAL video
+        # duration. The old position*10 scale only covered the first 100
+        # seconds, so a 9-minute video could not be seeked beyond 1:40.
+        self._slider_dur = max(0.1, float(self.project.video_duration or 0.0))
         self.position_slider = wx.Slider(panel, value=0, minValue=0, maxValue=1000,
                                          style=wx.SL_HORIZONTAL, name="timeline")
         # Accessible name for screen readers: without it NVDA/JAWS announce
@@ -426,7 +436,9 @@ class PlayerWindow(wx.Frame):
                 self._set_play_label(False)
         self._update_desc_display()
         self._update_sub_overlay()
-        self.position_slider.SetValue(int(self._position * 10))
+        self.position_slider.SetValue(
+            int(self._position / self._slider_dur * 1000)
+            if self._slider_dur > 0 else 0)
         self._maybe_narrate()
 
     def _update_sub_overlay(self):
@@ -461,6 +473,11 @@ class PlayerWindow(wx.Frame):
 
         This is the core accessibility path: during video playback the
         description for the current scene must be heard, not only shown.
+
+        v1.5.1: on TTS FAILURE the id is removed from _narrated so the
+        cue is RETRIED on the next tick instead of being skipped forever
+        (previously a failed Edge TTS call silently dropped the cue);
+        speak_and_play itself now falls back to offline SAPI5 instantly.
         """
         if not self._playing or not self.project or not self.project.descriptions:
             return
@@ -472,12 +489,17 @@ class PlayerWindow(wx.Frame):
         self._narrated.add(desc.id)
 
         desc_text = desc.text
+        desc_id = desc.id
 
         def _narrate_bg():
             try:
-                self.tts.speak_and_play(desc_text)
+                if not self.tts.speak_and_play(desc_text):
+                    logger.error("Narration failed for cue %s", desc_id)
+                    # v1.5.1: allow a RETRY on the next timer tick.
+                    wx.CallAfter(self._narrated.discard, desc_id)
             except Exception as e:
                 logger.error("Narration failed: %s", e)
+                wx.CallAfter(self._narrated.discard, desc_id)
 
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
@@ -558,7 +580,9 @@ class PlayerWindow(wx.Frame):
         self._update_desc_display()
 
     def _on_seek(self, event):
-        self._position = self.position_slider.GetValue() / 10.0
+        # v1.5.1: slider is 0..1000 mapped over the real duration.
+        pos = self.position_slider.GetValue() / 1000.0
+        self._position = pos * self._slider_dur
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(self._position * 1000))
         elif self._audio_backend == "ffplay":

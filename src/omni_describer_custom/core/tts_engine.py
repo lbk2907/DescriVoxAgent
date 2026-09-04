@@ -401,6 +401,11 @@ class TTSEngine:
         This is the audible path: the UI buttons should call this (directly
         or from a background thread) so the user actually hears the text.
         Returns True if audio was generated and played.
+
+        v1.5.1: if generation fails (e.g. Edge TTS needs internet per
+        sentence and the request times out), retry IMMEDIATELY with
+        SAPI5 (offline Windows voice) so playback narration is never
+        silently skipped.
         """
         audio_path = ""
         try:
@@ -413,7 +418,24 @@ class TTSEngine:
             logger.error("speak_and_play generation failed: %s", e)
             return False
         if not audio_path:
-            return False
+            # v1.5.1 immediate offline fallback: SAPI5 always runs on
+            # Windows and needs no network.
+            if sys.platform == "win32" and "sapi5" in self._engines \
+                    and self._engines["sapi5"].available \
+                    and (not engine or engine != "sapi5"):
+                logger.warning("Primary TTS failed; falling back to SAPI5")
+                try:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        audio_path = loop.run_until_complete(
+                            self.speak(text, "sapi5", "", speed))
+                    finally:
+                        loop.close()
+                except Exception as e:
+                    logger.error("SAPI5 fallback failed: %s", e)
+                    return False
+            if not audio_path:
+                return False
         try:
             played = self._play_file(audio_path)
         finally:

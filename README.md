@@ -10,6 +10,27 @@ built-in player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`.
 
+## What's new in v1.5.1
+
+- **Cancel works everywhere**: cancelling a download/processing now
+  aborts the metadata probe and the ffmpeg extraction immediately
+  (subprocess is killed), no ghost dialogs remain, buttons re-enable,
+  and closing the app window during a run shuts down cleanly.
+- **Same link reuses the existing project**: pasting a URL that was
+  already processed offers to open the existing project instead of
+  creating a duplicate (with Remove button in the Open dialog).
+- **Named projects**: YouTube downloads now use the video title as the
+  project name (sanitized), so projects are easier to tell apart.
+- **Real-duration seek bar**: the player slider now covers the full
+  video length (previously capped around 100 seconds).
+- **Progress heartbeat**: the progress dialog shows elapsed time so a
+  quiet download does not look frozen.
+- **Narration never silently skipped**: if the online TTS engine fails
+  mid-playback, the player falls back to the offline Windows voice and
+  retries the cue instead of dropping it.
+- **Full video path saved**: when processing finishes, a message box
+  shows where the description video/audio was saved.
+
 ## Requirements
 
 - Windows with Python 3.13 at
