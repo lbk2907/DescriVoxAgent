@@ -58,6 +58,9 @@ class MainFrame(wx.Frame):
         self._worker: threading.Thread | None = None
         self._current_frames: list[str] = []
         self._current_source: str = ""
+        # Temp video file from resolve_source (YouTube download); copied
+        # into the project media folder at save time (v1.3.0).
+        self._pending_local_video: str = ""
 
         # Language
         lang = self.settings.get("general.language", "en")
@@ -747,6 +750,7 @@ class MainFrame(wx.Frame):
                         is_cancelled=lambda: bool(
                             getattr(self, "_dl_cancelled", False)))
                     )
+                    self._pending_local_video = resolved
                 except SourceError as e:
                     if "cancelled" in str(e).lower():
                         wx.CallAfter(self._log, t("download.cancelled_log"))
@@ -807,6 +811,12 @@ class MainFrame(wx.Frame):
                     video_name = Path(source).name if Path(source).exists() else source
                     self.project_store.create_project(video_name, source)
                 self.project_store.set_video_duration(info.duration)
+                # v1.3.0: keep the actual video file so the player can
+                # replay it after the temp dir is gone (YouTube).
+                if self._pending_local_video:
+                    self.project_store.persist_video_file(
+                        self._pending_local_video)
+                    self._pending_local_video = ""
                 self._save_descriptions_and_finish(
                     desc_objects, loop, None)
                 return
@@ -833,6 +843,7 @@ class MainFrame(wx.Frame):
                         is_cancelled=lambda: bool(
                             getattr(self, "_dl_cancelled", False)))
                     )
+                    self._pending_local_video = resolved
                 except SourceError as e:
                     if "cancelled" in str(e).lower():
                         wx.CallAfter(self._log, t("download.cancelled_log"))
@@ -961,6 +972,12 @@ class MainFrame(wx.Frame):
                                   if Path(source).exists() else source)
                     self.project_store.create_project(video_name, source)
                 self.project_store.set_video_duration(info.duration)
+                # v1.3.0: keep the actual video file so the player can
+                # replay it after the temp dir is gone (YouTube).
+                if self._pending_local_video:
+                    self.project_store.persist_video_file(
+                        self._pending_local_video)
+                    self._pending_local_video = ""
                 self._save_descriptions_and_finish(
                     desc_objects, loop, frame_dir)
                 return
@@ -1049,6 +1066,12 @@ class MainFrame(wx.Frame):
 
             # Persist video duration for the player timeline
             self.project_store.set_video_duration(info.duration)
+            # v1.3.0: keep the actual video file so the player can
+            # replay it after the temp dir is gone (YouTube).
+            if self._pending_local_video:
+                self.project_store.persist_video_file(
+                    self._pending_local_video)
+                self._pending_local_video = ""
 
             # FIX (30 Aug): copy each used frame from the temp dir into the
             # project folder BEFORE saving, so the player survives the temp
@@ -1108,6 +1131,7 @@ class MainFrame(wx.Frame):
             wx.CallAfter(self._ensure_download_progress)
             wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
             self.project_store.save_descriptions(desc_objects)
+            self._write_project_srt()
             wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
             wx.CallAfter(self._log, t("status.processing_complete",
                                       count=len(desc_objects)))
@@ -1258,6 +1282,21 @@ class MainFrame(wx.Frame):
             dlg.Pulse(line)
         self.SetStatusText(line)
 
+    def _write_project_srt(self) -> None:
+        """v1.3.0: write descriptions.srt into the project media folder
+        so the player auto-loads subtitles. Best-effort, never raises.
+        """
+        try:
+            cur = self.project_store.current
+            if not cur or not cur.descriptions:
+                return
+            from ..core.timeline_io import to_srt
+            srt_path = self.project_store.media_dir(cur.id) / "descriptions.srt"
+            srt_path.write_text(to_srt(cur.descriptions), encoding="utf-8")
+            logger.info("Project SRT written: %s", srt_path)
+        except Exception as e:
+            logger.warning("Project SRT write failed: %s", e)
+
     def _save_descriptions_and_finish(self, desc_objects, loop, frame_dir):
         """Shared save + notify path for both processing modes.
 
@@ -1288,6 +1327,7 @@ class MainFrame(wx.Frame):
         wx.CallAfter(self._ensure_download_progress)
         wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
         self.project_store.save_descriptions(desc_objects)
+        self._write_project_srt()
         wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
         wx.CallAfter(self._log, t("status.processing_complete",
                                   count=len(desc_objects)))

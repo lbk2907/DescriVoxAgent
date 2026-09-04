@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -190,6 +191,51 @@ class ProjectStore:
             conn.close()
         except Exception as e:
             logger.error("Failed to persist video duration: %s", e)
+
+    def media_dir(self, project_id: int) -> Path:
+        """Permanent media folder for a project (video, subtitles)."""
+        d = self.projects_dir / f"project_{project_id}" / "media"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def set_video_path(self, video_path: str) -> None:
+        """Update the stored video path for the current project (DB + memory)."""
+        if not self._current:
+            return
+        self._current.video_path = video_path
+        try:
+            conn = sqlite3.connect(str(self._db_path(self._current.id)))
+            conn.execute(
+                "UPDATE projects SET video_path = ?, updated_at = ? WHERE id = ?",
+                (video_path, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error("Failed to persist video path: %s", e)
+
+    def persist_video_file(self, source_path: str) -> str:
+        """Copy a temp/remote video file into the project's media folder so
+        playback survives temp-dir cleanup (mirrors the frames copy fix).
+
+        Returns the permanent path, or the original path on any failure
+        (never raises: playback must not break the save pipeline).
+        """
+        if not self._current:
+            return source_path
+        src = Path(source_path)
+        if not src.exists() or not src.is_file():
+            return source_path
+        try:
+            dest = self.media_dir(self._current.id) / src.name
+            if not dest.exists() or dest.stat().st_size != src.stat().st_size:
+                shutil.copy2(src, dest)
+            self.set_video_path(str(dest))
+            logger.info("Video persisted into project: %s", dest)
+            return str(dest)
+        except Exception as e:
+            logger.error("Video persist failed (%s): %s", source_path, e)
+            return source_path
 
     def save_descriptions(self, descriptions: list[Description]) -> None:
         """Save/update descriptions for current project."""

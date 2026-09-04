@@ -138,6 +138,7 @@ EN_STRINGS: dict[str, str] = {
 
     # Player Window
     "player.title": "Described Video Player",
+    "player.load_srt": "Load SRT...",
     "player.current_desc": "Current Description:",
     "player.upcoming": "Upcoming:",
     "player.timeline": "Playback position",
@@ -370,6 +371,7 @@ MS_STRINGS: dict[str, str] = {
 
     # Player Window
     "player.title": "Pemain Video Berpenerangan",
+    "player.load_srt": "Muat SRT...",
     "player.current_desc": "Penerangan Semasa:",
     "player.upcoming": "Akan Datang:",
     "player.timeline": "Kedudukan main balik",

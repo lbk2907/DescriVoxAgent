@@ -9,12 +9,14 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import wx
 
 from ..core.project_store import ProjectStore
 from ..core.tts_engine import TTSEngine
+from ..core.timeline_io import Description, parse_any
 from ..i18n.strings import I18n, t
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ class PlayerWindow(wx.Frame):
         self._paused_by_user = False
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
+        self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
         self._init_vlc()
 
         super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
@@ -83,9 +86,69 @@ class PlayerWindow(wx.Frame):
             self._vlc_media = self._vlc_instance.media_new(video_path)
             self._vlc.set_media(self._vlc_media)
             self.project.video_duration = self._vlc_media.get_duration() / 1000.0
+            # v1.3.0: auto-load the project's own SRT sidecar (if any) so
+            # subtitles appear without any extra steps for the user.
+            srt = self._project_srt_path()
+            if srt.exists():
+                self._load_srt_file(str(srt), add_to_vlc=True, silent=True)
         except Exception as e:
             logger.warning("VLC attach failed: %s", e)
             self._vlc_available = False
+
+    def _project_srt_path(self) -> Path:
+        """Path of this project's auto-generated descriptions.srt."""
+        vid = self.project.id if self.project else 0
+        return Path(self.store.projects_dir) / f"project_{vid}" / "media" / "descriptions.srt"
+
+    def _load_srt_file(self, path: str, add_to_vlc: bool = False,
+                       silent: bool = False):
+        """v1.3.0: load an SRT/VTT subtitle file.
+
+        VLC mode: attaches the file to the media so subtitles render on
+        the video. Simulated mode: cues are shown over the video panel,
+        synced to the simulated playback clock, so the feature works and
+        is verifiable without VLC installed.
+        """
+        try:
+            cues = parse_any(path)
+        except Exception as e:
+            logger.error("SRT parse failed (%s): %s", path, e)
+            self.status_text.SetLabel("Subtitle load failed")
+            if not silent:
+                wx.MessageBox(f"Could not read subtitle file:\n{e}",
+                              t("player.load_srt"), wx.OK | wx.ICON_ERROR)
+            return
+        if not cues:
+            self.status_text.SetLabel("Subtitle file was empty")
+            if not silent:
+                wx.MessageBox("No subtitle entries found in that file.",
+                              t("player.load_srt"), wx.OK | wx.ICON_WARNING)
+            return
+        self._sub_cues = cues
+        if add_to_vlc and self._vlc_available and self._vlc_media is not None:
+            try:
+                import vlc
+                self._vlc_media.slaves_add(
+                    vlc.SlaveType.subtitle,
+                    Path(path).resolve().as_uri(),
+                )
+            except Exception as e:
+                # Non-fatal: simulated overlay still shows the cues.
+                logger.warning("VLC slave attach failed: %s", e)
+        self.status_text.SetLabel(f"Subtitles loaded: {len(cues)}")
+        logger.info("SRT loaded: %s (%d cues)", path, len(cues))
+
+    def _on_load_srt(self, event):
+        """v1.3.0: pick an external SRT/VTT file and load it."""
+        dlg = wx.FileDialog(
+            self,
+            message=t("player.load_srt"),
+            wildcard="Subtitle files (*.srt;*.vtt)|*.srt;*.vtt|All files (*.*)|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        if dlg.ShowModal() == wx.ID_OK:
+            self._load_srt_file(dlg.GetPath())
+        dlg.Destroy()
 
     def _build_ui(self):
         """Build player UI."""
@@ -97,6 +160,17 @@ class PlayerWindow(wx.Frame):
         # ── Video Area ─────────────────────────────────────────
         self.video_panel = wx.Panel(panel, size=(854, 480), name="video_area")
         self.video_panel.SetBackgroundColour(wx.Colour(0, 0, 0))
+        # v1.3.0: subtitle overlay for simulated playback (no VLC).
+        self._sub_overlay = wx.StaticText(
+            self.video_panel, label="", name="sub_overlay",
+            style=wx.ALIGN_CENTER_HORIZONTAL)
+        self._sub_overlay.SetForegroundColour(wx.Colour(255, 255, 255))
+        self._sub_overlay.SetFont(self._sub_overlay.GetFont().Bold())
+        self._active_sub_text = ""  # unwrapped text currently shown
+        vsizer = wx.BoxSizer(wx.VERTICAL)
+        vsizer.AddStretchSpacer(1)
+        vsizer.Add(self._sub_overlay, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 25)
+        self.video_panel.SetSizer(vsizer)
         sizer.Add(self.video_panel, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
         # ── Transport Controls ─────────────────────────────────
@@ -108,11 +182,15 @@ class PlayerWindow(wx.Frame):
 
         self.rewind_btn = wx.Button(panel, label="<< 10s", name="rewind")
         self.forward_btn = wx.Button(panel, label="10s >>", name="forward")
+        # v1.3.0: manual subtitle loading (SRT/VTT).
+        self.load_srt_btn = wx.Button(panel, label=t("player.load_srt"),
+                                      name="load_srt")
 
         controls.Add(self.play_btn, 0, wx.ALL, 5)
         controls.Add(self.pause_btn, 0, wx.ALL, 5)
         controls.Add(self.stop_btn, 0, wx.ALL, 5)
         controls.AddStretchSpacer()
+        controls.Add(self.load_srt_btn, 0, wx.ALL, 5)
         controls.Add(self.rewind_btn, 0, wx.ALL, 5)
         controls.Add(self.forward_btn, 0, wx.ALL, 5)
 
@@ -181,6 +259,7 @@ class PlayerWindow(wx.Frame):
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
+        self.load_srt_btn.Bind(wx.EVT_BUTTON, self._on_load_srt)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
         # Start timer (created here so EVT_TIMER binding is already in place)
@@ -263,8 +342,36 @@ class PlayerWindow(wx.Frame):
                 self._playing = False
                 self.status_text.SetLabel("Ended")
         self._update_desc_display()
+        self._update_sub_overlay()
         self.position_slider.SetValue(int(self._position * 10))
         self._maybe_narrate()
+
+    def _update_sub_overlay(self):
+        """v1.3.0: show the active subtitle cue over the video panel
+        during simulated playback (VLC renders its own subtitles)."""
+        if self._vlc_available:
+            return  # real VLC draws subtitles on the video itself
+        if not self._playing or not self._sub_cues:
+            if self._active_sub_text:
+                self._active_sub_text = ""
+                self._sub_overlay.SetLabel("")
+                self.video_panel.Refresh()
+            return
+        pos = self._position
+        active = ""
+        for cue in self._sub_cues:
+            if cue.start_time <= pos < cue.end_time:
+                active = cue.text.replace("\n", " ")
+                break
+        if active != self._active_sub_text:
+            self._active_sub_text = active
+            self._sub_overlay.SetLabel(active)
+            if active:
+                # Wrap takes PIXELS: keep a margin inside the video panel.
+                self._sub_overlay.Wrap(
+                    max(200, self.video_panel.GetSize().GetWidth() - 60))
+            self.video_panel.Layout()
+            self.video_panel.Refresh()
 
     def _maybe_narrate(self):
         """Speak the current description aloud when playback reaches it.
@@ -323,6 +430,7 @@ class PlayerWindow(wx.Frame):
         self._position = 0.0
         self.position_slider.SetValue(0)
         self._update_desc_display()
+        self._update_sub_overlay()
         self.status_text.SetLabel("Stopped")
 
     def _on_rewind(self, event):
