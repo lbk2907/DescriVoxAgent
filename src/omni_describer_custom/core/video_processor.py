@@ -173,6 +173,12 @@ class VideoProcessor:
             stderr=asyncio.subprocess.PIPE,
         )
 
+        # v1.5.1 fix: create the communicate() task ONCE and shield it
+        # per poll iteration. Re-calling proc.communicate() after a
+        # timeout discards already-buffered stdout, which made the JSON
+        # parse fail intermittently ("Expecting value: line 1 column 1").
+        comm_task = asyncio.ensure_future(proc.communicate())
+
         async def _wait_cancellable() -> tuple[bytes, bytes]:
             # Poll loop: kill the subprocess as soon as cancel is noticed
             # (max 0.5s reaction time) instead of waiting out the timeout.
@@ -181,14 +187,22 @@ class VideoProcessor:
             while True:
                 if is_cancelled is not None and is_cancelled():
                     proc.kill()
+                    try:
+                        await comm_task
+                    except Exception:
+                        pass
                     raise SourceError(f"Download cancelled ({url})") from None
                 try:
                     return await asyncio.wait_for(
-                        proc.communicate(), timeout=0.5)
+                        asyncio.shield(comm_task), timeout=0.5)
                 except asyncio.TimeoutError:
                     waited += 0.5
                     if waited >= deadline:
                         proc.kill()
+                        try:
+                            await comm_task
+                        except Exception:
+                            pass
                         raise SourceError(
                             f"Could not reach video metadata for {url} (timeout)") from None
 
