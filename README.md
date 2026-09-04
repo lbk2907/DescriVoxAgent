@@ -38,9 +38,10 @@ interpreter. The log file is written to
    subtitles auto-loaded. The video itself is kept as a permanent
    copy inside the project folder (`media\video.mp4`), so the player
    works again later without re-downloading. Subtitles render as
-   on-screen text over the video (also when VLC is not installed,
-   in simulation mode), and a **Load SRT...** button lets you open
-   any external SRT file.
+   on-screen text over the video, and a **Load SRT...** button lets
+   you open any external SRT file. One button toggles Play/Pause
+   (the label always shows what happens next), and audio plays even
+   without VLC installed (ffmpeg's ffplay handles the sound).
 
 ## Settings (File menu > Settings...)
 

@@ -1,7 +1,7 @@
-"""E2E GUI test for v1.3.0 features (hybrid pywinauto + win32).
+"""E2E GUI test for v1.3.0/v1.4.0 player features (hybrid pywinauto + win32).
 
 Extends tools/e2e_gui_phase.py (launch/settings/url/process flow) with
-the v1.3.0 player + persistence features.
+the player + persistence features.
 
 CRITICAL lesson from the v1.2.9 run, re-learned here: the app's UIA
 provider goes NUMB intermittently (UIA Text/Button enumeration returns
@@ -12,7 +12,7 @@ window is therefore driven ENTIRELY with raw Win32:
   - reads:   GetWindowTextW over EnumChildWindows (wx StaticText texts
     like the subtitle overlay, time label, and status line)
 
-t5: process a YouTube video through the REAL GUI, then verify:
+v1.3.0 checks:
   - the physical video file was copied into the project media folder
     and the DB video_path points at it (survives temp cleanup)
   - a descriptions.srt sidecar was written next to it
@@ -20,17 +20,24 @@ t5: process a YouTube video through the REAL GUI, then verify:
     static reads "Subtitles loaded: N" immediately after auto-open
     (before any test interaction), and pressing Play renders a sidecar
     cue in the subtitle overlay static.
+  - clicking "Load SRT..." opens the native file dialog, an external
+    SRT loads ("Subtitles loaded: 3") and its cue renders in the
+    overlay during playback.
 
-t6: through the REAL GUI, click "Load SRT...", pick an external SRT in
-  the native file dialog, verify "Subtitles loaded: 3", then Stop+Play
-  and verify the overlay shows the external cue.
+v1.4.0 checks:
+  - ONE Play/Pause toggle button (no separate Pause button): clicking
+    Play starts playback, the same button then reads "Pause", clicking
+    it pauses, clicking again resumes.
+  - REAL audio in simulated mode (no VLC installed): an ffplay.exe
+    process (parent = app PID) is alive while playing, gone while
+    paused, alive again after resume.
 
 Run:  python tools/e2e_gui_v130.py
 """
 from __future__ import annotations
 
-import ctypes
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -54,6 +61,7 @@ EXT_CUES = [
 ]
 
 user32 = phase.user32
+PLAY_LABELS = {"Play", "Pause", "Main", "Jeda"}  # en + ms toggle labels
 
 
 def _norm(s: str) -> str:
@@ -185,10 +193,58 @@ def _player_hwnd() -> int:
     return phase.find_window_win32("Described Video Player", timeout=25)
 
 
+def _toggle_button_hwnd(hwnd: int) -> int:
+    """Find the single Play/Pause toggle button (label is state-dependent,
+    language-dependent: en Play/Pause, ms Main/Jeda)."""
+    for child in phase.enum_children(hwnd):
+        if phase._window_class(child) == "Button":
+            txt = _norm(phase._window_title(child))
+            if txt in PLAY_LABELS:
+                return child
+    raise RuntimeError("Play/Pause toggle button not found")
+
+
+def press_play_toggle(hwnd: int) -> str:
+    """BM_CLICK the toggle; returns the label it had before the click."""
+    h = _toggle_button_hwnd(hwnd)
+    label = _norm(phase._window_title(h))
+    user32.SendMessageW(h, 0x00F5, 0, 0)  # BM_CLICK
+    phase.log(f"clicked toggle (was '{label}')")
+    return label
+
+
+def ffplay_parent_pids() -> set[int]:
+    """Parent PIDs of running ffplay.exe processes (PowerShell CIM)."""
+    out = subprocess.run(
+        ["powershell", "-NoProfile", "-Command",
+         "Get-CimInstance Win32_Process -Filter \"Name='ffplay.exe'\" | "
+         "ForEach-Object { $_.ParentProcessId }"],
+        capture_output=True, text=True, timeout=25)
+    pids: set[int] = set()
+    for line in out.stdout.split():
+        line = line.strip()
+        if line.isdigit():
+            pids.add(int(line))
+    return pids
+
+
+def wait_ffplay(alive: bool, timeout: float, what: str) -> None:
+    deadline = time.time() + timeout
+    last = False
+    while time.time() < deadline:
+        last = phase.APP_PID in ffplay_parent_pids()
+        if last == alive:
+            phase.log(f"{what} (ffplay running={last})")
+            return
+        time.sleep(0.6)
+    raise RuntimeError(f"{what} FAILED: ffplay running={last}, "
+                       f"expected {'alive' if alive else 'gone'}")
+
+
 def step_player_t5(sidecar_texts: list[str]) -> None:
-    """Auto-open + auto-load status + sidecar cue in overlay on Play.
-    All interaction raw Win32 (UIA numb on this app)."""
-    phase.log("== PLAYER t5: AUTO-OPEN + AUTO-LOAD + PLAY ==")
+    """Auto-open + auto-load status + sidecar cue in overlay + REAL audio
+    via ffplay + single Play/Pause toggle. All interaction raw Win32."""
+    phase.log("== PLAYER t5: AUTO-OPEN + AUTO-LOAD + AUDIO + TOGGLE ==")
     hwnd = _player_hwnd()
     phase.log(f"player window: '{phase._window_title(hwnd)[:70]}'")
 
@@ -198,20 +254,34 @@ def step_player_t5(sidecar_texts: list[str]) -> None:
                     10.0, "auto-load status")
     phase.log("AUTOLOAD_STATUS_OK (direct evidence)")
 
-    # 2) BEHAVIORAL evidence: Stop+Play from 0; the overlay static must
-    # show a sidecar cue (nothing else populated the cue list).
-    phase.press_button(hwnd, "Stop")
-    time.sleep(0.8)
-    phase.press_button(hwnd, "Play")
-    phase.log("Stop+Play clicked (win32 BM_CLICK)")
+    # 2) Single toggle button exists and NO separate pause button.
+    btns = [_norm(phase._window_title(c))
+            for c in phase.enum_children(hwnd)
+            if phase._window_class(c) == "Button"]
+    assert not any(b == "Pause" for b in btns), f"separate Pause button: {btns}"
+    press_play_toggle(hwnd)  # Play -> starts (was 'Play' or 'Main')
+    phase.log("TOGGLE_SINGLE_OK (no separate Pause button)")
 
+    # 3) BEHAVIORAL evidence of auto-load: the overlay static must show
+    # a sidecar cue (nothing else populated the cue list).
     def _is_sidecar_cue(t: str) -> bool:
         return any(t.startswith(txt[:30]) for txt in sidecar_texts)
 
     wait_win32_text(hwnd, _is_sidecar_cue, 30.0,
                     "sidecar cue in subtitle overlay")
     phase.log("AUTOLOAD_BEHAVIORAL_OK (sidecar cue rendered on Play)")
-    phase.press_button(hwnd, "Pause")
+
+    # 4) v1.4.0: REAL audio while playing (ffplay child of the app).
+    wait_ffplay(True, 10.0, "AUDIO_PLAY_OK")
+    # 5) Same button now pauses -> sound stops (process gone).
+    press_play_toggle(hwnd)
+    wait_ffplay(False, 10.0, "AUDIO_PAUSE_OK")
+    # 6) Same button again resumes -> sound returns.
+    press_play_toggle(hwnd)
+    wait_ffplay(True, 10.0, "AUDIO_RESUME_OK")
+    # 7) Pause again before moving on.
+    press_play_toggle(hwnd)
+    wait_ffplay(False, 10.0, "AUDIO_STOPPED_FOR_T6_OK")
     phase.log("PLAYER_T5_OK")
 
 
@@ -236,13 +306,14 @@ def step_player_t6() -> None:
                     10.0, "external load status")
     phase.log("LOAD_SRT_DIALOG_OK (3 cues)")
 
-    phase.press_button(hwnd, "Stop")
+    phase.press_button(hwnd, "Stop")  # reset to 0; toggle label -> Play
     time.sleep(0.8)
-    phase.press_button(hwnd, "Play")
-    phase.log("Stop+Play clicked for external cues")
+    press_play_toggle(hwnd)
     wait_win32_text(hwnd, lambda t: "E2E EXT SUB" in t, 30.0,
                     "external cue in subtitle overlay")
-    phase.press_button(hwnd, "Pause")
+    wait_ffplay(True, 10.0, "AUDIO_PLAYING_T6_OK")
+    press_play_toggle(hwnd)
+    wait_ffplay(False, 10.0, "AUDIO_PAUSED_T6_OK")
     phase.log("PLAYER_T6_OK")
 
 
@@ -255,6 +326,7 @@ def step_close_player() -> None:
         if (phase._pid_of(h) == phase.APP_PID
                 and "Described Video Player" in phase._window_title(h)):
             raise RuntimeError("player window still open")
+    wait_ffplay(False, 5.0, "AUDIO_CLEANUP_ON_CLOSE_OK")
     phase.log("player closed cleanly")
 
 
