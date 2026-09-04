@@ -34,7 +34,13 @@ interpreter. The log file is written to
 4. Press **Cancel** in the dialog at any time. During AI analysis the
    worker stops between frames and keeps whatever is already done.
 5. When processing finishes, the described-video player opens
-   automatically with the descriptions loaded.
+   automatically with the descriptions loaded and the project
+   subtitles auto-loaded. The video itself is kept as a permanent
+   copy inside the project folder (`media\video.mp4`), so the player
+   works again later without re-downloading. Subtitles render as
+   on-screen text over the video (also when VLC is not installed,
+   in simulation mode), and a **Load SRT...** button lets you open
+   any external SRT file.
 
 ## Settings (File menu > Settings...)
 
@@ -86,8 +92,10 @@ interpreter. The log file is written to
 ## Projects
 
 Projects are stored in `Documents\OmniDescriber\projects` (one folder
-per project with a SQLite database and a permanent copy of every used
-frame). Use **File** menu items to create, open, or save projects.
+per project with a SQLite database, a permanent copy of every used
+frame, and a `media\` folder holding a permanent copy of the source
+video plus a `descriptions.srt` sidecar). Use **File** menu items
+to create, open, or save projects.
 
 ## Standalone video describer (CLI + HTTP API)
 
