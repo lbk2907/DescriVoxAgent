@@ -16,6 +16,7 @@ Covered here WITHOUT any network access:
    non-Gemini providers, enabled for Gemini, and persists ai.video_mode.
 """
 import asyncio
+import ctypes
 import io
 import json
 import sys
@@ -284,6 +285,44 @@ def test_video_ticks_on_main_frame():
         # Announced, not silent: status text is non-empty at every step
         assert all(_video_phase_text(frame, p) for p in
                    ("uploading", "processing", "describing"))
+
+        # v1.4.1 regression: a REAL wx.ProgressDialog created during the
+        # download phase would auto-hide after Update(100) (PD_AUTO_HIDE)
+        # while the AI is still describing the video. The chunked-mode
+        # ticks cap the bar at 99 so the dialog STAYS VISIBLE until
+        # _close_download_progress destroys it, and the bar moves with
+        # the overall percentage.
+        dlg = wx.ProgressDialog("Downloading video", "x", maximum=100,
+                                parent=frame,
+                                style=wx.PD_CAN_ABORT | wx.PD_SMOOTH
+                                | wx.PD_AUTO_HIDE)
+        frame._dl_dialog = dlg
+        try:
+            # wx quirk (probed empirically): dlg.IsShown() is always
+            # False for wx.ProgressDialog on MSW; the ground truth is
+            # the Win32 IsWindowVisible on the real HWND.
+            user32 = ctypes.windll.user32
+            visible = lambda: bool(
+                user32.IsWindowVisible(dlg.GetHandle()))
+            frame._video_part_tick(1, 2)
+            assert visible(), "dialog auto-hidden before completion"
+            # part 1 of 2 -> overall 10 + 90*1/2 = 55 (the 99 cap only
+            # clamps values above 99, e.g. the 100% final tick).
+            assert dlg.GetValue() == 55, dlg.GetValue()
+            assert "55%" in dlg.GetMessage(), dlg.GetMessage()
+            frame._video_part_tick(2, 2)
+            assert visible(), "dialog auto-hidden at 100"
+            assert dlg.GetValue() == 99, dlg.GetValue()
+            assert "100%" in dlg.GetMessage(), dlg.GetMessage()
+            frame._video_split_tick(9.9)
+            assert dlg.GetValue() == 9, dlg.GetValue()
+            assert visible(), "dialog vanished after split tick"
+        finally:
+            frame._dl_dialog = None
+            try:
+                dlg.Destroy()
+            except Exception:
+                pass
     finally:
         frame.Destroy()
 

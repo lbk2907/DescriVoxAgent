@@ -682,6 +682,20 @@ class MainFrame(wx.Frame):
             info = loop.run_until_complete(vp.get_video_info(source))
             wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
+            # v1.4.1: chunk length is user-configurable (General tab).
+            # Announce it once with an estimated part count so blind users
+            # know upfront how many parts the video will be split into.
+            chunk_seconds = int(self.settings.get(
+                "general.chunk_seconds", 480) or 480)
+            est_parts = (max(1, int(float(info.duration) / chunk_seconds + 0.999))
+                         if info.duration > 0 else 1)
+            if est_parts > 1:
+                wx.CallAfter(self._log, t("video.chunk_multi",
+                                          chunk=chunk_seconds, parts=est_parts))
+            else:
+                wx.CallAfter(self._log, t("video.chunk_single",
+                                          chunk=chunk_seconds))
+
             # Full-video mode decided ONCE here so every announcement in
             # this pipeline stays accurate for this mode (no frame wording)
             video_mode = (
@@ -769,12 +783,17 @@ class MainFrame(wx.Frame):
                 def vpart(part: int, total: int) -> None:
                     wx.CallAfter(self._video_part_tick, part, total)
 
+                def vsplit(pct: float) -> None:
+                    wx.CallAfter(self._video_split_tick, pct)
+
                 try:
                     pairs = loop.run_until_complete(
                         self.ai_engine.describe_video_full(
                             resolved, prompt,
                             on_status=vstatus, on_upload_progress=vprogress,
-                            on_part=vpart,
+                            on_part=vpart, on_split_progress=vsplit,
+                            chunk_seconds=int(self.settings.get(
+                                "general.chunk_seconds", 480) or 480),
                             is_cancelled=lambda: bool(
                                 getattr(self, "_dl_cancelled", False)),
                         )
@@ -1215,7 +1234,16 @@ class MainFrame(wx.Frame):
             # Unknown percentage: pulse the bar, show the text
             ok = dlg.Pulse(line)[0]
         else:
-            ok = dlg.Update(int(p.percent), line)[0]
+            # Cap at 99: Update(100) auto-hides a PD_AUTO_HIDE dialog while
+            # later phases (frame extraction, AI pass) still need it.
+            ok = dlg.Update(min(int(p.percent), 99), line)[0]
+            # Live percentage in the title: screen readers announce it
+            # and cross-process tools can read a window title.
+            try:
+                dlg.SetTitle(f"{t('download.dialog_title')} - "
+                             f"{min(int(p.percent), 100)}%")
+            except Exception:
+                pass
         if not ok:
             # User pressed Cancel
             self._dl_cancelled = True
@@ -1267,20 +1295,54 @@ class MainFrame(wx.Frame):
         self.SetStatusText(line)
 
     def _video_upload_tick(self, pct: float):
-        """Full-video mode: upload progress percentage (UI thread)."""
+        """Full-video mode: upload progress percentage (UI thread).
+
+        Clamped to 99: Update(100) would auto-hide the dialog
+        (PD_AUTO_HIDE) while the AI is still describing the video.
+        """
         dlg = self._dl_dialog
         line = t("video.uploading_progress", pct=int(pct))
         if dlg is not None:
-            dlg.Update(int(pct), line)
+            dlg.Update(min(99, int(pct)), line)
+        self.SetStatusText(line)
+
+    def _video_split_tick(self, pct: float):
+        """v1.4.1: real split/describe progress for chunked videos (UI)."""
+        dlg = self._dl_dialog
+        line = t("video.split_progress", pct=int(pct))
+        if dlg is not None:
+            try:
+                dlg.Update(min(99, max(1, int(pct))), line)
+                # Live percentage in the title (screen readers + Win32).
+                dlg.SetTitle(f"{t('download.dialog_title')} - "
+                             f"{int(pct)}%")
+            except Exception:
+                logger.debug("split tick dialog update failed", exc_info=True)
         self.SetStatusText(line)
 
     def _video_part_tick(self, part: int, total: int):
-        """Full-video mode: announce part counter for chunked videos."""
+        """v1.4.1: part counter + OVERALL percentage for chunked videos.
+
+        part_progress callback (ai_engine) already computed the overall
+        percent; the dialog bar MOVES here instead of pulsing, and the
+        same line is written to the status log for E2E verification.
+        """
+        pct = 10.0 + 90.0 * part / max(1, total)
         dlg = self._dl_dialog
-        line = t("video.part_of", part=part, total=total)
+        line = t("video.part_progress", part=part, total=total, pct=int(pct))
         if dlg is not None:
-            dlg.Pulse(line)
+            try:
+                # 99 cap: Update(100) auto-hides the dialog while the
+                # "Saving project" phase is still running; the dialog
+                # is closed properly by _close_download_progress.
+                dlg.Update(min(99, max(1, int(pct))), line)
+                # Live percentage in the title (screen readers + Win32).
+                dlg.SetTitle(f"{t('download.dialog_title')} - "
+                             f"{int(pct)}%")
+            except Exception:
+                logger.debug("part tick dialog update failed", exc_info=True)
         self.SetStatusText(line)
+        self._log(line)
 
     def _write_project_srt(self) -> None:
         """v1.3.0: write descriptions.srt into the project media folder

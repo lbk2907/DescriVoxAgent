@@ -75,12 +75,14 @@ def main() -> int:
 
     statuses: list[str] = []
     parts: list[tuple[int, int]] = []
+    splits: list[float] = []
 
     async def run() -> list[tuple[float, str]]:
         return await eng.describe_video_full(
             video, "p",
             on_status=statuses.append,
             on_part=lambda i, n: parts.append((i, n)),
+            on_split_progress=splits.append,
             chunk_seconds=3,
         )
 
@@ -109,8 +111,22 @@ def main() -> int:
     raw = base64.b64decode(b64)
     # MP4 boxes: 4-byte size then 'ftyp' (brand may be isom/mp42/...).
     assert raw[4:8] == b"ftyp", ("uploaded part is not an mp4", raw[:16])
+    # v1.4.1: REAL split progress. ffmpeg out_time ticks fire during the
+    # split (0..100 over the whole clip), then each described part adds
+    # a tick at 10 + 90*done/total; the FINAL tick must be exactly 100.
+    assert splits, "no on_split_progress ticks at all"
+    assert splits[-1] == 100.0, splits[-5:]
+    assert all(a <= b for a, b in zip(splits, splits[1:])), (
+        "non-monotonic split progress", splits)
+    # Part-completion ticks must be present: 3 parts → 40, 70, 100
+    # (the split phase itself already reaches ~10%).
+    for expected in (40.0, 70.0, 100.0):
+        assert expected in splits, (expected, splits)
+    # At least one REAL ffmpeg out_time tick below 10% must exist.
+    assert splits[0] < 10.0, splits
     print("PASS: chunked full-video loopback (parts, offsets, mp4 body)")
     print(f"  parts={parts} times={times}")
+    print(f"  split ticks n={len(splits)} last={splits[-1]} part ticks OK")
     srv.shutdown()
     return 0
 

@@ -362,6 +362,9 @@ class GeminiProvider(AIProvider):
         is_cancelled: Callable[[], bool] | None = None,
         chunk_seconds: int = 480,
         on_part: Callable[[int, int], None] | None = None,
+        # Accepted for interface parity with chunked providers; these
+        # providers never split, so the callback stays unused here.
+        on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video with Gemini's native video understanding.
 
@@ -650,6 +653,9 @@ class MiniMaxProvider(AIProvider):
         is_cancelled: Callable[[], bool] | None = None,
         chunk_seconds: int = 480,
         on_part: Callable[[int, int], None] | None = None,
+        # Accepted for interface parity with chunked providers; these
+        # providers never split, so the callback stays unused here.
+        on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video via the MiniMax Files API.
 
@@ -851,6 +857,7 @@ class GLMProvider(AIProvider):
         is_cancelled: Callable[[], bool] | None = None,
         chunk_seconds: int = 480,
         on_part: Callable[[int, int], None] | None = None,
+        on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Upload a video file as base64 via OpenRouter video_url.
 
@@ -879,7 +886,8 @@ class GLMProvider(AIProvider):
                     on_status("splitting")
                 starts, parts = self.split_video_for_upload(
                     path, chunk_seconds,
-                    is_cancelled=is_cancelled, on_status=on_status)
+                    is_cancelled=is_cancelled, on_status=on_status,
+                    on_split_progress=on_split_progress)
             else:
                 starts = [0.0]
                 if path.stat().st_size > self.MAX_VIDEO_BYTES:
@@ -893,14 +901,36 @@ class GLMProvider(AIProvider):
                     parts = [path]
             total = len(parts)
             merged: list[tuple[float, str]] = []
+            done_parts = 0
             for i, (part, offset) in enumerate(zip(parts, starts)):
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
                 if on_part:
                     on_part(i + 1, total)
-                merged.extend(await self._describe_one_part(
+                pairs = await self._describe_one_part(
                     part, prompt, model, on_status=on_status,
-                    is_cancelled=is_cancelled, offset=offset))
+                    is_cancelled=is_cancelled, offset=offset)
+                if not pairs:
+                    # v1.5.0: a part that parses to zero cues means the
+                    # rest of the video is silently dropped. Retry once
+                    # before giving up on this part.
+                    logger.warning(
+                        "part %d/%d returned no cues; retrying once",
+                        i + 1, total)
+                    pairs = await self._describe_one_part(
+                        part, prompt, model, on_status=on_status,
+                        is_cancelled=is_cancelled, offset=offset)
+                merged.extend(pairs)
+                done_parts += 1
+                if on_split_progress:
+                    try:
+                        # Overall percentage across ALL parts: splitting
+                        # counts as the first 10%, each described part
+                        # shares the remaining 90% equally.
+                        on_split_progress(
+                            10.0 + 90.0 * done_parts / max(1, total))
+                    except Exception:
+                        logger.debug("on_split_progress raised", exc_info=True)
             return merged
         finally:
             for p in parts:
@@ -1050,6 +1080,7 @@ class GLMProvider(AIProvider):
         self, path: Path, chunk_seconds: int,
         is_cancelled: Callable[[], bool] | None = None,
         on_status: Callable[[str], None] | None = None,
+        on_split_progress: Callable[[float], None] | None = None,
     ) -> tuple[list[float], list[Path]]:
         """Split a video into consecutive parts of about chunk_seconds.
 
@@ -1072,7 +1103,7 @@ class GLMProvider(AIProvider):
         pattern = out_dir / "part_%04d.mp4"
         cmd = [
             self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
-            "error", "-i", str(path),
+            "error", "-progress", "pipe:1", "-i", str(path),
             "-vf", "scale=-2:360",
             "-c:v", "libx264", "-preset", "veryfast",
             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
@@ -1087,9 +1118,44 @@ class GLMProvider(AIProvider):
             "-reset_timestamps", "1",
             str(pattern),
         ]
-        proc = _sp.run(cmd, capture_output=True, timeout=3600)
+        import subprocess as _sp
+        import threading as _threading
+        proc = _sp.Popen(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE)
+        stderr_tail: list[bytes] = []
+
+        def _drain_err() -> None:
+            try:
+                for line in iter(proc.stderr.readline, b""):
+                    stderr_tail.append(line)
+                    if len(stderr_tail) > 16:
+                        stderr_tail.pop(0)
+            except Exception:
+                pass
+
+        _threading.Thread(target=_drain_err, daemon=True).start()
+        # Parse ffmpeg key=value progress lines (out_time_us) for a
+        # REAL split percentage. Splitting counts as the FIRST 10%
+        # of the overall progress (each described part then shares
+        # the remaining 90%), so scale 0..100 → 0..10 to keep the
+        # whole stream monotonic.
+        for line in proc.stdout:
+            if is_cancelled and is_cancelled():
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                raise RuntimeError("cancelled")
+            if (on_split_progress and line.startswith(b"out_time_us=")
+                    and duration > 0):
+                try:
+                    us = int(line.split(b"=", 1)[1].strip())
+                    on_split_progress(min(
+                        10.0, max(0.0, us / 1e6 / duration * 10.0)))
+                except ValueError:
+                    pass
+        proc.wait(timeout=3600)
         if proc.returncode != 0:
-            tail = proc.stderr.decode("utf-8", "replace")[-300:]
+            tail = b"".join(stderr_tail).decode("utf-8", "replace")[-300:]
             raise RuntimeError(f"video split failed: {tail}")
         parts = sorted(out_dir.glob("part_*.mp4"))
         if not parts:
@@ -1749,6 +1815,7 @@ class AIEngine:
         is_cancelled: Callable[[], bool] | None = None,
         chunk_seconds: int = 480,
         on_part: Callable[[int, int], None] | None = None,
+        on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -1769,6 +1836,7 @@ class AIEngine:
             is_cancelled=is_cancelled,
             chunk_seconds=chunk_seconds,
             on_part=on_part,
+            on_split_progress=on_split_progress,
         )
 
     async def describe_video_frames_batch(

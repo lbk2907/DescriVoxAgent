@@ -30,7 +30,11 @@ interpreter. The log file is written to
 2. Choose a prompt preset (or type your own) and press **Open**.
 3. A progress dialog covers the whole pipeline: download (with real
    percentage, MB, speed and ETA), merge, frame extraction, AI analysis
-   (live "AI analysis: done/total frames" counter), and saving.
+   (live "AI analysis: done/total frames" counter), and saving. In
+   full-video mode the dialog also shows real percentages for the
+   split/describe phases — the live percentage appears in the dialog
+   title too ("Downloading video - 55%"), so screen readers announce
+   every change.
 4. Press **Cancel** in the dialog at any time. During AI analysis the
    worker stops between frames and keeps whatever is already done.
 5. When processing finishes, the described-video player opens
@@ -81,6 +85,12 @@ interpreter. The log file is written to
   - **Language**: `en` or `ms`.
   - **Frame Rate (FPS)**: how many frames per second of video are
     extracted for analysis (1, 2, 5 or 10).
+  - **Chunk length (seconds)**: in full-video mode, videos longer than
+    this are split into consecutive parts (default 480 = 8 minutes).
+    Each part is described in its own AI request and the timestamps
+    are stitched back onto the whole-video timeline, so long videos
+    upload reliably. A live "Splitting and describing video: N%" plus
+    "Processing part X of Y, overall N%" keeps you informed.
   - **Max frames per video (0 = no limit)**: optional cost limit for
     long videos. Default `0` keeps existing behaviour (every extracted
     frame is analysed). If you set, for example, `100`, only the first

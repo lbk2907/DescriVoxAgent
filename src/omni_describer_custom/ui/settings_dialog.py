@@ -294,6 +294,11 @@ class SettingsDialog(wx.Dialog):
         self.frame_cap_spin = wx.SpinCtrl(panel, min=0, max=100000, initial=0, name="frame_cap")
         sizer.Add(self.frame_cap_spin, 0, wx.ALL | wx.EXPAND, 5)
 
+        # v1.4.1: chunk length for full-video mode (seconds per part).
+        sizer.Add(wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"), 0, wx.ALL, 5)
+        self.chunk_spin = wx.SpinCtrl(panel, min=5, max=3600, initial=480, name="chunk_seconds")
+        sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
+
         # Output directory
         sizer.Add(wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"), 0, wx.ALL, 5)
         out_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -663,6 +668,9 @@ class SettingsDialog(wx.Dialog):
 
         self.settings.set("general.frame_cap", int(self.frame_cap_spin.GetValue()))
 
+        self.settings.set("general.chunk_seconds",
+                          int(self.chunk_spin.GetValue()))
+
         output_dir = self.output_text.GetValue().strip()
         if output_dir:
             self.settings.set("general.output_dir", output_dir)
@@ -720,6 +728,9 @@ class SettingsDialog(wx.Dialog):
             self.fps_choice.SetStringSelection(fps)
 
         self.frame_cap_spin.SetValue(int(self.settings.get("general.frame_cap", 0) or 0))
+
+        self.chunk_spin.SetValue(
+            int(self.settings.get("general.chunk_seconds", 480) or 480))
 
         output_dir = self.settings.get("general.output_dir", "")
         if output_dir:

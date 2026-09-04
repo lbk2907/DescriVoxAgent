@@ -72,6 +72,9 @@ class SettingsStore:
             # Optional cap on analysed frames per video (0 = no limit).
             # Default keeps existing behaviour unchanged.
             "frame_cap": 0,
+            # Seconds per part when a long video is split for the AI
+            # (full-video mode). 480 = 8 minutes (previously hardcoded).
+            "chunk_seconds": 480,
             "output_dir": str(Path.home() / "Documents" / "OmniDescriber" / "output"),
             "chunk_long_videos": True,
             "auto_save": True,
