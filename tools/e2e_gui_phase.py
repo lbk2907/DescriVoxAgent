@@ -23,9 +23,11 @@ import ctypes
 from ctypes import wintypes
 import io
 import json
+import re
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -40,6 +42,20 @@ SETTINGS_JSON = (Path.home() / "AppData" / "Roaming" / "OmniDescriber" /
                  "settings.json")
 PROJECTS_DIR = Path.home() / "Documents" / "OmniDescriber" / "projects"
 SRT_OUT = Path.home() / "Documents" / "OmniDescriber" / "e2e_gui_test.srt"
+# v1.4.1: force a 10 s chunk so the 19 s zoo video splits into 2 parts
+# -> the CHUNKED path (split + part-by-part describe) is exercised.
+CHUNK_SECONDS = 10
+# Live evidence captured while processing runs.
+# - TITLE_PCTS: dialog-title percentages from the v1.5.0 SetTitle in
+#   every tick ('Downloading video - N%'); titles ARE Win32-readable.
+# - GREEN_PCTS: pixel scan of the dialog bar (PrintWindow + green-fill
+#   span vs track span). The wx ProgressDialog bar is DirectUI-drawn:
+#   NO msctls_progress32 child (probed) and PBM_GETPOS returns 0, so
+#   rendered pixels are the ground truth.
+TITLE_PCTS: list[int] = []
+GREEN_PCTS: list[int] = []
+# Optional ffmpeg -progress lines written by the temporary shim.
+FFMPEG_LOG = REPO / "_e2e_ffmpeg_log.txt"
 
 user32 = ctypes.windll.user32
 
@@ -75,6 +91,99 @@ def _window_class(hwnd) -> str:
     buf = ctypes.create_unicode_buffer(256)
     user32.GetClassNameW(hwnd, buf, 256)
     return buf.value
+
+
+# ---------------------------------------------------------------- pixels
+
+def _grab_window(hwnd):
+    """Capture a window's own rendering via PrintWindow
+    (PW_RENDERFULLCONTENT — includes DirectUI surfaces)."""
+    import ctypes.wintypes as wt
+    from PIL import Image
+
+    class BIH(ctypes.Structure):
+        _fields_ = [("biSize", wt.DWORD), ("biWidth", wt.LONG),
+                    ("biHeight", wt.LONG), ("biPlanes", wt.WORD),
+                    ("biBitCount", wt.WORD), ("biCompression", wt.DWORD),
+                    ("biSizeImage", wt.DWORD),
+                    ("biXPelsPerMeter", wt.LONG),
+                    ("biYPelsPerMeter", wt.LONG),
+                    ("biClrUsed", wt.DWORD),
+                    ("biClrImportant", wt.DWORD)]
+
+    class BI(ctypes.Structure):
+        _fields_ = [("bmiHeader", BIH), ("bmiColors", wt.DWORD * 3)]
+
+    gdi32 = ctypes.windll.gdi32
+    rect = wt.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    w, h = rect.right - rect.left, rect.bottom - rect.top
+    if w <= 0 or h <= 0:
+        return None
+    hdc = user32.GetWindowDC(hwnd)
+    if not hdc:
+        return None
+    try:
+        gdi32.CreateDIBSection.restype = wt.HBITMAP
+        gdi32.CreateDIBSection.argtypes = [
+            wt.HDC, ctypes.c_void_p, wt.UINT,
+            ctypes.POINTER(ctypes.c_void_p), wt.HANDLE, wt.DWORD]
+        gdi32.CreateCompatibleDC.restype = wt.HDC
+        gdi32.CreateCompatibleDC.argtypes = [wt.HDC]
+        gdi32.SelectObject.restype = wt.HGDIOBJ
+        gdi32.SelectObject.argtypes = [wt.HDC, wt.HGDIOBJ]
+        gdi32.DeleteDC.argtypes = [wt.HDC]
+        user32.PrintWindow.argtypes = [wt.HWND, wt.HDC, wt.UINT]
+        user32.PrintWindow.restype = wt.BOOL
+        bi = BI()
+        bi.bmiHeader.biSize = ctypes.sizeof(BIH)
+        bi.bmiHeader.biWidth = w
+        bi.bmiHeader.biHeight = -h
+        bi.bmiHeader.biPlanes = 1
+        bi.bmiHeader.biBitCount = 32
+        bits = ctypes.c_void_p()
+        dib = gdi32.CreateDIBSection(hdc, ctypes.byref(bi), 0,
+                                     ctypes.byref(bits), None, 0)
+        if not dib or not bits:
+            return None
+        mem = gdi32.CreateCompatibleDC(hdc)
+        old = gdi32.SelectObject(mem, dib)
+        ok = user32.PrintWindow(hwnd, mem, 2)  # PW_RENDERFULLCONTENT
+        gdi32.SelectObject(mem, old)
+        gdi32.DeleteDC(mem)
+        if not ok:
+            return None
+        data = ctypes.string_at(bits, w * h * 4)
+        im = Image.frombuffer("RGB", (w, h), data, "raw", "BGRX", 0, 1)
+        return im.convert("RGB")
+    finally:
+        user32.ReleaseDC(hwnd, hdc)
+
+
+def _bar_green_pct(im):
+    """Bar fill percent from pixels: green band span / track span on a
+    wx ProgressDialog (green fill on a grey track)."""
+    w, h = im.size
+    px = im.load()
+    green = []
+    track = []
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            r, g, b = px[x, y]
+            if g > 120 and r < 110 and b < 110:
+                green.append(x)
+                track.append(x)
+            elif 180 <= r <= 240 and abs(r - g) < 6 and abs(g - b) < 6:
+                track.append(x)
+    if not track:
+        return None
+    span = max(track) - min(track)
+    if span <= 0:
+        return None
+    if not green:
+        return 0
+    return int(round(100.0 * (max(green) - min(green)) / span))
 
 
 def find_msgbox_win32(title: str, exclude_hwnd: int = 0,
@@ -258,10 +367,17 @@ def step_launch():
     global APP_PID
     log("== LAUNCH ==")
     kill_stale()
+    # Seed chunk length BEFORE launch (v1.4.1: user-configurable). The
+    # 19 s video then splits into 2 parts -> chunked path exercised.
+    data = json.loads(SETTINGS_JSON.read_text(encoding="utf-8"))
+    data.setdefault("general", {})["chunk_seconds"] = CHUNK_SECONDS
+    SETTINGS_JSON.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    log(f"seeded general.chunk_seconds={CHUNK_SECONDS}")
+    app_log = open(REPO / "_e2e_app_log.txt", "w", encoding="utf-8")
     proc = subprocess.Popen(
         [PY, "main.py"], cwd=str(REPO),
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=app_log, stderr=app_log)
     APP_PID = proc.pid
     log(f"launched pid={APP_PID}")
     win = find_main_uia()
@@ -325,6 +441,27 @@ def step_settings(top) -> None:
             log("video_mode checked")
     else:
         log("WARN: full-video checkbox not found")
+    # General tab: the chunk-length spinner must have LOADED the seeded
+    # value (proves _load_values path). Best-effort: UIA matching for
+    # wx spinners is fragile; the persisted-value check in
+    # step_coverage is the real gate.
+    try:
+        dlg.child_window(title="General", control_type="TabItem").select()
+        time.sleep(1.0)
+        found = False
+        for s in dlg.descendants(control_type="Spinner"):
+            try:
+                val = value_of(s)
+            except Exception:
+                val = ""
+            if val == str(CHUNK_SECONDS):
+                found = True
+                log(f"chunk spinner shows seeded {CHUNK_SECONDS}s")
+                break
+        if not found:
+            log("WARN: chunk spinner value not confirmed via UIA")
+    except Exception as e:
+        log(f"WARN: general tab spin check skipped: {e}")
     button_by_label(dlg, "Apply").click_input()
     log("apply clicked; waiting for confirmation box (TTS init may block UI)")
     # wx.MessageBox('Settings saved.', 'Settings') -> own top-level
@@ -365,6 +502,40 @@ def step_process() -> None:
     log("== PROCESS (Open) ==")
     top = find_main_uia()
     top.set_focus()
+    # Background poller: while the 'Downloading video' progress dialog
+    # is up, read the v1.5.0 live percentage from its TITLE (Win32-
+    # readable) and pixel-scan the bar fill (ground truth for the
+    # DirectUI-drawn bar that has no Win32 position).
+    stop_flag = threading.Event()
+
+    def capture_progress() -> None:
+        while not stop_flag.is_set():
+            try:
+                for hwnd in enum_top_windows():
+                    if not (user32.IsWindowVisible(hwnd)
+                            and _pid_of(hwnd) == APP_PID):
+                        continue
+                    title = _window_title(hwnd)
+                    if "Downloading video" in title:
+                        m = re.search(r"-\s*(\d+)%\s*$", title)
+                        if m:
+                            pct = int(m.group(1))
+                            if not TITLE_PCTS or TITLE_PCTS[-1] != pct:
+                                TITLE_PCTS.append(pct)
+                                log(f"  dialog title: {title!r}")
+                        im = _grab_window(hwnd)
+                        if im is not None:
+                            gp = _bar_green_pct(im)
+                            if gp is not None and (not GREEN_PCTS
+                                                   or GREEN_PCTS[-1] != gp):
+                                GREEN_PCTS.append(gp)
+                                log(f"  dialog bar (pixels): {gp}%")
+            except Exception as e:
+                log(f"  poller warn: {e!r}")
+            time.sleep(0.4)
+
+    th = threading.Thread(target=capture_progress, daemon=True)
+    th.start()
     button_by_label(top, "Open").click_input()
     # 1) Download progress dialog ('Downloading video', class Dialog).
     pd_seen = False
@@ -406,6 +577,7 @@ def step_process() -> None:
             press_button(fail, "OK")
             time.sleep(2.0)
             if attempts > 2:
+                stop_flag.set()
                 raise RuntimeError("processing kept failing")
             top = find_main_uia()
             top.set_focus()
@@ -420,6 +592,9 @@ def step_process() -> None:
                 time.sleep(1.0)
             continue
         time.sleep(2.0)
+    stop_flag.set()
+    th.join(timeout=3.0)
+    log(f"captured title pcts={TITLE_PCTS} bar pcts={GREEN_PCTS}")
     # Player may auto-open (informational).
     try:
         pw = find_window_win32("Described Video Player", timeout=5.0)
@@ -453,6 +628,56 @@ def step_verify() -> None:
     # the yt-dlp temp dir); treat non-empty path as valid.
     assert vp, "video_path empty"
     log("VERIFY_OK")
+
+
+def step_coverage() -> None:
+    """v1.4.1: verify the CHUNKED path end-to-end.
+
+    1. general.chunk_seconds==10 persisted from the pre-launch seed.
+    2. The progress dialog showed REAL percentages while running
+       ('part N of M, overall X%' and/or 'Splitting ... %').
+    3. The DB covers the whole 19 s clip with cues from BOTH parts
+       (timestamps below and above the 10 s chunk boundary).
+    """
+    log("== CHUNK COVERAGE (v1.4.1) ==")
+    data = json.loads(SETTINGS_JSON.read_text(encoding="utf-8"))
+    got = data.get("general", {}).get("chunk_seconds")
+    assert got == CHUNK_SECONDS, f"chunk_seconds not persisted: {got!r}"
+    log(f"chunk_seconds persisted: {got}")
+
+    for p in TITLE_PCTS:
+        log(f"  title: {p}%")
+    for p in GREEN_PCTS:
+        log(f"  bar (pixels): {p}%")
+    # With 2 parts: overall ticks are 55 (after part 1) and 100 (after
+    # part 2; the dialog bar caps at 99). The 55 state persists during
+    # the whole part-2 describe, so the poller must see it; the final
+    # tick may flash by before the dialog closes, so require >= 55.
+    assert TITLE_PCTS, "dialog title percentage never observed"
+    assert max(TITLE_PCTS) >= 55, (
+        f"dialog title never reached the 55% part-1 tick: {TITLE_PCTS}")
+    assert GREEN_PCTS and max(GREEN_PCTS) >= 45, (
+        f"dialog bar fill never reached ~55%: {GREEN_PCTS}")
+    log("progress percentages captured OK (title + bar pixels)")
+
+    dbs = sorted(PROJECTS_DIR.glob("*.db"), key=lambda p: p.stat().st_mtime)
+    assert dbs, "no project db"
+    conn = sqlite3.connect(str(dbs[-1]))
+    starts = [r[0] for r in conn.execute(
+        "SELECT start_time FROM descriptions ORDER BY start_time")]
+    maxend = conn.execute(
+        "SELECT MAX(end_time) FROM descriptions").fetchone()[0]
+    conn.close()
+    assert starts, "no descriptions"
+    first, last = starts[0], starts[-1]
+    log(f"cue starts: first={first} last={last} max_end={maxend} n={len(starts)}")
+    # Coverage of the FULL clip (both parts): first cue near 0, some cue
+    # beyond the 10 s chunk boundary, and the clip is ~19 s.
+    assert first <= 5.0, f"first cue not at clip start: {first}"
+    assert any(s >= CHUNK_SECONDS for s in starts), (
+        f"no cue from part 2 (>= {CHUNK_SECONDS}s): starts={starts}")
+    assert last >= 15.0, f"last cue too early for 19s clip: {last}"
+    log("COVERAGE_OK")
 
 
 def invoke_menu_item(label: str) -> None:
@@ -529,6 +754,7 @@ def main() -> int:
     step_youtube()
     step_process()
     step_verify()
+    step_coverage()
     step_export()
     step_exit()
     log("E2E_GUI_PASS")
