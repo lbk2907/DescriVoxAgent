@@ -50,6 +50,8 @@ class PlayerWindow(wx.Frame):
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
         self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
+        self._audio_proc = None  # v1.4.0: ffplay process for real audio in simulated mode
+        self._audio_backend = "none"  # "vlc" | "ffplay" | "none"
         self._init_vlc()
 
         super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
@@ -74,9 +76,84 @@ class PlayerWindow(wx.Frame):
             self._vlc_instance = vlc.Instance("--no-video-title-show")
             self._vlc = self._vlc_instance.media_player_new()
             self._vlc_available = True
+            self._audio_backend = "vlc"
         except Exception as e:
             logger.info("VLC unavailable, using simulated playback: %s", e)
             self._vlc_available = False
+
+    # ── v1.4.0: real audio in simulated mode (no libvlc installed) ──
+
+    def _audio_path(self) -> str:
+        """Local media file for the current project, if any."""
+        if not self.project or not self.project.video_path:
+            return ""
+        p = self.project.video_path
+        return p if __import__("os").path.exists(p) else ""
+
+    def _ffplay_available(self) -> bool:
+        """True if ffplay (bundled with ffmpeg) can be found."""
+        import shutil
+        return bool(shutil.which("ffplay"))
+
+    def _start_ffplay(self, seek_seconds: float) -> bool:
+        """Start ffplay on the project's local media file (audio with video
+        window disabled, ffmpeg's own controls hidden). Returns success."""
+        self._stop_ffplay()
+        media = self._audio_path()
+        if not media or not self._ffplay_available():
+            return False
+        try:
+            import subprocess
+            cmd = [
+                "ffplay", "-vn", "-nodisp", "-loglevel", "quiet",
+                "-window_title", "omni_audio",
+                "-autoexit", "-nostats", "-hide_banner",
+            ]
+            if seek_seconds > 0.5:
+                cmd += ["-ss", f"{seek_seconds:.3f}"]
+            cmd.append(media)
+            self._audio_proc = subprocess.Popen(
+                cmd,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self._audio_backend = "ffplay"
+            return True
+        except Exception as e:
+            logger.warning("ffplay start failed: %s", e)
+            self._audio_proc = None
+            return False
+
+    def _stop_ffplay(self) -> None:
+        """Terminate the ffplay audio process, if running.
+
+        Pause in ffplay mode simply kills the process (instant, verifiable
+        silence); resume restarts it at the simulated clock position."""
+        if self._audio_proc is not None:
+            try:
+                self._audio_proc.terminate()
+            except Exception:
+                pass
+            self._audio_proc = None
+        if self._audio_backend == "ffplay":
+            self._audio_backend = "none"
+
+    def _stop_ffplay(self) -> None:
+        """Terminate the ffplay audio process, if running."""
+        if self._audio_proc is not None:
+            try:
+                self._audio_proc.terminate()
+            except Exception:
+                pass
+            self._audio_proc = None
+        if self._audio_backend == "ffplay":
+            self._audio_backend = "none"
+
+    def _audio_available(self) -> bool:
+        """Real audio (VLC or ffplay) available for the current project?"""
+        if self._vlc_available:
+            return True
+        return bool(self._audio_path()) and self._ffplay_available()
 
     def _attach_vlc_video(self):
         """Attach VLC output to the video panel and load media if present."""
@@ -183,7 +260,6 @@ class PlayerWindow(wx.Frame):
         controls = wx.BoxSizer(wx.HORIZONTAL)
 
         self.play_btn = wx.Button(panel, label=t("player.play"), name="play")
-        self.pause_btn = wx.Button(panel, label=t("player.pause"), name="pause")
         self.stop_btn = wx.Button(panel, label=t("player.stop"), name="stop_player")
 
         self.rewind_btn = wx.Button(panel, label="<< 10s", name="rewind")
@@ -193,7 +269,6 @@ class PlayerWindow(wx.Frame):
                                       name="load_srt")
 
         controls.Add(self.play_btn, 0, wx.ALL, 5)
-        controls.Add(self.pause_btn, 0, wx.ALL, 5)
         controls.Add(self.stop_btn, 0, wx.ALL, 5)
         controls.AddStretchSpacer()
         controls.Add(self.load_srt_btn, 0, wx.ALL, 5)
@@ -255,8 +330,7 @@ class PlayerWindow(wx.Frame):
         sizer.Add(self.status_text, 0, wx.ALL, 5)
 
         # ── Bindings ───────────────────────────────────────────
-        self.play_btn.Bind(wx.EVT_BUTTON, self._on_play)
-        self.pause_btn.Bind(wx.EVT_BUTTON, self._on_pause)
+        self.play_btn.Bind(wx.EVT_BUTTON, self._on_play_toggle)
         self.stop_btn.Bind(wx.EVT_BUTTON, self._on_stop)
         self.rewind_btn.Bind(wx.EVT_BUTTON, self._on_rewind)
         self.forward_btn.Bind(wx.EVT_BUTTON, self._on_forward)
@@ -339,6 +413,7 @@ class PlayerWindow(wx.Frame):
                 # VLC stopped without user pause — end of media
                 self._playing = False
                 self.status_text.SetLabel("Ended")
+                self._set_play_label(False)
         elif self._playing:
             self._position += 0.5  # 500ms tick (simulated playback)
         dur = self.project.video_duration if self.project else 0.0
@@ -347,6 +422,8 @@ class PlayerWindow(wx.Frame):
             if self._playing:
                 self._playing = False
                 self.status_text.SetLabel("Ended")
+                self._stop_ffplay()
+                self._set_play_label(False)
         self._update_desc_display()
         self._update_sub_overlay()
         self.position_slider.SetValue(int(self._position * 10))
@@ -405,27 +482,50 @@ class PlayerWindow(wx.Frame):
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
 
-    def _on_play(self, event):
+    def _on_play_toggle(self, event):
+        """v1.4.0: single Play/Pause toggle button."""
+        if self._playing:
+            self._do_pause()
+        else:
+            self._do_play()
+
+    def _set_play_label(self, playing: bool) -> None:
+        """Toggle button shows the action that WILL happen next."""
+        self.play_btn.SetLabel(t("player.pause") if playing else t("player.play"))
+
+    def _do_play(self):
         self._paused_by_user = False
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.play()
             self._playing = True
             self.status_text.SetLabel("Playing (VLC)...")
+            self._set_play_label(True)
             return
+        if not self._playing:
+            # v1.4.0: real audio via ffplay when VLC is unavailable but a
+            # local media file exists (works without libvlc installed).
+            if self._start_ffplay(self._position):
+                self.status_text.SetLabel("Playing (audio)...")
+            else:
+                self.status_text.SetLabel("Playing (simulated)...")
         self._playing = True
-        self.status_text.SetLabel("Playing (simulated)...")
+        self._set_play_label(True)
         self._timer.Start(500)
 
-    def _on_pause(self, event):
+    def _do_pause(self):
         self._paused_by_user = True
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.pause()
             self._playing = self._vlc.is_playing()
             self.status_text.SetLabel("Paused" if not self._playing else "Playing (VLC)...")
+            self._set_play_label(self._playing)
             return
+        if self._audio_backend == "ffplay":
+            self._stop_ffplay()  # instant, verifiable silence on pause
         self._playing = False
         self.status_text.SetLabel("Paused")
         self._timer.Stop()
+        self._set_play_label(False)
 
     def _on_stop(self, event):
         self._paused_by_user = True
@@ -433,28 +533,36 @@ class PlayerWindow(wx.Frame):
         self._narrated.clear()
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.stop()
+        self._stop_ffplay()
         self._position = 0.0
         self.position_slider.SetValue(0)
         self._update_desc_display()
         self._update_sub_overlay()
         self.status_text.SetLabel("Stopped")
+        self._set_play_label(False)
 
     def _on_rewind(self, event):
         self._position = max(0, self._position - 10)
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(self._position * 1000))
+        elif self._audio_backend == "ffplay":
+            self._start_ffplay(self._position)  # restart ffplay at new pos
         self._update_desc_display()
 
     def _on_forward(self, event):
         self._position += 10
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(self._position * 1000))
+        elif self._audio_backend == "ffplay":
+            self._start_ffplay(self._position)  # restart ffplay at new pos
         self._update_desc_display()
 
     def _on_seek(self, event):
         self._position = self.position_slider.GetValue() / 10.0
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(self._position * 1000))
+        elif self._audio_backend == "ffplay":
+            self._start_ffplay(self._position)
         self._update_desc_display()
 
     def _on_edit(self, event):
@@ -501,6 +609,7 @@ class PlayerWindow(wx.Frame):
     def _on_close(self, event):
         self._playing = False
         self.tts.stop()
+        self._stop_ffplay()
         if self._vlc_available and self._vlc is not None:
             try:
                 self._vlc.stop()

@@ -147,7 +147,7 @@ def test_gui_play_narrates():
         result = {}
 
         def do_play():
-            player._on_play(None)  # simulate pressing Play (VLC unavailable -> simulated)
+            player._do_play()  # simulate pressing Play (VLC unavailable -> simulated)
 
         def do_inspect():
             result["position"] = player._position

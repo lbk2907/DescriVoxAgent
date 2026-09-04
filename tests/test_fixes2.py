@@ -77,12 +77,13 @@ def test_player_vlc_fallback():
             # VLC not installed on this machine -> must fall back
             assert pw._vlc_available is False, "VLC unexpectedly available?"
             # Simulated playback works
-            pw._on_play(None)
+            pw._do_play()
             assert pw._playing is True
             pw._on_timer(None)
             assert pw._position > 0
-            pw._on_pause(None)
+            pw._do_pause()
             assert pw._playing is False
+            assert pw.play_btn.GetLabel() == "Play", pw.play_btn.GetLabel()
             pw._on_forward(None)
             assert pw._position >= 10.5, pw._position
             pw._on_rewind(None)
