@@ -36,8 +36,40 @@ FULL_VIDEO_TS_PROMPT_SUFFIX = (
     "[00:00] A man in a red jacket walks into a bright kitchen.\n"
     "[00:15] He pours coffee while talking on the phone.\n"
     "Describe important visuals AND sounds/speech for a blind viewer. "
+    "Write every description in the SAME LANGUAGE as the user prompt "
+    "above; never mix languages. "
     "Do not output any other text."
 )
+
+
+# v1.5.2: explicit output-language directives. Without one, models pick
+# the language from the video CONTENT (speech/on-screen text), which
+# made descriptions randomly switch between Malay and English.
+_LANGUAGE_DIRECTIVES = {
+    "ms": ("\n\nIMPORTANT: Write EVERY description in Bahasa Malaysia "
+           "(Malay). Never mix English words into the descriptions."),
+    "en": ("\n\nIMPORTANT: Write EVERY description in English. "
+           "Do not use any other language."),
+}
+
+
+def language_directive(lang: str) -> str:
+    """Return the output-language directive for a language code.
+
+    'ms' -> Malay, 'en' -> English, anything else -> no directive
+    (model decides, previous behaviour).
+    """
+    return _LANGUAGE_DIRECTIVES.get((lang or "").strip().lower(), "")
+
+
+def apply_output_language(prompt: str, lang: str) -> str:
+    """Append the output-language directive to a user prompt (once)."""
+    directive = language_directive(lang)
+    if not directive or not prompt:
+        return prompt
+    if directive.strip() in prompt:
+        return prompt  # already applied
+    return prompt + directive
 
 # Parses one timestamped line, e.g.:
 #   "[00:05] text" / "- 12:34 - text" / "01:02:03.500 text" / "(0:59) text"
@@ -1724,6 +1756,8 @@ class AIEngine:
     def __init__(self):
         self._providers: dict[str, AIProvider] = {}
         self._default_provider: str = ""
+        # v1.5.2: default output language for descriptions ('' = model decides).
+        self.output_lang: str = ""
 
     def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "", api_format: str = "") -> None:
         """Configure a provider with credentials."""
@@ -1783,17 +1817,20 @@ class AIEngine:
         self,
         image_path: str,
         prompt: str,
+        output_lang: str = "",
         provider: str = "",
         model: str = "",
     ) -> str:
         """Describe a single image/frame. Auto-fallback on failure."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await prov.describe_image(image_path, prompt, model)
 
     async def describe_frames(
         self,
         frames: list[str],
         prompt: str,
+        output_lang: str = "",
         provider: str = "",
         model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
@@ -1801,6 +1838,7 @@ class AIEngine:
     ) -> list[str]:
         """Describe multiple frames. Returns list of descriptions."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await prov.describe_frames_batch(
             frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled)
 
@@ -1808,6 +1846,7 @@ class AIEngine:
         self,
         video_path: str,
         prompt: str,
+        output_lang: str = "",
         provider: str = "",
         model: str = "",
         on_status: Callable[[str], None] | None = None,
@@ -1829,6 +1868,7 @@ class AIEngine:
             raise ValueError(
                 f"Provider '{prov.name}' does not support full-video mode. "
                 "Use Gemini, or switch back to frame mode.")
+        prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await fn(
             video_path, prompt, model,
             on_status=on_status,
@@ -1843,6 +1883,7 @@ class AIEngine:
         self,
         frames: list[str],
         prompt: str,
+        output_lang: str = "",
         provider: str = "",
         model: str = "",
         expected_times: list[float] | None = None,
@@ -1859,6 +1900,7 @@ class AIEngine:
             raise ValueError(
                 f"Provider '{prov.name}' does not support the one-shot "
                 "batch mode. Use GLM, or switch back to frame mode.")
+        prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await fn(
             frames, prompt, model,
             on_status=on_status,

@@ -10,6 +10,22 @@ built-in player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`.
 
+## What's new in v1.5.2
+
+- **Consistent description language**: AI descriptions now follow one
+  language instead of randomly mixing Malay and English (the model used
+  to pick the language from the video's own content). Choose the
+  description language in Settings > General ("Description language"),
+  default follows the app language.
+- **Malay prompt presets fixed**: Malay presets were stored under names
+  the picker never matched (`malay_*` vs `ms_`), so they never showed;
+  they now appear when the app language is Malay.
+- **Ask-more answers follow the same language** as descriptions.
+- **CLI `--lang ms|en`** option on `video_describer describe`.
+- Verified with a real end-to-end run: the same video described twice
+  produced fully Malay output with `ms` and fully English output with
+  `en` (35 unit/integration checks + full gate PASS).
+
 ## What's new in v1.5.1
 
 - **Cancel works everywhere**: cancelling a download/processing now

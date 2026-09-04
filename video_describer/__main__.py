@@ -20,6 +20,8 @@ def main(argv: list[str] | None = None) -> int:
     p_desc.add_argument("--out", default="",
                         help="output dir (default: alongside the video)")
     p_desc.add_argument("--fps", type=float, default=1.0)
+    p_desc.add_argument("--lang", default="", choices=["", "ms", "en"],
+                        help="description output language (default: auto)")
     p_desc.add_argument("--model", default="glm-5.3-flash")
     p_desc.add_argument("--base-url", default="https://open.bigmodel.cn/api/paas/v4")
     p_desc.add_argument("--api-key", default="",
@@ -52,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
             args.video, out, api_key=api_key, base_url=args.base_url,
             model=args.model, fps=args.fps, tts=args.tts,
             tts_engine=args.tts_engine, tts_voice=args.voice,
-            keep_frames=args.keep_frames))
+            keep_frames=args.keep_frames, lang=args.lang))
         print(f"Events: {len(result.events)} (batches: {result.batches})")
         for s, t in result.events[:20]:
             h, rem = divmod(int(s), 3600)

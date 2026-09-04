@@ -72,6 +72,7 @@ def test_frames_alive_through_ai():
 
         prov.describe_image = fake_describe_image
         engine = AIEngine.__new__(AIEngine)
+        engine.output_lang = ""
         engine._provider_or_raise = lambda name: prov
         engine._default_provider = "custom"
 
@@ -100,6 +101,7 @@ def test_ai_cancel_between_frames():
 
     prov.describe_image = fake_describe_image
     engine = AIEngine.__new__(AIEngine)
+    engine.output_lang = ""
     engine._provider_or_raise = lambda name: prov
     engine._default_provider = "custom"
 
@@ -211,6 +213,7 @@ def test_full_pipeline_copies_frames():
         # AI stub that FAILS if any frame was deleted before the AI step
         # and reports progress like the real engine now does.
         engine = AIEngine.__new__(AIEngine)
+        engine.output_lang = ""
         seen_missing = []
         async def df(frames, prompt, provider="", model="", on_progress=None, is_cancelled=None):
             out = []

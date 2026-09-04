@@ -281,6 +281,15 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.language"), name="general_lang_label"), 0, wx.ALL, 5)
         self.lang_choice = wx.Choice(panel, choices=["en", "ms"], name="language")
         self.lang_choice.SetLabel(t("settings.language"))
+        # v1.5.2: description output language (AI answers)
+        sizer.Add(wx.StaticText(
+            panel, label=t("settings.desc_language"),
+            name="desc_lang_label"), 0, wx.ALL, 5)
+        self.desc_lang_choice = wx.Choice(
+            panel, choices=["system", "ms", "en"],
+            name="desc_language")
+        self.desc_lang_choice.SetLabel(t("settings.desc_language"))
+        sizer.Add(self.desc_lang_choice, 0, wx.ALL | wx.EXPAND, 5)
         sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Frame rate
@@ -661,6 +670,11 @@ class SettingsDialog(wx.Dialog):
         # Update general
         lang = self.lang_choice.GetStringSelection()
         self.settings.set("general.language", lang)
+        # v1.5.2: description language (empty = follow UI)
+        desc_lang = self.desc_lang_choice.GetStringSelection()
+        if desc_lang == "system":
+            desc_lang = ""
+        self.settings.set("general.description_language", desc_lang)
         I18n.set_language(lang)
 
         fps = self.fps_choice.GetStringSelection()
@@ -721,6 +735,11 @@ class SettingsDialog(wx.Dialog):
         # General
         lang = self.settings.get("general.language", "en")
         self.lang_choice.SetStringSelection(lang)
+        # v1.5.2: description language selection
+        _dl = str(self.settings.get(
+            "general.description_language", "") or "")
+        self.desc_lang_choice.SetStringSelection(
+            _dl if _dl in ("ms", "en") else "system")
 
         fps = str(self.settings.get("general.frame_rate", 5))
         fps_items = [self.fps_choice.GetString(i) for i in range(self.fps_choice.GetCount())]

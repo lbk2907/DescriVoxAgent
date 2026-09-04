@@ -759,6 +759,14 @@ class MainFrame(wx.Frame):
             model=prov_config.get("model", ""),
             api_format=prov_config.get("api_format", ""),
         )
+        # v1.5.2: description language - pilihan khas
+        # ("ms"/"en"); kosong = ikut bahasa UI.
+        desc_lang = str(self.settings.get(
+            "general.description_language", "") or "").strip().lower()
+        if desc_lang not in ("ms", "en"):
+            desc_lang = str(self.settings.get(
+                "general.language", "en") or "en").strip().lower()
+        self.ai_engine.output_lang = desc_lang
 
         # v1.5.1 dedupe: the SAME source may already have a project (it
         # stores the original URL/path). Offer to open it instead of

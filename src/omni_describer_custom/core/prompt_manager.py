@@ -21,8 +21,8 @@ DEFAULT_PROMPTS = {
     "accessibility": "Describe this frame for a blind or visually impaired user. Be specific about spatial relationships, text content, and important visual information. Use clear, concise language.",
     "characters": "Identify and describe all people or characters in this frame. Include their appearance, actions, expressions, and positions.",
     "text_ocr": "Transcribe and describe any text visible in this frame. Include signs, subtitles, on-screen graphics, and written content.",
-    "malay_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, konteks, dan sebarang teks yang kelihatan.",
-    "malay_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Tekankan hubungan ruang, kandungan teks, dan maklumat visual penting.",
+    "ms_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, konteks, dan sebarang teks yang kelihatan.",
+    "ms_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Tekankan hubungan ruang, kandungan teks, dan maklumat visual penting.",
 }
 
 DEFAULT_LANGUAGE = "en"

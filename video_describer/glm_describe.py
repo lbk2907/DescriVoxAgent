@@ -40,6 +40,18 @@ DESCRIPTOR_PROMPT = (
     "commentary."
 )
 
+# v1.5.2: output-language directives (GUI has its own in ai_engine).
+_LANG_DIRECTIVES = {
+    "ms": " Write EVERY description in Bahasa Malaysia (Malay); never mix English.",
+    "en": " Write EVERY description in English; do not use any other language.",
+}
+
+
+def apply_lang(prompt: str, lang: str) -> str:
+    """Append an output-language directive (no-op for unknown)."""
+    d = _LANG_DIRECTIVES.get((lang or "").strip().lower())
+    return prompt + d if d else prompt
+
 
 class GLMError(RuntimeError):
     pass

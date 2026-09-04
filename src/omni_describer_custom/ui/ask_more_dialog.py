@@ -85,11 +85,14 @@ class AskMoreDialog(wx.Dialog):
 
         def ask():
             import asyncio
+            from ..core.ai_engine import apply_output_language
+            q = apply_output_language(question, getattr(
+                self.ai, "output_lang", ""))
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 result = loop.run_until_complete(
-                    self.ai.ask(question, self._history[-5:] if self._history else None)
+                    self.ai.ask(q, self._history[-5:] if self._history else None)
                 )
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})

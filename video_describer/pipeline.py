@@ -35,6 +35,7 @@ async def run_pipeline(
     tts_engine: str = "edge",
     tts_voice: str = "ms-MY-OsmanNeural",
     max_frames_per_request: int = 150,
+    lang: str = "",
     keep_frames: bool = True,
 ) -> PipelineResult:
     """Full pipeline. Raises on any stage failure (clear messages)."""
@@ -49,13 +50,13 @@ async def run_pipeline(
         raise RuntimeError("no frames extracted")
 
     # Stage 2+3: one (auto-batched) GLM request + regex parse
-    from .glm_describe import DESCRIPTOR_PROMPT
+    from .glm_describe import DESCRIPTOR_PROMPT, apply_lang
     result.batches = max(
         1, -(-len(result.frames) // max(1, max_frames_per_request)))
     result.events = await describe_video(
         result.frames, api_key,
         base_url=base_url, model=model,
-        prompt=prompt or DESCRIPTOR_PROMPT,
+        prompt=apply_lang(prompt or DESCRIPTOR_PROMPT, lang),
         max_frames_per_request=max_frames_per_request)
 
     # Stage 4: outputs

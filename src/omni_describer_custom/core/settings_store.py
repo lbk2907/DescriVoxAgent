@@ -81,6 +81,8 @@ class SettingsStore:
         },
         "prompts": {
             "default": "Describe everything you see in this video frame in detail. Focus on visual elements, actions, and context.",
+            "ms_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, dan konteks.",
+            "ms_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Nyatakan hubungan ruang, kandungan teks, dan maklumat visual penting dengan jelas dan ringkas.",
             "detailed": "Provide a comprehensive description of this frame. Include all visual details, text visible, colors, lighting, and emotional tone.",
             "minimal": "Brief description of this frame in one sentence.",
             "accessibility": "Describe this frame for a blind or visually impaired user. Be specific about spatial relationships, text content, and important visual information.",
