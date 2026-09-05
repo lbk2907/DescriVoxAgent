@@ -8,7 +8,8 @@ mode (Gemini or MiniMax) uploads the whole video and lets the AI
 watch it (including audio) and timestamp its own descriptions. A
 built-in player reads the descriptions in sync with playback.
 
-A full Malay user guide is in `doc/panduan-pengguna.md`.
+A full Malay user guide is in `doc/panduan-pengguna.md`; the English
+version is `doc/user-guide.md`.
 
 ## What's new in v1.5.3
 
@@ -107,7 +108,7 @@ interpreter. The log file is written to
 
 ## Settings (File menu > Settings...)
 
-- **AI tab**: provider (Gemini, MiniMax, OpenAI, GLM, Opus Proxy, or
+- **AI tab**: provider (Gemini, MiniMax, OpenAI, GLM, or
   Custom), API key, model; a **Test** button verifies the connection.
   The GLM entry is shown as **OpenRouter** in the dropdown. For
   OpenRouter the model list shows video-capable models and a
@@ -133,7 +134,7 @@ interpreter. The log file is written to
   request (empirically verified: a 60 s clip costs about 9k prompt
   tokens), and the AI watches it itself — including audio — and
   timestamps the descriptions. Long videos are split into parts
-  (about 8 minutes each) and described part by part with timestamps
+  (about 10 minutes each) and described part by part with timestamps
   merged back onto one timeline; parts above ~50 MB are compressed
   before upload (verified against the OpenRouter endpoint:
   50.7 MB uploads succeed, ~98 MB is rejected). The two checkboxes are
@@ -144,7 +145,7 @@ interpreter. The log file is written to
   - **Frame Rate (FPS)**: how many frames per second of video are
     extracted for analysis (1, 2, 5 or 10).
   - **Chunk length (seconds)**: in full-video mode, videos longer than
-    this are split into consecutive parts (default 480 = 8 minutes).
+    this are split into consecutive parts (default 600 = 10 minutes).
     Each part is described in its own AI request and the timestamps
     are stitched back onto the whole-video timeline, so long videos
     upload reliably. A live "Splitting and describing video: N%" plus

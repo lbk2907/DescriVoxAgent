@@ -6,14 +6,14 @@ frame, menghantarnya kepada pembekal AI visi, dan memainkan video dalam
 pemain terbina dalam yang membacakan penerangan AI segerak dengan
 main balik.
 
-Versi Inggeris ringkas: `README.md`.
+Versi Inggeris penuh: `doc/user-guide.md` (ringkas: `README.md`).
 
 ## Memasang versi exe (tanpa Python)
 
 Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
 
 1. Dapatkan `OmniDescriber-<versi>-win64.zip` (contoh
-   `OmniDescriber-1.2.4-win64.zip`; nombor versi meningkat setiap
+   `OmniDescriber-1.5.3-win64.zip`; nombor versi meningkat setiap
    rilis baharu supaya mudah bezakan) dan nyahzip ke mana-mana
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
@@ -105,8 +105,8 @@ membacakan penerangan itu segerak semasa main balik.
     Contoh: video 17 minit pada 5 FPS bermakna kira-kira 5000 panggilan
     AI tanpa had.
   - **Output Directory**: lokasi eksport ditulis.
-- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, GLM, Opus Proxy, atau
-  Custom), kunci API, model. **GLM** berjalan melalui OpenRouter secara
+- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, GLM, atau Custom),
+  kunci API, model. **GLM** berjalan melalui OpenRouter secara
   lalai: pilih pembekal `glm`, model `z-ai/glm-5.3-flash`, dan tampal
   kunci OpenRouter anda (bermula dengan `sk-or-v1-`); kunci terus
   Zhipu juga boleh digunakan melalui pembekal Custom dengan URL asas
@@ -152,7 +152,7 @@ membacakan penerangan itu segerak semasa main balik.
     (disahkan secara empirikal: video 60 saat guna kira-kira 9 ribu
     token). AI menonton sendiri, termasuk bunyi dan pertuturan, dan
     memberi timestamp sendiri. Video panjang dipecahkan kepada
-    beberapa bahagian (kira-kira 8 minit setiap satu) dan dihantar
+    beberapa bahagian (kira-kira 10 minit setiap satu) dan dihantar
     bahagian demi bahagian; timestamp dicantum semula ke satu garis
     masa. Bahagian besar (melebihi kira-kira 50 MB) dimampatkan
     terlebih dahulu — disahkan terhadap OpenRouter: video 50.7 MB
@@ -193,9 +193,8 @@ tiada frasa frame diumumkan kerana tiada frame terlibat.
   Files API), AI menonton video (termasuk audio) sendiri, dan
   timestamp datang daripada AI itu juga. Ini sesuai untuk penerangan
   yang meliputi bunyi dan pertuturan, atau bila anda mahukan proses
-  satu langkah sahaja. Pembekal lain (OpenAI, Claude/Opus Proxy,
-  Custom) tidak menerima fail video tempatan, jadi mod ini tidak
-  tersedia untuk mereka.
+  satu langkah sahaja. Pembekal lain (OpenAI, Custom) tidak menerima
+  fail video tempatan, jadi mod ini tidak tersedia untuk mereka.
 - **Mod pantas satu-request (GLM, kotak semak dalam Tab AI):** frame
   diekstrak secara lokal seperti mod frame, tetapi setiap frame
   dibekalkan dengan cap masa `H:MM:SS` yang tertera di atas imej.
