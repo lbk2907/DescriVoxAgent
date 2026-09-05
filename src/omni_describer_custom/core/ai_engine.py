@@ -1,7 +1,7 @@
 """
 Omni Describer Custom — Multi-provider AI Engine.
 
-Supports: Gemini, OpenAI, Opus Proxy (Anthropic format).
+Supports: Gemini, MiniMax, OpenAI, GLM (OpenRouter), Custom.
 Auto-fallback chain on failure.
 """
 
@@ -36,10 +36,27 @@ FULL_VIDEO_TS_PROMPT_SUFFIX = (
     "[00:00] A man in a red jacket walks into a bright kitchen.\n"
     "[00:15] He pours coffee while talking on the phone.\n"
     "Describe important visuals AND sounds/speech for a blind viewer. "
+    "Narrative rules: describe only what happens AT each timestamp; "
+    "never say 'the video starts with' or 'the video begins with' "
+    "unless the timestamp is truly 00:00 of the whole video. Use ONE "
+    "consistent name for the same person or object throughout.\n"
     "Write every description in the SAME LANGUAGE as the user prompt "
     "above; never mix languages. "
     "Do not output any other text."
 )
+
+# v1.5.3: anti-drift rules shared by every description mode. Without
+# them each request reads as the START of the video ("The video starts
+# with...") even at minute 37, and recurring people get renamed.
+CONTINUITY_RULES = (
+    "Narrative rules: describe only what happens AT each timestamp. "
+    "Never say 'the video starts with', 'the video begins with' or "
+    "'the video opens with' unless the timestamp is truly the start "
+    "of the whole video. Use ONE consistent name for the same person, "
+    "object or place throughout; keep characters established earlier "
+    "instead of re-describing them from scratch every time."
+)
+
 
 
 # v1.5.2: explicit output-language directives. Without one, models pick
@@ -392,7 +409,7 @@ class GeminiProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 480,
+        chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         # Accepted for interface parity with chunked providers; these
         # providers never split, so the callback stays unused here.
@@ -683,7 +700,7 @@ class MiniMaxProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 480,
+        chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         # Accepted for interface parity with chunked providers; these
         # providers never split, so the callback stays unused here.
@@ -887,7 +904,7 @@ class GLMProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 480,
+        chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:
@@ -934,14 +951,20 @@ class GLMProvider(AIProvider):
             total = len(parts)
             merged: list[tuple[float, str]] = []
             done_parts = 0
+            prev_summary = ""
             for i, (part, offset) in enumerate(zip(parts, starts)):
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
                 if on_part:
                     on_part(i + 1, total)
+                # v1.5.3: pass a short summary of the previous part so
+                # the model keeps its bearings (no "the video starts
+                # with" at minute 20) and keeps one name per character.
                 pairs = await self._describe_one_part(
                     part, prompt, model, on_status=on_status,
-                    is_cancelled=is_cancelled, offset=offset)
+                    is_cancelled=is_cancelled, offset=offset,
+                    part_index=i + 1, part_total=total,
+                    prev_summary=prev_summary)
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -951,7 +974,12 @@ class GLMProvider(AIProvider):
                         i + 1, total)
                     pairs = await self._describe_one_part(
                         part, prompt, model, on_status=on_status,
-                        is_cancelled=is_cancelled, offset=offset)
+                        is_cancelled=is_cancelled, offset=offset,
+                        part_index=i + 1, part_total=total,
+                        prev_summary=prev_summary)
+                if pairs:
+                    prev_summary = "; ".join(
+                        txt for _, txt in pairs[-6:])
                 merged.extend(pairs)
                 done_parts += 1
                 if on_split_progress:
@@ -977,8 +1005,14 @@ class GLMProvider(AIProvider):
         on_status: Callable[[str], None] | None,
         is_cancelled: Callable[[], bool] | None,
         offset: float = 0.0,
+        part_index: int = 0, part_total: int = 0,
+        prev_summary: str = "",
     ) -> list[tuple[float, str]]:
-        """Describe one video file and shift timestamps by offset."""
+        """Describe one video part and shift timestamps by offset.
+
+        part_index/part_total + prev_summary give the model its place
+        in the WHOLE video (v1.5.3 continuity fix).
+        """
         size = path.stat().st_size
         if size > self.MAX_VIDEO_BYTES:
             if on_status:
@@ -993,6 +1027,22 @@ class GLMProvider(AIProvider):
             on_status("encoding")
         b64 = base64.b64encode(path.read_bytes()).decode()
         data_url = f"data:video/mp4;base64,{b64}"
+        # v1.5.3: position notice so part 2+ is never treated as the
+        # beginning of the video.
+        position = ""
+        if part_total > 1 and part_index > 0:
+            position = (
+                f"CONTEXT: You are describing part {part_index} of "
+                f"{part_total} of ONE longer video. This part begins at "
+                f"{offset / 60.0:.1f} minutes into the full video; the "
+                "timestamps you output must be part-local (00:00 = the "
+                "start of THIS part) and are shifted automatically.\n")
+            if prev_summary:
+                position += (
+                    "What happened just before this part (end of the "
+                    f"previous part): {prev_summary}\n"
+                    "Continue the story smoothly; do NOT restart the "
+                    "narrative and do NOT say the video starts here.\n")
         payload = {
             "model": model or self.models[0],
             "max_tokens": 16000,
@@ -1011,8 +1061,13 @@ class GLMProvider(AIProvider):
                         "video.\n"
                         "- Order lines by time.\n"
                         "- Describe important visuals AND sounds/speech.\n"
+                        "- Use ONE consistent name for the same person, "
+                        "object or place.\n"
+                        "- Never say 'the video starts with' unless this "
+                        "really is the first part.\n"
                         "- No numbering, no extra text before or after "
-                        "the lines.")},
+                        "the lines.\n"
+                        + position)},
                     {"type": "video_url", "video_url": {"url": data_url}},
                     {"type": "text", "text": prompt},
                 ],
@@ -1271,6 +1326,26 @@ class GLMProvider(AIProvider):
         status("describing")
         batches = [frames[i:i + MAX_IMAGES_PER_REQUEST]
                    for i in range(0, len(frames), MAX_IMAGES_PER_REQUEST)]
+
+        def _batch_note(idx: int) -> str:
+            # v1.5.3: batches beyond the first run as separate requests;
+            # without a position note each one reads as the START of the
+            # video ("The video starts with..."). expected_times carries
+            # the exact extraction grid, so the first frame of batch i
+            # sits at expected_times[i * MAX_IMAGES_PER_REQUEST].
+            if idx == 0 or not expected_times:
+                return ""
+            first = idx * MAX_IMAGES_PER_REQUEST
+            if first >= len(expected_times):
+                return ""
+            t0 = float(expected_times[first])
+            m, sec = divmod(int(t0), 60)
+            return (
+                f"CONTEXT: these frames are from {m:02d}:{sec:02d} "
+                "onwards in the middle of a longer video - they are NOT "
+                "the beginning. Read the burned-in timestamps and "
+                "describe only what happens at each moment.\n")
+
         async with aiohttp.ClientSession() as session:
             texts = await asyncio.gather(*[
                 self._chat({
@@ -1278,9 +1353,10 @@ class GLMProvider(AIProvider):
                     "temperature": 0.3,
                     "messages": [{"role": "user",
                                   "content": _fast_batch_content(
-                                      [Path(f) for f in batch], prompt)}],
+                                      [Path(f) for f in batch], prompt,
+                                      batch_note=_batch_note(bi))}],
                 }, timeout=900)
-                for batch in batches
+                for bi, batch in enumerate(batches)
             ])
         merged: list[tuple[float, str]] = []
         for text in texts:
@@ -1304,8 +1380,9 @@ FAST_BATCH_TS_PROMPT_SUFFIX = (
     "this format and nothing else:\n"
     "H:MM:SS - description\n"
     "Use the burned-in timestamps verbatim. Cover the whole video in "
-    "chronological order. Write descriptions for a blind viewer. No "
-    "numbering, no markdown, no extra commentary."
+    "chronological order. Write descriptions for a blind viewer. "
+    + CONTINUITY_RULES +
+    " No numbering, no markdown, no extra commentary."
 )
 _FAST_BATCH_FONTS = [
     "C:/Windows/Fonts/arial.ttf",
@@ -1340,7 +1417,9 @@ _FAST_BATCH_DRAWTEXT_BODY = (
 )
 
 
-def _fast_batch_content(frames: list[Path], prompt: str) -> list[dict]:
+def _fast_batch_content(
+    frames: list[Path], prompt: str, batch_note: str = "",
+) -> list[dict]:
     """OpenAI-compatible multipart content: every frame as a data URL,
     the burn-in reading instructions as the final text block."""
     content: list[dict] = []
@@ -1349,7 +1428,8 @@ def _fast_batch_content(frames: list[Path], prompt: str) -> list[dict]:
         content.append({"type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
     content.append({"type": "text",
-                    "text": prompt + FAST_BATCH_TS_PROMPT_SUFFIX})
+                    "text": batch_note + prompt
+                    + FAST_BATCH_TS_PROMPT_SUFFIX})
     return content
 
 
@@ -1407,125 +1487,6 @@ async def fetch_openrouter_video_models(
         if "video" in mods and entry.get("id"):
             models.append(entry["id"])
     return sorted(models)
-
-
-class OpusProvider(AIProvider):
-    """Opus Proxy — Anthropic Messages API format ONLY for vision."""
-
-    name = "opus"
-    models = [
-        "claude-opus-4-8",
-        "claude-opus-4-7",
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5",
-    ]
-
-    def __init__(self, api_key: str = "", base_url: str = ""):
-        self.api_key = api_key
-        self.base_url = base_url or "https://opus.abhibots.com/v1"
-
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
-        if not self.api_key:
-            raise ValueError("Opus Proxy API key not configured")
-        model = model or self.models[0]
-        img_b64, mime = self._load_image_b64(image_path)
-
-        url = f"{self.base_url}/messages"
-        payload = {
-            "model": model,
-            "max_tokens": 1024,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": mime,
-                                "data": img_b64,
-                            },
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
-                }
-            ],
-        }
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=120)
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"Opus Proxy HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                for block in data.get("content", []):
-                    if block.get("type") == "text":
-                        return block["text"]
-                return "(no text in Opus response)"
-
-    async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
-        on_progress: Callable[[int, int], None] | None = None,
-        is_cancelled: Callable[[], bool] | None = None,
-    ) -> list[str]:
-        results = []
-        for i, frame in enumerate(frames):
-            if is_cancelled is not None and is_cancelled():
-                results.extend(["(cancelled)"] * (len(frames) - len(results)))
-                return results
-            try:
-                desc = await self.describe_image(frame, prompt, model)
-            except Exception as e:
-                logger.warning("Opus frame error: %s", e)
-                desc = f"(error: {e})"
-            results.append(desc)
-            if on_progress:
-                try:
-                    on_progress(i + 1, len(frames))
-                except Exception:
-                    logger.debug("on_progress raised", exc_info=True)
-        return results
-    async def ask_text(
-        self, question: str, history: list[dict] | None = None, model: str = ""
-    ) -> str:
-        if not self.api_key:
-            raise ValueError("Opus Proxy API key not configured")
-        model = model or self.models[0]
-        messages: list[dict] = [
-            {"role": m.get("role", "user"), "content": m.get("content", "")}
-            for m in (history or [])
-        ]
-        messages.append({"role": "user", "content": question})
-        url = f"{self.base_url}/messages"
-        payload = {"model": model, "max_tokens": 1024, "messages": messages}
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=120)
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"Opus Proxy HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                for block in data.get("content", []):
-                    if block.get("type") == "text":
-                        return block["text"]
-                return "(no text in Opus response)"
-
 
 
 # Custom provider API format constants
@@ -1740,7 +1701,7 @@ class AIEngine:
     High-level AI engine with provider management and auto-fallback.
     Usage:
         engine = AIEngine()
-        engine.set_provider("opus", api_key="...")
+        engine.set_provider("glm", api_key="...")
         desc = await engine.describe_frame("frame.jpg", "Describe this in Malay.")
     """
 
@@ -1748,7 +1709,6 @@ class AIEngine:
         "gemini": GeminiProvider,
         "minimax": MiniMaxProvider,
         "openai": OpenAIProvider,
-        "opus": OpusProvider,
         "glm": GLMProvider,
         "custom": CustomProvider,
     }
@@ -1852,7 +1812,7 @@ class AIEngine:
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 480,
+        chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
     ) -> list[tuple[float, str]]:

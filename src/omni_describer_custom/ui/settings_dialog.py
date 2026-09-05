@@ -17,13 +17,6 @@ logger = logging.getLogger(__name__)
 
 # Provider model presets
 PROVIDER_MODELS: dict[str, list[str]] = {
-    "opus": [
-        "claude-opus-4-8",
-        "claude-opus-4-7",
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5",
-    ],
     "minimax": [
         "MiniMax-M3",
     ],
@@ -117,7 +110,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5)
         self.provider_choice = wx.Choice(
             panel,
-            choices=["opus", "gemini", "minimax", "openai", "glm", "custom"],
+            choices=["gemini", "minimax", "openai", "glm", "custom"],
             name="ai_provider",
         )
         self.provider_choice.SetLabel(t("settings.provider"))
@@ -305,7 +298,7 @@ class SettingsDialog(wx.Dialog):
 
         # v1.4.1: chunk length for full-video mode (seconds per part).
         sizer.Add(wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"), 0, wx.ALL, 5)
-        self.chunk_spin = wx.SpinCtrl(panel, min=5, max=3600, initial=480, name="chunk_seconds")
+        self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=600, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
         # Output directory
@@ -707,7 +700,7 @@ class SettingsDialog(wx.Dialog):
 
     def _load_values(self):
         """Load current settings into UI."""
-        default_provider = self.settings.get("ai.default_provider", "opus")
+        default_provider = self.settings.get("ai.default_provider", "gemini")
         # The dropdown shows friendly labels; map the stored machine id.
         self.provider_choice.SetStringSelection(
             self._provider_labels.get(default_provider, default_provider))
@@ -748,8 +741,8 @@ class SettingsDialog(wx.Dialog):
 
         self.frame_cap_spin.SetValue(int(self.settings.get("general.frame_cap", 0) or 0))
 
-        self.chunk_spin.SetValue(
-            int(self.settings.get("general.chunk_seconds", 480) or 480))
+        chunk_val = int(self.settings.get("general.chunk_seconds", 600) or 600)
+        self.chunk_spin.SetValue(max(60, chunk_val))
 
         output_dir = self.settings.get("general.output_dir", "")
         if output_dir:

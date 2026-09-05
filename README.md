@@ -10,6 +10,27 @@ built-in player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`.
 
+## What's new in v1.5.3
+
+- **Continuity between video parts**: long videos split for full-video
+  mode now carry context into every part (part X of Y, the part's start
+  time, and a short summary of what happened just before). No more
+  "the video starts with..." in the middle of a video and no more
+  re-introduced characters; the AI keeps one name per person/object.
+- **10-minute parts by default**: the part length default is now 600 s
+  (10 minutes) everywhere, and the Settings spin control no longer
+  accepts tiny values that silently split a video into dozens of
+  context-less mini parts.
+- **Opus provider removed**: the built-in Opus proxy provider is gone
+  (use Custom with any OpenAI-compatible endpoint instead); old Opus
+  settings entries are ignored.
+- **Fast one-shot mode position note**: batches of frames beyond the
+  first now carry a "you are in the middle of the video" note with the
+  exact start time from the extraction grid.
+- Verified with a real 10-minute video split into 3 parts via GLM
+  (OpenRouter): cues cover all parts with consecutive timestamps,
+  25 unit/integration checks PASS.
+
 ## What's new in v1.5.2
 
 - **Consistent description language**: AI descriptions now follow one

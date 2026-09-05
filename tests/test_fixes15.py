@@ -309,11 +309,11 @@ def test_engine_wires_fast_batch():
             assert pairs and pairs[0][0] == 0.0, pairs
             # a provider without the method raises a clear ValueError
             engine2 = AIEngine()
-            engine2.set_provider("opus", api_key="k")
+            engine2.set_provider("openai", api_key="k")
             try:
                 _run(lambda: engine2.describe_video_frames_batch(
                     frames, "p"))
-                raise AssertionError("expected ValueError for opus")
+                raise AssertionError("expected ValueError for openai")
             except ValueError as e:
                 assert "one-shot" in str(e), e
     finally:
@@ -331,7 +331,7 @@ def test_settings_fast_mode_ui():
             dlg = SettingsDialog(frame, store)
             assert hasattr(dlg, "fast_mode_cb"), "checkbox must exist"
             # disabled + unchecked for non-glm providers
-            dlg.select_provider("opus")
+            dlg.select_provider("openai")
             assert not dlg.fast_mode_cb.IsEnabled()
             assert not dlg.fast_mode_cb.GetValue()
             # enabled for glm
@@ -401,7 +401,7 @@ def test_provider_labels_and_select():
             assert dlg.fast_mode_cb.IsEnabled()
             assert dlg.fetch_models_btn.IsEnabled()
             assert dlg.video_only_hint.IsShown()
-            dlg.select_provider("opus")
+            dlg.select_provider("openai")
             assert not dlg.fetch_models_btn.IsEnabled()
             dlg.Destroy()
         finally:

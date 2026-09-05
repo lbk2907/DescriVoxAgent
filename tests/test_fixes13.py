@@ -242,7 +242,7 @@ def test_settings_minimax_ui():
         assert dlg.video_mode_cb.IsEnabled(), "minimax must enable video mode"
         dlg.select_provider("gemini")
         assert dlg.video_mode_cb.IsEnabled(), "gemini must enable video mode"
-        for prov in ("openai", "opus", "custom"):
+        for prov in ("openai", "custom"):
             dlg.select_provider(prov)
             assert not dlg.video_mode_cb.IsEnabled(), prov
             assert not dlg.video_mode_cb.GetValue(), prov

@@ -742,7 +742,7 @@ class MainFrame(wx.Frame):
             return
 
         # Validate provider
-        provider = self.settings.get("ai.default_provider", "opus")
+        provider = self.settings.get("ai.default_provider", "gemini")
         prov_config = self.settings.get_ai_provider(provider)
         if not prov_config.get("api_key"):
             wx.MessageBox(
@@ -916,7 +916,7 @@ class MainFrame(wx.Frame):
             # Announce it once with an estimated part count so blind users
             # know upfront how many parts the video will be split into.
             chunk_seconds = int(self.settings.get(
-                "general.chunk_seconds", 480) or 480)
+                "general.chunk_seconds", 600) or 600)
             est_parts = (max(1, int(float(info.duration) / chunk_seconds + 0.999))
                          if info.duration > 0 else 1)
             if est_parts > 1:
@@ -1023,7 +1023,7 @@ class MainFrame(wx.Frame):
                             on_status=vstatus, on_upload_progress=vprogress,
                             on_part=vpart, on_split_progress=vsplit,
                             chunk_seconds=int(self.settings.get(
-                                "general.chunk_seconds", 480) or 480),
+                                "general.chunk_seconds", 600) or 600),
                             is_cancelled=lambda: bool(
                                 getattr(self, "_dl_cancelled", False)),
                         )

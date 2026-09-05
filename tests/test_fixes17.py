@@ -87,7 +87,7 @@ class _Prov:
 
     async def describe_video_full(self, video_path, prompt, model="",
                                   on_status=None, on_upload_progress=None,
-                                  is_cancelled=None, chunk_seconds=480,
+                                  is_cancelled=None, chunk_seconds=600,
                                   on_part=None, on_split_progress=None):
         captured["full"] = prompt
         return [(0.0, "ok")]

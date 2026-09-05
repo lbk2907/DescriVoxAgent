@@ -97,8 +97,8 @@ def test_i18n():
     assert t("main.ready") == "Sedia"
     I18n.set_language("en")
     assert t("main.ready") == "Ready"
-    msg = t("status.no_api_key", provider="opus")
-    assert "opus" in msg
+    msg = t("status.no_api_key", provider="gemini")
+    assert "gemini" in msg
 check("i18n translations", test_i18n)
 
 # 7. TTS engine init (no actual speech)
@@ -112,8 +112,8 @@ check("tts engine init", test_tts)
 # 8. AI engine provider mgmt
 def test_ai_engine():
     eng = AIEngine()
-    eng.set_provider("opus", api_key="fake", base_url="https://opus.abhibots.com/v1")
-    assert eng.get_available_providers() == ["opus"]
+    eng.set_provider("glm", api_key="fake", base_url="https://openrouter.ai/api/v1")
+    assert eng.get_available_providers() == ["glm"]
     try:
         eng.describe_frame.__wrapped__ if hasattr(eng.describe_frame, "__wrapped__") else None
     except Exception:

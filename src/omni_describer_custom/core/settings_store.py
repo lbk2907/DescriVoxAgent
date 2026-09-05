@@ -53,7 +53,6 @@ class SettingsStore:
             "providers": {
                 "gemini": {"api_key": "", "model": "gemini-2.5-flash"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
-                "opus": {"api_key": "", "model": "claude-opus-4-8", "base_url": "https://opus.abhibots.com/v1"},
                 "glm": {"api_key": "", "model": "z-ai/glm-5.3-flash", "base_url": "https://openrouter.ai/api/v1"},
                 "custom": {"api_key": "", "model": "", "base_url": "", "api_format": "auto"},
             },
@@ -73,8 +72,8 @@ class SettingsStore:
             # Default keeps existing behaviour unchanged.
             "frame_cap": 0,
             # Seconds per part when a long video is split for the AI
-            # (full-video mode). 480 = 8 minutes (previously hardcoded).
-            "chunk_seconds": 480,
+            # (full-video mode). 600 = 10 minutes (user request v1.5.3).
+            "chunk_seconds": 600,
             "output_dir": str(Path.home() / "Documents" / "OmniDescriber" / "output"),
             "chunk_long_videos": True,
             "auto_save": True,
