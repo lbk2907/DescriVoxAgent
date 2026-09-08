@@ -52,6 +52,12 @@ class PlayerWindow(wx.Frame):
         self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
         self._audio_proc = None  # v1.4.0: ffplay process for real audio in simulated mode
         self._audio_backend = "none"  # "vlc" | "ffplay" | "none"
+        # v1.5.4: change-guards so the 500 ms timer only touches widgets
+        # when a value actually changed (keeps the NVDA review buffer stable).
+        self._last_time_txt = ""
+        self._last_desc_text = ""
+        self._last_upcoming_text = ""
+        self._last_slider_val = -1
         self._init_vlc()
 
         super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
@@ -202,15 +208,15 @@ class PlayerWindow(wx.Frame):
             cues = parse_any(path)
         except Exception as e:
             logger.error("SRT parse failed (%s): %s", path, e)
-            self.status_text.SetLabel("Subtitle load failed")
+            self._announce(t("player.subtitle_failed"))
             if not silent:
-                wx.MessageBox(f"Could not read subtitle file:\n{e}",
+                wx.MessageBox(t("player.subtitle_error", error=str(e)),
                               t("player.load_srt"), wx.OK | wx.ICON_ERROR)
             return
         if not cues:
-            self.status_text.SetLabel("Subtitle file was empty")
+            self._announce(t("player.subtitle_empty"))
             if not silent:
-                wx.MessageBox("No subtitle entries found in that file.",
+                wx.MessageBox(t("player.subtitle_no_entries"),
                               t("player.load_srt"), wx.OK | wx.ICON_WARNING)
             return
         self._sub_cues = cues
@@ -224,7 +230,7 @@ class PlayerWindow(wx.Frame):
             except Exception as e:
                 # Non-fatal: simulated overlay still shows the cues.
                 logger.warning("VLC slave attach failed: %s", e)
-        self.status_text.SetLabel(f"Subtitles loaded: {len(cues)}")
+        self._announce(t("player.subtitles_loaded", count=len(cues)))
         logger.info("SRT loaded: %s (%d cues)", path, len(cues))
 
     def _on_load_srt(self, event):
@@ -359,10 +365,15 @@ class PlayerWindow(wx.Frame):
 
         panel.Layout()
 
+    def _announce(self, msg: str) -> None:
+        """Set status text and move focus so NVDA announces it."""
+        self.status_text.SetLabel(msg)
+        self.status_text.SetFocus()
+
     def _load_descriptions(self):
         """Load descriptions from current project."""
         if not self.project or not self.project.descriptions:
-            self.current_desc_text.SetValue("No descriptions available.")
+            self.current_desc_text.SetValue(t("player.no_descriptions"))
             return
         self._update_desc_display()
 
@@ -384,13 +395,20 @@ class PlayerWindow(wx.Frame):
                 break
 
         current = descs[self._current_desc_idx]
-        self.current_desc_text.SetValue(current.text)
+        # v1.5.4: only touch the widget when the text changed, so the
+        # 500 ms timer does not churn the NVDA review buffer.
+        if current.text != self._last_desc_text:
+            self._last_desc_text = current.text
+            self.current_desc_text.SetValue(current.text)
 
         if self._current_desc_idx + 1 < len(descs):
             upcoming = descs[self._current_desc_idx + 1]
-            self.upcoming_text.SetValue(f"[{upcoming.start_time:.1f}s] {upcoming.text[:80]}...")
+            up_txt = f"[{upcoming.start_time:.1f}s] {upcoming.text[:80]}..."
         else:
-            self.upcoming_text.SetValue("(end)")
+            up_txt = t("player.upcoming_end")
+        if up_txt != self._last_upcoming_text:
+            self._last_upcoming_text = up_txt
+            self.upcoming_text.SetValue(up_txt)
 
         # Update time label
         self._update_time_label()
@@ -403,7 +421,10 @@ class PlayerWindow(wx.Frame):
             dur = 0
         pos_str = self._format_time(self._position)
         dur_str = self._format_time(dur)
-        self.time_label.SetLabel(f"{pos_str} / {dur_str}")
+        txt = f"{pos_str} / {dur_str}"
+        if txt != self._last_time_txt:
+            self._last_time_txt = txt
+            self.time_label.SetLabel(txt)
 
     @staticmethod
     def _format_time(seconds: float) -> str:
@@ -422,7 +443,7 @@ class PlayerWindow(wx.Frame):
             elif self._playing and not self._paused_by_user:
                 # VLC stopped without user pause — end of media
                 self._playing = False
-                self.status_text.SetLabel("Ended")
+                self._announce(t("player.ended"))
                 self._set_play_label(False)
         elif self._playing:
             self._position += 0.5  # 500ms tick (simulated playback)
@@ -431,14 +452,17 @@ class PlayerWindow(wx.Frame):
             self._position = dur
             if self._playing:
                 self._playing = False
-                self.status_text.SetLabel("Ended")
+                self._announce(t("player.ended"))
                 self._stop_ffplay()
                 self._set_play_label(False)
         self._update_desc_display()
         self._update_sub_overlay()
-        self.position_slider.SetValue(
+        slider_val = (
             int(self._position / self._slider_dur * 1000)
             if self._slider_dur > 0 else 0)
+        if slider_val != self._last_slider_val:
+            self._last_slider_val = slider_val
+            self.position_slider.SetValue(slider_val)
         self._maybe_narrate()
 
     def _update_sub_overlay(self):
@@ -500,6 +524,7 @@ class PlayerWindow(wx.Frame):
             except Exception as e:
                 logger.error("Narration failed: %s", e)
                 wx.CallAfter(self._narrated.discard, desc_id)
+                wx.CallAfter(lambda: self._announce(t("player.tts_failed")))
 
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
@@ -520,16 +545,16 @@ class PlayerWindow(wx.Frame):
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.play()
             self._playing = True
-            self.status_text.SetLabel("Playing (VLC)...")
+            self._announce(t("player.playing"))
             self._set_play_label(True)
             return
         if not self._playing:
             # v1.4.0: real audio via ffplay when VLC is unavailable but a
             # local media file exists (works without libvlc installed).
             if self._start_ffplay(self._position):
-                self.status_text.SetLabel("Playing (audio)...")
+                self._announce(t("player.playing_audio"))
             else:
-                self.status_text.SetLabel("Playing (simulated)...")
+                self._announce(t("player.playing_sim"))
         self._playing = True
         self._set_play_label(True)
         self._timer.Start(500)
@@ -539,13 +564,14 @@ class PlayerWindow(wx.Frame):
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.pause()
             self._playing = self._vlc.is_playing()
-            self.status_text.SetLabel("Paused" if not self._playing else "Playing (VLC)...")
+            self._announce(
+                t("player.paused") if not self._playing else t("player.playing"))
             self._set_play_label(self._playing)
             return
         if self._audio_backend == "ffplay":
             self._stop_ffplay()  # instant, verifiable silence on pause
         self._playing = False
-        self.status_text.SetLabel("Paused")
+        self._announce(t("player.paused"))
         self._timer.Stop()
         self._set_play_label(False)
 
@@ -560,7 +586,7 @@ class PlayerWindow(wx.Frame):
         self.position_slider.SetValue(0)
         self._update_desc_display()
         self._update_sub_overlay()
-        self.status_text.SetLabel("Stopped")
+        self._announce(t("player.stopped"))
         self._set_play_label(False)
 
     def _on_rewind(self, event):
@@ -616,17 +642,20 @@ class PlayerWindow(wx.Frame):
         desc_text = self.current_desc_text.GetValue().strip()
         if not desc_text:
             return
-        self.status_text.SetLabel("Speaking...")
+        self._announce(t("player.speaking"))
         self.tts.stop()
 
         def _speak_bg():
             try:
                 if self.tts.speak_and_play(desc_text):
-                    wx.CallAfter(self.status_text.SetLabel, "Spoken")
+                    wx.CallAfter(lambda: self._announce(t("player.spoken")))
                 else:
-                    wx.CallAfter(self.status_text.SetLabel, "TTS failed")
+                    wx.CallAfter(lambda: self._announce(t("player.tts_failed")))
             except Exception as e:
-                wx.CallAfter(self.status_text.SetLabel, "TTS error: " + str(e))
+                # Capture str(e) eagerly: the except variable is deleted
+                # when the block exits, before the lambda runs.
+                err = str(e)
+                wx.CallAfter(lambda: self._announce(t("player.tts_error", error=err)))
 
         __import__("threading").Thread(target=_speak_bg, daemon=True).start()
 

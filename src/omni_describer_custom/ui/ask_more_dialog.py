@@ -31,6 +31,10 @@ class AskMoreDialog(wx.Dialog):
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Status line — announce target for empty-question and results.
+        self.status_text = wx.StaticText(panel, label="", name="ask_status")
+        sizer.Add(self.status_text, 0, wx.ALL, 5)
+
         # History
         sizer.Add(wx.StaticText(panel, label=t("askmore.history"), name="history_label"), 0, wx.ALL, 5)
         self.history_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
@@ -69,17 +73,24 @@ class AskMoreDialog(wx.Dialog):
         panel.SetSizer(sizer)
         panel.Layout()
 
+    def _announce(self, msg: str) -> None:
+        """Set status text and move focus so NVDA announces it."""
+        self.status_text.SetLabel(msg)
+        self.status_text.SetFocus()
+
     def _on_submit(self, event):
         """Submit question to AI."""
         question = self.question_text.GetValue().strip()
         if not question:
+            self._announce(t("ask.empty_question"))
+            self.question_text.SetFocus()
             return
 
         self.submit_btn.Disable()
-        self.history_text.AppendText(f"You: {question}\n")
+        self.history_text.AppendText(t("ask.you", question=question) + "\n")
 
         if not self.ai:
-            self.history_text.AppendText("AI: (No AI engine configured)\n\n")
+            self.history_text.AppendText(t("ask.ai_none"))
             self.submit_btn.Enable()
             return
 
@@ -96,10 +107,15 @@ class AskMoreDialog(wx.Dialog):
                 )
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})
-                wx.CallAfter(self.history_text.AppendText, f"AI: {result}\n\n")
+                wx.CallAfter(self.history_text.AppendText,
+                             t("ask.ai_prefix", result=result))
+                # Move focus to the history so NVDA reads the new reply.
+                wx.CallAfter(self.history_text.SetFocus)
                 wx.CallAfter(self.submit_btn.Enable)
             except Exception as e:
-                wx.CallAfter(self.history_text.AppendText, f"Error: {e}\n\n")
+                wx.CallAfter(self.history_text.AppendText,
+                             t("ask.error", error=str(e)) + "\n\n")
+                wx.CallAfter(self.history_text.SetFocus)
                 wx.CallAfter(self.submit_btn.Enable)
             finally:
                 loop.close()

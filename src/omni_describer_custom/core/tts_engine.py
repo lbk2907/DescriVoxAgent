@@ -114,18 +114,22 @@ class SAPI5Engine(TTSEngineBase):
                     # can block forever.
                     stream = win32com.client.Dispatch("SAPI.SpFileStream")
                     stream.Open(tmp.name, 3, False)  # 3 = SSFMCreateForWrite
-                    tts = win32com.client.Dispatch("SAPI.SpVoice")
-                    if voice:
-                        tokens = tts.GetVoices()
-                        for i in range(tokens.Count):
-                            if tokens.Item(i).Id == voice:
-                                tts.Voice = tokens.Item(i)
-                                break
-                    # speed 1.0 == normal rate; SAPI rate range is -10..10
-                    tts.Rate = max(-10, min(10, int(round((speed - 1) * 10))))
-                    tts.AudioOutputStream = stream
-                    tts.Speak(text, 0)  # synchronous render to file
-                    stream.Close()
+                    try:
+                        tts = win32com.client.Dispatch("SAPI.SpVoice")
+                        if voice:
+                            tokens = tts.GetVoices()
+                            for i in range(tokens.Count):
+                                if tokens.Item(i).Id == voice:
+                                    tts.Voice = tokens.Item(i)
+                                    break
+                        # speed 1.0 == normal rate; SAPI rate range is -10..10
+                        tts.Rate = max(-10, min(10, int(round((speed - 1) * 10))))
+                        tts.AudioOutputStream = stream
+                        tts.Speak(text, 0)  # synchronous render to file
+                    finally:
+                        # Always close: if Speak raises, an open COM stream
+                        # keeps the WAV locked past CoUninitialize (v1.5.4).
+                        stream.Close()
                 finally:
                     pythoncom.CoUninitialize()
             if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
@@ -418,24 +422,10 @@ class TTSEngine:
             logger.error("speak_and_play generation failed: %s", e)
             return False
         if not audio_path:
-            # v1.5.1 immediate offline fallback: SAPI5 always runs on
-            # Windows and needs no network.
-            if sys.platform == "win32" and "sapi5" in self._engines \
-                    and self._engines["sapi5"].available \
-                    and (not engine or engine != "sapi5"):
-                logger.warning("Primary TTS failed; falling back to SAPI5")
-                try:
-                    loop = asyncio.new_event_loop()
-                    try:
-                        audio_path = loop.run_until_complete(
-                            self.speak(text, "sapi5", "", speed))
-                    finally:
-                        loop.close()
-                except Exception as e:
-                    logger.error("SAPI5 fallback failed: %s", e)
-                    return False
-            if not audio_path:
-                return False
+            # speak() already falls back through EVERY available engine,
+            # including offline SAPI5; retrying SAPI5 here only doubled
+            # the delay before "nothing played" (v1.5.4 fix).
+            return False
         try:
             played = self._play_file(audio_path)
         finally:

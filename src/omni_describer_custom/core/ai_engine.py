@@ -526,6 +526,9 @@ class OpenAIProvider(AIProvider):
             async with session.post(
                 url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
             ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"OpenAI HTTP {resp.status}: {body[:200]}")
                 data = await resp.json()
                 if "error" in data:
                     raise RuntimeError(f"OpenAI error: {data['error']}")
@@ -577,6 +580,9 @@ class OpenAIProvider(AIProvider):
             async with session.post(
                 url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
             ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"OpenAI HTTP {resp.status}: {body[:200]}")
                 data = await resp.json()
                 if "error" in data:
                     raise RuntimeError(f"OpenAI error: {data['error']}")
@@ -881,7 +887,9 @@ class GLMProvider(AIProvider):
         img_b64, mime = self._load_image_b64(image_path)
         payload = {
             "model": model,
-            "max_tokens": 1024,
+            # GLM reasoning models burn tokens thinking before the visible
+            # answer; 1024 truncated/emptied replies (AGENTS.md pitfall 7).
+            "max_tokens": 6000,
             "messages": [
                 {"role": "user", "content": [
                     {"type": "text", "text": prompt},
@@ -920,7 +928,7 @@ class GLMProvider(AIProvider):
         """
         path = Path(video_path)
         try:
-            duration = self._probe_duration(path)
+            duration = self._probe_duration(path, is_cancelled=is_cancelled)
         except RuntimeError:
             # Undecodable/unreadable container: still try one part.
             # The size guard and ffmpeg itself will surface a clear
@@ -945,7 +953,8 @@ class GLMProvider(AIProvider):
                     if is_cancelled and is_cancelled():
                         raise RuntimeError("cancelled")
                     parts = [self.compress_video_for_upload(
-                        path, self.COMPRESS_TARGET_BYTES)]
+                        path, self.COMPRESS_TARGET_BYTES,
+                        is_cancelled=is_cancelled)]
                 else:
                     parts = [path]
             total = len(parts)
@@ -993,12 +1002,19 @@ class GLMProvider(AIProvider):
                         logger.debug("on_split_progress raised", exc_info=True)
             return merged
         finally:
+            import shutil as _shutil
+            part_dirs: set[Path] = set()
             for p in parts:
                 try:
                     if p != path:
                         p.unlink(missing_ok=True)
+                        if p.parent.name.startswith(
+                                ("odc_vcompress_", "odc_vsplit_")):
+                            part_dirs.add(p.parent)
                 except OSError:
                     pass
+            for d in part_dirs:
+                _shutil.rmtree(d, ignore_errors=True)
 
     async def _describe_one_part(
         self, path: Path, prompt: str, model: str,
@@ -1020,12 +1036,29 @@ class GLMProvider(AIProvider):
             if is_cancelled and is_cancelled():
                 raise RuntimeError("cancelled")
             path = self.compress_video_for_upload(
-                path, self.COMPRESS_TARGET_BYTES)
-        if is_cancelled and is_cancelled():
-            raise RuntimeError("cancelled")
-        if on_status:
-            on_status("encoding")
-        b64 = base64.b64encode(path.read_bytes()).decode()
+                path, self.COMPRESS_TARGET_BYTES,
+                is_cancelled=is_cancelled)
+            try:
+                if is_cancelled and is_cancelled():
+                    raise RuntimeError("cancelled")
+                if on_status:
+                    on_status("encoding")
+                b64 = base64.b64encode(path.read_bytes()).decode()
+            finally:
+                # The compressed copy lives in its own mkdtemp dir and is
+                # NOT in the caller's parts list; without this cleanup an
+                # oversized part leaked ~40 MB per part in %TEMP%.
+                try:
+                    path.unlink(missing_ok=True)
+                    path.parent.rmdir()
+                except OSError:
+                    pass
+        else:
+            if is_cancelled and is_cancelled():
+                raise RuntimeError("cancelled")
+            if on_status:
+                on_status("encoding")
+            b64 = base64.b64encode(path.read_bytes()).decode()
         data_url = f"data:video/mp4;base64,{b64}"
         # v1.5.3: position notice so part 2+ is never treated as the
         # beginning of the video.
@@ -1093,8 +1126,63 @@ class GLMProvider(AIProvider):
             raise RuntimeError("ffmpeg not found on PATH")
         return exe
 
+    def _run_ffmpeg_cancellable(
+        self, cmd: list[str],
+        is_cancelled: Callable[[], bool] | None,
+        timeout: float,
+    ) -> tuple[int, bytes]:
+        """Run an ffmpeg command while polling is_cancelled every second
+        so the GUI Cancel button takes effect mid-run (v1.5.4: the old
+        blocking _sp.run could ignore Cancel for up to 30 minutes).
+
+        Returns (returncode, stderr tail). Raises RuntimeError on cancel
+        or timeout. stderr is drained by a daemon thread and only the
+        last 8 KiB are kept.
+        """
+        import subprocess as _sp
+        import threading as _threading
+        import time as _time
+        proc = _sp.Popen(cmd, stdout=_sp.DEVNULL, stderr=_sp.PIPE)
+        stderr_tail = bytearray()
+        deadline = _time.monotonic() + timeout
+
+        def _drain() -> None:
+            try:
+                for line in iter(proc.stderr.readline, b""):
+                    stderr_tail.extend(line)
+                    del stderr_tail[:-8192]
+            except Exception:
+                pass
+
+        t = _threading.Thread(target=_drain, daemon=True)
+        t.start()
+        ret: int | None = None
+        try:
+            while True:
+                if is_cancelled is not None and is_cancelled():
+                    proc.kill()
+                    raise RuntimeError("cancelled")
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if _time.monotonic() > deadline:
+                    proc.kill()
+                    raise RuntimeError(
+                        f"ffmpeg timed out after {int(timeout)} s")
+                _time.sleep(1.0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            try:
+                proc.stderr.close()
+            except Exception:
+                pass
+            t.join(timeout=2.0)
+        return ret, bytes(stderr_tail)
+
     def compress_video_for_upload(
         self, path: Path, target_bytes: int,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> Path:
         """Re-encode a video down to about target_bytes (360p).
 
@@ -1102,28 +1190,33 @@ class GLMProvider(AIProvider):
         and far better than failing the whole run. Returns the temp
         path of the compressed file.
         """
-        import subprocess as _sp
         import tempfile as _tf
+        import shutil as _shutil
         out_dir = Path(_tf.mkdtemp(prefix="odc_vcompress_"))
         out = out_dir / path.name
         duration = 1.0
         try:
-            probe = _sp.run(
+            _ret, stderr_tail = self._run_ffmpeg_cancellable(
                 [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
                  str(path), "-f", "null", "-"],
-                capture_output=True, timeout=600)
-            m = re.search(
-                r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
-                probe.stderr.decode("utf-8", "replace"))
+                is_cancelled, 600)
+            m = None
+            for m in re.finditer(
+                    r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
+                    stderr_tail.decode("utf-8", "replace")):
+                pass  # keep the LAST time= (real duration, not the first)
             if m:
                 duration = (int(m.group(1)) * 3600
                             + int(m.group(2)) * 60
                             + float(m.group(3)))
+        except RuntimeError:
+            _shutil.rmtree(out_dir, ignore_errors=True)
+            raise
         except Exception:
             logger.debug("duration probe failed", exc_info=True)
         total_bits = target_bytes * 8 * 0.95
         kbps = max(80, int(total_bits / max(duration, 1.0) / 1000))
-        proc = _sp.run([
+        ret, stderr_tail = self._run_ffmpeg_cancellable([
             self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
             "error", "-i", str(path),
             "-vf", "scale=-2:360",
@@ -1131,27 +1224,34 @@ class GLMProvider(AIProvider):
             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
             "-bufsize", f"{int(kbps * 2)}k",
             "-pix_fmt", "yuv420p", str(out),
-        ], capture_output=True, timeout=1800)
-        if proc.returncode != 0 or not out.exists():
-            tail = proc.stderr.decode("utf-8", "replace")[-300:]
+        ], is_cancelled, 1800)
+        if ret != 0 or not out.exists():
+            tail = stderr_tail.decode("utf-8", "replace")[-300:]
+            _shutil.rmtree(out_dir, ignore_errors=True)
             raise RuntimeError(f"video compression failed: {tail}")
         if out.stat().st_size > target_bytes * 1.3:
             logger.warning("compressed video still large: %.1f MB",
                            out.stat().st_size / 1e6)
         return out
 
-    def _probe_duration(self, path: Path) -> float:
-        """Return the video duration in seconds via ffmpeg decode."""
-        import subprocess as _sp
+    def _probe_duration(
+        self, path: Path,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> float:
+        """Return the video duration in seconds via ffmpeg decode.
+
+        Cancellable via is_cancelled (v1.5.4): the decode pass can run
+        for minutes on long videos.
+        """
         try:
-            probe = _sp.run(
+            _ret, stderr_tail = self._run_ffmpeg_cancellable(
                 [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
                  str(path), "-f", "null", "-"],
-                capture_output=True, timeout=900)
+                is_cancelled, 900)
             best = 0.0
             for m in re.finditer(
                     r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
-                    probe.stderr.decode("utf-8", "replace")):
+                    stderr_tail.decode("utf-8", "replace")):
                 t = (int(m.group(1)) * 3600 + int(m.group(2)) * 60
                      + float(m.group(3)))
                 best = max(best, t)
@@ -1178,7 +1278,7 @@ class GLMProvider(AIProvider):
         """
         import subprocess as _sp
         import tempfile as _tf
-        duration = self._probe_duration(path)
+        duration = self._probe_duration(path, is_cancelled=is_cancelled)
         if duration <= 0:
             raise RuntimeError("cannot split an unreadable video")
         n_parts = max(1, int(duration / chunk_seconds + 0.999))
@@ -1205,7 +1305,6 @@ class GLMProvider(AIProvider):
             "-reset_timestamps", "1",
             str(pattern),
         ]
-        import subprocess as _sp
         import threading as _threading
         proc = _sp.Popen(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE)
         stderr_tail: list[bytes] = []
@@ -1292,7 +1391,9 @@ class GLMProvider(AIProvider):
             for m in (history or [])
         ]
         messages.append({"role": "user", "content": question})
-        payload = {"model": model, "max_tokens": 1024, "messages": messages}
+        # GLM reasoning models burn tokens thinking before the visible
+        # answer; 1024 truncated/emptied replies (AGENTS.md pitfall 7).
+        payload = {"model": model, "max_tokens": 6000, "messages": messages}
         return _strip_think(await self._chat(payload, timeout=120))
 
     async def describe_video_frames_batch(
@@ -1460,7 +1561,15 @@ def snap_timestamps(
         if best is not None and abs(best - secs) <= max_gap:
             out.append((float(best), text))
     out.sort(key=lambda x: x[0])
-    return out
+    # Two model lines can misread onto the same grid slot; merge them
+    # instead of emitting duplicate same-time cues (v1.5.4).
+    merged: list[tuple[float, str]] = []
+    for secs, text in out:
+        if merged and merged[-1][0] == secs:
+            merged[-1] = (secs, merged[-1][1] + " " + text)
+        else:
+            merged.append((secs, text))
+    return merged
 
 
 async def fetch_openrouter_video_models(

@@ -11,6 +11,29 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.5.4
+
+- **Narration + data-loss fix (critical)**: saved descriptions kept
+  `id=0`, so the player narrated only the first cue and deleting one cue
+  in the editor could wipe ALL cues from the project. Real database ids
+  are now written back and covered by regression tests
+  (`tests/test_fixes19.py`).
+- **NVDA announcements everywhere**: Player, Scene Explorer, Editor and
+  Ask More windows now announce playing/paused/stopped states, TTS
+  results and errors; the main window retranslates instantly on a
+  language switch; ~65 hardcoded strings moved to i18n (full EN+BM
+  parity: 302 keys).
+- **Real API-key protection**: keys are encrypted with Windows DPAPI
+  (user-scoped) instead of source-obfuscated XOR; `settings.json` is
+  written atomically so a crash can no longer wipe your keys.
+- **Cancel works during video compression** (previously ignored for up
+  to 30 minutes) and GLM gets `max_tokens=6000` so reasoning replies are
+  no longer cut off or empty.
+- **Security hardening**: Gemini API key removed from URLs, yt-dlp URL
+  scheme validation, temp-file leaks closed, clearer HTTP errors.
+- Full audit fix pass — see `doc/rumusan-v1.5.4.md` for the complete
+  bilingual rumusan. Gate: 28/28 suites PASS.
+
 ## What's new in v1.5.3
 
 - **Continuity between video parts**: long videos split for full-video
@@ -202,8 +225,10 @@ land in an `audio/` folder next to the outputs.
 - Run all checks (compileall + every test suite):
   `run_gate.bat` — prints `GATE_ALL_PASS` when everything passes.
 - Test suites live in `tests\` as standalone scripts
-  (`test_fixes.py` ... `test_fixes13.py`, `test_acceptance.py`,
-  `test_gui_smoke.py`, `run_checks.py`). Each exits nonzero on failure.
+  (`test_fixes.py` ... `test_fixes19.py`, `test_acceptance.py`,
+  `test_chunked_video.py`, `test_gui_smoke.py`, `test_pipeline.py`,
+  `test_timeline_io.py`, and more — `run_gate.bat` lists them all and
+  is the source of truth). Each exits nonzero on failure.
 - i18n audit (every `t("...")` key exists in both EN and MS, no
   unlabeled buttons): `python tests\audit_i18n.py` — prints
   `AUDIT_PASS`.

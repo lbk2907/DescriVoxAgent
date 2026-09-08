@@ -54,7 +54,13 @@ class SettingsDialog(wx.Dialog):
         self.settings = settings
         self.tts_engine = tts_engine
         self._custom_visible = False
+        # raw id -> shown label per labelled wx.Choice (see
+        # _set_choice_labels). NVDA must read friendly names, not ids.
+        self._choice_labels: dict[int, dict[str, str]] = {}
         self._build_ui()
+        # Default button: Enter runs Apply; Escape keeps closing the
+        # dialog without saving (default wx behaviour unchanged).
+        self.apply_btn.SetDefault()
         self._load_values()
         logger.info("SettingsDialog opened")
 
@@ -153,7 +159,7 @@ class SettingsDialog(wx.Dialog):
 
         # Custom model text input (hidden by default)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
-        self.custom_model_text.SetHint("e.g. my-model-v1")
+        self.custom_model_text.SetHint(t("settings.model_hint"))
         self.custom_model_text.Hide()
         model_sizer.Add(self.custom_model_text, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -194,7 +200,8 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(self.api_key_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Show/hide key button
-        self.show_key_btn = wx.ToggleButton(panel, label="Show", name="toggle_key")
+        self.show_key_btn = wx.ToggleButton(panel, label=t("settings.show"),
+                                            name="toggle_key")
         sizer.Add(self.show_key_btn, 0, wx.ALL, 5)
         self.show_key_btn.Bind(wx.EVT_TOGGLEBUTTON, self._on_toggle_key)
 
@@ -244,8 +251,15 @@ class SettingsDialog(wx.Dialog):
 
         # Engine
         sizer.Add(wx.StaticText(panel, label=t("settings.tts_engine"), name="tts_engine_label"), 0, wx.ALL, 5)
-        self.tts_engine_choice = wx.Choice(panel, choices=["edge", "sapi5", "openai"], name="tts_engine")
+        self.tts_engine_choice = wx.Choice(panel, name="tts_engine")
         self.tts_engine_choice.SetLabel(t("settings.tts_engine"))
+        # Friendly engine names on screen; raw ids stay for the
+        # "tts.engines.<id>" settings keys.
+        self._set_choice_labels(self.tts_engine_choice, [
+            ("edge", t("settings.engine_edge")),
+            ("sapi5", t("settings.engine_sapi5")),
+            ("openai", t("settings.engine_openai")),
+        ])
         sizer.Add(self.tts_engine_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Voice
@@ -259,6 +273,8 @@ class SettingsDialog(wx.Dialog):
         self.speed_slider = wx.Slider(panel, value=10, minValue=5, maxValue=20,
                                       style=wx.SL_HORIZONTAL | wx.SL_LABELS,
                                       name="tts_speed")
+        # NVDA announces this name when the slider gets focus.
+        self.speed_slider.SetLabel(t("settings.speed"))
         sizer.Add(self.speed_slider, 0, wx.ALL | wx.EXPAND, 5)
 
         sizer.AddStretchSpacer()
@@ -272,16 +288,28 @@ class SettingsDialog(wx.Dialog):
 
         # Language
         sizer.Add(wx.StaticText(panel, label=t("settings.language"), name="general_lang_label"), 0, wx.ALL, 5)
-        self.lang_choice = wx.Choice(panel, choices=["en", "ms"], name="language")
+        self.lang_choice = wx.Choice(panel, name="language")
         self.lang_choice.SetLabel(t("settings.language"))
+        # Friendly labels on screen, raw ids stored (NVDA reads
+        # "English", not "en").
+        self._set_choice_labels(self.lang_choice, [
+            ("en", t("settings.lang_en")),
+            ("ms", t("settings.lang_ms")),
+        ])
         # v1.5.2: description output language (AI answers)
         sizer.Add(wx.StaticText(
             panel, label=t("settings.desc_language"),
             name="desc_lang_label"), 0, wx.ALL, 5)
         self.desc_lang_choice = wx.Choice(
-            panel, choices=["system", "ms", "en"],
-            name="desc_language")
+            panel, name="desc_language")
         self.desc_lang_choice.SetLabel(t("settings.desc_language"))
+        # Friendly labels; "system" follows the UI language. Raw ids
+        # ("system"/"ms"/"en") stay for settings storage.
+        self._set_choice_labels(self.desc_lang_choice, [
+            ("system", t("settings.lang_system")),
+            ("ms", t("settings.lang_ms")),
+            ("en", t("settings.lang_en")),
+        ])
         sizer.Add(self.desc_lang_choice, 0, wx.ALL | wx.EXPAND, 5)
         sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -316,6 +344,31 @@ class SettingsDialog(wx.Dialog):
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
         return panel
+
+    # ── Choice label helpers ──────────────────────────────────
+    #
+    # wx.Choice items must be readable by NVDA, so friendly labels are
+    # shown while raw ids ("en", "edge", ...) are kept for settings
+    # storage. _choice_label maps raw -> label for loads; _choice_value
+    # maps the shown selection back to the raw id for saves.
+
+    def _set_choice_labels(self, choice, pairs):
+        """Fill a wx.Choice with friendly labels and remember raw ids."""
+        self._choice_labels[id(choice)] = dict(pairs)
+        choice.SetItems([label for _, label in pairs])
+
+    def _choice_label(self, choice, raw):
+        """Shown label for a raw id (falls back to the raw id)."""
+        return self._choice_labels.get(id(choice), {}).get(raw, raw)
+
+    def _choice_value(self, choice):
+        """Raw id for the current selection (label -> raw id)."""
+        labels = self._choice_labels.get(id(choice), {})
+        shown = choice.GetStringSelection()
+        for raw, label in labels.items():
+            if label == shown:
+                return raw
+        return shown
 
     # ── Custom Provider UI Helpers ────────────────────────────
 
@@ -373,7 +426,8 @@ class SettingsDialog(wx.Dialog):
         sizer.Detach(self.api_key_text)
         self.api_key_text.Destroy()
         self.api_key_text = new_ctrl
-        self.show_key_btn.SetLabel("Hide" if is_hidden else "Show")
+        self.show_key_btn.SetLabel(t("settings.hide") if is_hidden
+                                  else t("settings.show"))
         self.Layout()
 
     def _on_provider_changed(self, event):
@@ -524,7 +578,7 @@ class SettingsDialog(wx.Dialog):
 
     def _on_tts_engine_changed(self, event):
         """Update voice list when TTS engine changes."""
-        self._refresh_voice_list(self.tts_engine_choice.GetStringSelection())
+        self._refresh_voice_list(self._choice_value(self.tts_engine_choice))
 
     def _refresh_voice_list(self, engine: str):
         """Populate voice dropdown with real voices for the given engine."""
@@ -546,7 +600,7 @@ class SettingsDialog(wx.Dialog):
 
     def _on_browse_output(self, event):
         """Browse output directory."""
-        dlg = wx.DirDialog(self, "Select Output Directory")
+        dlg = wx.DirDialog(self, t("settings.select_dir"))
         if dlg.ShowModal() == wx.ID_OK:
             self.output_text.SetValue(dlg.GetPath())
         dlg.Destroy()
@@ -559,15 +613,21 @@ class SettingsDialog(wx.Dialog):
 
     def _on_test(self, event):
         """Test AI provider connection."""
+        # Reentrancy guard: a second click while the background test is
+        # running must not start a second engine. The button is
+        # re-enabled on every exit path below.
+        self.test_btn.Disable()
         provider = self._selected_provider()
         api_key = self.api_key_text.GetValue().strip()
 
         if provider == "custom" and not self.base_url_text.GetValue().strip():
             self._show_test_result(t("settings.test_no_url"))
+            self.test_btn.Enable()
             return
 
         if not api_key:
             self._show_test_result(t("settings.test_no_key"))
+            self.test_btn.Enable()
             return
 
         self.test_result.SetLabel(t("settings.testing"))
@@ -602,6 +662,8 @@ class SettingsDialog(wx.Dialog):
             except Exception as e:
                 wx.CallAfter(self._show_test_result,
                              t("settings.test_error", error=str(e)[:100]))
+            finally:
+                wx.CallAfter(self.test_btn.Enable)
 
         import threading
         threading.Thread(target=test, daemon=True).start()
@@ -642,7 +704,7 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("ai.fast_mode", bool(self.fast_mode_cb.GetValue()))
 
         # Update TTS
-        tts_engine = self.tts_engine_choice.GetStringSelection()
+        tts_engine = self._choice_value(self.tts_engine_choice)
         self.settings.set("tts.default_engine", tts_engine)
 
         # Voice + speed (map display name back to voice id)
@@ -661,10 +723,10 @@ class SettingsDialog(wx.Dialog):
         self.settings.set(f"tts.engines.{tts_engine}.speed", speed)
 
         # Update general
-        lang = self.lang_choice.GetStringSelection()
+        lang = self._choice_value(self.lang_choice)
         self.settings.set("general.language", lang)
         # v1.5.2: description language (empty = follow UI)
-        desc_lang = self.desc_lang_choice.GetStringSelection()
+        desc_lang = self._choice_value(self.desc_lang_choice)
         if desc_lang == "system":
             desc_lang = ""
         self.settings.set("general.description_language", desc_lang)
@@ -683,7 +745,8 @@ class SettingsDialog(wx.Dialog):
             self.settings.set("general.output_dir", output_dir)
 
         self._load_values()
-        wx.MessageBox("Settings saved.", t("settings.title"), wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(t("settings.saved"), t("settings.title"),
+                      wx.OK | wx.ICON_INFORMATION)
         if self.IsModal():
             self.EndModal(wx.ID_OK)
         else:
@@ -710,7 +773,8 @@ class SettingsDialog(wx.Dialog):
 
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")
-        self.tts_engine_choice.SetStringSelection(default_tts)
+        self.tts_engine_choice.SetStringSelection(
+            self._choice_label(self.tts_engine_choice, default_tts))
         self._refresh_voice_list(default_tts)
         # Select saved voice by id (match display name)
         saved_voice = self.settings.get(f"tts.engines.{default_tts}.voice", "")
@@ -727,12 +791,14 @@ class SettingsDialog(wx.Dialog):
 
         # General
         lang = self.settings.get("general.language", "en")
-        self.lang_choice.SetStringSelection(lang)
+        self.lang_choice.SetStringSelection(
+            self._choice_label(self.lang_choice, lang))
         # v1.5.2: description language selection
         _dl = str(self.settings.get(
             "general.description_language", "") or "")
         self.desc_lang_choice.SetStringSelection(
-            _dl if _dl in ("ms", "en") else "system")
+            self._choice_label(self.desc_lang_choice,
+                               _dl if _dl in ("ms", "en") else "system"))
 
         fps = str(self.settings.get("general.frame_rate", 5))
         fps_items = [self.fps_choice.GetString(i) for i in range(self.fps_choice.GetCount())]

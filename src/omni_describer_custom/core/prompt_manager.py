@@ -60,9 +60,14 @@ class PromptManager:
         # Filter prompts relevant to current language
         lang_prefix = f"{self._language}_"
         filtered = {}
+        # Only a known language prefix marks a language-specific prompt.
+        # Any other underscore (e.g. "text_ocr") belongs to a universal
+        # preset name and must stay visible (v1.5.4 fix: text_ocr was
+        # unreachable because "_" in the name filtered it out).
+        lang_prefixes = ("en_", "ms_")
         for name, text in all_prompts.items():
             # Include language-specific or universal prompts
-            if name.startswith(lang_prefix) or "_" not in name:
+            if name.startswith(lang_prefix) or not name.startswith(lang_prefixes):
                 # Strip language prefix for display
                 display_name = name[len(lang_prefix):] if name.startswith(lang_prefix) else name
                 filtered[display_name] = text

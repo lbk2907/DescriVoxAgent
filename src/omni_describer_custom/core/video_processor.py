@@ -38,7 +38,7 @@ class VideoInfo:
     height: int = 0
     fps: float = 0.0
     title: str = ""
-    has_audio: bool = True
+    has_audio: bool = False
     file_size_mb: float = 0.0
 
 
@@ -285,7 +285,6 @@ class VideoProcessor:
 
         except Exception as e:
             logger.error("ffprobe error (%s): %s", ffprobe, e)
-            info.has_audio = False
 
         return info
 
@@ -349,6 +348,13 @@ class VideoProcessor:
           returning the URL.
         - on_progress is called with short status lines for the UI.
         """
+        # Only http(s) is supported; the leading "--" stops a crafted
+        # URL from being parsed as a yt-dlp option (v1.5.4 hardening;
+        # resolve_source() already gates this for the GUI flow, but
+        # download_video() is public).
+        if not url.lower().startswith(("http://", "https://")):
+            raise SourceError(
+                f"Unsupported video URL (http/https only): {url[:80]}")
         out_dir = out_dir or tempfile.mkdtemp(prefix="odc_video_")
         out_tmpl = str(Path(out_dir) / "video.%(ext)s")
         args = [
@@ -358,6 +364,7 @@ class VideoProcessor:
             "-o", out_tmpl,
             "--no-playlist",
             "--newline",  # one progress line per update, parseable
+            "--",
             url,
         ]
         try:
@@ -662,6 +669,9 @@ class VideoProcessor:
         except Exception as e:
             logger.warning("yt-dlp subtitle error: %s", e)
             return []
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def _parse_vtt(self, vtt_path: str) -> list[TranscriptSegment]:
         """Parse WebVTT subtitle file (block-based, tolerant of cue ids/settings)."""

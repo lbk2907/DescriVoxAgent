@@ -20,13 +20,15 @@ def setup_logging():
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "omni_describer.log"
 
+    handlers = [logging.FileHandler(log_file, encoding="utf-8")]
+    # Under a windowed PyInstaller build sys.stdout/stderr are None; a
+    # StreamHandler on None silently drops all console log output.
+    if sys.stdout is not None:
+        handlers.append(logging.StreamHandler(sys.stdout))
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(log_file, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
+        handlers=handlers,
     )
     logging.getLogger("PIL").setLevel(logging.WARNING)
     logging.info("Logging initialized: %s", log_file)
@@ -36,6 +38,14 @@ def main():
     """Application entry point."""
     setup_logging()
     logger = logging.getLogger(__name__)
+
+    # Windowed PyInstaller builds have no stderr, so unhandled exceptions
+    # (e.g. inside wx event handlers after MainLoop starts) would vanish
+    # silently. Route them into the log file instead.
+    def _log_unhandled(exc_type, exc_value, exc_tb):
+        logger.error("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
+
+    sys.excepthook = _log_unhandled
 
     # Create wx App
     app = wx.App(False)

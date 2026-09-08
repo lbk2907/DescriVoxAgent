@@ -39,15 +39,20 @@ class EditorWindow(wx.Frame):
         sizer = wx.BoxSizer(wx.VERTICAL)
         panel.SetSizer(sizer)
 
+        # Status line — announce target so NVDA reports add/delete/TTS
+        # results (audit fix: this window had no status channel).
+        self.status_text = wx.StaticText(panel, label="", name="editor_status")
+        sizer.Add(self.status_text, 0, wx.ALL, 5)
+
         # Description list
         list_box = wx.StaticBox(panel, label=t("editor.select_desc"))
         list_sizer = wx.StaticBoxSizer(list_box, wx.VERTICAL)
 
         self.desc_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL,
                                      name="description_list")
-        self.desc_list.InsertColumn(0, "Start", width=70)
-        self.desc_list.InsertColumn(1, "End", width=70)
-        self.desc_list.InsertColumn(2, "Text", width=500)
+        self.desc_list.InsertColumn(0, t("editor.col_start"), width=70)
+        self.desc_list.InsertColumn(1, t("editor.col_end"), width=70)
+        self.desc_list.InsertColumn(2, t("editor.col_text"), width=500)
         list_sizer.Add(self.desc_list, 1, wx.ALL | wx.EXPAND, 5)
         sizer.Add(list_sizer, 1, wx.ALL | wx.EXPAND, 10)
 
@@ -77,7 +82,7 @@ class EditorWindow(wx.Frame):
         self.add_btn = wx.Button(panel, label=t("editor.add_new"), name="add_description")
         self.delete_btn = wx.Button(panel, label=t("editor.delete"), name="delete_description")
         self.close_btn = wx.Button(panel, label=t("editor.close"), name="close_editor")
-        self.tts_btn = wx.Button(panel, label="🔊 Read", name="tts_read")
+        self.tts_btn = wx.Button(panel, label="🔊 " + t("editor.read"), name="tts_read")
 
         btn_row.Add(self.add_btn, 0, wx.ALL, 5)
         btn_row.Add(self.delete_btn, 0, wx.ALL, 5)
@@ -96,6 +101,11 @@ class EditorWindow(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
         panel.Layout()
+
+    def _announce(self, msg: str) -> None:
+        """Set status text and move focus so NVDA announces it."""
+        self.status_text.SetLabel(msg)
+        self.status_text.SetFocus()
 
     def _load_descriptions(self):
         """Load descriptions into list."""
@@ -135,20 +145,29 @@ class EditorWindow(wx.Frame):
         })()
         self.store.add_description(new_desc)
         self._load_descriptions()
+        self._announce(t("editor.add_new"))
 
     def _on_delete(self, event):
-        """Delete selected description."""
+        """Delete the selected description after a YES/NO confirmation."""
         idx = self.desc_list.GetFirstSelected()
         if idx == wx.NOT_FOUND:
+            return
+        if wx.MessageBox(
+            t("editor.confirm_delete"),
+            t("editor.confirm_title"),
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+        ) != wx.YES:
             return
         desc = self.store.current.descriptions[idx]
         self.store.delete_description(desc.id)
         self._load_descriptions()
+        self._announce(t("editor.deleted"))
 
     def _on_tts(self, event):
         """Read current description via TTS."""
         text = self.text_ctrl.GetValue().strip()
         if not text:
+            self._announce(t("editor.empty_text"))
             return
         # Generate AND play the audio in a background thread; a bare
         # speak() only writes a temp file and the user hears nothing.

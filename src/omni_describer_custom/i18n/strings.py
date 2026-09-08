@@ -2,12 +2,11 @@
 Omni Describer Custom — i18n strings.
 
 Base English strings with Malay (ms) translations.
-Usage: from src.i18n.strings import t; t("menu.file")
+Usage: from omni_describer_custom.i18n.strings import t; t("menu.file")
 """
 
 from __future__ import annotations
 
-import gettext
 import logging
 from typing import Any
 
@@ -103,10 +102,10 @@ EN_STRINGS: dict[str, str] = {
     "main.processing": "Processing...",
     "status.complete": "Complete",
     "status.failed": "Failed",
-    "main.no_video": "No video loaded.",
 
     # Settings Dialog
     "settings.title": "Settings",
+    "settings.saved": "Settings saved.",
     "settings.ai_tab": "AI Settings",
     "settings.tts_tab": "Audio Output",
     "settings.general_tab": "General",
@@ -263,6 +262,87 @@ EN_STRINGS: dict[str, str] = {
     "path": "Path:",
     "duration": "Duration:",
     "language": "Language:",
+
+    # --- v1.5.4: main window labels, dialogs, status log ---
+    "main.source_local": "Local Video File",
+    "main.source_url": "Direct Video URL",
+    "main.source_youtube": "YouTube Video URL",
+    "main.btn_open": "Open",
+    "main.status_log": "Status Log",
+    "main.enter_url": "Enter video URL:",
+    "main.enter_youtube": "Enter YouTube video URL:",
+    "main.project_name": "Project name:",
+    "main.new_project": "New Project",
+    "main.no_saved_projects": "No saved projects found.",
+    "main.open_project_title": "Open Project",
+    "main.no_project": "No project open.",
+    "main.log_selected": "Selected: {path}",
+    "main.log_file": "File: {name}",
+    "main.log_url": "URL: {url}",
+    "main.log_youtube": "YouTube: {url}",
+    "main.log_preset": "Preset: {name}",
+    "main.log_project_created": "Project created: {name}",
+    "main.log_opened": "Opened: {name} ({count} descriptions)",
+    "main.log_project_saved": "Project saved",
+    "main.log_project": "Project: {name}",
+    "main.log_frames": "Extracted {count} frames at {fps} FPS",
+    "main.log_no_frames": "ERROR: No frames extracted",
+    "main.log_generated": "Generated {count} descriptions",
+    "main.log_opening_player": "Opening Player Window...",
+    # --- player window statuses (announced to NVDA) ---
+    "player.subtitle_failed": "Subtitle load failed",
+    "player.subtitle_error": "Could not read subtitle file:\n{error}",
+    "player.subtitle_empty": "Subtitle file was empty",
+    "player.subtitle_no_entries": "No subtitle entries found in that file.",
+    "player.subtitles_loaded": "Subtitles loaded: {count}",
+    "player.ended": "Ended",
+    "player.playing": "Playing (VLC)...",
+    "player.playing_audio": "Playing (audio)...",
+    "player.playing_sim": "Playing (simulated)...",
+    "player.paused": "Paused",
+    "player.stopped": "Stopped",
+    "player.speaking": "Speaking...",
+    "player.spoken": "Finished speaking",
+    "player.tts_failed": "TTS failed",
+    "player.tts_error": "TTS error: {error}",
+    "player.no_descriptions": "No descriptions available.",
+    "player.upcoming_end": "(end)",
+    # --- scene explorer ---
+    "scene.frame_info": "Frame {index} / {total}",
+    "scene.loading": "Loading frames...",
+    "scene.error": "Error: {msg}",
+    "scene.no_frames": "Could not extract frames from this video.",
+    "scene.no_video_loaded": "No video loaded. Open a project or process a video first.",
+    "scene.objects_prompt": "List all objects visible in this frame, one per line.",
+    "scene.no_ai": "No AI configured",
+    "scene.analyzing": "Analyzing...",
+    "scene.detecting": "Detecting objects...",
+    # --- ask more dialog ---
+    "ask.you": "You: {question}",
+    "ask.error": "Error: {error}",
+    "ask.empty_question": "Please enter a question.",
+    "ask.ai_none": "AI: (No AI engine configured)\n\n",
+    "ask.ai_prefix": "AI: {result}\n\n",
+    # --- editor window ---
+    "editor.col_start": "Start",
+    "editor.col_end": "End",
+    "editor.col_text": "Text",
+    "editor.read": "Read",
+    "editor.confirm_delete": "Delete this description?",
+    "editor.confirm_title": "Confirm Delete",
+    "editor.deleted": "Description deleted",
+    "editor.empty_text": "No text to read.",
+    # --- settings dialog ---
+    "settings.show": "Show",
+    "settings.hide": "Hide",
+    "settings.select_dir": "Select Output Directory",
+    "settings.model_hint": "e.g. my-model-v1",
+    "settings.lang_en": "English",
+    "settings.lang_ms": "Bahasa Melayu",
+    "settings.lang_system": "System",
+    "settings.engine_edge": "Edge TTS",
+    "settings.engine_sapi5": "SAPI5 (Windows)",
+    "settings.engine_openai": "OpenAI TTS",
 }
 
 
@@ -359,6 +439,7 @@ MS_STRINGS: dict[str, str] = {
 
     # Settings Dialog
     "settings.title": "Tetapan",
+    "settings.saved": "Tetapan disimpan.",
     "settings.ai_tab": "Tetapan AI",
     "settings.tts_tab": "Output Audio",
     "settings.general_tab": "Am",
@@ -515,6 +596,87 @@ MS_STRINGS: dict[str, str] = {
     "path": "Laluan:",
     "duration": "Tempoh:",
     "language": "Bahasa:",
+
+    # --- v1.5.4: label tetingkap utama, dialog, log status ---
+    "main.source_local": "Fail Video Tempatan",
+    "main.source_url": "URL Video Terus",
+    "main.source_youtube": "URL Video YouTube",
+    "main.btn_open": "Buka",
+    "main.status_log": "Log Status",
+    "main.enter_url": "Masukkan URL video:",
+    "main.enter_youtube": "Masukkan URL video YouTube:",
+    "main.project_name": "Nama projek:",
+    "main.new_project": "Projek Baharu",
+    "main.no_saved_projects": "Tiada projek tersimpan.",
+    "main.open_project_title": "Buka Projek",
+    "main.no_project": "Tiada projek dibuka.",
+    "main.log_selected": "Dipilih: {path}",
+    "main.log_file": "Fail: {name}",
+    "main.log_url": "URL: {url}",
+    "main.log_youtube": "YouTube: {url}",
+    "main.log_preset": "Preset: {name}",
+    "main.log_project_created": "Projek dicipta: {name}",
+    "main.log_opened": "Dibuka: {name} ({count} penerangan)",
+    "main.log_project_saved": "Projek disimpan",
+    "main.log_project": "Projek: {name}",
+    "main.log_frames": "{count} frame diekstrak pada {fps} FPS",
+    "main.log_no_frames": "RALAT: Tiada frame diekstrak",
+    "main.log_generated": "{count} penerangan dijana",
+    "main.log_opening_player": "Membuka Tetingkap Pemain...",
+    # --- status tetingkap pemain (diumumkan kepada NVDA) ---
+    "player.subtitle_failed": "Gagal memuatkan sari kata",
+    "player.subtitle_error": "Tidak dapat membaca fail sari kata:\n{error}",
+    "player.subtitle_empty": "Fail sari kata kosong",
+    "player.subtitle_no_entries": "Tiada entri sari kata dalam fail itu.",
+    "player.subtitles_loaded": "Sari kata dimuatkan: {count}",
+    "player.ended": "Tamat",
+    "player.playing": "Bermain (VLC)...",
+    "player.playing_audio": "Bermain (audio)...",
+    "player.playing_sim": "Bermain (simulasi)...",
+    "player.paused": "Dijeda",
+    "player.stopped": "Dihentikan",
+    "player.speaking": "Sedang membaca...",
+    "player.spoken": "Selesai membaca",
+    "player.tts_failed": "TTS gagal",
+    "player.tts_error": "Ralat TTS: {error}",
+    "player.no_descriptions": "Tiada penerangan tersedia.",
+    "player.upcoming_end": "(tamat)",
+    # --- pelayar skena ---
+    "scene.frame_info": "Frame {index} / {total}",
+    "scene.loading": "Memuatkan frame...",
+    "scene.error": "Ralat: {msg}",
+    "scene.no_frames": "Tidak dapat mengekstrak frame dari video ini.",
+    "scene.no_video_loaded": "Tiada video dimuatkan. Buka projek atau proses video dahulu.",
+    "scene.objects_prompt": "Senaraikan semua objek yang kelihatan dalam frame ini, satu setiap baris.",
+    "scene.no_ai": "AI tidak dikonfigurasi",
+    "scene.analyzing": "Menganalisis...",
+    "scene.detecting": "Mengesan objek...",
+    # --- dialog tanya lagi ---
+    "ask.you": "Anda: {question}",
+    "ask.error": "Ralat: {error}",
+    "ask.empty_question": "Sila masukkan soalan.",
+    "ask.ai_none": "AI: (Tiada enjin AI dikonfigurasi)\n\n",
+    "ask.ai_prefix": "AI: {result}\n\n",
+    # --- tetingkap editor ---
+    "editor.col_start": "Mula",
+    "editor.col_end": "Tamat",
+    "editor.col_text": "Teks",
+    "editor.read": "Baca",
+    "editor.confirm_delete": "Padam penerangan ini?",
+    "editor.confirm_title": "Sahkan Padam",
+    "editor.deleted": "Penerangan dipadam",
+    "editor.empty_text": "Tiada teks untuk dibaca.",
+    # --- dialog tetapan ---
+    "settings.show": "Tunjuk",
+    "settings.hide": "Sembunyi",
+    "settings.select_dir": "Pilih Direktori Output",
+    "settings.model_hint": "cth. model-saya-v1",
+    "settings.lang_en": "English",
+    "settings.lang_ms": "Bahasa Melayu",
+    "settings.lang_system": "Sistem",
+    "settings.engine_edge": "Edge TTS",
+    "settings.engine_sapi5": "SAPI5 (Windows)",
+    "settings.engine_openai": "OpenAI TTS",
 }
 
 

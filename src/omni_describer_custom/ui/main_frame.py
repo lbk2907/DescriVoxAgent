@@ -99,6 +99,9 @@ class MainFrame(wx.Frame):
 
         self.SetStatusBar(self._create_statusbar())
         self.SetStatusText(t("main.ready"))
+        # v1.5.4: one place re-applies every translated label; runs
+        # again after the Settings dialog changes general.language.
+        self._retranslate_ui()
 
         logger.info("MainFrame initialized (v2.1.2 layout)")
 
@@ -114,11 +117,11 @@ class MainFrame(wx.Frame):
         # ── 1. Source Buttons (stacked vertically, full width) ───
         outer.AddSpacer(_BORDER)
 
-        self.btn_local = wx.Button(panel, label="Local Video File",
+        self.btn_local = wx.Button(panel, label=t("main.source_local"),
                                    name="source_local")
-        self.btn_url = wx.Button(panel, label="Direct Video URL",
+        self.btn_url = wx.Button(panel, label=t("main.source_url"),
                                  name="source_url")
-        self.btn_youtube = wx.Button(panel, label="YouTube Video URL",
+        self.btn_youtube = wx.Button(panel, label=t("main.source_youtube"),
                                      name="source_youtube")
 
         for btn in (self.btn_local, self.btn_url, self.btn_youtube):
@@ -130,21 +133,23 @@ class MainFrame(wx.Frame):
         # ── 2. Prompt preset row (ComboBox + Open button) ────────
         preset_row = wx.BoxSizer(wx.HORIZONTAL)
 
-        preset_label = wx.StaticText(
+        self.preset_label = wx.StaticText(
             panel,
             label=t("main.preset_hint"),
             name="preset_label",
         )
-        outer.Add(preset_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
+        outer.Add(self.preset_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
 
         combo_row = wx.BoxSizer(wx.HORIZONTAL)
         self.prompt_choice = wx.Choice(panel, name="prompt_choice")
         self.prompt_choice.SetMinSize((-1, _COMBO_H))
+        # Accessible name for screen readers (pattern: player_window).
+        self.prompt_choice.SetLabel(t("main.prompt"))
         self._refresh_prompt_list()
         self.prompt_choice.Bind(wx.EVT_CHOICE, self._on_preset_selected)
         self.prompt_choice.Bind(wx.EVT_SET_FOCUS, self._on_preset_focus)
 
-        self.btn_preset_open = wx.Button(panel, label="Open",
+        self.btn_preset_open = wx.Button(panel, label=t("main.btn_open"),
                                          name="preset_open")
         self.btn_preset_open.SetMinSize((50, _COMBO_H))
 
@@ -155,9 +160,10 @@ class MainFrame(wx.Frame):
         outer.AddSpacer(5)
 
         # ── 3. Custom prompt text area ───────────────────────────
-        outer.Add(wx.StaticText(panel, label=t("main.custom_prompt"),
-                                name="custom_prompt_label"),
-                  0, wx.LEFT | wx.RIGHT, _BORDER)
+        self.custom_prompt_label = wx.StaticText(
+            panel, label=t("main.custom_prompt"),
+            name="custom_prompt_label")
+        outer.Add(self.custom_prompt_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
         self.custom_prompt = wx.TextCtrl(
             panel,
             value="",
@@ -165,15 +171,17 @@ class MainFrame(wx.Frame):
             name="custom_prompt",
         )
         self.custom_prompt.SetMinSize((-1, _EDIT_H))
+        # Accessible name for screen readers (pattern: player_window).
+        self.custom_prompt.SetLabel(t("main.custom_prompt"))
         outer.Add(self.custom_prompt, 0,
                   wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
         outer.AddSpacer(8)
 
         # ── 4. Status Log ────────────────────────────────────────
-        outer.Add(wx.StaticText(panel, label="Status Log",
-                                name="log_label"),
-                  0, wx.LEFT | wx.RIGHT, _BORDER)
+        self.log_label = wx.StaticText(panel, label=t("main.status_log"),
+                                       name="log_label")
+        outer.Add(self.log_label, 0, wx.LEFT | wx.RIGHT, _BORDER)
         self.log_text = wx.TextCtrl(
             panel,
             value="",
@@ -181,6 +189,8 @@ class MainFrame(wx.Frame):
             name="log_output",
         )
         self.log_text.SetMinSize((-1, _LOG_H))
+        # Accessible name for screen readers (pattern: player_window).
+        self.log_text.SetLabel(t("main.status_log"))
         outer.Add(self.log_text, 1,
                   wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
@@ -189,11 +199,11 @@ class MainFrame(wx.Frame):
         # ── 5. Bottom buttons: Settings ... Exit ─────────────────
         bottom_row = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.btn_settings = wx.Button(panel, label="Settings...",
+        self.btn_settings = wx.Button(panel, label=t("menu.settings"),
                                       name="open_settings")
         self.btn_settings.SetMinSize((90, _BTN_H))
 
-        self.btn_exit = wx.Button(panel, label="Exit",
+        self.btn_exit = wx.Button(panel, label=t("menu.exit"),
                                   name="exit_app")
         self.btn_exit.SetMinSize((90, _BTN_H))
 
@@ -245,6 +255,58 @@ class MainFrame(wx.Frame):
         menubar.Append(help_menu, t("menu.help"))
 
         self.SetMenuBar(menubar)
+
+    def _retranslate_ui(self):
+        """Re-apply translated labels after a language change.
+
+        v1.5.4: runs once at startup and again after the Settings
+        dialog returns (Apply may switch general.language), so a
+        language switch takes effect without restarting the app.
+        """
+        self.SetTitle(t("main.title"))
+        self.btn_local.SetLabel(t("main.source_local"))
+        self.btn_url.SetLabel(t("main.source_url"))
+        self.btn_youtube.SetLabel(t("main.source_youtube"))
+        self.btn_preset_open.SetLabel(t("main.btn_open"))
+        self.btn_settings.SetLabel(t("menu.settings"))
+        self.btn_exit.SetLabel(t("menu.exit"))
+        self.preset_label.SetLabel(t("main.preset_hint"))
+        self.custom_prompt_label.SetLabel(t("main.custom_prompt"))
+        self.log_label.SetLabel(t("main.status_log"))
+        # Accessible names for screen readers follow the language too.
+        self.prompt_choice.SetLabel(t("main.prompt"))
+        self.custom_prompt.SetLabel(t("main.custom_prompt"))
+        self.log_text.SetLabel(t("main.status_log"))
+        self._retranslate_menu()
+        self.SetStatusText(t("main.ready"), 0)
+
+    def _retranslate_menu(self):
+        """Update menu item labels IN PLACE (no rebuild: ids/bindings
+        stay valid, so re-binding can never go stale)."""
+        menubar = self.GetMenuBar()
+        if menubar is None:
+            return
+        for item_id, key in (
+            (wx.ID_PREFERENCES, "menu.settings"),
+            (wx.ID_NEW, "menu.new_project"),
+            (wx.ID_OPEN, "menu.open_project"),
+            (wx.ID_SAVE, "menu.save_project"),
+            (self._id_import, "menu.import_desc"),
+            (self._id_export_srt, "menu.export_srt"),
+            (self._id_export_vtt, "menu.export_vtt"),
+            (self._id_export_audio, "menu.export_audio"),
+            (wx.ID_EXIT, "menu.exit"),
+            (wx.ID_ABOUT, "menu.about"),
+        ):
+            item = menubar.FindItemById(item_id)
+            if item is not None:
+                item.SetItemLabel(t(key))
+        # wxPython Phoenix has no MenuBar.SetLabelTop; a top-level
+        # title is the wx.Menu's title.
+        for idx, key in ((0, "menu.file"), (1, "menu.help")):
+            menu = menubar.GetMenu(idx)
+            if menu is not None:
+                menu.SetTitle(t(key))
 
     # ── Events ────────────────────────────────────────────────────
 
@@ -456,34 +518,34 @@ class MainFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self._current_source = path
-            self._log(f"Selected: {path}")
-            self.SetStatusText(f"File: {Path(path).name}")
+            self._log(t("main.log_selected", path=path))
+            self.SetStatusText(t("main.log_file", name=Path(path).name))
         dlg.Destroy()
 
     def _on_direct_url(self, event):
         """Open dialog to enter a direct video URL."""
         dlg = wx.TextEntryDialog(
-            self, "Enter video URL:", "Direct Video URL",
+            self, t("main.enter_url"), t("main.source_url"),
         )
         if dlg.ShowModal() == wx.ID_OK:
             url = dlg.GetValue().strip()
             if url:
                 self._current_source = url
-                self._log(f"URL: {url}")
-                self.SetStatusText(f"URL: {url[:60]}")
+                self._log(t("main.log_url", url=url))
+                self.SetStatusText(t("main.log_url", url=url[:60]))
         dlg.Destroy()
 
     def _on_youtube_url(self, event):
         """Open dialog to enter a YouTube URL."""
         dlg = wx.TextEntryDialog(
-            self, "Enter YouTube video URL:", "YouTube Video URL",
+            self, t("main.enter_youtube"), t("main.source_youtube"),
         )
         if dlg.ShowModal() == wx.ID_OK:
             url = dlg.GetValue().strip()
             if url:
                 self._current_source = url
-                self._log(f"YouTube: {url}")
-                self.SetStatusText(f"YouTube: {url[:60]}")
+                self._log(t("main.log_youtube", url=url))
+                self.SetStatusText(t("main.log_youtube", url=url[:60]))
         dlg.Destroy()
 
     # ── Preset Handler ─────────────────────────────────���──────────
@@ -509,7 +571,7 @@ class MainFrame(wx.Frame):
         if custom and custom != prompt.strip():
             prompt = f"{prompt}\n\nUser notes: {custom}"
 
-        self._log(f"Preset: {preset_name}")
+        self._log(t("main.log_preset", name=preset_name))
         self._start_processing(prompt)
 
     def _on_preset_selected(self, event):
@@ -551,6 +613,13 @@ class MainFrame(wx.Frame):
             # User cancelled: keep their current preset selection and
             # prompt text untouched.
             return
+        # v1.5.4: Settings Apply may have switched general.language.
+        # Re-sync I18n + the preset language, then re-translate every
+        # label (widgets + menus) so the switch needs no restart.
+        lang = str(self.settings.get("general.language", "en") or "en")
+        I18n.set_language(lang)
+        self.prompt_mgr.language = lang
+        self._retranslate_ui()
         self._load_settings()
         # Re-apply TTS engine/voice/speed from settings
         self.tts_engine.settings = self.settings.get("tts", {})
@@ -562,13 +631,14 @@ class MainFrame(wx.Frame):
         self.Close()
 
     def _on_new_project(self, event):
-        name_dlg = wx.TextEntryDialog(self, "Project name:", "New Project")
+        name_dlg = wx.TextEntryDialog(self, t("main.project_name"),
+                                      t("main.new_project"))
         if name_dlg.ShowModal() == wx.ID_OK:
             name = name_dlg.GetValue().strip()
             if name:
                 self.project_store.create_project(name, "")
-                self._log(f"Project created: {name}")
-                self.SetStatusText(f"Project: {name}")
+                self._log(t("main.log_project_created", name=name))
+                self.SetStatusText(t("main.log_project", name=name))
         name_dlg.Destroy()
 
     def _on_open_project(self, event):
@@ -581,7 +651,8 @@ class MainFrame(wx.Frame):
         """
         projects = self.project_store.list_projects()
         if not projects:
-            wx.MessageBox("No saved projects found.", "Open Project",
+            wx.MessageBox(t("main.no_saved_projects"),
+                          t("main.open_project_title"),
                           wx.OK | wx.ICON_INFORMATION)
             return
 
@@ -599,7 +670,7 @@ class MainFrame(wx.Frame):
         open_btn = wx.Button(dlg, wx.ID_OK, t("project.open_btn"))
         open_btn.SetDefault()
         remove_btn = wx.Button(dlg, wx.ID_ANY, t("project.remove_btn"))
-        cancel_btn = wx.Button(dlg, wx.ID_CANCEL, "Close")
+        cancel_btn = wx.Button(dlg, wx.ID_CANCEL, t("close"))
         btns.Add(open_btn, 0, wx.ALL, pad)
         btns.Add(remove_btn, 0, wx.ALL, pad)
         btns.AddStretchSpacer()
@@ -659,7 +730,8 @@ class MainFrame(wx.Frame):
             if proj_row:
                 proj = self.project_store.open_project(proj_row["id"])
                 if proj:
-                    self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
+                    self._log(t("main.log_opened", name=proj.name,
+                                count=len(proj.descriptions)))
                     if not proj.descriptions:
                         wx.MessageBox(t("project.opened_empty", name=proj.name),
                                       t("project.dialog_title"),
@@ -688,11 +760,11 @@ class MainFrame(wx.Frame):
 
     def _on_save_project(self, event):
         if not self.project_store.current:
-            wx.MessageBox("No project open.", "Save",
+            wx.MessageBox(t("main.no_project"), t("save"),
                           wx.OK | wx.ICON_INFORMATION)
             return
         self.project_store.save_descriptions(self.project_store.current.descriptions)
-        self._log("Project saved")
+        self._log(t("main.log_project_saved"))
 
     def _on_about(self, event):
         info = wx.adv.AboutDialogInfo()
@@ -781,14 +853,15 @@ class MainFrame(wx.Frame):
                 wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
             dlg.SetYesLabel(t("project.dedupe_open"))
             dlg.SetNoLabel(t("project.dedupe_new"))
-            dlg.SetCancelLabel("Cancel")
+            dlg.SetCancelLabel(t("cancel"))
             choice = dlg.ShowModal()
             dlg.Destroy()
             if choice == wx.ID_YES:
                 proj = self.project_store.open_project(existing["id"])
                 if proj:
-                    self._log(f"Opened: {proj.name} ({len(proj.descriptions)} descriptions)")
-                    self.SetStatusText(f"Project: {proj.name}")
+                    self._log(t("main.log_opened", name=proj.name,
+                                count=len(proj.descriptions)))
+                    self.SetStatusText(t("main.log_project", name=proj.name))
                     if not proj.descriptions:
                         wx.MessageBox(t("project.opened_empty", name=proj.name),
                                       t("project.dialog_title"),
@@ -1257,7 +1330,8 @@ class MainFrame(wx.Frame):
                 frame_dir = None
                 loop.close()
                 return
-            wx.CallAfter(self._log, f"Extracted {len(frames)} frames at {fps} FPS")
+            wx.CallAfter(self._log, t("main.log_frames",
+                                      count=len(frames), fps=fps))
             # Announce the completed download phase explicitly so screen
             # reader users know the fetch finished and what comes next.
             wx.CallAfter(self._ensure_download_progress)
@@ -1278,7 +1352,7 @@ class MainFrame(wx.Frame):
                 wx.CallAfter(self._log, t("process.frame_capped", cap=cap, total=total_extracted))
 
             if not frames:
-                wx.CallAfter(self._log, "ERROR: No frames extracted")
+                wx.CallAfter(self._log, t("main.log_no_frames"))
                 wx.CallAfter(self._close_download_progress)
                 wx.CallAfter(self._processing_done)
                 self._cleanup_dir(frame_dir)
@@ -1385,7 +1459,8 @@ class MainFrame(wx.Frame):
             self.project_store.save_descriptions(desc_objects)
             self._write_project_srt()
             video_path = self._video_saved_path()
-            wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
+            wx.CallAfter(self._log, t("main.log_generated",
+                                      count=len(desc_objects)))
             wx.CallAfter(self._log, t("status.processing_complete",
                                       count=len(desc_objects)))
             if video_path:
@@ -1667,7 +1742,8 @@ class MainFrame(wx.Frame):
         self.project_store.save_descriptions(desc_objects)
         self._write_project_srt()
         video_path = self._video_saved_path()
-        wx.CallAfter(self._log, f"Generated {len(desc_objects)} descriptions")
+        wx.CallAfter(self._log, t("main.log_generated",
+                                  count=len(desc_objects)))
         wx.CallAfter(self._log, t("status.processing_complete",
                                   count=len(desc_objects)))
         if video_path:
@@ -1754,7 +1830,7 @@ class MainFrame(wx.Frame):
 
         # Auto-open PlayerWindow if descriptions were generated
         if self.project_store.current and self.project_store.current.descriptions:
-            self._log("Opening Player Window...")
+            self._log(t("main.log_opening_player"))
             wx.CallAfter(self._open_player)
 
     @staticmethod

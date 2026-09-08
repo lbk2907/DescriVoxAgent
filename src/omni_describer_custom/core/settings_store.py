@@ -6,6 +6,7 @@ Encrypted JSON settings for API keys, preferences, and configuration.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -26,8 +27,16 @@ def _get_config_dir() -> Path:
     return base
 
 
+_DPAPI_PREFIX = "dpapi:"
+
+try:
+    import win32crypt  # type: ignore  # pywin32; Windows only
+except ImportError:  # non-Windows or headless environments
+    win32crypt = None  # type: ignore[assignment]
+
+
 def _simple_encrypt(text: str, key: str = "odc-default-key-2026") -> str:
-    """Simple XOR encryption for API keys (not military-grade, but obfuscates)."""
+    """XOR obfuscation fallback (not real encryption; non-Windows only)."""
     result = []
     key = key * (len(text) // len(key) + 1)
     for i, char in enumerate(text):
@@ -38,6 +47,34 @@ def _simple_encrypt(text: str, key: str = "odc-default-key-2026") -> str:
 def _simple_decrypt(encoded: str, key: str = "odc-default-key-2026") -> str:
     """Decrypt using same XOR operation."""
     return _simple_encrypt(encoded, key)  # XOR is symmetric
+
+
+def _protect_secret(text: str) -> str:
+    """Protect an API key at rest.
+
+    Windows: DPAPI (user-scoped; no key material in source or binary).
+    Elsewhere, or if DPAPI fails: legacy XOR obfuscation fallback.
+    """
+    if win32crypt is not None:
+        try:
+            blob = win32crypt.CryptProtectData(text.encode("utf-8"), "OmniDescriber", None, None, None, 0)
+            return _DPAPI_PREFIX + base64.b64encode(blob).decode("ascii")
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("DPAPI protect failed, falling back to XOR: %s", e)
+    return _simple_encrypt(text)
+
+
+def _unprotect_secret(encoded: str) -> str:
+    """Recover an API key stored by _protect_secret or by legacy XOR."""
+    if encoded.startswith(_DPAPI_PREFIX) and win32crypt is not None:
+        try:
+            blob = base64.b64decode(encoded[len(_DPAPI_PREFIX):])
+            _desc, value = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
+            return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error("DPAPI unprotect failed: %s", e)
+            return ""
+    return _simple_decrypt(encoded)
 
 
 class SettingsStore:
@@ -104,14 +141,14 @@ class SettingsStore:
                     if isinstance(self._data["ai"]["providers"][provider], dict):
                         enc_key = self._data["ai"]["providers"][provider].get("api_key_enc", "")
                         if enc_key:
-                            self._data["ai"]["providers"][provider]["api_key"] = _simple_decrypt(enc_key)
+                            self._data["ai"]["providers"][provider]["api_key"] = _unprotect_secret(enc_key)
                             del self._data["ai"]["providers"][provider]["api_key_enc"]
                 logger.info("Settings loaded from %s", self.settings_file)
             except Exception as e:
                 logger.error("Settings load error: %s", e)
-                self._data = dict(self.DEFAULTS)
+                self._data = json.loads(json.dumps(self.DEFAULTS))
         else:
-            self._data = dict(self.DEFAULTS)
+            self._data = json.loads(json.dumps(self.DEFAULTS))
             self._save()
 
     def _save(self):
@@ -123,7 +160,7 @@ class SettingsStore:
                 if isinstance(data["ai"]["providers"][provider], dict):
                     api_key = data["ai"]["providers"][provider].get("api_key", "")
                     if api_key:
-                        data["ai"]["providers"][provider]["api_key_enc"] = _simple_encrypt(api_key)
+                        data["ai"]["providers"][provider]["api_key_enc"] = _protect_secret(api_key)
                         del data["ai"]["providers"][provider]["api_key"]
             self.settings_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
             logger.debug("Settings saved")

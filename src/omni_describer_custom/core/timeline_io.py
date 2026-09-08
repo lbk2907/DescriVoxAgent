@@ -302,6 +302,13 @@ def export_audio(
                 _to_wav(audio, wav)
                 clips.append(wav)
                 delays.append(int(round(d.start_time * 1000)))
+                # tts.speak() returns a NamedTemporaryFile(delete=False);
+                # remove the source clip after conversion (v1.5.4: one
+                # orphan WAV/MP3 per cue used to stay behind in %TEMP%).
+                try:
+                    Path(audio).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

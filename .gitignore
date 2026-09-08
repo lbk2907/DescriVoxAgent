@@ -34,6 +34,12 @@ logs/
 projects/*.db
 !projects/.gitkeep
 
+# Secrets / local config (settings live in %APPDATA%, this is defensive)
+settings.json
+settings.json.tmp
+*.key
+.env
+
 # Temp / scratch
 *.tmp
 *.temp

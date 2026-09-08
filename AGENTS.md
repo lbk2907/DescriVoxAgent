@@ -126,8 +126,10 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.5.3 (tag `v1.5.3`, commit `2d8437f`)
+- **Versi:** 1.5.4 (tag `v1.5.4`; rumusan: `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; Gemini + MiniMax full-video mode tersedia
-- 27 test suite, semua PASS
-- dist zip terkini: `OmniDescriber-1.5.3-win64.zip`
+- 28 test suite, semua PASS (test_fixes19 = audit fix regression suite)
+- dist zip terkini: `OmniDescriber-1.5.4-win64.zip`
 - Tiada bug terbuka
+- wxPython Phoenix: `MenuBar.SetLabelTop` TIDAK wujud — guna
+  `menubar.GetMenu(i).SetTitle(...)`

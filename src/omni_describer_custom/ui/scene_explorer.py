@@ -14,6 +14,7 @@ from typing import Any
 import wx
 
 from ..core.ai_engine import AIEngine
+from ..core.prompt_manager import PromptManager
 from ..core.video_processor import VideoProcessor, SourceError
 from ..i18n.strings import I18n, t
 
@@ -32,6 +33,8 @@ class SceneExplorer(wx.Frame):
         self.frames: list[dict] = []
         self._current_idx = 0
         self._frames_dir = ""
+        self._prompt_mgr: PromptManager | None = None
+        self._describing = False  # reentrancy guard for the D key
 
         super().__init__(parent, title=t("explorer.title"), size=(900, 700))
 
@@ -69,7 +72,9 @@ class SceneExplorer(wx.Frame):
         sizer.Add(self.frame_display, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
         # Frame info
-        self.frame_info = wx.StaticText(panel, label="Frame 0 / 0", name="frame_info")
+        self.frame_info = wx.StaticText(
+            panel, label=t("scene.frame_info", index=0, total=0),
+            name="frame_info")
         sizer.Add(self.frame_info, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
         # Description area
@@ -90,12 +95,30 @@ class SceneExplorer(wx.Frame):
         self.status_text = wx.StaticText(panel, label=t("status.ready"), name="explorer_status")
         sizer.Add(self.status_text, 0, wx.ALL, 5)
 
-        # Key bindings
-        self.Bind(wx.EVT_KEY_DOWN, self._on_key)
+        # Key bindings (EVT_CHAR_HOOK so arrows/D/L/Enter/Esc still work
+        # while focus sits inside the readonly text controls)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_key)
         self.Bind(wx.EVT_CLOSE, self._on_close)
         panel.SetFocus()
 
         panel.Layout()
+
+    def _announce(self, msg: str) -> None:
+        """Set status text and move focus so NVDA announces it."""
+        self.status_text.SetLabel(msg)
+        self.status_text.SetFocus()
+
+    def _default_prompt(self) -> str:
+        """Per-language default AI prompt, consistent with MainFrame.
+
+        SceneExplorer receives no settings store, so PromptManager uses
+        the app default SettingsStore; its language follows the current
+        I18n language so BM users get the BM prompt (I18n has no public
+        language getter, hence the guarded read of the class attribute)."""
+        if self._prompt_mgr is None:
+            self._prompt_mgr = PromptManager()
+            self._prompt_mgr.language = getattr(I18n, "_current_lang", "en")
+        return self._prompt_mgr.get_default_prompt()
 
     def _load_frames_async(self):
         """Load frames from video WITHOUT blocking the UI thread.
@@ -104,7 +127,7 @@ class SceneExplorer(wx.Frame):
         UI thread made the window appear frozen (bad for screen reader
         users who cannot see a hung window).
         """
-        self.status_text.SetLabel("Loading frames...")
+        self._announce(t("scene.loading"))
         import asyncio, tempfile
 
         def run():
@@ -139,18 +162,18 @@ class SceneExplorer(wx.Frame):
         if self.frames:
             self._show_frame(0)
         elif error_msg:
-            self.status_text.SetLabel(f"Error: {error_msg}")
+            self._announce(t("scene.error", msg=error_msg))
         else:
             self.status_text.SetLabel(
-                "Could not extract frames from this video."
+                t("scene.no_frames")
             )
 
     def _load_sample_frames(self):
         """No video available — leave frame list empty and inform the user."""
         self.frames = []
-        self.frame_info.SetLabel("Frame 0 / 0")
+        self.frame_info.SetLabel(t("scene.frame_info", index=0, total=0))
         self.status_text.SetLabel(
-            "No video loaded. Open a project or process a video first."
+            t("scene.no_video_loaded")
         )
         logger.info("SceneExplorer opened without a video source")
 
@@ -173,7 +196,8 @@ class SceneExplorer(wx.Frame):
             logger.error("Frame display error: %s", e)
 
         self.frame_info.SetLabel(
-            f"Frame {idx + 1} / {len(self.frames)} | {frame['time']:.1f}s"
+            f"{t('scene.frame_info', index=idx + 1, total=len(self.frames))}"
+            f" | {frame['time']:.1f}s"
         )
         self.desc_text.SetValue("")
         self.objects_text.SetValue("")
@@ -201,13 +225,18 @@ class SceneExplorer(wx.Frame):
     def _describe_frame(self):
         """Get full AI description of current frame."""
         if not self.frames or not self.ai:
-            self.status_text.SetLabel("No AI configured")
+            self._announce(t("scene.no_ai"))
             return
 
+        if self._describing:
+            return  # a describe thread is already running (D key guard)
+        self._describing = True
         frame = self.frames[self._current_idx]
-        self.status_text.SetLabel(t("status.analyzing"))
-        self.desc_text.SetValue("Analyzing...")
+        self._announce(t("scene.analyzing"))
+        self.desc_text.SetValue(t("scene.analyzing"))
         wx.Yield()
+
+        prompt = self._default_prompt()
 
         def run():
             import asyncio
@@ -215,19 +244,17 @@ class SceneExplorer(wx.Frame):
             asyncio.set_event_loop(loop)
             try:
                 result = loop.run_until_complete(
-                    self.ai.describe_frame(
-                        frame["path"],
-                        "Describe this video frame in detail for a blind or visually impaired user. "
-                        "Cover the scene, people, actions, on-screen text, and important visual context.",
-                    )
+                    self.ai.describe_frame(frame["path"], prompt)
                 )
                 wx.CallAfter(self.desc_text.SetValue, result)
-                wx.CallAfter(self.status_text.SetLabel, t("status.ready"))
+                wx.CallAfter(self._announce, t("status.ready"))
             except Exception as e:
-                wx.CallAfter(self.desc_text.SetValue, f"Error: {e}")
-                wx.CallAfter(self.status_text.SetLabel, t("status.error", error=str(e)))
+                wx.CallAfter(self.desc_text.SetValue,
+                             t("scene.error", msg=str(e)))
+                wx.CallAfter(self._announce, t("status.error", error=str(e)))
             finally:
                 loop.close()
+                wx.CallAfter(setattr, self, "_describing", False)
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -236,7 +263,7 @@ class SceneExplorer(wx.Frame):
         if not self.frames or not self.ai:
             return
         frame = self.frames[self._current_idx]
-        self.status_text.SetLabel("Detecting objects...")
+        self._announce(t("scene.detecting"))
 
         def run():
             import asyncio
@@ -244,7 +271,7 @@ class SceneExplorer(wx.Frame):
             asyncio.set_event_loop(loop)
             try:
                 result = loop.run_until_complete(
-                    self.ai.describe_frame(frame["path"], "List all objects visible in this frame, one per line.")
+                    self.ai.describe_frame(frame["path"], t("scene.objects_prompt"))
                 )
                 wx.CallAfter(self.objects_text.SetValue, result)
             except Exception as e:

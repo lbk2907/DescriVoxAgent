@@ -600,7 +600,11 @@ def test_error_path_failed_state():
         while time.time() < deadline and worker is not None and worker.is_alive():
             wx.GetApp().Yield()
             time.sleep(0.03)
-        for _ in range(5):
+        # The GUI-side cleanup (button re-enable, dialog teardown) is
+        # posted from the worker thread via wx.CallAfter; wait for it
+        # instead of a fixed 150 ms window (flaky under gate load).
+        cleanup_deadline = time.time() + 10
+        while time.time() < cleanup_deadline and not frame.btn_preset_open.Enabled:
             wx.GetApp().Yield()
             time.sleep(0.03)
 

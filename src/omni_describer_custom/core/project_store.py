@@ -90,38 +90,40 @@ class ProjectStore:
 
         db_path = self._db_path(next_id)
         conn = sqlite3.connect(str(db_path))
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                video_path TEXT,
-                video_duration REAL DEFAULT 0,
-                provider TEXT DEFAULT '',
-                model TEXT DEFAULT '',
-                created_at TEXT,
-                updated_at TEXT,
-                metadata TEXT DEFAULT '{}'
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    video_path TEXT,
+                    video_duration REAL DEFAULT 0,
+                    provider TEXT DEFAULT '',
+                    model TEXT DEFAULT '',
+                    created_at TEXT,
+                    updated_at TEXT,
+                    metadata TEXT DEFAULT '{}'
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS descriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER NOT NULL,
+                    start_time REAL NOT NULL,
+                    end_time REAL NOT NULL,
+                    text TEXT NOT NULL,
+                    edited INTEGER DEFAULT 0,
+                    created_at TEXT,
+                    frame_path TEXT DEFAULT '',
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
+                )
+            """)
+            conn.execute(
+                "INSERT INTO projects (id, name, video_path, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (next_id, name, video_path, provider, model, now, now),
             )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS descriptions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                start_time REAL NOT NULL,
-                end_time REAL NOT NULL,
-                text TEXT NOT NULL,
-                edited INTEGER DEFAULT 0,
-                created_at TEXT,
-                frame_path TEXT DEFAULT '',
-                FOREIGN KEY (project_id) REFERENCES projects(id)
-            )
-        """)
-        cursor = conn.execute(
-            "INSERT INTO projects (id, name, video_path, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (next_id, name, video_path, provider, model, now, now),
-        )
-        conn.commit()
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
 
         self._current = project
         logger.info("Project created: id=%d name=%s", project.id, name)
@@ -244,24 +246,31 @@ class ProjectStore:
             return
 
         conn = sqlite3.connect(str(self._db_path(self._current.id)))
-        conn.execute("DELETE FROM descriptions WHERE project_id = ?", (self._current.id,))
-        for desc in descriptions:
-            conn.execute(
-                """INSERT INTO descriptions
-                   (project_id, start_time, end_time, text, edited, created_at, frame_path)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    self._current.id,
-                    desc.start_time,
-                    desc.end_time,
-                    desc.text,
-                    int(desc.edited),
-                    desc.created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
-                    desc.frame_path,
-                ),
-            )
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("DELETE FROM descriptions WHERE project_id = ?", (self._current.id,))
+            for desc in descriptions:
+                cursor = conn.execute(
+                    """INSERT INTO descriptions
+                       (project_id, start_time, end_time, text, edited, created_at, frame_path)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        self._current.id,
+                        desc.start_time,
+                        desc.end_time,
+                        desc.text,
+                        int(desc.edited),
+                        desc.created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
+                        desc.frame_path,
+                    ),
+                )
+                # Write the real DB id back into the in-memory object.
+                # v1.5.4 fix: without this every desc kept id=0 after a fresh
+                # pipeline run, so the player narrated only the first cue and
+                # a single editor delete wiped all cues from the project.
+                desc.id = cursor.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
 
         self._current.updated_at = time.strftime("%Y-%m-%d %H:%M:%S")
         self._current.descriptions = descriptions

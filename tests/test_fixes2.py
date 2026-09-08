@@ -139,7 +139,8 @@ def test_settings_persist_voice_speed():
         dlg = SettingsDialog(None, s, tts)
         dlg.speed_slider.SetValue(13)  # 1.3x
         # Simulate apply for TTS portion only
-        tts_engine = dlg.tts_engine_choice.GetStringSelection()
+        # v1.5.4: the choice now shows friendly labels; store the raw id.
+        tts_engine = dlg._choice_value(dlg.tts_engine_choice)
         s.set(f"tts.engines.{tts_engine}.speed", dlg.speed_slider.GetValue() / 10.0)
         dlg.Destroy()
         assert s.get(f"tts.engines.{tts_engine}.speed") == 1.3
