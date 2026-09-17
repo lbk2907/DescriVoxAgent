@@ -44,3 +44,6 @@ settings.json.tmp
 *.tmp
 *.temp
 *.bak
+
+# E2E run artifacts (tools/e2e_gui_phase.py writes the app log here)
+_e2e_*.txt
