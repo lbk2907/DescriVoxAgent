@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
+                              errors="replace", line_buffering=True)
 
 REPO = Path(r"C:\Users\USER\Documents\omni-describer-custom")
 PY = sys.executable
@@ -541,7 +541,40 @@ def step_process() -> None:
 
     th = threading.Thread(target=capture_progress, daemon=True)
     th.start()
-    button_by_label(top, "Open").click_input()
+    # The click must be VERIFIED, not assumed. UIA lists two "Open"
+    # candidates for this frame and goes numb intermittently (see module
+    # docstring): a run on 17 Sep 2026 clicked into the void and then
+    # waited forever for a dialog that could never appear, with the app
+    # sitting idle. Press, then confirm the app reacted; retry if not.
+    started = False
+    for attempt in range(1, 4):
+        button_by_label(top, "Open").click_input()
+        log(f"clicked 'Open' (attempt {attempt})")
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            # Any of these proves _on_preset_open ran: the dedupe
+            # prompt, the progress dialog, or the disabled Open button.
+            for hwnd in enum_top_windows():
+                if (user32.IsWindowVisible(hwnd)
+                        and _pid_of(hwnd) == APP_PID
+                        and _window_title(hwnd) in ("Existing project found",
+                                                    "Downloading video")):
+                    started = True
+                    break
+            if not started:
+                try:
+                    if not button_by_label(top, "Open").is_enabled():
+                        started = True
+                except Exception:
+                    pass
+            if started:
+                break
+            time.sleep(0.5)
+        if started:
+            break
+        log("  no reaction from the app — re-pressing Open")
+    if not started:
+        raise RuntimeError("Open never took effect after 3 attempts")
     # 0) v1.5.1 dedupe prompt: this URL has been processed by earlier E2E
     # runs, so the app offers to reopen that project. Answer "process
     # again as new" so the run still exercises the whole pipeline.

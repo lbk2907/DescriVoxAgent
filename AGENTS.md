@@ -108,12 +108,19 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    TIDAK BUAT APA-APA untuk video yang sudah ada projek (AttributeError
    dalam `_start_processing`). Sama keluarga dengan `MenuBar.SetLabelTop`.
    **Semak `hasattr` dulu sebelum guna API wx yang jarang dipakai.**
-12. **Handler = permukaan yang paling kerap terlepas.** Sebelum
+12. **`SetLabel()` MEMAKAN state kawalan pada MSW.** `wx.Choice` hilang
+   SELECTION; `wx.TextCtrl` teksnya DIGANTI dengan label itu. v1.5.4 guna
+   SetLabel untuk nama NVDA pada 3 kawalan → setiap lancaran baharu tiada
+   preset dipilih (Open jawab "Please select a prompt preset") dan kotak
+   prompt mengandungi labelnya sendiri, yang dihantar ke AI sebagai
+   "User notes". Guna `MainFrame._set_accessible_name()` (v1.5.6/1.5.7).
+   **Untuk TextCtrl guna `SetName`, jangan `SetLabel`.**
+13. **Handler = permukaan yang paling kerap terlepas.** Sebelum
    `tests/test_fixes21.py` (17 Sep 2026) TIADA satu pun handler menu/butang
    tetingkap utama dipanggil oleh mana-mana test — tetingkap diuji, handler
    yang membukanya tidak. Di situlah bug butang Open mati bersembunyi.
    **Tambah handler baharu = tambah check dalam test_fixes21.**
-13. **Test MESTI guna settings terasing.** `run_gate.bat` set
+14. **Test MESTI guna settings terasing.** `run_gate.bat` set
    `ODC_CONFIG_DIR=%TEMP%\odc_gate_config`; `SettingsStore` hormat env var
    itu. Sebelum v1.5.5 gate menulis ke `settings.json` SEBENAR pengguna
    (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
@@ -165,7 +172,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.5.6 (tag terakhir `v1.5.5`; rumusan v1.5.4:
+- **Versi:** 1.5.7 (tag terakhir `v1.5.6`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia

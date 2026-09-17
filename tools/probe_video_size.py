@@ -19,7 +19,7 @@ from pathlib import Path
 import requests
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
+                              errors="replace", line_buffering=True)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.settings_store import SettingsStore

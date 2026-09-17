@@ -517,6 +517,346 @@ def test_editor_tts_on_empty_text_is_announced():
         _close(f)
 
 
+# ── Player window handlers ───────────────────────────────────────
+#
+# The player is where a blind user spends the session, yet _on_play_
+# toggle, _on_speak, _on_load_srt and the three "open another window"
+# buttons had no test. TTS is stubbed: these checks are about the
+# handlers being wired correctly, not about hearing audio (real speech
+# is exercised separately).
+
+@contextmanager
+def _silent_tts(engine, spoken: list, result: bool = True):
+    """Swap speak_and_play for a recorder, so nothing plays out loud."""
+    real_speak = getattr(engine, "speak_and_play", None)
+    real_stop = getattr(engine, "stop", None)
+
+    def fake_speak(text, *a, **k):
+        spoken.append(text)
+        return result
+
+    engine.speak_and_play = fake_speak
+    engine.stop = lambda *a, **k: None
+    try:
+        yield
+    finally:
+        if real_speak is not None:
+            engine.speak_and_play = real_speak
+        if real_stop is not None:
+            engine.stop = real_stop
+
+
+def _player(f):
+    from omni_describer_custom.ui.player_window import PlayerWindow
+    return PlayerWindow(f, f.project_store, f.tts_engine, f.ai_engine)
+
+
+def test_player_play_pause_toggle():
+    """One button, two states: the label must follow what happens next,
+    or a screen reader announces the wrong action (v1.4.0)."""
+    f = _frame()
+    p = None
+    try:
+        _seed_descriptions(f)
+        p = _player(f)
+        assert not p._playing, "player should start paused"
+        start_label = p.play_btn.GetLabel()
+
+        p._on_play_toggle(None)
+        assert p._playing, "first press did not start playback"
+        playing_label = p.play_btn.GetLabel()
+        assert playing_label != start_label, \
+            f"button label never changed: {start_label!r}"
+
+        p._on_play_toggle(None)
+        assert not p._playing, "second press did not pause"
+        assert p.play_btn.GetLabel() == start_label, \
+            f"label did not return to {start_label!r}"
+    finally:
+        if p is not None:
+            try:
+                p._on_stop(None)
+            except Exception:
+                pass
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_player_speak_reads_current_cue():
+    f = _frame()
+    p = None
+    try:
+        _seed_descriptions(f)
+        p = _player(f)
+        p.current_desc_text.SetValue("Read this line out loud")
+        spoken: list[str] = []
+        with _silent_tts(f.tts_engine, spoken):
+            p._on_speak(None)
+            deadline = __import__("time").time() + 10
+            while __import__("time").time() < deadline and not spoken:
+                wx.GetApp().ProcessPendingEvents()
+                wx.GetApp().Yield()
+                __import__("time").sleep(0.05)
+        assert spoken == ["Read this line out loud"], spoken
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_player_speak_ignores_empty_text():
+    f = _frame()
+    p = None
+    try:
+        _seed_descriptions(f)
+        p = _player(f)
+        p.current_desc_text.SetValue("   ")
+        spoken: list[str] = []
+        with _silent_tts(f.tts_engine, spoken):
+            p._on_speak(None)
+            for _ in range(6):
+                wx.GetApp().Yield()
+                __import__("time").sleep(0.03)
+        assert spoken == [], f"spoke blank text: {spoken}"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_player_load_external_srt():
+    """Loading someone else's subtitle file must replace the cues."""
+    f = _frame()
+    p = None
+    try:
+        _seed_descriptions(f)
+        p = _player(f)
+        srt = Path(tempfile.mkdtemp(prefix="odc_f21_extsrt_")) / "ext.srt"
+        srt.write_text(
+            "1\n00:00:01,000 --> 00:00:03,000\nExternal cue one\n\n"
+            "2\n00:00:04,000 --> 00:00:06,000\nExternal cue two\n",
+            encoding="utf-8")
+        with stub_modals(path=str(srt)):
+            p._on_load_srt(None)
+        loaded = getattr(p, "_sub_cues", None)
+        assert loaded, "no cues loaded from the external SRT"
+        texts = " ".join(getattr(c, "text", str(c)) for c in loaded)
+        assert "External cue one" in texts, texts[:200]
+        assert "External cue two" in texts, texts[:200]
+        # The load must be announced: a screen reader user gets no other
+        # feedback that the file arrived.
+        assert p.status_text.GetLabel(), "subtitle load was not announced"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_player_opens_editor_explorer_and_ask():
+    """The three buttons that open other windows must actually open
+    them — each was untested, and each imports its window lazily."""
+    f = _frame()
+    p = None
+    opened = []
+    try:
+        _seed_descriptions(f)
+        p = _player(f)
+
+        import omni_describer_custom.ui.editor_window as ed_mod
+        import omni_describer_custom.ui.scene_explorer as se_mod
+        import omni_describer_custom.ui.ask_more_dialog as am_mod
+        real = (ed_mod.EditorWindow, se_mod.SceneExplorer,
+                am_mod.AskMoreDialog)
+
+        def fake(name):
+            class Fake:
+                def __init__(self, *a, **k):
+                    opened.append(name)
+
+                def Show(self, *a, **k):
+                    pass
+
+                def ShowModal(self, *a, **k):
+                    return wx.ID_CANCEL
+
+                def Destroy(self, *a, **k):
+                    pass
+            return Fake
+
+        ed_mod.EditorWindow = fake("editor")
+        se_mod.SceneExplorer = fake("explorer")
+        am_mod.AskMoreDialog = fake("ask")
+        try:
+            p._on_edit(None)
+            p._on_explore(None)
+            p._on_ask(None)
+        finally:
+            ed_mod.EditorWindow, se_mod.SceneExplorer, am_mod.AskMoreDialog = real
+
+        assert opened == ["editor", "explorer", "ask"], opened
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+# ── Scene explorer + Ask More handlers ───────────────────────────
+
+def test_scene_explorer_arrow_keys_stay_in_range():
+    """Left/Right at the ends must clamp, not raise IndexError."""
+    from omni_describer_custom.ui.scene_explorer import SceneExplorer
+
+    f = _frame()
+    se = None
+    try:
+        se = SceneExplorer(f, f.ai_engine, "")
+        se.frames = [{"path": "a.jpg", "time": 0.0},
+                     {"path": "b.jpg", "time": 1.0}]
+        se._current_idx = 0
+
+        class KeyEvent:
+            def __init__(self, code):
+                self.code = code
+
+            def GetKeyCode(self):
+                return self.code
+
+            def Skip(self, *a):
+                pass
+
+        se._on_key(KeyEvent(wx.WXK_LEFT))     # already at the first frame
+        assert se._current_idx == 0, se._current_idx
+        se._on_key(KeyEvent(wx.WXK_RIGHT))
+        se._on_key(KeyEvent(wx.WXK_RIGHT))    # already at the last frame
+        assert se._current_idx == len(se.frames) - 1, se._current_idx
+    finally:
+        if se is not None:
+            try:
+                se.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_ask_more_cancel_closes_cleanly():
+    from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
+
+    f = _frame()
+    dlg = None
+    try:
+        dlg = AskMoreDialog(f, f.ai_engine)
+        dlg._on_cancel(None)      # must not raise
+    finally:
+        if dlg is not None:
+            try:
+                dlg.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+# ── Fresh-launch state (v1.5.6) ──────────────────────────────────
+#
+# Found by the player E2E: on MSW, SetLabel() eats a control's STATE —
+# it clears a wx.Choice selection and REPLACES a wx.TextCtrl's text.
+# v1.5.4 used it to give three controls screen-reader names, so a
+# freshly launched app had:
+#   - no preset selected: pressing Open answered "Please select a
+#     prompt preset" although the combo looked populated
+#   - the prompt box holding the label "Prompt to send (from preset,
+#     editable):", which _on_preset_open appends to the request as
+#     "User notes" — nonsense instructions on every describe
+#   - "Status Log" sitting in the log as if it had been logged
+
+def test_fresh_launch_has_a_preset_selected():
+    f = _frame()
+    try:
+        assert f.prompt_choice.GetSelection() != wx.NOT_FOUND, \
+            "no preset selected on a fresh launch: Open would refuse"
+        assert f.prompt_choice.GetStringSelection(), \
+            "preset selection is empty"
+    finally:
+        _close(f)
+
+
+def test_prompt_box_holds_the_preset_not_a_label():
+    f = _frame()
+    try:
+        value = f.custom_prompt.GetValue().strip()
+        name = f.prompt_choice.GetStringSelection()
+        expected = f.prompt_mgr.get_preset(name).strip()
+        assert value == expected, (
+            f"prompt box does not hold preset {name!r}: {value[:80]!r}")
+        assert not f.log_text.GetValue().startswith("Status Log"), \
+            "the log's own label was written into the log"
+    finally:
+        _close(f)
+
+
+def test_open_sends_the_preset_without_invented_notes():
+    """The exact string handed to the pipeline must be the preset."""
+    f = _frame()
+    try:
+        sent: list[str] = []
+        f._start_processing = lambda prompt: sent.append(prompt)
+        f._current_source = "clip.mp4"
+        with stub_modals() as boxes:
+            f._on_preset_open(None)
+        assert sent, f"Open did not start processing; boxes={boxes}"
+        assert "User notes" not in sent[0], (
+            f"a label leaked into the AI request: {sent[0][-120:]!r}")
+        name = f.prompt_choice.GetStringSelection()
+        assert sent[0].strip() == f.prompt_mgr.get_preset(name).strip(), \
+            sent[0][:120]
+    finally:
+        _close(f)
+
+
+def test_accessible_names_survive_the_fix():
+    """The fix must not buy correctness by dropping NVDA names."""
+    f = _frame()
+    try:
+        assert f.prompt_choice.GetLabel(), "preset combo lost its NVDA name"
+        assert f.custom_prompt.GetName(), "prompt box lost its NVDA name"
+        assert f.log_text.GetName(), "log lost its NVDA name"
+        # The visible StaticText labels are what NVDA reads out loud.
+        assert f.preset_label.GetLabel(), "preset label text missing"
+        assert f.custom_prompt_label.GetLabel(), "prompt label text missing"
+    finally:
+        _close(f)
+
+
+def test_language_switch_keeps_preset_and_prompt():
+    """_retranslate_ui is the exact path that broke this: re-running it
+    must leave the selection and the prompt box intact."""
+    f = _frame()
+    try:
+        before_sel = f.prompt_choice.GetStringSelection()
+        before_prompt = f.custom_prompt.GetValue()
+        f._retranslate_ui()
+        assert f.prompt_choice.GetStringSelection() == before_sel, \
+            "retranslate cleared the preset selection"
+        assert f.custom_prompt.GetValue() == before_prompt, \
+            "retranslate overwrote the prompt box"
+    finally:
+        _close(f)
+
+
 if __name__ == "__main__":
     check("local file handler sets source", test_local_file_sets_source)
     check("direct url handler sets source", test_direct_url_sets_source)
@@ -543,5 +883,28 @@ if __name__ == "__main__":
           test_editor_add_then_close_saves_edit)
     check("editor TTS announces empty text",
           test_editor_tts_on_empty_text_is_announced)
+    check("player play/pause toggles state and label",
+          test_player_play_pause_toggle)
+    check("player speak reads the current cue",
+          test_player_speak_reads_current_cue)
+    check("player speak ignores empty text",
+          test_player_speak_ignores_empty_text)
+    check("player loads an external SRT", test_player_load_external_srt)
+    check("player opens editor, explorer and ask",
+          test_player_opens_editor_explorer_and_ask)
+    check("scene explorer arrow keys clamp",
+          test_scene_explorer_arrow_keys_stay_in_range)
+    check("ask more cancel closes cleanly",
+          test_ask_more_cancel_closes_cleanly)
+    check("fresh launch has a preset selected",
+          test_fresh_launch_has_a_preset_selected)
+    check("prompt box holds the preset, not a label",
+          test_prompt_box_holds_the_preset_not_a_label)
+    check("Open sends the preset without invented notes",
+          test_open_sends_the_preset_without_invented_notes)
+    check("accessible names survive the fix",
+          test_accessible_names_survive_the_fix)
+    check("language switch keeps preset and prompt",
+          test_language_switch_keeps_preset_and_prompt)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

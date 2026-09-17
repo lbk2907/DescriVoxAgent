@@ -11,7 +11,7 @@ from ctypes import wintypes
 
 sys.path.insert(0, r"C:\Users\USER\Documents\omni-describer-custom\src")
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
+                              errors="replace", line_buffering=True)
 
 REPO = r"C:\Users\USER\Documents\omni-describer-custom"
 user32 = ctypes.windll.user32

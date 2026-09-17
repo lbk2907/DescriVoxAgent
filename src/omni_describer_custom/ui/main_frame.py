@@ -177,7 +177,9 @@ class MainFrame(wx.Frame):
         )
         self.custom_prompt.SetMinSize((-1, _EDIT_H))
         # Accessible name for screen readers (pattern: player_window).
-        self.custom_prompt.SetLabel(t("main.custom_prompt"))
+        # NOT SetLabel: on MSW that REPLACES a text control's contents
+        # (v1.5.6 fix — the box used to start life holding this label).
+        self._set_accessible_name(self.custom_prompt, t("main.custom_prompt"))
         outer.Add(self.custom_prompt, 0,
                   wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
@@ -195,7 +197,9 @@ class MainFrame(wx.Frame):
         )
         self.log_text.SetMinSize((-1, _LOG_H))
         # Accessible name for screen readers (pattern: player_window).
-        self.log_text.SetLabel(t("main.status_log"))
+        # SetLabel would write "Status Log" INTO the log as if it were a
+        # logged line (v1.5.6 fix).
+        self._set_accessible_name(self.log_text, t("main.status_log"))
         outer.Add(self.log_text, 1,
                   wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
@@ -279,11 +283,40 @@ class MainFrame(wx.Frame):
         self.custom_prompt_label.SetLabel(t("main.custom_prompt"))
         self.log_label.SetLabel(t("main.status_log"))
         # Accessible names for screen readers follow the language too.
-        self.prompt_choice.SetLabel(t("main.prompt"))
-        self.custom_prompt.SetLabel(t("main.custom_prompt"))
-        self.log_text.SetLabel(t("main.status_log"))
+        # v1.5.6: NOT via SetLabel on these three. On MSW SetLabel eats
+        # the control's STATE — it clears a wx.Choice selection and
+        # replaces a wx.TextCtrl's text with the label. Because
+        # __init__ runs _load_settings() (which picks preset 0 and
+        # previews it) BEFORE this pass, a freshly launched app ended up
+        # with no preset selected — pressing Open answered "Please
+        # select a prompt preset" — and with the prompt box containing
+        # the label string, which _on_preset_open would have shipped to
+        # the AI as "User notes". Both since v1.5.4.
+        self._set_accessible_name(self.prompt_choice, t("main.prompt"))
+        self._set_accessible_name(self.custom_prompt, t("main.custom_prompt"))
+        self._set_accessible_name(self.log_text, t("main.status_log"))
         self._retranslate_menu()
         self.SetStatusText(t("main.ready"), 0)
+
+    @staticmethod
+    def _set_accessible_name(ctrl, label: str) -> None:
+        """Give a control a screen-reader name without eating its state.
+
+        wx.Choice keeps its selection (restored around SetLabel, which
+        NVDA does read for this control); wx.TextCtrl gets SetName only,
+        because for a text control the "label" IS its contents — the
+        visible StaticText beside it is what NVDA announces.
+        """
+        if isinstance(ctrl, wx.TextCtrl):
+            ctrl.SetName(label)
+            return
+        if isinstance(ctrl, wx.Choice):
+            selection = ctrl.GetSelection()
+            ctrl.SetLabel(label)
+            if selection != wx.NOT_FOUND and ctrl.GetSelection() != selection:
+                ctrl.SetSelection(selection)
+            return
+        ctrl.SetLabel(label)
 
     def _retranslate_menu(self):
         """Update menu item labels IN PLACE (no rebuild: ids/bindings
@@ -1901,6 +1934,14 @@ class MainFrame(wx.Frame):
             # Keep the user's current selection (and prompt text) when
             # the preset still exists after the refresh.
             self.prompt_choice.SetStringSelection(current)
+            # v1.5.6: the FIRST call happens inside _build_ui, before
+            # custom_prompt exists, so _preview_preset silently skipped
+            # the box; the second call (from _load_settings) took this
+            # branch and never retried. The prompt box therefore stayed
+            # empty of the preset the combo claimed was selected.
+            box = getattr(self, "custom_prompt", None)
+            if box is not None and not box.GetValue().strip():
+                self._preview_preset(current)
             return
         if names:
             self.prompt_choice.SetSelection(0)

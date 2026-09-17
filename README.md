@@ -11,6 +11,27 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.5.7
+
+- **Open works on a fresh launch again (critical)**: on Windows,
+  `SetLabel()` eats a control's *state* — it clears a `wx.Choice`
+  selection and replaces a `wx.TextCtrl`'s text. v1.5.4 used it to give
+  three controls screen-reader names, so every freshly launched app had
+  **no preset selected**: pressing Open answered "Please select a prompt
+  preset" even though the combo looked populated. Screen-reader names are
+  now set without destroying state, and the names are still there.
+- **No more invented "User notes" in AI requests (critical)**: the same
+  bug left the prompt box holding its own label, "Prompt to send (from
+  preset, editable):" — and `_on_preset_open` appends anything in that
+  box to the request as "User notes". Every describe was shipping that
+  nonsense line to the AI. The box now holds the selected preset, and a
+  test asserts the exact string handed to the pipeline.
+- "Status Log" is no longer written into the status log as if it had
+  been logged.
+- The real-GUI E2E verifies its own clicks now: a click that lands
+  nowhere is retried and then fails loudly, instead of hanging forever
+  waiting for a dialog that can never appear.
+
 ## What's new in v1.5.6
 
 - **Dead Open button fixed (critical)**: opening a video that already had
