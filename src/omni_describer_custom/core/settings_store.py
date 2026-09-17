@@ -18,8 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 def _get_config_dir() -> Path:
-    """Get the application config directory."""
-    if sys.platform == "win32":
+    """Get the application config directory.
+
+    ODC_CONFIG_DIR overrides it, and run_gate.bat sets it (v1.5.5). The
+    suite builds real MainFrames that write provider settings, and those
+    writes used to land in the USER's live settings.json: after a gate
+    run the app pointed its Gemini provider at a dead test loopback URL
+    with the key "test-key". Tests now get their own throwaway dir.
+    """
+    override = os.environ.get("ODC_CONFIG_DIR", "").strip()
+    if override:
+        base = Path(override)
+    elif sys.platform == "win32":
         base = Path(os.environ.get("APPDATA", "")) / "OmniDescriber"
     else:
         base = Path.home() / ".config" / "omni-describer"

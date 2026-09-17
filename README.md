@@ -11,6 +11,25 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.5.6
+
+- **Dead Open button fixed (critical)**: opening a video that already had
+  a project raised `AttributeError` — wxPython Phoenix has no
+  `SetYesLabel`/`SetNoLabel`/`SetCancelLabel`, so the "existing project
+  found" prompt never appeared and pressing Open did nothing at all, with
+  no visible error. Found by the real-GUI E2E; now uses
+  `SetYesNoCancelLabels` and is covered by a regression test.
+- **The test suite no longer edits your settings**: gate runs built real
+  MainFrames that wrote into the live `settings.json`, leaving the Gemini
+  provider pointed at a dead test loopback URL with the key `test-key`.
+  `run_gate.bat` now points settings at a throwaway dir via
+  `ODC_CONFIG_DIR`, and a test fails if that isolation is missing.
+- **Real-GUI E2E repaired**: it now answers the dedupe prompt, and its
+  chunk expectation matches the GUI (the Settings spin control has
+  enforced a 60 s minimum since v1.5.3, so a 19 s clip is one part).
+  Full run passes: live download percentages, 12 cues covering the whole
+  clip, SRT export, clean exit.
+
 ## What's new in v1.5.5
 
 - **Ghost progress dialog fixed (critical)**: `wx.ProgressDialog` pumps

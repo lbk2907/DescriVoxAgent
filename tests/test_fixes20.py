@@ -257,6 +257,66 @@ def test_failed_run_leaves_nothing_behind():
         _drain(rounds=5)
 
 
+def test_dedupe_dialog_uses_real_phoenix_api():
+    """Opening a source that already has a project must show the dedupe
+    dialog, not raise.
+
+    Found by the real-GUI E2E: wxPython Phoenix has no SetYesLabel /
+    SetNoLabel / SetCancelLabel (same family as the missing
+    MenuBar.SetLabelTop), so _start_processing died with AttributeError
+    and the Open button did NOTHING for any video already processed
+    once — no dialog, no processing, no error the user could see.
+    """
+    from omni_describer_custom.core.project_store import ProjectStore
+    from omni_describer_custom.ui.main_frame import MainFrame
+
+    frame = MainFrame()
+    real_show = wx.MessageDialog.ShowModal
+    try:
+        source = str(Path(tempfile.mkdtemp(prefix="odc_f20_dup_")) / "clip.mp4")
+        Path(source).write_bytes(b"\x00" * 512)
+        frame.project_store = ProjectStore(
+            projects_dir=tempfile.mkdtemp(prefix="odc_f20_dupproj_"))
+        frame.project_store.create_project("Already Done", source)
+        assert frame.project_store.find_project_by_source(source), \
+            "seeded project not findable by source"
+
+        frame.settings.set("ai.default_provider", "glm")
+        frame.settings.set_ai_provider("glm", {"api_key": "sk-or-v1-test",
+                                               "model": "m"})
+        frame._current_source = source
+
+        # Answer the dedupe dialog with Cancel instead of blocking on a
+        # real modal; the labels are set BEFORE ShowModal, so the bug
+        # this guards would still fire.
+        wx.MessageDialog.ShowModal = lambda self: wx.ID_CANCEL
+        frame._start_processing("Describe this video.")
+
+        assert not frame._processing, \
+            "Cancel on the dedupe dialog must not start processing"
+    finally:
+        wx.MessageDialog.ShowModal = real_show
+        _drain()
+        try:
+            frame.Destroy()
+        except Exception:
+            pass
+        _drain(rounds=5)
+
+
+def test_settings_isolated_from_user_config():
+    """The gate must never write to the user's live settings.json."""
+    import os
+    from omni_describer_custom.core.settings_store import SettingsStore
+
+    override = os.environ.get("ODC_CONFIG_DIR", "").strip()
+    assert override, ("ODC_CONFIG_DIR is not set: run this suite through "
+                      "run_gate.bat, which points settings at a temp dir")
+    store = SettingsStore()
+    assert str(store.settings_file).startswith(str(Path(override))), (
+        f"settings still resolve to {store.settings_file}, not {override}")
+
+
 if __name__ == "__main__":
     check("cleanup during dialog construction leaves no ghost",
           test_close_during_dialog_construction)
@@ -264,5 +324,9 @@ if __name__ == "__main__":
           test_close_generation_counter)
     check("failed run leaves no thread, dialog or disabled window",
           test_failed_run_leaves_nothing_behind)
+    check("dedupe dialog uses real Phoenix label API",
+          test_dedupe_dialog_uses_real_phoenix_api)
+    check("settings isolated from the user's live config",
+          test_settings_isolated_from_user_config)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

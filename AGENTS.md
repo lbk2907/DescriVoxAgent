@@ -103,6 +103,17 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
 10. **Frame wx perlu di-drain sebelum Destroy** dalam test: worker thread
    masih ada `wx.CallAfter` beratur; Destroy dulu = access violation.
    Lihat `_drain_events`/`_destroy_frame` dalam `tests/test_fixes12.py`.
+11. **wxPython Phoenix: TIADA `SetYesLabel`/`SetNoLabel`/`SetCancelLabel`.**
+   Guna `SetYesNoCancelLabels(yes, no, cancel)`. Bug v1.5.5: butang Open
+   TIDAK BUAT APA-APA untuk video yang sudah ada projek (AttributeError
+   dalam `_start_processing`). Sama keluarga dengan `MenuBar.SetLabelTop`.
+   **Semak `hasattr` dulu sebelum guna API wx yang jarang dipakai.**
+12. **Test MESTI guna settings terasing.** `run_gate.bat` set
+   `ODC_CONFIG_DIR=%TEMP%\odc_gate_config`; `SettingsStore` hormat env var
+   itu. Sebelum v1.5.5 gate menulis ke `settings.json` SEBENAR pengguna
+   (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
+   Jangan buang env var ni, dan jangan set dalam tool E2E — E2E memang
+   perlu settings sebenar (key GLM).
 
 ## Prosedur Biasa
 
@@ -116,6 +127,12 @@ run.bat
 ```bash
 run_gate.bat   # GATE_ALL_PASS diperlukan sebelum commit
 ```
+
+### Backup (repo tiada remote)
+Hook `.git/hooks/post-commit` (v1.5.5) bundle SELURUH sejarah ke
+`~/OneDrive/backups/omni-describer-custom.bundle` selepas setiap commit.
+Hook TIDAK tersimpan dalam git — kalau repo di-clone semula, cipta balik.
+Pulih: `git clone <bundle> <dir>`.
 
 ### Build release
 ```bash
@@ -143,14 +160,14 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.5.5 (belum di-tag/build; tag terakhir `v1.5.4`,
-  rumusan: `doc/rumusan-v1.5.4.md`)
+- **Versi:** 1.5.6 (tag terakhir `v1.5.5`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
 - 29 test suite, semua PASS (test_fixes19 = audit fix regression suite;
-  test_fixes20 = ghost progress dialog + pipeline cleanup)
-- dist zip terkini: `OmniDescriber-1.5.4-win64.zip` — **lapuk**, perlu
-  `build.bat` semula untuk 1.5.5
+  test_fixes20 = ghost progress dialog, dedupe label API, isolasi settings)
+- E2E GUI sebenar (`tools/e2e_gui_phase.py`) PASS dengan GLM sebenar:
+  12 cue, progress live, export SRT, exit bersih
 - Tiada bug terbuka
 - wxPython Phoenix: `MenuBar.SetLabelTop` TIDAK wujud — guna
   `menubar.GetMenu(i).SetTitle(...)`

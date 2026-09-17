@@ -856,9 +856,15 @@ class MainFrame(wx.Frame):
             dlg = wx.MessageDialog(
                 self, msg, t("project.dedupe_title"),
                 wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
-            dlg.SetYesLabel(t("project.dedupe_open"))
-            dlg.SetNoLabel(t("project.dedupe_new"))
-            dlg.SetCancelLabel(t("cancel"))
+            # v1.5.5: wxPython Phoenix has NO SetYesLabel/SetNoLabel/
+            # SetCancelLabel (same family as the missing
+            # MenuBar.SetLabelTop). Calling them raised AttributeError
+            # here, so opening a video that already had a project did
+            # nothing at all — no dialog, no processing, a dead button.
+            # SetYesNoCancelLabels is the real Phoenix API.
+            dlg.SetYesNoCancelLabels(t("project.dedupe_open"),
+                                     t("project.dedupe_new"),
+                                     t("cancel"))
             choice = dlg.ShowModal()
             dlg.Destroy()
             if choice == wx.ID_YES:

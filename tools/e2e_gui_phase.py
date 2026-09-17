@@ -42,9 +42,14 @@ SETTINGS_JSON = (Path.home() / "AppData" / "Roaming" / "OmniDescriber" /
                  "settings.json")
 PROJECTS_DIR = Path.home() / "Documents" / "OmniDescriber" / "projects"
 SRT_OUT = Path.home() / "Documents" / "OmniDescriber" / "e2e_gui_test.srt"
-# v1.4.1: force a 10 s chunk so the 19 s zoo video splits into 2 parts
-# -> the CHUNKED path (split + part-by-part describe) is exercised.
-CHUNK_SECONDS = 10
+# v1.5.5: was 10 s (to split the 19 s zoo video into 2 parts), but since
+# v1.5.3 the Settings spin control enforces min=60, so Apply clamps any
+# smaller value and the seed never persisted — the run died on a stale
+# expectation, not an app fault. 60 is the real GUI floor; a 19 s clip is
+# therefore ONE part here. Actual part-splitting is exercised at engine
+# level by tools/e2e_glm_video_chunked.py (60 s clip, 20 s chunks) and by
+# tests/test_chunked_video.py.
+CHUNK_SECONDS = 60
 # Live evidence captured while processing runs.
 # - TITLE_PCTS: dialog-title percentages from the v1.5.0 SetTitle in
 #   every tick ('Downloading video - N%'); titles ARE Win32-readable.
@@ -537,6 +542,29 @@ def step_process() -> None:
     th = threading.Thread(target=capture_progress, daemon=True)
     th.start()
     button_by_label(top, "Open").click_input()
+    # 0) v1.5.1 dedupe prompt: this URL has been processed by earlier E2E
+    # runs, so the app offers to reopen that project. Answer "process
+    # again as new" so the run still exercises the whole pipeline.
+    # (Before v1.5.5 this dialog never appeared: SetYesLabel raised
+    # AttributeError and the Open button silently did nothing.)
+    dedupe = None
+    deadline = time.time() + 12
+    while time.time() < deadline and dedupe is None:
+        for hwnd in enum_top_windows():
+            if (user32.IsWindowVisible(hwnd)
+                    and _pid_of(hwnd) == APP_PID
+                    and _window_title(hwnd) == "Existing project found"):
+                dedupe = hwnd
+                break
+        time.sleep(0.4)
+    if dedupe is not None:
+        log("dedupe prompt up -> 'Process again as new project'")
+        user32.SetForegroundWindow(dedupe)
+        time.sleep(0.4)
+        press_button(dedupe, "Process again as new project")
+        time.sleep(1.0)
+    else:
+        log("no dedupe prompt (fresh source)")
     # 1) Download progress dialog ('Downloading video', class Dialog).
     pd_seen = False
     deadline = time.time() + 60
@@ -631,15 +659,19 @@ def step_verify() -> None:
 
 
 def step_coverage() -> None:
-    """v1.4.1: verify the CHUNKED path end-to-end.
+    """Verify progress reporting and full-clip coverage end-to-end.
 
-    1. general.chunk_seconds==10 persisted from the pre-launch seed.
+    1. general.chunk_seconds survives the Settings round-trip (60 = the
+       spin control's minimum since v1.5.3).
     2. The progress dialog showed REAL percentages while running
        ('part N of M, overall X%' and/or 'Splitting ... %').
-    3. The DB covers the whole 19 s clip with cues from BOTH parts
-       (timestamps below and above the 10 s chunk boundary).
+    3. The DB covers the whole 19 s clip, first cue to last.
+
+    Multi-part splitting is NOT checked here: the GUI floor of 60 s
+    cannot split a 19 s clip. tools/e2e_glm_video_chunked.py covers that
+    at engine level.
     """
-    log("== CHUNK COVERAGE (v1.4.1) ==")
+    log("== PROGRESS + COVERAGE ==")
     data = json.loads(SETTINGS_JSON.read_text(encoding="utf-8"))
     got = data.get("general", {}).get("chunk_seconds")
     assert got == CHUNK_SECONDS, f"chunk_seconds not persisted: {got!r}"
@@ -649,10 +681,8 @@ def step_coverage() -> None:
         log(f"  title: {p}%")
     for p in GREEN_PCTS:
         log(f"  bar (pixels): {p}%")
-    # With 2 parts: overall ticks are 55 (after part 1) and 100 (after
-    # part 2; the dialog bar caps at 99). The 55 state persists during
-    # the whole part-2 describe, so the poller must see it; the final
-    # tick may flash by before the dialog closes, so require >= 55.
+    # Single part: the overall tick is 10 + 90*1/1 = 100 (the bar itself
+    # caps at 99 so PD_AUTO_HIDE cannot hide it while saving runs).
     assert TITLE_PCTS, "dialog title percentage never observed"
     assert max(TITLE_PCTS) >= 55, (
         f"dialog title never reached the 55% part-1 tick: {TITLE_PCTS}")
@@ -671,12 +701,12 @@ def step_coverage() -> None:
     assert starts, "no descriptions"
     first, last = starts[0], starts[-1]
     log(f"cue starts: first={first} last={last} max_end={maxend} n={len(starts)}")
-    # Coverage of the FULL clip (both parts): first cue near 0, some cue
-    # beyond the 10 s chunk boundary, and the clip is ~19 s.
+    # Coverage of the FULL clip: first cue near the start, last cue near
+    # the end of the ~19 s video, and no cue may claim time the clip
+    # does not have (a symptom of a bad chunk offset).
     assert first <= 5.0, f"first cue not at clip start: {first}"
-    assert any(s >= CHUNK_SECONDS for s in starts), (
-        f"no cue from part 2 (>= {CHUNK_SECONDS}s): starts={starts}")
     assert last >= 15.0, f"last cue too early for 19s clip: {last}"
+    assert maxend <= 25.0, f"cue ends past the clip: max_end={maxend}"
     log("COVERAGE_OK")
 
 
