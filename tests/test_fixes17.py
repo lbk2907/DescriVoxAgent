@@ -131,15 +131,19 @@ st = SettingsStore(config_dir=tmp)
 pm = PromptManager(st)
 prompts_all = st.get_prompts()
 check("3a ms_default exists", "ms_default" in prompts_all)
-check("3b ms_accessibility exists", "ms_accessibility" in prompts_all)
+check("3b ms_extended exists", "ms_extended" in prompts_all)
 check("3c ms_default is BM", "Huraikan" in prompts_all.get("ms_default", ""))
 pm.language = "ms"
 ms_view = pm.get_presets()
 check("3d language=ms shows BM default", "Huraikan" in ms_view.get("default", ""))
 pm.language = "en"
 en_view = pm.get_presets()
+# v1.6.0: this used to look for "Describe everything", the old default's
+# wording — a phrase the audio-description presets now deliberately ban.
+# What it is really checking is that the EN view serves the ENGLISH text.
 check("3e language=en shows EN default",
-      "Describe everything" in en_view.get("default", ""))
+      "blind viewer" in en_view.get("default", "")
+      and "Huraikan" not in en_view.get("default", ""))
 
 # ── 4. settings dialog source contains desc_lang UI ─────────────────
 sd = (ROOT / "src" / "omni_describer_custom" / "ui" / "settings_dialog.py").read_text(encoding="utf-8")

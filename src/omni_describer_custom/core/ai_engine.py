@@ -35,7 +35,15 @@ FULL_VIDEO_TS_PROMPT_SUFFIX = (
     "Example format:\n"
     "[00:00] A man in a red jacket walks into a bright kitchen.\n"
     "[00:15] He pours coffee while talking on the phone.\n"
-    "Describe important visuals AND sounds/speech for a blind viewer. "
+    # v1.6.0: this used to demand "important visuals AND sounds/speech".
+    # A blind viewer HEARS the soundtrack: describing it spends the gap
+    # on what they already have, which every AD standard warns against
+    # (Netflix: skip description when dialogue already carries it). The
+    # "foreign" preset opts speech back in, because conveying dialogue
+    # the listener cannot understand is a different, recognised service.
+    "Describe the important VISUALS for a blind viewer who can already "
+    "hear the soundtrack; follow the description rules in the prompt "
+    "above. "
     "Narrative rules: describe only what happens AT each timestamp; "
     "never say 'the video starts with' or 'the video begins with' "
     "unless the timestamp is truly 00:00 of the whole video. Use ONE "
@@ -1093,7 +1101,10 @@ class GLMProvider(AIProvider):
                         "- Timestamps are when the event happens in the "
                         "video.\n"
                         "- Order lines by time.\n"
-                        "- Describe important visuals AND sounds/speech.\n"
+                        "- Describe the important VISUALS. The listener "
+                        "hears the soundtrack, so do not narrate dialogue, "
+                        "music or sound effects unless the prompt above "
+                        "asks for it (v1.6.0).\n"
                         "- Use ONE consistent name for the same person, "
                         "object or place.\n"
                         "- Never say 'the video starts with' unless this "

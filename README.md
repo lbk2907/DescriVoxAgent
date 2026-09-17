@@ -11,6 +11,44 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.0
+
+**The prompts now follow published audio-description standards.** The old
+ones worked against them: the default asked the AI to "describe everything
+you see in this video frame in detail", `detailed` asked for "emotional
+tone", and the engine appended "describe important visuals AND
+sounds/speech" to every request — telling the model to narrate dialogue a
+blind listener can already hear.
+
+Sources used: [DCMP Description
+Key](https://dcmp.org/learn/227-description-key--how-to-describe), [Netflix
+Audio Description Style Guide
+v2.1](https://partnerhelp.netflixstudios.com/hc/en-us/articles/215510667-Audio-Description-Style-Guide-v2-1),
+[W3C/WAI Audio Description](https://www.w3.org/WAI/media/av/description/),
+[ADLAB Guidelines](https://www.adlabproject.eu/Docs/adlab%20book/index.html).
+They agree: describe only what is needed to follow the content, skip what
+the audio already conveys, present tense and third person, report what is
+observable rather than what it means, never guess identity, and keep each
+cue short enough to be spoken in the gap.
+
+- **Seven presets, chosen by description strategy** (EN + BM): `default`,
+  `tight` (dense dialogue), `extended` (documentary/educational, the W3C
+  "extended description" case), `foreign` (conveys foreign speech — the
+  recognised *audio subtitling* service), `suspense` (preserves dramatic
+  silence), `children` (vocabulary to the age), `onscreen_text` (slides,
+  UI, charts read in reading order).
+- **No genre presets.** The standards prescribe the same rules for every
+  genre and vary only pace and tone; Netflix names exactly two genres,
+  which is why `suspense` and `children` exist and "action" does not.
+- **Old presets retired** — but only when the stored text is still exactly
+  what was shipped. A preset you edited or wrote yourself is never touched.
+- Prompts live in one place now (`prompt_manager.DEFAULT_PROMPTS`); a
+  second, slightly different copy in `settings_store` is gone.
+- `tools/compare_prompts.py` runs one video through two prompts and reports
+  cue count, words per cue, and counts of meta phrases ("the camera"),
+  speech echo ("he says") and interpretation ("seems to"). `--dry-run`
+  prints the fully assembled request without calling the API.
+
 ## What's new in v1.5.7
 
 - **Open works on a fresh launch again (critical)**: on Windows,

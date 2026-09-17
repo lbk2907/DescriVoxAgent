@@ -115,20 +115,25 @@ def test_settings_store():
 
 
 def test_prompt_manager():
-    print("3. PromptManager: text_ocr reachable, language presets intact")
+    print("3. PromptManager: onscreen_text reachable, language presets intact")
     with tempfile.TemporaryDirectory() as td:
         pm = PromptManager(SettingsStore(config_dir=td))
         pm.language = "en"
         names_en = pm.get_preset_names()
-        ok("text_ocr listed (en)", "text_ocr" in names_en, str(names_en))
-        ok("accessibility listed (en)", "accessibility" in names_en)
+        # A universal preset whose NAME contains an underscore must not be
+        # mistaken for a language-prefixed one (the v1.5.4 bug; the preset
+        # carrying that property is called onscreen_text since v1.6.0).
+        ok("onscreen_text listed (en)", "onscreen_text" in names_en,
+           str(names_en))
+        ok("extended listed (en)", "extended" in names_en)
         pm.language = "ms"
         names_ms = pm.get_preset_names()
-        ok("text_ocr listed (ms)", "text_ocr" in names_ms, str(names_ms))
+        ok("onscreen_text listed (ms)", "onscreen_text" in names_ms,
+           str(names_ms))
         ok("ms_default surfaces as default (ms)",
            "default" in names_ms and "ms_default" not in names_ms)
-        ok("ms_accessibility surfaces as accessibility (ms)",
-           "accessibility" in names_ms and "ms_accessibility" not in names_ms)
+        ok("ms_extended surfaces as extended (ms)",
+           "extended" in names_ms and "ms_extended" not in names_ms)
 
 
 def test_snap_timestamps():

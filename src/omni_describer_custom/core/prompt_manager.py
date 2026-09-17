@@ -13,8 +13,200 @@ from .settings_store import SettingsStore
 
 logger = logging.getLogger(__name__)
 
-# Default prompt presets
+# ── Prompt presets (v1.6.0) ──────────────────────────────────────
+#
+# Rewritten against the published audio-description standards, because
+# the old presets contradicted them: "describe everything you see in
+# detail" is the opposite of what audio description is, and "include
+# emotional tone" asks the AI to interpret instead of report.
+#
+# Sources, all agreeing on the core:
+#   DCMP Description Key (educational media standard)
+#     "Describe objectively, without interpretation, censorship, or
+#     comment"; present tense, active voice, third person; describe what
+#     is ESSENTIAL to follow the programme; never describe after the
+#     visual has passed; do not try to fill every silence.
+#   Netflix Audio Description Style Guide v2.1
+#     Skip description when the information is already given by dialogue;
+#     never describe over main dialogue; do not guess race, ethnicity or
+#     gender identity; read on-screen text verbatim.
+#   W3C/WAI Audio Description
+#     Convey the visual information needed to understand the content;
+#     no need to describe what is apparent from the audio; EXTENDED
+#     description is for when the natural gaps are too short.
+#   ADLAB Guidelines (EU)
+#     Prioritise focal characters, their actions and the space; decide
+#     what other channels already convey before spending a gap on it.
+#
+# The presets differ by DESCRIPTION STRATEGY, not by film genre: the
+# standards prescribe the same rules for every genre and vary only pace
+# and tone. Netflix names exactly two genres (children's content and
+# horror/suspense), which is why those two exist here and "action" or
+# "thriller" do not.
+#
+# Every preset is written to be spoken by TTS into the gaps between
+# events, so brevity is part of the instruction, not an afterthought.
+
+_AD_CORE_EN = (
+    "You are writing audio description for a blind viewer who HEARS the "
+    "video's own soundtrack. Describe only what a sighted viewer sees and "
+    "a listener cannot hear.\n"
+    "- Never describe dialogue, music or sound effects; they are already "
+    "audible.\n"
+    "- Present tense, third person, active voice.\n"
+    "- Report what is observable, not what it means: \"she lowers her eyes "
+    "and turns away\", not \"she is ashamed\".\n"
+    "- Prioritise who is present, what they do, where they are, and any "
+    "change the story depends on. Leave out decorative detail.\n"
+    "- Read on-screen text when it carries information.\n"
+    "- Use one consistent name for each person. Describe appearance only "
+    "when it matters, and never guess race, ethnicity, gender or age.\n"
+    "- One sentence, two at most: it must be speakable before the next "
+    "event.\n"
+    "- Never mention the camera, the shot, the frame, the video or the "
+    "viewer."
+)
+
+_AD_CORE_MS = (
+    "Anda menulis penerangan audio untuk penonton buta yang MENDENGAR bunyi "
+    "asal video. Huraikan hanya apa yang dilihat oleh mata dan tidak boleh "
+    "didengar.\n"
+    "- Jangan huraikan dialog, muzik atau kesan bunyi — semua itu sudah "
+    "kedengaran.\n"
+    "- Kala kini, orang ketiga, ayat aktif.\n"
+    "- Nyatakan apa yang kelihatan, bukan tafsirannya: \"dia menundukkan "
+    "pandangan dan berpaling\", bukan \"dia berasa malu\".\n"
+    "- Utamakan siapa yang ada, apa yang mereka buat, di mana, dan "
+    "perubahan penting kepada cerita. Tinggalkan butiran hiasan.\n"
+    "- Baca teks pada skrin bila ia membawa maklumat.\n"
+    "- Guna satu nama yang konsisten bagi setiap orang. Huraikan rupa hanya "
+    "bila ia penting, dan jangan sekali-kali teka bangsa, etnik, jantina "
+    "atau umur.\n"
+    "- Satu ayat, paling banyak dua: mesti sempat dituturkan sebelum "
+    "peristiwa berikutnya.\n"
+    "- Jangan sebut kamera, syot, kerangka, video atau penonton."
+)
+
 DEFAULT_PROMPTS = {
+    # 1. The standard. Use this unless something specific says otherwise.
+    "default": _AD_CORE_EN,
+
+    # 2. Dense dialogue: the gaps are tiny, so spend them carefully.
+    "tight": _AD_CORE_EN + (
+        "\n\nThis video talks almost continuously. Gaps are very short, so "
+        "describe ONLY what makes the dialogue make sense: who is speaking "
+        "to whom, who enters or leaves, and anything the words refer to but "
+        "do not name. Skip everything else. Keep each description to a "
+        "short phrase."
+    ),
+
+    # 3. W3C extended description: slow or information-dense material.
+    "extended": _AD_CORE_EN + (
+        "\n\nThis video has long stretches without speech, so there is room "
+        "for fuller description. Use it for information the viewer needs "
+        "and cannot hear: the layout of a space, what a diagram or chart "
+        "shows and what it means numerically, steps in a demonstration, and "
+        "on-screen text read as written. Stay factual — more room is not "
+        "permission to interpret."
+    ),
+
+    # 4. Audio subtitling: the recognised service for foreign speech.
+    "foreign": _AD_CORE_EN + (
+        "\n\nThe people in this video speak a language the listener may not "
+        "understand. In addition to the visual description, convey what is "
+        "said: give the meaning briefly in the language you are writing in, "
+        "attributing it to the speaker (\"the woman says she is leaving "
+        "tonight\"). Summarise rather than translating word for word, and "
+        "read any subtitles on screen."
+    ),
+
+    # 5. Netflix names this genre explicitly: silence carries the tension.
+    "suspense": _AD_CORE_EN + (
+        "\n\nThis video builds tension through silence and music. Do not "
+        "fill dramatic pauses — a held silence is information too. Never "
+        "reveal what is about to happen before the video shows it: describe "
+        "the shadow, not the killer waiting behind the door. Short, plain "
+        "sentences; let the soundtrack do its work."
+    ),
+
+    # 6. The other genre the standard names: tone follows the audience.
+    "children": _AD_CORE_EN + (
+        "\n\nThis video is for children. Use simple everyday words and short "
+        "sentences, and name colours, animals and actions plainly. Keep a "
+        "warm, friendly tone without becoming excited or silly, and never "
+        "explain the joke or the lesson — describe what happens and let the "
+        "child work it out."
+    ),
+
+    # 7. Tutorials, slides, anything where the screen IS the content.
+    "onscreen_text": _AD_CORE_EN + (
+        "\n\nThe screen in this video carries text and graphics that matter: "
+        "slides, menus, code, forms, charts. Read the text as written, in "
+        "reading order, and say where it sits when position matters (which "
+        "menu, which column, which button). For a chart, give what it "
+        "measures and the values that matter, not its colours. Describe "
+        "what the user is doing: what they click, type or select."
+    ),
+
+    # ── Malay versions (same strategies, same rules) ──────────────
+    "ms_default": _AD_CORE_MS,
+
+    "ms_tight": _AD_CORE_MS + (
+        "\n\nVideo ini bercakap hampir tanpa henti. Celah amat pendek, jadi "
+        "huraikan HANYA apa yang menjadikan dialog itu difahami: siapa "
+        "bercakap dengan siapa, siapa masuk atau keluar, dan apa yang "
+        "dirujuk oleh percakapan tetapi tidak dinamakan. Tinggalkan yang "
+        "lain. Pendekkan setiap penerangan kepada satu frasa."
+    ),
+
+    "ms_extended": _AD_CORE_MS + (
+        "\n\nVideo ini ada tempoh panjang tanpa percakapan, jadi ada ruang "
+        "untuk penerangan lebih penuh. Gunakannya untuk maklumat yang "
+        "diperlukan tetapi tidak boleh didengar: susun atur ruang, apa yang "
+        "ditunjukkan oleh rajah atau carta berserta nilainya, langkah dalam "
+        "demonstrasi, dan teks pada skrin dibaca seperti tertulis. Kekal "
+        "berasaskan fakta — ruang lebih bukan kebenaran untuk mentafsir."
+    ),
+
+    "ms_foreign": _AD_CORE_MS + (
+        "\n\nOrang dalam video ini bercakap dalam bahasa yang mungkin tidak "
+        "difahami pendengar. Selain penerangan visual, sampaikan apa yang "
+        "dikatakan: beri maksudnya secara ringkas dalam bahasa penulisan "
+        "anda, dengan menyebut siapa yang berkata (\"wanita itu berkata dia "
+        "akan pergi malam ini\"). Ringkaskan, jangan terjemah perkataan "
+        "demi perkataan, dan baca sari kata yang ada pada skrin."
+    ),
+
+    "ms_suspense": _AD_CORE_MS + (
+        "\n\nVideo ini membina ketegangan melalui kesenyapan dan muzik. "
+        "Jangan penuhi jeda dramatik — senyap itu sendiri maklumat. Jangan "
+        "dedahkan apa yang bakal berlaku sebelum video menunjukkannya: "
+        "huraikan bayang itu, bukan pembunuh yang menunggu di balik pintu. "
+        "Ayat pendek dan mudah; biar bunyi melakukan kerjanya."
+    ),
+
+    "ms_children": _AD_CORE_MS + (
+        "\n\nVideo ini untuk kanak-kanak. Guna perkataan harian yang mudah "
+        "dan ayat pendek, dan namakan warna, haiwan serta perbuatan secara "
+        "jelas. Kekalkan nada mesra tanpa menjadi terlalu teruja, dan "
+        "jangan terangkan jenaka atau pengajarannya — huraikan apa yang "
+        "berlaku dan biar kanak-kanak itu memahaminya sendiri."
+    ),
+
+    "ms_onscreen_text": _AD_CORE_MS + (
+        "\n\nSkrin dalam video ini membawa teks dan grafik yang penting: "
+        "slaid, menu, kod, borang, carta. Baca teks seperti tertulis "
+        "mengikut urutan bacaan, dan nyatakan kedudukannya bila itu penting "
+        "(menu mana, lajur mana, butang mana). Bagi carta, beri apa yang "
+        "diukur dan nilai yang penting, bukan warnanya. Huraikan apa yang "
+        "dilakukan pengguna: apa yang diklik, ditaip atau dipilih."
+    ),
+}
+
+# Presets shipped before v1.6.0. They are removed on first run — but ONLY
+# when the stored text still matches what we shipped, so a preset the
+# user edited or wrote themselves is never touched.
+LEGACY_PROMPTS = {
     "default": "Describe everything you see in this video frame in detail. Focus on visual elements, actions, context, and any text visible.",
     "detailed": "Provide a comprehensive description of this frame. Include all visual details, colors, lighting, emotional tone, and spatial relationships.",
     "minimal": "Brief description of this frame in one sentence.",
@@ -23,6 +215,11 @@ DEFAULT_PROMPTS = {
     "text_ocr": "Transcribe and describe any text visible in this frame. Include signs, subtitles, on-screen graphics, and written content.",
     "ms_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, konteks, dan sebarang teks yang kelihatan.",
     "ms_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Tekankan hubungan ruang, kandungan teks, dan maklumat visual penting.",
+    # Also shipped from settings_store.DEFAULTS before v1.6.0.
+    "ms_default_alt": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, dan konteks.",
+    "default_alt": "Describe everything you see in this video frame in detail. Focus on visual elements, actions, and context.",
+    "accessibility_alt": "Describe this frame for a blind or visually impaired user. Be specific about spatial relationships, text content, and important visual information.",
+    "ms_accessibility_alt": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Nyatakan hubungan ruang, kandungan teks, dan maklumat visual penting dengan jelas dan ringkas.",
 }
 
 DEFAULT_LANGUAGE = "en"
@@ -40,11 +237,35 @@ class PromptManager:
         self._ensure_defaults()
 
     def _ensure_defaults(self):
-        """Ensure default prompts exist."""
+        """Ensure default prompts exist, retiring the pre-v1.6.0 set.
+
+        The old presets told the AI to describe everything in detail and
+        to report "emotional tone" — both contrary to every published
+        audio-description standard. They are dropped so they cannot be
+        picked by accident, but ONLY when the stored text is still
+        exactly what we shipped: anything the user edited, renamed or
+        wrote themselves survives untouched.
+        """
+        existing = self.settings.get_prompts()
+        shipped = set(LEGACY_PROMPTS.values())
+        for name, text in existing.items():
+            if name in DEFAULT_PROMPTS:
+                continue  # still part of the current set
+            if text in shipped:
+                self.settings.delete_prompt(name)
+                logger.info("Retired obsolete prompt preset: %s", name)
+
         existing = self.settings.get_prompts()
         for name, text in DEFAULT_PROMPTS.items():
-            if name not in existing:
+            stored = existing.get(name)
+            if stored is None:
                 self.settings.set_prompt(name, text)
+            elif stored in shipped:
+                # Same NAME as a current preset but still holding the old
+                # wording (e.g. "default"): upgrade it in place.
+                self.settings.set_prompt(name, text)
+                logger.info("Upgraded prompt preset to v1.6.0 wording: %s",
+                            name)
 
     @property
     def language(self) -> str:

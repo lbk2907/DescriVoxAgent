@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 30 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 31 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -115,12 +115,23 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    prompt mengandungi labelnya sendiri, yang dihantar ke AI sebagai
    "User notes". Guna `MainFrame._set_accessible_name()` (v1.5.6/1.5.7).
    **Untuk TextCtrl guna `SetName`, jangan `SetLabel`.**
-13. **Handler = permukaan yang paling kerap terlepas.** Sebelum
+13. **Prompt MESTI ikut piawaian audio description, bukan "huraikan semua".**
+   Sumber: DCMP Description Key, Netflix AD Style Guide v2.1, W3C/WAI,
+   ADLAB. Teras: huraikan hanya yang perlu untuk memahami; JANGAN huraikan
+   apa yang sudah kedengaran (dialog/muzik/bunyi); kala kini, orang ketiga;
+   lapor yang boleh dilihat, bukan tafsiran; jangan teka bangsa/jantina;
+   cukup pendek untuk dituturkan. Preset ikut STRATEGI, bukan genre —
+   piawaian guna peraturan sama untuk semua genre (Netflix namakan dua
+   sahaja: kanak-kanak, horror/suspense). `prompt_manager.DEFAULT_PROMPTS`
+   = SATU sumber prompt; `tests/test_fixes22.py` mengunci peraturan ini.
+   Preset lama dibuang hanya kalau teksnya masih teks asal kita (edit
+   pengguna tidak pernah disentuh).
+14. **Handler = permukaan yang paling kerap terlepas.** Sebelum
    `tests/test_fixes21.py` (17 Sep 2026) TIADA satu pun handler menu/butang
    tetingkap utama dipanggil oleh mana-mana test — tetingkap diuji, handler
    yang membukanya tidak. Di situlah bug butang Open mati bersembunyi.
    **Tambah handler baharu = tambah check dalam test_fixes21.**
-14. **Test MESTI guna settings terasing.** `run_gate.bat` set
+15. **Test MESTI guna settings terasing.** `run_gate.bat` set
    `ODC_CONFIG_DIR=%TEMP%\odc_gate_config`; `SettingsStore` hormat env var
    itu. Sebelum v1.5.5 gate menulis ke `settings.json` SEBENAR pengguna
    (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
@@ -172,11 +183,11 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.5.7 (tag terakhir `v1.5.6`; rumusan v1.5.4:
+- **Versi:** 1.6.0 (tag terakhir `v1.5.6`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
-- 30 test suite, semua PASS (test_fixes19 = audit fix regression suite;
+- 31 test suite, semua PASS (test_fixes19 = audit fix regression suite;
   test_fixes20 = ghost progress dialog, dedupe label API, isolasi settings;
   test_fixes21 = SETIAP handler tetingkap utama + editor ditekan sungguh)
 - E2E GUI sebenar (`tools/e2e_gui_phase.py`) PASS dengan GLM sebenar:

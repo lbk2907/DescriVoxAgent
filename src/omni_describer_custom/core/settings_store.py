@@ -125,14 +125,12 @@ class SettingsStore:
             "chunk_long_videos": True,
             "auto_save": True,
         },
-        "prompts": {
-            "default": "Describe everything you see in this video frame in detail. Focus on visual elements, actions, and context.",
-            "ms_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, dan konteks.",
-            "ms_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Nyatakan hubungan ruang, kandungan teks, dan maklumat visual penting dengan jelas dan ringkas.",
-            "detailed": "Provide a comprehensive description of this frame. Include all visual details, text visible, colors, lighting, and emotional tone.",
-            "minimal": "Brief description of this frame in one sentence.",
-            "accessibility": "Describe this frame for a blind or visually impaired user. Be specific about spatial relationships, text content, and important visual information.",
-        },
+        # v1.6.0: prompts live in ONE place now — prompt_manager.
+        # DEFAULT_PROMPTS. This file used to carry a second, slightly
+        # different copy of the same presets, so the wording a user got
+        # depended on which module happened to seed the file first.
+        # PromptManager._ensure_defaults() fills this in on first use.
+        "prompts": {},
     }
 
     def __init__(self, config_dir: str = ""):
