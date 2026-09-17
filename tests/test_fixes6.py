@@ -7,8 +7,10 @@ No mocks substitute for the real acceptance path.
 import sys, io, traceback, tempfile, subprocess, shutil, time
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
+                              line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
+                              line_buffering=True)
 sys.path.insert(0, "src")
 
 import asyncio

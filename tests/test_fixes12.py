@@ -29,8 +29,10 @@ from pathlib import Path
 
 import wx
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
+                              line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
+                              line_buffering=True)
 sys.path.insert(0, "src")
 
 ok = 0
@@ -50,6 +52,36 @@ def check(name, fn):
         print(f"FAIL: {name}: {e}")
         traceback.print_exc()
         fail += 1
+
+
+def _drain_events(rounds: int = 12, delay: float = 0.02) -> None:
+    """Dispatch every queued wx.CallAfter before a frame is destroyed.
+
+    The worker thread posts UI updates (_log, SetStatusText,
+    _processing_done) right up to its last line. Destroying the frame
+    while those events are still queued makes the NEXT Yield() dispatch
+    them against a freed C++ window: an access violation that killed the
+    interpreter on roughly one gate run in three, with no output at all.
+    Draining first, then again after Destroy(), lets wx finish the
+    deferred deletion while the handlers still have a live window.
+    """
+    app = wx.GetApp()
+    if app is None:
+        return
+    for _ in range(rounds):
+        app.ProcessPendingEvents()
+        app.Yield()
+        time.sleep(delay)
+
+
+def _destroy_frame(frame) -> None:
+    """Tear a MainFrame down the way wx expects: drain, destroy, drain."""
+    _drain_events()
+    try:
+        frame.Destroy()
+    except Exception:
+        pass
+    _drain_events(rounds=6)
 
 
 # ── 1. Parser ────────────────────────────────────────────────────────
@@ -304,6 +336,16 @@ def test_video_ticks_on_main_frame():
             user32 = ctypes.windll.user32
             visible = lambda: bool(
                 user32.IsWindowVisible(dlg.GetHandle()))
+            # MSW maps the window from the event loop, not from the
+            # constructor. Without this wait the check raced the dialog
+            # into existence and failed ("auto-hidden before completion")
+            # under gate load, while the auto-hide behaviour it guards
+            # was never actually broken.
+            appear = time.time() + 5
+            while time.time() < appear and not visible():
+                wx.GetApp().Yield()
+                time.sleep(0.02)
+            assert visible(), "progress dialog never became visible"
             frame._video_part_tick(1, 2)
             assert visible(), "dialog auto-hidden before completion"
             # part 1 of 2 -> overall 10 + 90*1/2 = 55 (the 99 cap only
@@ -324,7 +366,7 @@ def test_video_ticks_on_main_frame():
             except Exception:
                 pass
     finally:
-        frame.Destroy()
+        _destroy_frame(frame)
 
 
 # ── 6. Full-value integration: main_frame branch end to end ──────────
@@ -502,10 +544,7 @@ def test_process_video_full_branch_integration():
             frame._close_download_progress()
         except Exception:
             pass
-        try:
-            frame.Destroy()
-        except Exception:
-            pass
+        _destroy_frame(frame)
 
 
 def test_error_path_failed_state():
@@ -615,7 +654,15 @@ def test_error_path_failed_state():
         assert not any("Extracting frames" in s or "Analyzing frames" in s
                        for s in status_seen), set(status_seen)
         assert not frame._processing, "_processing stuck True"
-        assert frame.btn_preset_open.Enabled, "buttons not re-enabled"
+        assert frame.btn_preset_open.Enabled, (
+            "buttons not re-enabled: "
+            f"worker_alive={worker.is_alive() if worker else None} "
+            f"processing={frame._processing} "
+            f"btn_own_flag={frame.btn_preset_open.IsThisEnabled()} "
+            f"frame_enabled={frame.IsEnabled()} "
+            f"dl_dialog={frame._dl_dialog!r} "
+            f"dl_cancelled={frame._dl_cancelled} dl_done={frame._dl_done} "
+            f"status_tail={status_seen[-3:]}")
         assert frame._dl_dialog is None, "progress dialog left open"
         assert frame.project_store.current is None, \
             "project should not be created on failure"
@@ -625,10 +672,7 @@ def test_error_path_failed_state():
             frame._close_download_progress()
         except Exception:
             pass
-        try:
-            frame.Destroy()
-        except Exception:
-            pass
+        _destroy_frame(frame)
 
 
 if __name__ == "__main__":

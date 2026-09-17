@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
+                              errors="replace", line_buffering=True)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.ai_engine import (

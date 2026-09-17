@@ -7,7 +7,8 @@ retention (subprocess/GC artifacts), not a user-facing leak.
 import ctypes, sys, io, tempfile, shutil
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
+                              line_buffering=True)
 sys.path.insert(0, "src")
 import wx
 

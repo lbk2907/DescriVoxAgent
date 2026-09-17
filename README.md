@@ -4,12 +4,34 @@ An accessible audio-description tool for blind and visually impaired
 users. It downloads or opens a video and produces timestamped audio
 descriptions in two ways: the default frame mode extracts frames and
 sends them to an AI vision provider, while the optional full-video
-mode (Gemini or MiniMax) uploads the whole video and lets the AI
+mode (GLM, Gemini or MiniMax) uploads the whole video and lets the AI
 watch it (including audio) and timestamp its own descriptions. A
 built-in player reads the descriptions in sync with playback.
 
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
+
+## What's new in v1.5.5
+
+- **Ghost progress dialog fixed (critical)**: `wx.ProgressDialog` pumps
+  the event loop inside its own constructor, so the pipeline's cleanup
+  could run in there, find no dialog to close, and leave the dialog born
+  a moment later owned by nobody. It stayed on screen and kept the main
+  window **disabled** — the app looked frozen, with a screen reader stuck
+  in a dead dialog. The dialog builder now notices a cleanup that landed
+  mid-construction and discards that dialog.
+- **Counter thread always stopped**: `_process_video` stops the frame
+  counter thread from its outer `finally`, covering failures between the
+  thread starting and the per-mode stop points.
+- **Gate is reliable again**: `tests/test_fixes12.py` was failing about
+  one run in three — sometimes as a hard interpreter crash with an empty
+  log, which hid the bug above. Test output is now line-buffered so a
+  crash can no longer swallow the evidence, wx frames are torn down after
+  their pending events are drained, and `tests/test_fixes20.py` covers
+  the dialog race directly. Gate: 29/29 suites PASS.
+- **Full-video mode labels name GLM**: the checkbox and the guides said
+  "Gemini or MiniMax" while GLM (OpenRouter) has been supported since
+  v1.5.3.
 
 ## What's new in v1.5.4
 

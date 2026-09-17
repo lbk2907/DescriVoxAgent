@@ -18,8 +18,12 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 27 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 29 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
+   **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
+   test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
+   (ghost dialog), bukan test. Jalan suite yang gagal 10 kali sebelum
+   melabelnya flaky.
 2. **JANGAN pecahkan aksesibiliti.** Setiap widget baharu perlu `name=`/label NVDA.
    Status changes mesti di-announce (lihat corak `SetStatusText` + focus move dalam main_frame.py).
 3. **JANGAN guna Opus Proxy** — provider tu dah dibuang sepenuhnya (v1.5.3, kuota habis).
@@ -86,6 +90,19 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    test E2E).
 7. **Model reasoning besar (GLM)** perlukan max_tokens ~6000 — timeout dah dibump;
    jangan kurangkan tanpa test real.
+8. **`wx.ProgressDialog` PUMP event loop dalam constructor-nya.** Handler
+   `wx.CallAfter` yang beratur boleh jalan DALAM constructor itu, sebelum
+   `self._dl_dialog` di-assign. Sebab tu `_ensure_download_progress` guna
+   kaunter `_dl_close_gen`: kalau cleanup berlaku semasa dialog sedang dibina,
+   dialog baharu itu dibuang (v1.5.5). Corak sama perlu untuk mana-mana dialog
+   modal baharu yang dicipta dari CallAfter.
+9. **Output test MESTI line-buffered.** `io.TextIOWrapper(...)` yang dibina
+   sendiri mengabaikan `python -u`; bila proses crash, buffer hilang dan gate
+   cetak log KOSONG (v1.5.5: crash tersembunyi berbulan). Semua fail dalam
+   `tests/` guna `line_buffering=True`.
+10. **Frame wx perlu di-drain sebelum Destroy** dalam test: worker thread
+   masih ada `wx.CallAfter` beratur; Destroy dulu = access violation.
+   Lihat `_drain_events`/`_destroy_frame` dalam `tests/test_fixes12.py`.
 
 ## Prosedur Biasa
 
@@ -126,10 +143,14 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.5.4 (tag `v1.5.4`; rumusan: `doc/rumusan-v1.5.4.md`)
-- Provider aktif: GLM/OpenRouter sahaja untuk GUI; Gemini + MiniMax full-video mode tersedia
-- 28 test suite, semua PASS (test_fixes19 = audit fix regression suite)
-- dist zip terkini: `OmniDescriber-1.5.4-win64.zip`
+- **Versi:** 1.5.5 (belum di-tag/build; tag terakhir `v1.5.4`,
+  rumusan: `doc/rumusan-v1.5.4.md`)
+- Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
+  full-video mode tersedia
+- 29 test suite, semua PASS (test_fixes19 = audit fix regression suite;
+  test_fixes20 = ghost progress dialog + pipeline cleanup)
+- dist zip terkini: `OmniDescriber-1.5.4-win64.zip` — **lapuk**, perlu
+  `build.bat` semula untuk 1.5.5
 - Tiada bug terbuka
 - wxPython Phoenix: `MenuBar.SetLabelTop` TIDAK wujud — guna
   `menubar.GetMenu(i).SetTitle(...)`

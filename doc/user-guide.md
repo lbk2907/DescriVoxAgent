@@ -117,7 +117,8 @@ descriptions in sync during playback.
   tests the current form values, so you can test before pressing
   Apply.
   - **Full-video mode**: this checkbox is only enabled when the
-    **Gemini or MiniMax** provider is selected. When enabled, the AI
+    **GLM (OpenRouter), Gemini or MiniMax** provider is selected. When
+    enabled, the AI
     receives the **whole video file** (audio + visual), the AI watches
     it itself, and returns its own timestamped list of descriptions.
     No frames are extracted and there is no per-frame AI call — one
@@ -181,9 +182,10 @@ because no frames are involved.
   timestamp, for example 0.0s, 0.2s, 0.4s at 5 FPS. Only the frames
   (images), not the full video file, are sent to the AI; the app
   attaches each frame's timestamp to the text the AI returns.
-- **Full-video mode (Gemini or MiniMax, checkbox in the AI tab):** one
-  full video file is uploaded (to the Gemini Files API or MiniMax
-  Files API), the AI watches the video (including audio) itself, and
+- **Full-video mode (GLM, Gemini or MiniMax, checkbox in the AI tab):**
+  one full video file is sent (uploaded to the Gemini or MiniMax Files
+  API, or inlined as base64 for GLM via OpenRouter), the AI watches the
+  video (including audio) itself, and
   timestamps come from the AI as well. This suits descriptions that
   cover sound and speech, or when you want a one-step process. Other
   providers (OpenAI, Custom) do not accept local video files, so this

@@ -75,6 +75,11 @@ class MainFrame(wx.Frame):
         self._hb_start = 0.0
         self._hb_phase = ""
         self._hb_dialog_was_destroyed = False
+        # v1.5.5: bumped by every _close_download_progress. The
+        # ProgressDialog constructor pumps the event loop, so a cleanup
+        # can land WHILE a dialog is being built; the counter lets the
+        # builder notice and throw the newborn dialog away.
+        self._dl_close_gen = 0
 
         # Language
         lang = self.settings.get("general.language", "en")
@@ -957,6 +962,13 @@ class MainFrame(wx.Frame):
         """
         frame_dir: str | None = None
         loop = None  # proactor loop: closed on EVERY exit path (leak fix)
+        # v1.5.5: each mode stops the frame counter thread itself (full
+        # video at its branch head, frame mode in the extraction finally),
+        # but nothing covered a failure BETWEEN the thread starting and
+        # those points — that window leaked a daemon thread polling a
+        # deleted temp dir every 0.7s. Held here so the outer finally can
+        # stop it on every exit path, like the event loop above.
+        stop_counter = None
         try:
             vp = VideoProcessor()
             loop = __import__("asyncio").new_event_loop()
@@ -1512,6 +1524,12 @@ class MainFrame(wx.Frame):
                 self._cleanup_dir(frame_dir)
             if loop is not None and not loop.is_closed():
                 loop.close()
+        finally:
+            # Every return above (cancel, empty result, error, success)
+            # passes through here, so the counter thread always dies with
+            # the pipeline instead of outliving it.
+            if stop_counter is not None:
+                stop_counter.set()
 
         wx.CallAfter(self._processing_done)
 
@@ -1530,6 +1548,16 @@ class MainFrame(wx.Frame):
         if self._dl_dialog is not None or self.IsBeingDeleted():
             return
         try:
+            # v1.5.5 GHOST DIALOG FIX: wx.ProgressDialog pumps the event
+            # loop while it shows the window, so queued CallAfter
+            # handlers run INSIDE this constructor. When the pipeline
+            # finished meanwhile, _close_download_progress ran here, saw
+            # _dl_dialog still None (it is only assigned below) and
+            # closed nothing — leaving a progress dialog nobody owns,
+            # which keeps the main window disabled and makes the app look
+            # frozen. Comparing the close counter across the constructor
+            # detects exactly that and discards the newborn dialog.
+            gen = getattr(self, "_dl_close_gen", 0)
             dlg = wx.ProgressDialog(
                 t("download.dialog_title"),
                 t("download.preparing"),
@@ -1537,6 +1565,11 @@ class MainFrame(wx.Frame):
                 parent=self,
                 style=wx.PD_CAN_ABORT | wx.PD_SMOOTH | wx.PD_AUTO_HIDE,
             )
+            if (getattr(self, "_dl_close_gen", 0) != gen
+                    or getattr(self, "_dl_done", False)):
+                dlg.Destroy()
+                self._dl_dialog = None
+                return
             dlg.SetSize((460, 150))
             self._dl_dialog = dlg
         except Exception:
@@ -1801,6 +1834,9 @@ class MainFrame(wx.Frame):
     def _close_download_progress(self):
         """Close and destroy the progress dialog if it exists (UI thread)."""
         self._hb_stop()
+        # Bumped even when there is nothing to close: a dialog may be
+        # mid-construction right now (see _ensure_download_progress).
+        self._dl_close_gen = getattr(self, "_dl_close_gen", 0) + 1
         dlg, self._dl_dialog = self._dl_dialog, None
         if dlg is not None:
             try:

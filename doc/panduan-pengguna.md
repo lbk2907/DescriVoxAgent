@@ -119,7 +119,8 @@ membacakan penerangan itu segerak semasa main balik.
   salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
   dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
   - **Mod video penuh (Full-video mode)**: kotak semak ini hanya aktif
-    apabila pembekal **Gemini atau MiniMax** dipilih. Bila didayakan,
+    apabila pembekal **GLM (OpenRouter), Gemini atau MiniMax** dipilih.
+    Bila didayakan,
     AI menerima **keseluruhan fail video** (audio + visual) dan AI
     menontonnya sendiri, kemudian memulangkan senarai penerangan
     ber-timestamp buatannya. Tiada frame diekstrak dan tiada satu
@@ -188,9 +189,10 @@ tiada frasa frame diumumkan kerana tiada frame terlibat.
   sendiri, contohnya 0.0s, 0.2s, 0.4s pada 5 FPS. Hanya frame (imej),
   bukan fail video penuh, dihantar kepada AI; aplikasi melekatkan
   timestamp frame pada teks yang AI pulangkan.
-- **Mod video penuh (Gemini atau MiniMax, kotak semak dalam Tab AI):**
-  satu fail video penuh dimuat naik (ke Gemini Files API atau MiniMax
-  Files API), AI menonton video (termasuk audio) sendiri, dan
+- **Mod video penuh (GLM, Gemini atau MiniMax, kotak semak dalam Tab
+  AI):** satu fail video penuh dihantar (dimuat naik ke Gemini atau
+  MiniMax Files API, atau dimasukkan sebagai base64 untuk GLM melalui
+  OpenRouter), AI menonton video (termasuk audio) sendiri, dan
   timestamp datang daripada AI itu juga. Ini sesuai untuk penerangan
   yang meliputi bunyi dan pertuturan, atau bila anda mahukan proses
   satu langkah sahaja. Pembekal lain (OpenAI, Custom) tidak menerima
