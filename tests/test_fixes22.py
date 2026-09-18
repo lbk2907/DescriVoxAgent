@@ -169,6 +169,29 @@ def test_legacy_presets_are_retired():
             left["default"].lower(), "default was not upgraded"
 
 
+def test_both_historical_wordings_are_retired():
+    """Two modules shipped the same presets with different wording, so an
+    upgrade sees either. A live install was still offering the "emotional
+    tone" preset because only one wording was listed as legacy."""
+    variants = {
+        "detailed": "Provide a comprehensive description of this frame. "
+                    "Include all visual details, text visible, colors, "
+                    "lighting, and emotional tone.",
+        "default": "Describe everything you see in this video frame in "
+                   "detail. Focus on visual elements, actions, and context.",
+    }
+    with tempfile.TemporaryDirectory() as td:
+        store = SettingsStore(config_dir=td)
+        for name, text in variants.items():
+            store.set_prompt(name, text)
+        PromptManager(store)
+        left = store.get_prompts()
+        assert "detailed" not in left, \
+            "the settings_store wording of `detailed` survived the upgrade"
+        assert "emotional tone" not in " ".join(left.values()).lower(), \
+            "a preset still asks the model for emotional tone"
+
+
 def test_user_edited_presets_are_never_touched():
     """The migration may only remove text we shipped ourselves."""
     with tempfile.TemporaryDirectory() as td:
@@ -228,6 +251,8 @@ if __name__ == "__main__":
     check("engine does not force sound narration",
           test_engine_does_not_force_sound_narration)
     check("legacy presets are retired", test_legacy_presets_are_retired)
+    check("both historical wordings are retired",
+          test_both_historical_wordings_are_retired)
     check("user-edited presets are never touched",
           test_user_edited_presets_are_never_touched)
     check("presets reach the UI in both languages",

@@ -219,11 +219,16 @@ LEGACY_PROMPTS = {
     "text_ocr": "Transcribe and describe any text visible in this frame. Include signs, subtitles, on-screen graphics, and written content.",
     "ms_default": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, konteks, dan sebarang teks yang kelihatan.",
     "ms_accessibility": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Tekankan hubungan ruang, kandungan teks, dan maklumat visual penting.",
-    # Also shipped from settings_store.DEFAULTS before v1.6.0.
+    # Also shipped from settings_store.DEFAULTS before v1.6.0, which kept
+    # its own slightly different copy of the same presets. Both wordings
+    # are in the wild, so BOTH must be recognised — a live install was
+    # found still offering the "emotional tone" preset because only the
+    # prompt_manager wording was listed here.
     "ms_default_alt": "Huraikan semua yang anda lihat dalam kerangka video ini dengan terperinci. Fokus pada elemen visual, aksi, dan konteks.",
     "default_alt": "Describe everything you see in this video frame in detail. Focus on visual elements, actions, and context.",
     "accessibility_alt": "Describe this frame for a blind or visually impaired user. Be specific about spatial relationships, text content, and important visual information.",
     "ms_accessibility_alt": "Huraikan kerangka ini untuk pengguna buta atau kurang upaya penglihatan. Nyatakan hubungan ruang, kandungan teks, dan maklumat visual penting dengan jelas dan ringkas.",
+    "detailed_alt": "Provide a comprehensive description of this frame. Include all visual details, text visible, colors, lighting, and emotional tone.",
 }
 
 DEFAULT_LANGUAGE = "en"
