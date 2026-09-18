@@ -45,9 +45,24 @@ cue short enough to be spoken in the gap.
 - Prompts live in one place now (`prompt_manager.DEFAULT_PROMPTS`); a
   second, slightly different copy in `settings_store` is gone.
 - `tools/compare_prompts.py` runs one video through two prompts and reports
-  cue count, words per cue, and counts of meta phrases ("the camera"),
-  speech echo ("he says") and interpretation ("seems to"). `--dry-run`
-  prints the fully assembled request without calling the API.
+  cue count, words per cue, and counts of film-technique phrases, speech
+  echo ("he says") and interpretation ("seems to"). `--dry-run` prints the
+  fully assembled request without calling the API.
+
+Measured on the same 19-second clip, same provider, old prompt vs new:
+**22.7 → 14.0 words per cue, longest cue 45 → 25 words.** A 45-word cue
+cannot be spoken in a three-second gap; that is the practical difference.
+The old prompt also re-described the unchanged background in every cue
+("the elephants still visible eating hay", "the concrete barrier and rock
+wall framing the scene") and closed with "The video ends with…".
+
+Two rules were corrected after that first real run, because the model
+disobeyed one of them and it turned out the rule was wrong, not the model:
+the Netflix guide explicitly allows direct address ("She turns to the
+camera and winks at us"), so the prompt now bans film *technique* (camera
+moves, cuts, zooms) rather than the word "camera"; and the identity rule
+now matches its source exactly — race, ethnicity and gender identity —
+since apparent age is ordinary description vocabulary.
 
 ## What's new in v1.5.7
 

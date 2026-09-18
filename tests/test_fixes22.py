@@ -106,20 +106,34 @@ def test_speech_is_only_described_where_it_is_the_service():
 
 
 def test_identity_is_not_guessed():
-    """Netflix is explicit: do not assume racial, ethnic or gender identity."""
+    """Netflix: "do not guess or assume racial, ethnic or gender identity".
+
+    Note the list stops there — apparent age is ordinary AD vocabulary
+    ("a young man"), so the prompt must not ban it.
+    """
     for name in EN_PRESETS:
         low = DEFAULT_PROMPTS[name].lower()
-        assert "never guess race" in low, f"{name}: identity guard missing"
+        assert "race, ethnicity or gender identity" in low, \
+            f"{name}: identity guard missing"
     for name in MS_PRESETS:
         low = DEFAULT_PROMPTS[name].lower()
-        assert "teka bangsa" in low, f"{name}: identity guard missing"
+        assert "bangsa, etnik atau identiti" in low, \
+            f"{name}: identity guard missing"
 
 
-def test_meta_language_is_banned():
-    """"In this frame we see a camera shot of..." is unusable narration."""
+def test_film_technique_is_banned_but_direct_address_is_not():
+    """Narrating cuts and zooms is caption voice, not description — but
+    the Netflix guide explicitly ALLOWS direct address ("She turns to the
+    camera and winks at us"), so a blanket ban on the word camera would
+    contradict the standard and be disobeyed anyway."""
     for name in EN_PRESETS:
         low = DEFAULT_PROMPTS[name].lower()
-        assert "never mention the camera" in low, f"{name}: no meta ban"
+        assert "do not narrate film technique" in low, \
+            f"{name}: no film-technique ban"
+        assert "to camera is fine" in low, \
+            f"{name}: direct address must stay allowed"
+        assert "never mention the camera" not in low, \
+            f"{name}: blanket camera ban contradicts the Netflix guide"
 
 
 def test_language_parity():
@@ -208,7 +222,8 @@ if __name__ == "__main__":
     check("speech described only where that is the service",
           test_speech_is_only_described_where_it_is_the_service)
     check("identity is never guessed", test_identity_is_not_guessed)
-    check("meta language is banned", test_meta_language_is_banned)
+    check("film technique banned, direct address allowed",
+          test_film_technique_is_banned_but_direct_address_is_not)
     check("EN/BM preset parity", test_language_parity)
     check("engine does not force sound narration",
           test_engine_does_not_force_sound_narration)

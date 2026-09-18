@@ -41,9 +41,13 @@ from omni_describer_custom.core.settings_store import SettingsStore  # noqa: E40
 
 PROJECTS = Path.home() / "Documents" / "OmniDescriber" / "projects"
 
-META = (r"\bthe camera\b", r"\bwe see\b", r"\bin this frame\b",
-        r"\bthe (?:scene|shot|video) (?:shows|opens|begins)\b",
-        r"\bthis (?:image|picture|frame)\b")
+# "to camera" is NOT flagged: the Netflix guide allows it for direct
+# address ("She turns to the camera and winks at us"). What makes
+# narration unusable is film technique and caption voice.
+META = (r"\bthe camera (?:pans|zooms|cuts|moves|follows|tilts)\b",
+        r"\bwe see\b", r"\bin this (?:frame|image|picture)\b",
+        r"\bthe (?:scene|shot|video) (?:shows|opens|begins|ends)\b",
+        r"\bclose[- ]up shot\b", r"\bcuts? to\b")
 SPEECH = (r"\b(?:he|she|they|the man|the woman|the narrator)\s+"
           r"(?:says|said|asks|asked|explains|tells|shouts)\b",
           r"\bvoice[- ]?over\b", r"\bwe hear\b", r"\bthe music\b")

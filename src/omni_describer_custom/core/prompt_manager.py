@@ -60,11 +60,13 @@ _AD_CORE_EN = (
     "change the story depends on. Leave out decorative detail.\n"
     "- Read on-screen text when it carries information.\n"
     "- Use one consistent name for each person. Describe appearance only "
-    "when it matters, and never guess race, ethnicity, gender or age.\n"
+    "when it matters, and do not state race, ethnicity or gender identity "
+    "unless the video establishes it.\n"
     "- One sentence, two at most: it must be speakable before the next "
     "event.\n"
-    "- Never mention the camera, the shot, the frame, the video or the "
-    "viewer."
+    "- Do not narrate film technique: no camera moves, cuts, zooms, angles "
+    "or \"the video shows\". Saying someone speaks or looks to camera is "
+    "fine when they address the viewer directly."
 )
 
 _AD_CORE_MS = (
@@ -80,11 +82,13 @@ _AD_CORE_MS = (
     "perubahan penting kepada cerita. Tinggalkan butiran hiasan.\n"
     "- Baca teks pada skrin bila ia membawa maklumat.\n"
     "- Guna satu nama yang konsisten bagi setiap orang. Huraikan rupa hanya "
-    "bila ia penting, dan jangan sekali-kali teka bangsa, etnik, jantina "
-    "atau umur.\n"
+    "bila ia penting, dan jangan nyatakan bangsa, etnik atau identiti "
+    "jantina melainkan video itu sendiri menetapkannya.\n"
     "- Satu ayat, paling banyak dua: mesti sempat dituturkan sebelum "
     "peristiwa berikutnya.\n"
-    "- Jangan sebut kamera, syot, kerangka, video atau penonton."
+    "- Jangan menceritakan teknik filem: tiada pergerakan kamera, potongan, "
+    "zum, sudut atau \"video ini menunjukkan\". Menyebut seseorang bercakap "
+    "atau memandang ke kamera dibenarkan bila dia menyapa penonton terus."
 )
 
 DEFAULT_PROMPTS = {
