@@ -62,8 +62,15 @@ _AD_CORE_EN = (
     "- Use one consistent name for each person. Describe appearance only "
     "when it matters, and do not state race, ethnicity or gender identity "
     "unless the video establishes it.\n"
-    "- One sentence, two at most: it must be speakable before the next "
-    "event.\n"
+    "- PACE FOR SPEECH. Every line you write is read aloud at about two "
+    "words per second, so a 12-word line takes six seconds to say. Before "
+    "you add a description, make sure the NEXT one is far enough away for "
+    "this one to finish. When events crowd together, describe the most "
+    "important one and let the others pass — a gap of silence costs the "
+    "listener nothing, but two descriptions colliding costs them both.\n"
+    "- HARD LIMIT: 12 words per description. Not a target, a ceiling. "
+    "Measured with a real voice, a 21-word line needs 11 seconds to speak "
+    "and arrives on top of the next one.\n"
     "- Do not narrate film technique: no camera moves, cuts, zooms, angles "
     "or \"the video shows\". Saying someone speaks or looks to camera is "
     "fine when they address the viewer directly."
@@ -84,8 +91,16 @@ _AD_CORE_MS = (
     "- Guna satu nama yang konsisten bagi setiap orang. Huraikan rupa hanya "
     "bila ia penting, dan jangan nyatakan bangsa, etnik atau identiti "
     "jantina melainkan video itu sendiri menetapkannya.\n"
-    "- Satu ayat, paling banyak dua: mesti sempat dituturkan sebelum "
-    "peristiwa berikutnya.\n"
+    "- SESUAIKAN DENGAN PERTUTURAN. Setiap baris dibaca kuat pada kadar "
+    "kira-kira dua patah perkataan sesaat, jadi baris 12 patah perkataan "
+    "mengambil enam saat. Sebelum menambah satu penerangan, pastikan "
+    "penerangan BERIKUTNYA cukup jauh untuk yang ini habis dituturkan. "
+    "Bila peristiwa berhimpit, pilih yang paling penting sahaja — "
+    "kesenyapan tidak merugikan pendengar, tetapi dua penerangan yang "
+    "berlanggar merugikan kedua-duanya.\n"
+    "- HAD KERAS: 12 patah perkataan bagi setiap penerangan. Bukan "
+    "sasaran, tetapi siling. Diukur dengan suara sebenar, baris 21 patah "
+    "perkataan perlu 11 saat dan bertindih dengan penerangan seterusnya.\n"
     "- Jangan menceritakan teknik filem: tiada pergerakan kamera, potongan, "
     "zum, sudut atau \"video ini menunjukkan\". Menyebut seseorang bercakap "
     "atau memandang ke kamera dibenarkan bila dia menyapa penonton terus."
@@ -111,7 +126,8 @@ DEFAULT_PROMPTS = {
         "and cannot hear: the layout of a space, what a diagram or chart "
         "shows and what it means numerically, steps in a demonstration, and "
         "on-screen text read as written. Stay factual — more room is not "
-        "permission to interpret."
+        "permission to interpret. Here the ceiling rises to 25 words, "
+        "but only where the silence genuinely allows it."
     ),
 
     # 4. Audio subtitling: the recognised service for foreign speech.
@@ -121,7 +137,8 @@ DEFAULT_PROMPTS = {
         "said: give the meaning briefly in the language you are writing in, "
         "attributing it to the speaker (\"the woman says she is leaving "
         "tonight\"). Summarise rather than translating word for word, and "
-        "read any subtitles on screen."
+        "read any subtitles on screen. Conveying speech needs room, so "
+        "the ceiling here is 25 words — still as few as will do."
     ),
 
     # 5. Netflix names this genre explicitly: silence carries the tension.
@@ -149,7 +166,8 @@ DEFAULT_PROMPTS = {
         "reading order, and say where it sits when position matters (which "
         "menu, which column, which button). For a chart, give what it "
         "measures and the values that matter, not its colours. Describe "
-        "what the user is doing: what they click, type or select."
+        "what the user is doing: what they click, type or select. Text "
+        "read verbatim may exceed 12 words; your own wording may not."
     ),
 
     # ── Malay versions (same strategies, same rules) ──────────────

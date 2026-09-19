@@ -62,12 +62,25 @@ def test_every_preset_carries_the_core_rules():
         assert "blind" in text, f"{name}: does not say who it is for"
         assert "present tense" in text, f"{name}: no tense rule"
         assert "third person" in text, f"{name}: no person rule"
-        assert "one sentence" in text or "short phrase" in text, \
-            f"{name}: nothing keeps cues speakable"
+        # Measured on a real project with the user's own voice: cues were
+        # overrunning their gaps 4 times out of 6 even AFTER the v1.6.0
+        # rewrite, because the model spaced events 2-3 seconds apart while
+        # each line took 6-7 seconds to speak. Brevity alone is not enough;
+        # the model has to pace the timestamps too.
+        assert "two words per second" in text, \
+            f"{name}: no speech-pacing rule, so cues will collide"
+        # The model could not do the arithmetic reliably — asked to pace
+        # itself it still wrote 21-word lines into 7-second gaps. A flat
+        # ceiling it obeys. Measured after adding it: longest line 12
+        # words, and at TTS speed 1.25 nothing overruns at all.
+        assert "hard limit: 12 words" in text, \
+            f"{name}: no hard word ceiling"
     for name in MS_PRESETS:
         text = DEFAULT_PROMPTS[name].lower()
         assert "buta" in text, f"{name}: does not say who it is for"
         assert "kala kini" in text, f"{name}: no tense rule"
+        assert "dua patah perkataan sesaat" in text, \
+            f"{name}: no speech-pacing rule"
         assert "orang ketiga" in text, f"{name}: no person rule"
 
 

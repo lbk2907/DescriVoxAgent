@@ -46,11 +46,31 @@ frame), log itu merekod sebab sebenar setiap kegagalan.
    muncul dalam kotak "Arahan untuk dihantar" di bawah, dan pembaca
    skrin mengumumkan "Preset dipilih: <nama>". Anda boleh membaca,
    menyunting, atau menambah nota pada teks itu sebelum memproses.
-   Preset "default" menghuraikan semua yang kelihatan dalam setiap frame
-   secara terperinci; preset lain lebih ringkas atau memberi tumpuan
-   tertentu (aksara, teks pada skrin, dan sebagainya). Kemudian tekan
-   butang **Open** untuk mula memproses dengan arahan tersebut.
-   Menukar teks dalam kotak itu tidak mengubah preset asal.
+   Kemudian tekan butang **Open** untuk mula memproses dengan arahan
+   tersebut. Menukar teks dalam kotak itu tidak mengubah preset asal.
+
+   Mulai v1.6.0, preset ditulis mengikut piawaian penerangan audio
+   antarabangsa (DCMP Description Key, panduan gaya Netflix, W3C/WAI,
+   ADLAB). Maknanya penerangan sengaja **lebih sedikit dan lebih
+   pendek** daripada versi lama: ia tidak lagi menghuraikan semula latar
+   belakang yang tidak berubah, dan tidak menceritakan dialog atau bunyi
+   yang anda memang dengar sendiri. Senyap itu bukan kepincangan — ia
+   bermakna tiada apa yang baharu untuk dilihat.
+
+   Pilih preset ikut jenis video, bukan ikut genre:
+
+   | Preset | Bila guna |
+   |---|---|
+   | `default` | Kebanyakan video. Mula dengan yang ini. |
+   | `tight` | Video yang bercakap hampir tanpa henti; celah sangat pendek. |
+   | `extended` | Dokumentari, tutorial, video perlahan — ada ruang untuk penerangan lebih penuh. |
+   | `foreign` | Video bahasa yang anda tidak faham. Selain visual, ia menyampaikan maksud pertuturan. |
+   | `suspense` | Cerita seram atau menegangkan. Ia mengekalkan kesenyapan dramatik dan tidak membocorkan apa yang bakal berlaku. |
+   | `children` | Kandungan kanak-kanak: perkataan mudah, ayat pendek. |
+   | `onscreen_text` | Slaid, menu, kod, carta — teks pada skrin dibaca mengikut urutan. |
+
+   Setiap preset ada versi Bahasa Melayu; app pilih versi yang betul
+   mengikut bahasa penerangan dalam Tetapan.
 3. Satu dialog kemajuan akan mengiringi keseluruhan proses dan sentiasa
    mengemas kini: muat turun (peratus sebenar, MB, kelajuan, ETA),
    penggabungan, ekstraksi frame ("Extracting frames: N"), analisis AI
