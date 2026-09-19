@@ -156,14 +156,69 @@ def test_language_parity():
     assert en == ms, f"EN/BM presets differ: only EN={en - ms}, only BM={ms - en}"
 
 
-def test_engine_does_not_force_sound_narration():
-    """The suffix the engine appends must not re-add what the presets ban."""
+def test_language_parity_of_RULES_not_just_names():
+    """Matching names are not matching instructions.
+
+    The Malay twins of `extended`, `foreign` and `onscreen_text` were
+    shipped WITHOUT the raised word ceiling their English versions carry,
+    so a Malay user was held to 12 words exactly where the content needs
+    room — and `ms_foreign` duly produced no conveyed speech at all. The
+    name check passed the whole time.
+    """
+    def raised(text: str) -> bool:
+        return any(marker in text for marker in
+                   ("25 words", "25 patah", "exceed 12 words",
+                    "melebihi 12 patah"))
+
+    for name in EN_PRESETS:
+        twin = DEFAULT_PROMPTS[f"ms_{name}"]
+        assert raised(DEFAULT_PROMPTS[name]) == raised(twin), (
+            f"{name}: EN and BM disagree on the word ceiling")
+
+
+def test_engine_suffix_defers_to_the_prompt():
+    """The suffix is appended AFTER the preset, so whatever it says wins.
+
+    It must therefore have no opinion about WHAT to describe. v1.6.0
+    first swapped "describe visuals AND sounds/speech" for a visuals-only
+    line, which then silently overrode the `foreign` preset: a real run
+    conveyed no speech at all, the one thing that preset exists for.
+    """
     from omni_describer_custom.core import ai_engine
 
     suffix = ai_engine.FULL_VIDEO_TS_PROMPT_SUFFIX
     assert "AND sounds/speech" not in suffix, \
-        "engine still forces sound/speech narration into every request"
-    assert "VISUALS" in suffix, "engine no longer steers toward visuals"
+        "engine forces sound narration into every request"
+    assert "important VISUALS" not in suffix, \
+        "engine forces visuals-only, overriding presets that need speech"
+    assert "Follow the description rules given in the prompt above" in suffix, \
+        "engine suffix no longer defers to the preset"
+
+
+def test_audio_capability_is_known_per_provider():
+    """A frame-only provider cannot do audio subtitling, and failing
+    silently is the worst outcome for someone who cannot see the result.
+
+    Probed 20 Sep 2026: GLM answers "NO AUDIO ACCESS" when asked to
+    transcribe speech.
+    """
+    from omni_describer_custom.core.ai_engine import provider_hears_audio
+
+    assert not provider_hears_audio("glm"), \
+        "GLM was probed and cannot hear audio"
+    assert not provider_hears_audio(""), "unknown provider must not claim audio"
+    assert provider_hears_audio("gemini"), "gemini processes the audio track"
+    assert provider_hears_audio("GEMINI"), "capability check must be case-safe"
+
+
+def test_foreign_preset_warning_exists_in_both_languages():
+    from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS
+
+    for lang, table in (("en", EN_STRINGS), ("ms", MS_STRINGS)):
+        msg = table.get("preset.needs_audio", "")
+        assert msg, f"{lang}: no warning string for the foreign preset"
+        assert "{provider}" in msg, f"{lang}: warning does not name the provider"
+        assert "Gemini" in msg, f"{lang}: warning does not say what to use"
 
 
 # ── Migration: retire the old set without eating user edits ───────
@@ -261,8 +316,14 @@ if __name__ == "__main__":
     check("film technique banned, direct address allowed",
           test_film_technique_is_banned_but_direct_address_is_not)
     check("EN/BM preset parity", test_language_parity)
-    check("engine does not force sound narration",
-          test_engine_does_not_force_sound_narration)
+    check("EN/BM parity of rules, not just names",
+          test_language_parity_of_RULES_not_just_names)
+    check("engine suffix defers to the prompt",
+          test_engine_suffix_defers_to_the_prompt)
+    check("audio capability known per provider",
+          test_audio_capability_is_known_per_provider)
+    check("foreign-preset warning exists EN+BM",
+          test_foreign_preset_warning_exists_in_both_languages)
     check("legacy presets are retired", test_legacy_presets_are_retired)
     check("both historical wordings are retired",
           test_both_historical_wordings_are_retired)

@@ -27,6 +27,27 @@ logger = logging.getLogger(__name__)
 # Full-video mode: the prompt suffix sent with the whole video so the
 # provider (Gemini or MiniMax) returns a chronological, machine-parsable
 # [MM:SS] description list.
+# Providers whose video understanding includes the AUDIO track.
+#
+# Probed directly on 20 Sep 2026: asked to transcribe the first spoken
+# sentence or reply "NO AUDIO ACCESS", GLM (z-ai/glm-5.3-flash via
+# OpenRouter) replied NO AUDIO ACCESS. It sees frames only. That is why
+# the pre-v1.6.0 instruction "describe important visuals AND
+# sounds/speech" never produced any speech: it was asking for something
+# the provider cannot do.
+#
+# This matters for the `foreign` preset, whose entire job is conveying
+# speech the listener cannot understand. With a frame-only provider it
+# silently degrades into an ordinary visual description — the worst
+# outcome for a blind user, who has no way to see that it failed.
+AUDIO_CAPABLE_PROVIDERS = frozenset({"gemini"})
+
+
+def provider_hears_audio(provider: str) -> bool:
+    """True when this provider's video mode ingests the audio track."""
+    return (provider or "").strip().lower() in AUDIO_CAPABLE_PROVIDERS
+
+
 FULL_VIDEO_TS_PROMPT_SUFFIX = (
     "\n\nYou are watching the full video, including its audio. Produce your "
     "description as a chronological list covering the WHOLE video. Each "
@@ -41,9 +62,13 @@ FULL_VIDEO_TS_PROMPT_SUFFIX = (
     # (Netflix: skip description when dialogue already carries it). The
     # "foreign" preset opts speech back in, because conveying dialogue
     # the listener cannot understand is a different, recognised service.
-    "Describe the important VISUALS for a blind viewer who can already "
-    "hear the soundtrack; follow the description rules in the prompt "
-    "above. "
+    # The suffix must not have an opinion about WHAT to describe: it is
+    # appended after the preset, so whatever it says wins. v1.6.0 first
+    # replaced "describe visuals AND sounds/speech" with a visuals-only
+    # line, which then silently overrode the `foreign` preset — a real
+    # run produced no conveyed speech at all, the one thing that preset
+    # exists for. Format here, content in the prompt.
+    "Follow the description rules given in the prompt above. "
     "Narrative rules: describe only what happens AT each timestamp; "
     "never say 'the video starts with' or 'the video begins with' "
     "unless the timestamp is truly 00:00 of the whole video. Use ONE "
@@ -1101,10 +1126,10 @@ class GLMProvider(AIProvider):
                         "- Timestamps are when the event happens in the "
                         "video.\n"
                         "- Order lines by time.\n"
-                        "- Describe the important VISUALS. The listener "
-                        "hears the soundtrack, so do not narrate dialogue, "
-                        "music or sound effects unless the prompt above "
-                        "asks for it (v1.6.0).\n"
+                        "- WHAT to describe is decided by the prompt "
+                        "above; follow it exactly. Do not add dialogue or "
+                        "sound narration unless it asks for them (v1.6.0: "
+                        "a rule here silently overrode the preset).\n"
                         "- Use ONE consistent name for the same person, "
                         "object or place.\n"
                         "- Never say 'the video starts with' unless this "

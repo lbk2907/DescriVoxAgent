@@ -199,6 +199,12 @@ EN_STRINGS: dict[str, str] = {
     "status.ready": "Ready",
     "status.no_provider": "No AI provider configured. Go to Settings.",
     "status.no_api_key": "API key not set for {provider}. Go to Settings.",
+    "preset.needs_audio": (
+        "This preset conveys what people SAY, but {provider} only sees the "
+        "picture — it cannot hear the video's audio, so speech will be "
+        "missing and the result will look like an ordinary description.\n\n"
+        "Use a provider that processes audio (Gemini) for this preset.\n\n"
+        "Continue anyway with {provider}?"),
     "status.error": "Error: {error}",
     "status.frame_of": "Frame {current}/{total}",
     "status.processing_complete": "Processing complete! {count} descriptions generated.",
@@ -533,6 +539,13 @@ MS_STRINGS: dict[str, str] = {
     "status.ready": "Sedia",
     "status.no_provider": "Tiada pembekal AI. Pergi ke Tetapan.",
     "status.no_api_key": "Kunci API tidak diset untuk {provider}. Pergi ke Tetapan.",
+    "preset.needs_audio": (
+        "Preset ini menyampaikan apa yang DIPERKATAKAN, tetapi {provider} "
+        "hanya melihat gambar — ia tidak boleh mendengar audio video, jadi "
+        "pertuturan akan tertinggal dan hasilnya nampak seperti penerangan "
+        "biasa sahaja.\n\n"
+        "Guna penyedia yang memproses audio (Gemini) untuk preset ini.\n\n"
+        "Teruskan juga dengan {provider}?"),
     "status.error": "Ralat: {error}",
     "status.frame_of": "Kerangka {current}/{total}",
     "status.processing_complete": "Pemprosesan selesai! {count} penerangan dijana.",

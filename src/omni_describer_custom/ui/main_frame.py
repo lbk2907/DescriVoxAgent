@@ -603,6 +603,24 @@ class MainFrame(wx.Frame):
                           wx.OK | wx.ICON_WARNING)
             return
 
+        # v1.6.0: the `foreign` preset exists to convey SPEECH the
+        # listener cannot understand. A provider that only sees frames
+        # cannot do that, and fails silently — it returns an ordinary
+        # visual description, which a blind user has no way to spot.
+        # Probed 20 Sep 2026: GLM answers "NO AUDIO ACCESS".
+        if "foreign" in preset_name.lower():
+            from ..core.ai_engine import provider_hears_audio
+
+            provider = self.settings.get("ai.default_provider", "gemini")
+            if not provider_hears_audio(provider):
+                answer = wx.MessageBox(
+                    t("preset.needs_audio", provider=provider),
+                    t("settings.title"),
+                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING)
+                if answer != wx.YES:
+                    self.SetStatusText(t("status.ready"))
+                    return
+
         # Anything typed on top of the previewed preset counts as
         # extra notes; ignore text identical to the preset itself.
         custom = self.custom_prompt.GetValue().strip()

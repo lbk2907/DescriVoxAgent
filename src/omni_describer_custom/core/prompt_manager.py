@@ -137,8 +137,10 @@ DEFAULT_PROMPTS = {
         "said: give the meaning briefly in the language you are writing in, "
         "attributing it to the speaker (\"the woman says she is leaving "
         "tonight\"). Summarise rather than translating word for word, and "
-        "read any subtitles on screen. Conveying speech needs room, so "
-        "the ceiling here is 25 words — still as few as will do."
+        "read any subtitles on screen. CONVEYING SPEECH IS THE MAIN JOB of "
+        "this preset: whenever someone says something that matters, say "
+        "what they said — that outranks describing what you can see. The "
+        "ceiling here is 25 words, not 12."
     ),
 
     # 5. Netflix names this genre explicitly: silence carries the tension.
@@ -187,7 +189,9 @@ DEFAULT_PROMPTS = {
         "diperlukan tetapi tidak boleh didengar: susun atur ruang, apa yang "
         "ditunjukkan oleh rajah atau carta berserta nilainya, langkah dalam "
         "demonstrasi, dan teks pada skrin dibaca seperti tertulis. Kekal "
-        "berasaskan fakta — ruang lebih bukan kebenaran untuk mentafsir."
+        "berasaskan fakta — ruang lebih bukan kebenaran untuk mentafsir. "
+        "Di sini siling naik kepada 25 patah perkataan, tetapi hanya bila "
+        "kesenyapan benar-benar mengizinkannya."
     ),
 
     "ms_foreign": _AD_CORE_MS + (
@@ -196,7 +200,11 @@ DEFAULT_PROMPTS = {
         "dikatakan: beri maksudnya secara ringkas dalam bahasa penulisan "
         "anda, dengan menyebut siapa yang berkata (\"wanita itu berkata dia "
         "akan pergi malam ini\"). Ringkaskan, jangan terjemah perkataan "
-        "demi perkataan, dan baca sari kata yang ada pada skrin."
+        "demi perkataan, dan baca sari kata yang ada pada skrin. "
+        "MENYAMPAIKAN PERTUTURAN ADALAH KERJA UTAMA preset ini: setiap "
+        "kali seseorang berkata sesuatu yang penting, nyatakan apa yang "
+        "dikatakannya — itu lebih penting daripada menghuraikan visual. "
+        "Untuk itu siling di sini ialah 25 patah perkataan, bukan 12."
     ),
 
     "ms_suspense": _AD_CORE_MS + (
@@ -221,7 +229,9 @@ DEFAULT_PROMPTS = {
         "mengikut urutan bacaan, dan nyatakan kedudukannya bila itu penting "
         "(menu mana, lajur mana, butang mana). Bagi carta, beri apa yang "
         "diukur dan nilai yang penting, bukan warnanya. Huraikan apa yang "
-        "dilakukan pengguna: apa yang diklik, ditaip atau dipilih."
+        "dilakukan pengguna: apa yang diklik, ditaip atau dipilih. Teks yang "
+        "dibaca seperti tertulis boleh melebihi 12 patah perkataan; ayat "
+        "anda sendiri tidak boleh."
     ),
 }
 

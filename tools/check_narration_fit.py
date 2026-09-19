@@ -95,11 +95,17 @@ def main() -> int:
         return 1
 
     settings = SettingsStore()
-    tts = TTSEngine(settings.get("audio", {}) or {})
-    voice = settings.get("audio.voice", "") or ""
+    # Voice and speed live under tts.engines.<engine>, NOT under "audio":
+    # reading the wrong key silently measured the DEFAULT rate instead of
+    # the configured one, which is the difference between a useful report
+    # and a fictional one.
+    tts_cfg = settings.get("tts", {}) or {}
+    engine_name = tts_cfg.get("default_engine", "") or "edge"
+    engine_cfg = (tts_cfg.get("engines") or {}).get(engine_name, {})
+    tts = TTSEngine(tts_cfg)
+    voice = engine_cfg.get("voice", "") or ""
     speed = speed_override if speed_override is not None else \
-        float(settings.get("audio.speed", 1.0) or 1.0)
-    engine_name = settings.get("audio.engine", "") or "(default)"
+        float(engine_cfg.get("speed", 1.0) or 1.0)
     print(f"project: {name}")
     print(f"cues: {len(cues)}   tts engine: {engine_name}  speed: {speed}")
     print("Measuring with YOUR voice and speed — this is what you would hear.\n")

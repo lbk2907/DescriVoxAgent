@@ -47,13 +47,25 @@ PROJECTS = Path.home() / "Documents" / "OmniDescriber" / "projects"
 META = (r"\bthe camera (?:pans|zooms|cuts|moves|follows|tilts)\b",
         r"\bwe see\b", r"\bin this (?:frame|image|picture)\b",
         r"\bthe (?:scene|shot|video) (?:shows|opens|begins|ends)\b",
-        r"\bclose[- ]up shot\b", r"\bcuts? to\b")
+        r"\bclose[- ]up shot\b", r"\bcuts? to\b",
+        # Malay: these patterns were English-only, so a BM run scored a
+        # clean 0 while its last cue read "sehingga video tamat".
+        r"\bvideo (?:ini|itu) (?:menunjukkan|bermula|tamat|berakhir)\b",
+        r"\b(?:sehingga|hingga) video (?:tamat|berakhir)\b",
+        r"\bkita (?:lihat|nampak)\b", r"\bdalam (?:babak|kerangka) ini\b",
+        r"\bkamera (?:bergerak|mengezum|beralih)\b")
 SPEECH = (r"\b(?:he|she|they|the man|the woman|the narrator)\s+"
           r"(?:says|said|asks|asked|explains|tells|shouts)\b",
-          r"\bvoice[- ]?over\b", r"\bwe hear\b", r"\bthe music\b")
+          r"\bvoice[- ]?over\b", r"\bwe hear\b", r"\bthe music\b",
+          r"\b(?:dia|lelaki itu|wanita itu)\s+"
+          r"(?:berkata|bertanya|menjelaskan|memberitahu)\b",
+          r"\bkita dengar\b", r"\bmuzik (?:dimainkan|berkumandang)\b")
 INTERPRET = (r"\bseems? to\b", r"\bappears? to\b", r"\bobviously\b",
              r"\bclearly (?:happy|sad|angry|nervous)\b",
-             r"\bis (?:happy|sad|angry|nervous|excited)\b")
+             r"\bis (?:happy|sad|angry|nervous|excited)\b",
+             r"\bnampak(?:nya)? (?:gembira|sedih|marah|gelisah)\b",
+             r"\bkelihatan (?:gembira|sedih|marah|gelisah|teruja)\b",
+             r"\bjelas sekali\b")
 
 
 def _hits(cues: list[str], patterns) -> list[str]:
@@ -108,11 +120,18 @@ def _dry_run(preset: str) -> int:
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
-    if "--dry-run" in sys.argv:
+    argv = sys.argv[1:]
+    only_new = "--only-new" in argv          # validating a preset, not comparing
+    lang = ""
+    if "--lang" in argv:
+        i = argv.index("--lang")
+        lang = argv[i + 1]
+        del argv[i:i + 2]
+    args = [a for a in argv if a not in ("--dry-run", "--only-new")]
+    if "--dry-run" in argv:
         return _dry_run(args[0] if args else "default")
-    video = Path(sys.argv[1]) if len(sys.argv) > 1 else _newest_video()
-    preset = sys.argv[2] if len(sys.argv) > 2 else "default"
+    video = Path(args[0]) if args else _newest_video()
+    preset = args[1] if len(args) > 1 else "default"
     if not video or not video.exists():
         print("no video found; pass one as the first argument")
         return 1
@@ -130,10 +149,14 @@ def main() -> int:
 
     old = LEGACY_PROMPTS["default"]
     new = DEFAULT_PROMPTS.get(preset, DEFAULT_PROMPTS["default"])
+    if lang:
+        engine.output_lang = lang
+        print(f"description language: {lang}")
 
-    before = asyncio.run(_describe(engine, video, old))
-    _report("BEFORE — pre-v1.6.0 prompt "
-            "(\"describe everything you see in detail\")", before)
+    if not only_new:
+        before = asyncio.run(_describe(engine, video, old))
+        _report("BEFORE — pre-v1.6.0 prompt "
+                "(\"describe everything you see in detail\")", before)
     after = asyncio.run(_describe(engine, video, new))
     _report(f"AFTER — v1.6.0 {preset!r} preset (AD standards)", after)
     print("\nRead both lists aloud in your head: the second should sound "
