@@ -357,6 +357,156 @@ def test_transcription_settings_exist_in_both_languages():
             assert table.get(key), f"{lang}: missing {key}"
 
 
+# ── Cost estimate before spending (v1.6.1) ───────────────────────
+#
+# A run died mid-way with "HTTP 402: requires at least $1.00 in balance
+# for video". The price was never the issue — measured against live
+# OpenRouter pricing, a 2-hour film is about $0.10 — the balance FLOOR
+# was. Both numbers are now shown before anything is sent.
+
+def _priced(prompt=0.00000037, completion=0.00000125):
+    async def fake_price(model):
+        return {"prompt": prompt, "completion": completion}
+    return fake_price
+
+
+def test_estimate_scales_with_duration_and_chunks():
+    from omni_describer_custom.core import ai_engine
+
+    real = ai_engine.get_model_price
+    ai_engine.get_model_price = _priced()
+    try:
+        one = asyncio.run(ai_engine.estimate_video_cost(60, "m", 600))
+        long = asyncio.run(ai_engine.estimate_video_cost(3600, "m", 600))
+        assert one["parts"] == 1, one
+        assert long["parts"] == 6, long          # 3600 / 600
+        assert long["prompt_tokens"] > one["prompt_tokens"] * 50
+        assert long["usd"] > one["usd"] > 0
+        # Sanity against the live figure this was calibrated on.
+        assert 0.0005 < one["usd"] < 0.01, one["usd"]
+    finally:
+        ai_engine.get_model_price = real
+
+
+def test_estimate_survives_an_unreachable_price_list():
+    """No pricing must not mean no run."""
+    from omni_describer_custom.core import ai_engine
+
+    async def no_price(model):
+        return {}
+
+    real = ai_engine.get_model_price
+    ai_engine.get_model_price = no_price
+    try:
+        est = asyncio.run(ai_engine.estimate_video_cost(60, "m", 600))
+        assert est["priced"] is False
+        assert est["usd"] == 0.0
+        assert est["prompt_tokens"] > 0, "token estimate is local maths"
+    finally:
+        ai_engine.get_model_price = real
+
+
+def test_balance_floor_is_reported_separately_from_cost():
+    """$0.10 of work still fails under a $1.00 balance — so the two are
+    reported as different things."""
+    from omni_describer_custom.core import ai_engine
+
+    async def fake_balance(key):
+        return {"total": 10.0, "used": 9.5, "remaining": 0.5}
+
+    real = (ai_engine.get_model_price, ai_engine.get_credit_balance)
+    ai_engine.get_model_price = _priced()
+    ai_engine.get_credit_balance = fake_balance
+    try:
+        est = asyncio.run(ai_engine.estimate_video_cost(60, "m", 600, "key"))
+        assert est["affordable"] is True, "50 cents covers a $0.001 job"
+        assert est["min_balance_ok"] is False, \
+            "under the $1.00 video floor, and the run WILL be refused"
+    finally:
+        ai_engine.get_model_price, ai_engine.get_credit_balance = real
+
+
+def test_credit_check_failure_is_not_a_blocker():
+    from omni_describer_custom.core import ai_engine
+
+    async def boom(key):
+        raise RuntimeError("offline")
+
+    real = (ai_engine.get_model_price, ai_engine.get_credit_balance)
+    ai_engine.get_model_price = _priced()
+    ai_engine.get_credit_balance = boom
+    try:
+        est = asyncio.run(ai_engine.estimate_video_cost(60, "m", 600, "key"))
+        assert "remaining" not in est, "unknown balance must not be faked"
+        assert est["usd"] > 0
+    finally:
+        ai_engine.get_model_price, ai_engine.get_credit_balance = real
+
+
+def test_pipeline_reports_cost_in_both_languages():
+    from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS
+
+    src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
+        encoding="utf-8")
+    assert "estimate_video_cost" in src, "the pipeline never estimates"
+    for lang, table in (("en", EN_STRINGS), ("ms", MS_STRINGS)):
+        for key in ("cost.estimate", "cost.balance", "cost.too_low"):
+            assert table.get(key), f"{lang}: missing {key}"
+
+
+# ── Full resolution for text-heavy video (v1.6.1) ────────────────
+
+def test_fitting_chunk_keeps_parts_under_the_limit():
+    """Shrinking to 360p makes slides and code unreadable, so an
+    oversized video can be cut instead — but only if the pieces really
+    do fit."""
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    class FakePath:
+        def __init__(self, size):
+            self._size = size
+
+        def stat(self):
+            return type("S", (), {"st_size": self._size})()
+
+    limit = 50 * 1024 * 1024
+    # 100 MB over 600 s = 170 KB/s; 85% of the limit fits ~255 s.
+    seconds = GLMProvider._chunk_seconds_to_fit(FakePath(100 * 1024 * 1024),
+                                                600.0, limit)
+    assert seconds > 0
+    bytes_per_second = (100 * 1024 * 1024) / 600.0
+    assert seconds * bytes_per_second < limit, \
+        "the computed part would still be rejected"
+
+
+def test_fitting_chunk_gives_up_rather_than_shredding():
+    """A huge, short video cannot be split into anything useful; better
+    to compress than to send 60 one-second requests."""
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    class FakePath:
+        def stat(self):
+            return type("S", (), {"st_size": 400 * 1024 * 1024})()
+
+    assert GLMProvider._chunk_seconds_to_fit(FakePath(), 5.0,
+                                             50 * 1024 * 1024) == 0
+    assert GLMProvider._chunk_seconds_to_fit(FakePath(), 0.0,
+                                             50 * 1024 * 1024) == 0
+
+
+def test_preserve_resolution_reaches_the_provider():
+    from omni_describer_custom.core.ai_engine import AIEngine, GLMProvider
+
+    assert "preserve_resolution" in inspect.signature(
+        GLMProvider.describe_video_full).parameters
+    assert "preserve_resolution" in inspect.signature(
+        AIEngine.describe_video_full).parameters
+    src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
+        encoding="utf-8")
+    assert "preserve_resolution=bool(self.settings.get(" in src, \
+        "the setting never reaches the engine"
+
+
 if __name__ == "__main__":
     check("no transcript adds nothing", test_no_transcript_adds_nothing)
     check("block carries words and the rule",
@@ -394,5 +544,21 @@ if __name__ == "__main__":
           test_subtitles_are_preferred_over_transcription)
     check("transcription settings exist EN+BM",
           test_transcription_settings_exist_in_both_languages)
+    check("estimate scales with duration and chunks",
+          test_estimate_scales_with_duration_and_chunks)
+    check("estimate survives no price list",
+          test_estimate_survives_an_unreachable_price_list)
+    check("balance floor reported apart from cost",
+          test_balance_floor_is_reported_separately_from_cost)
+    check("credit check failure is not a blocker",
+          test_credit_check_failure_is_not_a_blocker)
+    check("pipeline reports cost EN+BM",
+          test_pipeline_reports_cost_in_both_languages)
+    check("fitting chunk keeps parts under the limit",
+          test_fitting_chunk_keeps_parts_under_the_limit)
+    check("fitting chunk gives up rather than shredding",
+          test_fitting_chunk_gives_up_rather_than_shredding)
+    check("preserve resolution reaches the provider",
+          test_preserve_resolution_reaches_the_provider)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

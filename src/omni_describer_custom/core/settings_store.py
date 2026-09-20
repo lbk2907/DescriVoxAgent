@@ -112,6 +112,13 @@ class SettingsStore:
                 "openai": {"voice": "alloy", "speed": 1.0},
             },
         },
+        # v1.6.1 W3C extended description: hold the video while a
+        # cue is spoken, so a long description cannot be cut off by the
+        # next one. Measured: without it, 3 of 4 cues collided on a
+        # slide deck even at TTS speed 1.5.
+        "player": {
+            "pause_for_narration": True,
+        },
         "general": {
             "language": "en",
             "frame_rate": 5,

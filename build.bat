@@ -10,6 +10,11 @@ set PY=C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe
 echo === [1/4] compile check ===
 %PY% -m compileall -q src main.py >nul 2>&1 && (echo COMPILE_PASS) || (echo COMPILE_FAIL & exit /b 1)
 
+:: NOTE: the flags below are the source of truth. PyInstaller
+:: REGENERATES OmniDescriber.spec from them on every run, so editing
+:: the spec by hand achieves nothing (learned the hard way, v1.6.1).
+:: faster_whisper + ctranslate2 + onnxruntime add ~110 MB: local,
+:: free speech-to-text for a provider that cannot hear the video.
 echo === [2/4] PyInstaller ===
 if not exist %PY% (echo NO_PYTHON & exit /b 1)
 %PY% -m PyInstaller --noconfirm --clean --onedir --windowed ^
@@ -25,6 +30,12 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
   --collect-all openai ^
   --collect-all aiohttp ^
   --collect-all PIL ^
+  --collect-all faster_whisper ^
+  --collect-all ctranslate2 ^
+  --collect-all onnxruntime ^
+  --collect-all tokenizers ^
+  --collect-all av ^
+  --collect-all huggingface_hub ^
   --exclude-module google.generativeai ^
   --exclude-module accessible_output2 ^
   --exclude-module pytest ^

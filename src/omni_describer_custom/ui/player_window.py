@@ -47,6 +47,15 @@ class PlayerWindow(wx.Frame):
         self._vlc_media = None
         self._vlc_available = False
         self._paused_by_user = False
+        # v1.6.1: held by the app while a description is spoken, which is
+        # a different thing from the user pressing Pause — see
+        # _pause_for_narration.
+        self._auto_paused = False
+        try:
+            from ..core.settings_store import SettingsStore
+            self._settings = SettingsStore()
+        except Exception:      # settings are a nicety here, not a need
+            self._settings = None
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
         self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
@@ -515,6 +524,18 @@ class PlayerWindow(wx.Frame):
         desc_text = desc.text
         desc_id = desc.id
 
+        # v1.6.1 extended description (W3C/WAI): hold the video while the
+        # cue is spoken. Measured need — reading a slide's bullets took
+        # 9.9s into a 5s gap, so three of four cues collided and the
+        # listener lost them. Pausing costs a longer runtime; not pausing
+        # costs the content itself.
+        pause_for_narration = bool(self._settings.get(
+            "player.pause_for_narration", True)) if self._settings else True
+        auto_paused = False
+        if pause_for_narration and self._playing:
+            self._pause_for_narration()
+            auto_paused = True
+
         def _narrate_bg():
             try:
                 if not self.tts.speak_and_play(desc_text):
@@ -525,9 +546,50 @@ class PlayerWindow(wx.Frame):
                 logger.error("Narration failed: %s", e)
                 wx.CallAfter(self._narrated.discard, desc_id)
                 wx.CallAfter(lambda: self._announce(t("player.tts_failed")))
+            finally:
+                if auto_paused:
+                    wx.CallAfter(self._resume_after_narration)
 
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
+
+    def _pause_for_narration(self) -> None:
+        """Hold playback while a description is spoken.
+
+        Deliberately NOT _do_pause(): that sets _paused_by_user, which
+        would make the app treat an automatic hold as the user's own
+        choice — the Play button label would flip and the video would
+        never resume.
+        """
+        self._auto_paused = True
+        if self._vlc_available and self._vlc_media is not None:
+            try:
+                self._vlc.set_pause(1)
+            except Exception as e:
+                logger.debug("VLC pause for narration failed: %s", e)
+        elif self._audio_backend == "ffplay":
+            self._stop_ffplay()
+        self._timer.Stop()
+
+    def _resume_after_narration(self) -> None:
+        """Carry on where the hold started — unless the user intervened.
+
+        If they pressed Pause or Stop while the cue was being read, that
+        decision wins: resuming would override a deliberate action.
+        """
+        if not self._auto_paused:
+            return
+        self._auto_paused = False
+        if self._paused_by_user or not self._playing:
+            return
+        if self._vlc_available and self._vlc_media is not None:
+            try:
+                self._vlc.set_pause(0)
+            except Exception as e:
+                logger.debug("VLC resume after narration failed: %s", e)
+        elif self._audio_backend == "ffplay":
+            self._start_ffplay(self._position)
+        self._timer.Start(500)
 
     def _on_play_toggle(self, event):
         """v1.4.0: single Play/Pause toggle button."""

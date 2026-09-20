@@ -1158,6 +1158,34 @@ class MainFrame(wx.Frame):
                 def vsplit(pct: float) -> None:
                     wx.CallAfter(self._video_split_tick, pct)
 
+                # v1.6.1: say what this will cost BEFORE spending it. A
+                # run died mid-way with "HTTP 402: requires at least
+                # $1.00 in balance for video" — and the price was never
+                # the problem (a 2-hour film is about $0.10); the
+                # balance floor was. Best effort: a failed check must
+                # not stop a job the user could well afford.
+                try:
+                    from ..core.ai_engine import estimate_video_cost
+
+                    prov_name = self.settings.get("ai.default_provider", "")
+                    prov_cfg = self.settings.get_ai_provider(prov_name) or {}
+                    est = loop.run_until_complete(estimate_video_cost(
+                        getattr(info, "duration", 0.0) if info else 0.0,
+                        prov_cfg.get("model", ""),
+                        int(self.settings.get("general.chunk_seconds", 600) or 600),
+                        prov_cfg.get("api_key", "")))
+                    if est.get("priced"):
+                        wx.CallAfter(self._log, t(
+                            "cost.estimate", usd=f"{est['usd']:.3f}",
+                            parts=est["parts"]))
+                    if "remaining" in est:
+                        wx.CallAfter(self._log, t(
+                            "cost.balance", usd=f"{est['remaining']:.2f}"))
+                    if est.get("min_balance_ok") is False:
+                        wx.CallAfter(self._log, t("cost.too_low"))
+                except Exception as e:
+                    logger.debug("Cost estimate skipped: %s", e)
+
                 # v1.6.1: fetch what is SAID before describing. The
                 # default provider cannot hear the video at all (GLM,
                 # probed: "NO AUDIO ACCESS"), so without this the model
@@ -1185,6 +1213,8 @@ class MainFrame(wx.Frame):
                         self.ai_engine.describe_video_full(
                             resolved, prompt,
                             transcript=transcript,
+                            preserve_resolution=bool(self.settings.get(
+                                "general.preserve_resolution", False)),
                             on_status=vstatus, on_upload_progress=vprogress,
                             on_part=vpart, on_split_progress=vsplit,
                             chunk_seconds=int(self.settings.get(

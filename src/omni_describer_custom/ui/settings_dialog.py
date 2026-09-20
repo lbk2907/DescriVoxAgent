@@ -329,6 +329,14 @@ class SettingsDialog(wx.Dialog):
         self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=600, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
+        self.preserve_res_check = wx.CheckBox(
+            panel, label=t("settings.preserve_resolution"),
+            name="preserve_resolution")
+        sizer.Add(self.preserve_res_check, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel,
+                                label=t("settings.preserve_resolution_hint"),
+                                name="preserve_resolution_hint"), 0, wx.ALL, 5)
+
         # v1.6.1: speech-to-text. The default AI provider cannot hear the
         # video, so this is what lets it know what was said when there
         # are no published or embedded subtitles.
@@ -764,6 +772,9 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("general.chunk_seconds",
                           int(self.chunk_spin.GetValue()))
 
+        self.settings.set("general.preserve_resolution",
+                          bool(self.preserve_res_check.GetValue()))
+
         backends = ["auto", "whisper", "grok", "off"]
         idx = self.transcribe_choice.GetSelection()
         if idx != wx.NOT_FOUND:
@@ -843,6 +854,9 @@ class SettingsDialog(wx.Dialog):
 
         chunk_val = int(self.settings.get("general.chunk_seconds", 600) or 600)
         self.chunk_spin.SetValue(max(60, chunk_val))
+
+        self.preserve_res_check.SetValue(bool(self.settings.get(
+            "general.preserve_resolution", False)))
 
         backends = ["auto", "whisper", "grok", "off"]
         current = str(self.settings.get(

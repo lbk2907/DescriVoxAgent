@@ -715,6 +715,131 @@ def test_player_opens_editor_explorer_and_ask():
         _close(f)
 
 
+# ── Extended description: hold the video while a cue is read ─────
+#
+# W3C/WAI calls this extended description, and it is needed when the
+# natural gaps are too short. Measured on a slide deck: reading one
+# slide's bullets took 9.9s into a 5s gap, so 3 of 4 cues collided and
+# the listener lost them. v1.6.1 pauses playback for the duration.
+
+def _player_with_cue(f, text="A long description that takes time to say"):
+    from omni_describer_custom.core.project_store import Description
+    from omni_describer_custom.ui.player_window import PlayerWindow
+
+    f.project_store.create_project("Pause test", "clip.mp4")
+    f.project_store.add_description(
+        Description(start_time=0.0, end_time=2.0, text=text))
+    p = PlayerWindow(f, f.project_store, f.tts_engine, f.ai_engine)
+    p._playing = True
+    p._current_desc_idx = 0
+    return p
+
+
+def test_narration_holds_playback_then_resumes():
+    import time
+    f = _frame()
+    p = None
+    try:
+        # Set it explicitly: ODC_CONFIG_DIR isolates the suite from the
+        # USER's settings, but every run shares one file, so a later
+        # test that switches this off would silently disable it here on
+        # the next run.
+        f.settings.set("player.pause_for_narration", True)
+        p = _player_with_cue(f)
+        p._settings = f.settings
+        states = []
+
+        def slow_speak(text, *a, **k):
+            states.append(("speaking", p._auto_paused))
+            time.sleep(0.2)
+            return True
+
+        f.tts_engine.speak_and_play = slow_speak
+        p._maybe_narrate()
+        deadline = time.time() + 10
+        while time.time() < deadline and (p._tts_thread and
+                                          p._tts_thread.is_alive()):
+            wx.GetApp().Yield()
+            time.sleep(0.02)
+        for _ in range(10):
+            wx.GetApp().ProcessPendingEvents()
+            wx.GetApp().Yield()
+            time.sleep(0.02)
+
+        assert states and states[0][1] is True, \
+            "playback was not held while the cue was being spoken"
+        assert not p._auto_paused, "hold was never released after the cue"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_auto_hold_is_not_the_user_pressing_pause():
+    """Using _do_pause() here would flip the Play button and strand the
+    video paused forever."""
+    f = _frame()
+    p = None
+    try:
+        p = _player_with_cue(f)
+        p._pause_for_narration()
+        assert not p._paused_by_user, \
+            "an automatic hold was recorded as the user's own pause"
+        assert p._auto_paused
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_user_pause_during_narration_wins():
+    """If they press Pause while a cue is read, it must stay paused."""
+    f = _frame()
+    p = None
+    try:
+        p = _player_with_cue(f)
+        p._pause_for_narration()
+        p._paused_by_user = True          # the user intervenes
+        p._resume_after_narration()
+        assert not p._playing or p._paused_by_user, \
+            "resume overrode a deliberate pause"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_holding_can_be_switched_off():
+    f = _frame()
+    p = None
+    before = f.settings.get("player.pause_for_narration", True)
+    try:
+        p = _player_with_cue(f)
+        f.settings.set("player.pause_for_narration", False)
+        p._settings = f.settings
+        spoken = []
+        f.tts_engine.speak_and_play = lambda text, *a, **k: spoken.append(text)
+        p._maybe_narrate()
+        assert not p._auto_paused, \
+            "playback was held even though the preference is off"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
 # ── Scene explorer + Ask More handlers ───────────────────────────
 
 def test_scene_explorer_arrow_keys_stay_in_range():
@@ -892,6 +1017,13 @@ if __name__ == "__main__":
     check("player loads an external SRT", test_player_load_external_srt)
     check("player opens editor, explorer and ask",
           test_player_opens_editor_explorer_and_ask)
+    check("narration holds playback then resumes",
+          test_narration_holds_playback_then_resumes)
+    check("auto hold is not a user pause",
+          test_auto_hold_is_not_the_user_pressing_pause)
+    check("user pause during narration wins",
+          test_user_pause_during_narration_wins)
+    check("holding can be switched off", test_holding_can_be_switched_off)
     check("scene explorer arrow keys clamp",
           test_scene_explorer_arrow_keys_stay_in_range)
     check("ask more cancel closes cleanly",

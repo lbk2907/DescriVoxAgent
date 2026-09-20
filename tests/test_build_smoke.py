@@ -37,6 +37,22 @@ def main() -> None:
         fail(f"bundled doc missing: {guide}")
     print("SMOKE_DOCS_OK", flush=True)
 
+    # v1.6.1: local speech-to-text must survive packaging. Without it the
+    # built app falls back to subtitles and paid Grok only — and the
+    # failure would be silent, which for a user who cannot see the result
+    # is the worst kind. ctranslate2 ships native DLLs that PyInstaller
+    # can quietly drop, so check for the real payload, not just the
+    # Python package directory.
+    whisper_pkg = INTERNAL / "faster_whisper"
+    ct2_dll = list(INTERNAL.glob("**/ctranslate2*.dll")) + \
+        list(INTERNAL.glob("**/libctranslate2*"))
+    if not whisper_pkg.exists():
+        fail(f"faster_whisper not bundled: {whisper_pkg}")
+    if not ct2_dll:
+        fail("ctranslate2 native library not bundled; Whisper would fail "
+             "at runtime with an import error")
+    print("SMOKE_WHISPER_OK", flush=True)
+
     size_before = LOG.stat().st_size if LOG.exists() else 0
 
     proc = subprocess.Popen([str(EXE)], cwd=str(ROOT / "dist" / "OmniDescriber"))

@@ -49,6 +49,111 @@ def provider_hears_audio(provider: str) -> bool:
     return (provider or "").strip().lower() in AUDIO_CAPABLE_PROVIDERS
 
 
+# Measured against OpenRouter + z-ai/glm-5.3-flash (probe, 2026-09): a
+# 60 s video costs ~9200 prompt tokens, so roughly 153 tokens per second
+# of video. Completion is small by comparison — a 12-word ceiling per
+# cue — but counted so the estimate errs high rather than low.
+TOKENS_PER_VIDEO_SECOND = 9200 / 60.0
+# OpenRouter rejects video requests below this balance regardless of what
+# the job actually costs (observed: HTTP 402 on a 19-second clip).
+VIDEO_MIN_BALANCE_USD = 1.00
+COMPLETION_TOKENS_PER_PART = 600
+
+
+async def get_credit_balance(api_key: str) -> dict:
+    """Remaining OpenRouter credit, or {} when it cannot be read.
+
+    Returned as a dict so a caller can tell "no balance" (0.0) apart
+    from "could not check" ({}) — the first is worth blocking on, the
+    second is not.
+    """
+    import aiohttp
+
+    try:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
+                "https://openrouter.ai/api/v1/credits",
+                headers={"Authorization": f"Bearer {api_key}"},
+            ) as resp:
+                if resp.status != 200:
+                    return {}
+                data = (await resp.json()).get("data", {})
+        total = float(data.get("total_credits", 0.0))
+        used = float(data.get("total_usage", 0.0))
+        return {"total": total, "used": used, "remaining": total - used}
+    except Exception as e:
+        logger.debug("Credit check failed: %s", e)
+        return {}
+
+
+async def get_model_price(model: str) -> dict:
+    """Per-token prices for a model from the public OpenRouter catalog."""
+    import aiohttp
+
+    try:
+        timeout = aiohttp.ClientTimeout(total=20)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
+                    "https://openrouter.ai/api/v1/models") as resp:
+                if resp.status != 200:
+                    return {}
+                data = await resp.json()
+        for entry in data.get("data", []):
+            if entry.get("id") == model:
+                pricing = entry.get("pricing", {})
+                return {"prompt": float(pricing.get("prompt", 0.0) or 0.0),
+                        "completion": float(pricing.get("completion", 0.0) or 0.0)}
+    except Exception as e:
+        logger.debug("Price lookup failed: %s", e)
+    return {}
+
+
+async def estimate_video_cost(duration_seconds: float, model: str,
+                              chunk_seconds: int = 600,
+                              api_key: str = "") -> dict:
+    """What this video will cost before a penny is spent.
+
+    v1.6.1: added after a run died mid-way with HTTP 402 ("requires at
+    least $1.00 in balance for video"). Knowing beforehand is the
+    difference between choosing to spend and finding out afterwards.
+    """
+    duration = max(0.0, float(duration_seconds or 0.0))
+    parts = max(1, int(-(-duration // max(1, chunk_seconds))))
+    prompt_tokens = duration * TOKENS_PER_VIDEO_SECOND
+    completion_tokens = parts * COMPLETION_TOKENS_PER_PART
+
+    price = await get_model_price(model) if model else {}
+    usd = (prompt_tokens * price.get("prompt", 0.0)
+           + completion_tokens * price.get("completion", 0.0)) if price else 0.0
+
+    out = {
+        "duration": duration,
+        "parts": parts,
+        "prompt_tokens": int(prompt_tokens),
+        "usd": usd,
+        "priced": bool(price),
+    }
+    if api_key:
+        # Belt and braces: get_credit_balance() swallows its own errors,
+        # but an estimate must never be the reason a run does not start.
+        try:
+            balance = await get_credit_balance(api_key)
+        except Exception as e:
+            logger.debug("Balance check raised: %s", e)
+            balance = {}
+        if balance:
+            out["remaining"] = balance["remaining"]
+            out["affordable"] = balance["remaining"] >= usd
+            # The real blocker is not the price. A 2-hour film costs
+            # about $0.10, but OpenRouter refuses ANY video request
+            # under a $1.00 balance — which is how a run died mid-way
+            # with "HTTP 402: requires at least $1.00 in balance for
+            # video". Cost is rarely the problem; this floor is.
+            out["min_balance_ok"] = balance["remaining"] >= VIDEO_MIN_BALANCE_USD
+    return out
+
+
 def build_transcript_block(segments, start: float = 0.0,
                            end: float | None = None,
                            offset: float = 0.0, limit: int = 120) -> str:
@@ -988,6 +1093,27 @@ class GLMProvider(AIProvider):
     MAX_VIDEO_BYTES = 50 * 1024 * 1024
     COMPRESS_TARGET_BYTES = 40 * 1024 * 1024
 
+    @staticmethod
+    def _chunk_seconds_to_fit(path: Path, duration: float,
+                              limit_bytes: int) -> int:
+        """Seconds per part that keep each piece under the upload limit
+        at FULL resolution. 0 when the maths does not work out.
+
+        Uses the file's own average bitrate, with 15% headroom because a
+        cut piece carries its own container overhead and a keyframe.
+        """
+        try:
+            size = path.stat().st_size
+            if duration <= 0 or size <= 0:
+                return 0
+            bytes_per_second = size / duration
+            seconds = int((limit_bytes * 0.85) / bytes_per_second)
+            # Below ~20s per part the request count (and the continuity
+            # cost between parts) outweighs the quality gain.
+            return seconds if seconds >= 20 else 0
+        except Exception:
+            return 0
+
     async def describe_video_full(
         self, video_path: str, prompt: str, model: str = "",
         on_status: Callable[[str], None] | None = None,
@@ -997,6 +1123,7 @@ class GLMProvider(AIProvider):
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,
+        preserve_resolution: bool = False,
     ) -> list[tuple[float, str]]:
         """Upload a video file as base64 via OpenRouter video_url.
 
@@ -1030,13 +1157,33 @@ class GLMProvider(AIProvider):
             else:
                 starts = [0.0]
                 if path.stat().st_size > self.MAX_VIDEO_BYTES:
-                    if on_status:
-                        on_status("compressing")
                     if is_cancelled and is_cancelled():
                         raise RuntimeError("cancelled")
-                    parts = [self.compress_video_for_upload(
-                        path, self.COMPRESS_TARGET_BYTES,
-                        is_cancelled=is_cancelled)]
+                    # v1.6.1: an oversized video can be made to fit two
+                    # ways — shrink the picture, or cut it into shorter
+                    # pieces. Compression scales to 360p, which is fine
+                    # for a talking head and useless for slides, code or
+                    # a chart: the text stops being legible, so the
+                    # description of it stops being right. Splitting
+                    # keeps every pixel and costs one extra request per
+                    # part.
+                    if preserve_resolution:
+                        fitting = self._chunk_seconds_to_fit(
+                            path, duration, self.MAX_VIDEO_BYTES)
+                        if fitting and duration > 0:
+                            if on_status:
+                                on_status("splitting")
+                            starts, parts = self.split_video_for_upload(
+                                path, fitting,
+                                is_cancelled=is_cancelled,
+                                on_status=on_status,
+                                on_split_progress=on_split_progress)
+                    if not parts:
+                        if on_status:
+                            on_status("compressing")
+                        parts = [self.compress_video_for_upload(
+                            path, self.COMPRESS_TARGET_BYTES,
+                            is_cancelled=is_cancelled)]
                 else:
                     parts = [path]
             total = len(parts)
@@ -2023,6 +2170,7 @@ class AIEngine:
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,
+        preserve_resolution: bool = False,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -2049,6 +2197,9 @@ class AIEngine:
             # hears the audio itself and has no such parameter.
             **({"transcript": transcript}
                if transcript and "transcript" in
+               inspect.signature(fn).parameters else {}),
+            **({"preserve_resolution": True}
+               if preserve_resolution and "preserve_resolution" in
                inspect.signature(fn).parameters else {}),
         )
 
