@@ -11,6 +11,54 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.1
+
+**The AI can now know what was said, even though it cannot hear.** Probed
+directly: GLM (the default provider) answers "NO AUDIO ACCESS" when asked
+to transcribe a spoken line. It sees frames only. That had crippled the
+`foreign` preset and left every other preset guessing at whatever the
+soundtrack carried.
+
+- **Transcript context.** Before describing, the app fetches what is
+  said — published captions for a URL, an embedded subtitle track for a
+  local file — and hands the model the words for the part it is
+  describing, in part-local time. The block tells it these lines are
+  *already audible*, so it must not read them back unless the preset asks
+  it to convey speech. Verified on a clip where three earlier runs had
+  conveyed nothing: `ms_foreign` produced *"Dia berkata keunikan
+  gajah-gajah ini ialah belalai yang amat panjang"* from English speech.
+  The function that does this already existed and had never worked — its
+  first line rejected every URL, which is the only input it can serve.
+- **Speech-to-text fallback** when there are no subtitles at all: local
+  `faster-whisper` (free, offline, ~3.7× real time on CPU) or xAI's Grok
+  STT ($0.10 per hour of audio, needs a key). Order is measured, not
+  assumed — published captions said "really long **trunks**", local
+  Whisper heard "long **hunts**", so captions win.
+- **Extended description (W3C/WAI).** The player holds the video while a
+  cue is spoken and resumes after. Reading one slide's bullets took 9.9 s
+  into a 5 s gap, so 3 of 4 cues used to collide and be lost. If you
+  press Pause or Stop mid-cue, your decision wins.
+- **Cost before spending.** The estimate, your remaining balance, and a
+  warning when the balance is under OpenRouter's $1.00 video floor, all
+  logged before anything uploads. The floor is the real blocker, not the
+  price: a 2-hour film costs about $0.10.
+- **Full resolution for text-heavy video.** Optional: cut an oversized
+  video into shorter parts at full resolution instead of shrinking it to
+  360p, which makes slides, code and charts unreadable.
+- **A hard 12-word ceiling on descriptions.** Measured with the real TTS
+  voice, the v1.6.0 prompts still overran their gaps 4 times in 6.
+  Telling the model to pace itself did not work — it wrote 21-word lines
+  into 7-second gaps — but a flat ceiling it obeys.
+  `tools/check_narration_fit.py` measures this on any project.
+- Two prompt rules were corrected against their sources: film *technique*
+  is banned rather than the word "camera" (the Netflix guide explicitly
+  allows "turns to the camera"), and the identity rule now matches that
+  guide exactly — race, ethnicity, gender — since apparent age is
+  ordinary description vocabulary.
+
+Build note: the package now carries local Whisper, so the zip is 344 MB
+rather than 260 MB.
+
 ## What's new in v1.6.0
 
 **The prompts now follow published audio-description standards.** The old
