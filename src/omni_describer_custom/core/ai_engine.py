@@ -11,6 +11,7 @@ import asyncio
 import base64
 import bisect
 import json
+import inspect
 import logging
 import mimetypes
 import re
@@ -46,6 +47,53 @@ AUDIO_CAPABLE_PROVIDERS = frozenset({"gemini"})
 def provider_hears_audio(provider: str) -> bool:
     """True when this provider's video mode ingests the audio track."""
     return (provider or "").strip().lower() in AUDIO_CAPABLE_PROVIDERS
+
+
+def build_transcript_block(segments, start: float = 0.0,
+                           end: float | None = None,
+                           offset: float = 0.0, limit: int = 120) -> str:
+    """Render the words spoken in a time range, for the prompt.
+
+    v1.6.1: this is how a provider that cannot hear (GLM) still knows
+    what was said. Two things follow from having it, and both are what
+    the AD standards ask for: the model can avoid re-describing what the
+    listener already hears, and the `foreign` preset has something to
+    convey.
+
+    `segments` are TranscriptSegment-like (start, end, text) in WHOLE
+    video time; `offset` shifts them into part-local time so a chunked
+    request sees its own slice starting at 00:00.
+    """
+    if not segments:
+        return ""
+    picked = []
+    for seg in segments:
+        s = float(getattr(seg, "start", 0.0))
+        e = float(getattr(seg, "end", s))
+        if e < start:
+            continue
+        if end is not None and s > end:
+            continue
+        text = str(getattr(seg, "text", "")).strip()
+        if text:
+            picked.append((max(0.0, s - offset), text))
+    if not picked:
+        return ""
+    if len(picked) > limit:
+        # Keep the ends: the opening sets the scene and the close
+        # usually resolves it. Dropping the middle beats blowing the
+        # context window on a long video.
+        head, tail = picked[:limit // 2], picked[-(limit // 2):]
+        picked = head + [(head[-1][0], "[...]")] + tail
+    lines = "\n".join(f"[{int(t) // 60:02d}:{int(t) % 60:02d}] {txt}"
+                      for t, txt in picked)
+    return (
+        "\n\nWHAT IS SAID IN THIS VIDEO (already audible to the "
+        "listener — use it to understand what is happening and to avoid "
+        "repeating information they already have; do NOT narrate these "
+        "lines back unless the prompt above asks you to convey speech):\n"
+        f"{lines}\n"
+    )
 
 
 FULL_VIDEO_TS_PROMPT_SUFFIX = (
@@ -948,6 +996,7 @@ class GLMProvider(AIProvider):
         chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
+        transcript: list | None = None,
     ) -> list[tuple[float, str]]:
         """Upload a video file as base64 via OpenRouter video_url.
 
@@ -1006,7 +1055,8 @@ class GLMProvider(AIProvider):
                     part, prompt, model, on_status=on_status,
                     is_cancelled=is_cancelled, offset=offset,
                     part_index=i + 1, part_total=total,
-                    prev_summary=prev_summary)
+                    prev_summary=prev_summary, transcript=transcript,
+                    part_seconds=chunk_seconds)
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -1018,7 +1068,8 @@ class GLMProvider(AIProvider):
                         part, prompt, model, on_status=on_status,
                         is_cancelled=is_cancelled, offset=offset,
                         part_index=i + 1, part_total=total,
-                        prev_summary=prev_summary)
+                        prev_summary=prev_summary, transcript=transcript,
+                        part_seconds=chunk_seconds)
                 if pairs:
                     prev_summary = "; ".join(
                         txt for _, txt in pairs[-6:])
@@ -1056,6 +1107,8 @@ class GLMProvider(AIProvider):
         offset: float = 0.0,
         part_index: int = 0, part_total: int = 0,
         prev_summary: str = "",
+        transcript: list | None = None,
+        part_seconds: float = 0.0,
     ) -> list[tuple[float, str]]:
         """Describe one video part and shift timestamps by offset.
 
@@ -1109,6 +1162,15 @@ class GLMProvider(AIProvider):
                     f"previous part): {prev_summary}\n"
                     "Continue the story smoothly; do NOT restart the "
                     "narrative and do NOT say the video starts here.\n")
+        # v1.6.1: this provider cannot hear the video (probed: "NO AUDIO
+        # ACCESS"), so the words spoken in THIS part are supplied as
+        # text. Timestamps are shifted to part-local time to match the
+        # ones the model is asked to output.
+        spoken = ""
+        if transcript:
+            part_end = offset + part_seconds if part_seconds else None
+            spoken = build_transcript_block(
+                transcript, start=offset, end=part_end, offset=offset)
         payload = {
             "model": model or self.models[0],
             "max_tokens": 16000,
@@ -1136,7 +1198,7 @@ class GLMProvider(AIProvider):
                         "really is the first part.\n"
                         "- No numbering, no extra text before or after "
                         "the lines.\n"
-                        + position)},
+                        + position + spoken)},
                     {"type": "video_url", "video_url": {"url": data_url}},
                     {"type": "text", "text": prompt},
                 ],
@@ -1960,6 +2022,7 @@ class AIEngine:
         chunk_seconds: int = 600,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
+        transcript: list | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -1982,6 +2045,11 @@ class AIEngine:
             chunk_seconds=chunk_seconds,
             on_part=on_part,
             on_split_progress=on_split_progress,
+            # Only providers that accept a transcript get one: Gemini
+            # hears the audio itself and has no such parameter.
+            **({"transcript": transcript}
+               if transcript and "transcript" in
+               inspect.signature(fn).parameters else {}),
         )
 
     async def describe_video_frames_batch(

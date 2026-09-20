@@ -78,9 +78,12 @@ def _capture_full():
                      base_url="https://openrouter.ai/api/v1")
     calls = []
 
+    # **kwargs: this stands in for a real method whose signature grows
+    # (v1.6.1 added transcript/part_seconds). The check here is about
+    # part numbering and continuity, not the argument list.
     async def fake_one(self, path, prompt, model, on_status=None,
                        is_cancelled=None, offset=0.0, part_index=0,
-                       part_total=0, prev_summary=""):
+                       part_total=0, prev_summary="", **kwargs):
         calls.append((part_index, part_total, prev_summary))
         return [(0.0, f"Part {part_index} story.")]
 

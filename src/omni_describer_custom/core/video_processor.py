@@ -621,28 +621,73 @@ class VideoProcessor:
             logger.info("Dedup removed %d similar frames (%d → %d)", removed, len(frames), len(deduped))
         return deduped
 
-    async def get_transcript(self, video_path: str) -> list[TranscriptSegment]:
+    async def get_transcript(self, source: str) -> list[TranscriptSegment]:
+        """Get what is SAID in the video, as timed segments.
+
+        v1.6.1: pass the ORIGINAL source here — the URL for a download,
+        the file path for a local video. The two cases need opposite
+        treatment, and the old code did neither: it returned early
+        unless the argument was an existing local file, then asked
+        yt-dlp to fetch subtitles, which only works for a URL. So it
+        could never return anything, and nothing called it.
+
+        Why this matters: GLM (the default provider) cannot hear the
+        audio at all — probed 20 Sep 2026, it answers "NO AUDIO
+        ACCESS". Handing the model a transcript is what lets it know
+        what was said, so it can avoid repeating what the listener
+        already hears, and so the `foreign` preset can convey speech.
         """
-        Get transcript via yt-dlp subtitles or Whisper fallback.
-        For local files, try embedded subtitles first.
-        """
-        # Try yt-dlp subtitles
+        is_url = "://" in source
         try:
-            segments = await self._ytdlp_subtitles(video_path)
+            if is_url:
+                segments = await self._ytdlp_subtitles(source)
+            else:
+                segments = await self._embedded_subtitles(source)
             if segments:
+                logger.info("Transcript: %d segments from %s",
+                            len(segments), "subtitles" if is_url else "file")
                 return segments
         except Exception as e:
-            logger.warning("yt-dlp subtitle fetch failed: %s", e)
+            logger.warning("Transcript fetch failed: %s", e)
 
-        # TODO: Whisper fallback
-        logger.info("No transcript available")
+        logger.info("No transcript available for %s",
+                    "URL" if is_url else "local file")
         return []
 
-    async def _ytdlp_subtitles(self, video_path: str) -> list[TranscriptSegment]:
-        """Extract subtitles using yt-dlp."""
+    async def _embedded_subtitles(self, video_path: str) -> list[TranscriptSegment]:
+        """Pull a subtitle track out of a local file with ffmpeg.
+
+        Many downloaded or ripped files carry one; when they do it is
+        exact, free and instant — better than transcribing the audio.
+        """
         if not Path(video_path).exists():
             return []
+        tmp = tempfile.mkdtemp(prefix="odc_esub_")
+        try:
+            out = str(Path(tmp) / "track.vtt")
+            proc = await asyncio.create_subprocess_exec(
+                self.ffmpeg, "-y", "-i", video_path,
+                "-map", "0:s:0", "-f", "webvtt", out,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=120)
+            if Path(out).exists() and Path(out).stat().st_size > 0:
+                return self._parse_vtt(out)
+            return []
+        except Exception as e:
+            logger.debug("No embedded subtitles: %s", e)
+            return []
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
+    async def _ytdlp_subtitles(self, video_url: str) -> list[TranscriptSegment]:
+        """Fetch subtitles for a URL (uploaded or auto-generated).
+
+        v1.6.1: the guard here used to be `if not Path(...).exists()`,
+        which rejected every URL — the only input this can work on.
+        """
         tmp = tempfile.mkdtemp(prefix="odc_sub_")
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -652,7 +697,7 @@ class VideoProcessor:
                 "--sub-format", "vtt",
                 "--skip-download",
                 "-o", str(Path(tmp) / "%(id)s.%(ext)s"),
-                video_path,
+                video_url,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

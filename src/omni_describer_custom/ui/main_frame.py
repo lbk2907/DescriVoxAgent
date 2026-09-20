@@ -1158,10 +1158,31 @@ class MainFrame(wx.Frame):
                 def vsplit(pct: float) -> None:
                     wx.CallAfter(self._video_split_tick, pct)
 
+                # v1.6.1: fetch what is SAID before describing. The
+                # default provider cannot hear the video at all (GLM,
+                # probed: "NO AUDIO ACCESS"), so without this the model
+                # is guessing at anything the soundtrack carries. Best
+                # effort only — no transcript simply means no extra
+                # context, never a failed run.
+                transcript = []
+                try:
+                    wx.CallAfter(self._video_status_tick, "transcript")
+                    transcript = loop.run_until_complete(
+                        vp.get_transcript(source))
+                    if transcript:
+                        wx.CallAfter(
+                            self._log,
+                            t("process.transcript_ok", count=len(transcript)))
+                    else:
+                        wx.CallAfter(self._log, t("process.transcript_none"))
+                except Exception as e:
+                    logger.warning("Transcript step failed: %s", e)
+
                 try:
                     pairs = loop.run_until_complete(
                         self.ai_engine.describe_video_full(
                             resolved, prompt,
+                            transcript=transcript,
                             on_status=vstatus, on_upload_progress=vprogress,
                             on_part=vpart, on_split_progress=vsplit,
                             chunk_seconds=int(self.settings.get(
@@ -1708,6 +1729,7 @@ class MainFrame(wx.Frame):
         """
         dlg = self._dl_dialog
         phase_keys = {
+            "transcript": "video.phase_transcript",
             "uploading": "video.phase_uploading",
             "compressing": "video.phase_compressing",
             "splitting": "video.phase_splitting",
