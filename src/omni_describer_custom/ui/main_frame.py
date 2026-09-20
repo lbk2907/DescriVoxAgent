@@ -1167,8 +1167,10 @@ class MainFrame(wx.Frame):
                 transcript = []
                 try:
                     wx.CallAfter(self._video_status_tick, "transcript")
+                    # local_path lets a URL with no published captions
+                    # fall back to transcribing the file just downloaded.
                     transcript = loop.run_until_complete(
-                        vp.get_transcript(source))
+                        vp.get_transcript(source, local_path=resolved))
                     if transcript:
                         wx.CallAfter(
                             self._log,

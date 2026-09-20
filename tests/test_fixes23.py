@@ -188,8 +188,11 @@ def test_transcript_only_goes_to_providers_that_take_one():
 def test_pipeline_fetches_the_transcript():
     src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
         encoding="utf-8")
-    assert "vp.get_transcript(source)" in src, \
+    assert "vp.get_transcript(source" in src, \
         "the pipeline no longer fetches a transcript"
+    assert "local_path=resolved" in src, (
+        "a URL with no published captions can no longer fall back to "
+        "transcribing the file that was just downloaded")
     assert "transcript=transcript" in src, \
         "the transcript is fetched but never passed to the engine"
 
@@ -202,6 +205,156 @@ def test_transcript_phase_is_announced_in_both_languages():
                     "video.phase_transcript"):
             assert table.get(key), f"{lang}: missing {key}"
         assert "{count}" in table["process.transcript_ok"]
+
+
+# ── Speech-to-text backends (v1.6.1) ─────────────────────────────
+#
+# Published captions are exact; machine transcription is not. Measured
+# on the same clip: YouTube's captions said "really long TRUNKS", local
+# Whisper heard "long hunts". So transcription is a fallback, and the
+# order in get_transcript() is deliberate.
+
+class _FakeSettings:
+    def __init__(self, backend="auto", xai_key=""):
+        self._backend = backend
+        self._xai = xai_key
+
+    def get(self, key, default=None):
+        if key == "general.transcription_backend":
+            return self._backend
+        if key == "general.whisper_model":
+            return "base"
+        return default
+
+    def get_ai_provider(self, name):
+        return {"api_key": self._xai} if name == "xai" else {}
+
+
+def test_transcription_can_be_turned_off():
+    vp = VideoProcessor(settings=_FakeSettings(backend="off"))
+    assert asyncio.run(vp.transcribe_audio("x.mp4")) == []
+
+
+def test_grok_is_skipped_without_a_key():
+    """Selecting Grok with no key must degrade quietly, not raise."""
+    vp = VideoProcessor(settings=_FakeSettings(backend="grok", xai_key=""))
+    assert asyncio.run(vp.transcribe_audio("x.mp4")) == []
+
+
+def test_auto_falls_back_to_whisper_when_no_key():
+    vp = VideoProcessor(settings=_FakeSettings(backend="auto", xai_key=""))
+    called = []
+
+    async def fake_whisper(self, path):
+        called.append(path)
+        return _segs((0.0, 1.0, "local"))
+
+    real = VideoProcessor._whisper_transcribe
+    VideoProcessor._whisper_transcribe = fake_whisper
+    try:
+        got = asyncio.run(vp.transcribe_audio("clip.mp4"))
+        assert called == ["clip.mp4"], called
+        assert got and got[0].text == "local"
+    finally:
+        VideoProcessor._whisper_transcribe = real
+
+
+def test_auto_prefers_grok_when_a_key_exists():
+    vp = VideoProcessor(settings=_FakeSettings(backend="auto", xai_key="k"))
+    order = []
+
+    async def fake_grok(self, path, key):
+        order.append("grok")
+        return _segs((0.0, 1.0, "from grok"))
+
+    async def fake_whisper(self, path):
+        order.append("whisper")
+        return []
+
+    real = (VideoProcessor._grok_transcribe, VideoProcessor._whisper_transcribe)
+    VideoProcessor._grok_transcribe = fake_grok
+    VideoProcessor._whisper_transcribe = fake_whisper
+    try:
+        got = asyncio.run(vp.transcribe_audio("clip.mp4"))
+        assert order == ["grok"], f"whisper ran despite a key: {order}"
+        assert got[0].text == "from grok"
+    finally:
+        VideoProcessor._grok_transcribe, VideoProcessor._whisper_transcribe = real
+
+
+def test_grok_failure_falls_back_to_whisper_in_auto():
+    """A network blip on a paid service must not lose the transcript."""
+    vp = VideoProcessor(settings=_FakeSettings(backend="auto", xai_key="k"))
+
+    async def boom(self, path, key):
+        raise RuntimeError("HTTP 500")
+
+    async def fake_whisper(self, path):
+        return _segs((0.0, 1.0, "rescued locally"))
+
+    real = (VideoProcessor._grok_transcribe, VideoProcessor._whisper_transcribe)
+    VideoProcessor._grok_transcribe = boom
+    VideoProcessor._whisper_transcribe = fake_whisper
+    try:
+        got = asyncio.run(vp.transcribe_audio("clip.mp4"))
+        assert got and got[0].text == "rescued locally"
+    finally:
+        VideoProcessor._grok_transcribe, VideoProcessor._whisper_transcribe = real
+
+
+def test_missing_whisper_package_is_not_an_error():
+    """The app must still describe on a machine without faster-whisper."""
+    import builtins
+
+    vp = VideoProcessor(settings=_FakeSettings(backend="whisper"))
+    real_import = builtins.__import__
+
+    def blocked(name, *a, **k):
+        if name.startswith("faster_whisper"):
+            raise ImportError("not installed")
+        return real_import(name, *a, **k)
+
+    builtins.__import__ = blocked
+    try:
+        assert asyncio.run(vp.transcribe_audio("clip.mp4")) == []
+    finally:
+        builtins.__import__ = real_import
+
+
+def test_subtitles_are_preferred_over_transcription():
+    """Captions are exact; a transcriber guesses. Order matters."""
+    vp = VideoProcessor(settings=_FakeSettings())
+    used = []
+
+    async def fake_ytdlp(self, source):
+        used.append("subtitles")
+        return _segs((0.0, 1.0, "exact text"))
+
+    async def fake_stt(self, path):
+        used.append("stt")
+        return _segs((0.0, 1.0, "guessed text"))
+
+    real = (VideoProcessor._ytdlp_subtitles, VideoProcessor.transcribe_audio)
+    VideoProcessor._ytdlp_subtitles = fake_ytdlp
+    VideoProcessor.transcribe_audio = fake_stt
+    try:
+        got = asyncio.run(vp.get_transcript("https://youtu.be/x"))
+        assert used == ["subtitles"], f"transcribed despite captions: {used}"
+        assert got[0].text == "exact text"
+    finally:
+        VideoProcessor._ytdlp_subtitles, VideoProcessor.transcribe_audio = real
+
+
+def test_transcription_settings_exist_in_both_languages():
+    from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS
+
+    keys = ("settings.transcription", "settings.transcribe_auto",
+            "settings.transcribe_whisper", "settings.transcribe_grok",
+            "settings.transcribe_off", "settings.transcription_hint",
+            "settings.xai_key")
+    for lang, table in (("en", EN_STRINGS), ("ms", MS_STRINGS)):
+        for key in keys:
+            assert table.get(key), f"{lang}: missing {key}"
 
 
 if __name__ == "__main__":
@@ -226,5 +379,20 @@ if __name__ == "__main__":
           test_pipeline_fetches_the_transcript)
     check("transcript phase announced EN+BM",
           test_transcript_phase_is_announced_in_both_languages)
+    check("transcription can be turned off",
+          test_transcription_can_be_turned_off)
+    check("grok skipped without a key", test_grok_is_skipped_without_a_key)
+    check("auto falls back to whisper",
+          test_auto_falls_back_to_whisper_when_no_key)
+    check("auto prefers grok with a key",
+          test_auto_prefers_grok_when_a_key_exists)
+    check("grok failure falls back to whisper",
+          test_grok_failure_falls_back_to_whisper_in_auto)
+    check("missing whisper package is not an error",
+          test_missing_whisper_package_is_not_an_error)
+    check("subtitles preferred over transcription",
+          test_subtitles_are_preferred_over_transcription)
+    check("transcription settings exist EN+BM",
+          test_transcription_settings_exist_in_both_languages)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

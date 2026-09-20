@@ -329,6 +329,30 @@ class SettingsDialog(wx.Dialog):
         self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=600, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
+        # v1.6.1: speech-to-text. The default AI provider cannot hear the
+        # video, so this is what lets it know what was said when there
+        # are no published or embedded subtitles.
+        sizer.Add(wx.StaticText(panel, label=t("settings.transcription"),
+                                name="transcription_label"), 0, wx.ALL, 5)
+        self.transcribe_choice = wx.Choice(
+            panel,
+            choices=[t("settings.transcribe_auto"),
+                     t("settings.transcribe_whisper"),
+                     t("settings.transcribe_grok"),
+                     t("settings.transcribe_off")],
+            name="transcription_backend")
+        self.transcribe_choice.SetLabel(t("settings.transcription"))
+        sizer.Add(self.transcribe_choice, 0, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(wx.StaticText(panel, label=t("settings.transcription_hint"),
+                                name="transcription_hint"), 0, wx.ALL, 5)
+
+        sizer.Add(wx.StaticText(panel, label=t("settings.xai_key"),
+                                name="xai_key_label"), 0, wx.ALL, 5)
+        self.xai_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD,
+                                        name="xai_api_key")
+        self.xai_key_text.SetName(t("settings.xai_key"))
+        sizer.Add(self.xai_key_text, 0, wx.ALL | wx.EXPAND, 5)
+
         # Output directory
         sizer.Add(wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"), 0, wx.ALL, 5)
         out_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -740,6 +764,16 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("general.chunk_seconds",
                           int(self.chunk_spin.GetValue()))
 
+        backends = ["auto", "whisper", "grok", "off"]
+        idx = self.transcribe_choice.GetSelection()
+        if idx != wx.NOT_FOUND:
+            self.settings.set("general.transcription_backend", backends[idx])
+        xai_key = self.xai_key_text.GetValue().strip()
+        if xai_key and not xai_key.startswith("*"):
+            # Stored through set_ai_provider so it lands encrypted, the
+            # same path every other API key takes.
+            self.settings.set_ai_provider("xai", {"api_key": xai_key})
+
         output_dir = self.output_text.GetValue().strip()
         if output_dir:
             self.settings.set("general.output_dir", output_dir)
@@ -809,6 +843,14 @@ class SettingsDialog(wx.Dialog):
 
         chunk_val = int(self.settings.get("general.chunk_seconds", 600) or 600)
         self.chunk_spin.SetValue(max(60, chunk_val))
+
+        backends = ["auto", "whisper", "grok", "off"]
+        current = str(self.settings.get(
+            "general.transcription_backend", "auto") or "auto")
+        self.transcribe_choice.SetSelection(
+            backends.index(current) if current in backends else 0)
+        if (self.settings.get_ai_provider("xai") or {}).get("api_key"):
+            self.xai_key_text.SetValue("*" * 12)
 
         output_dir = self.settings.get("general.output_dir", "")
         if output_dir:

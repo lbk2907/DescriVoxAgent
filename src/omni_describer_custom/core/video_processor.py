@@ -75,10 +75,22 @@ class VideoProcessor:
     Uses yt-dlp for download + ffmpeg for frame extraction.
     """
 
-    def __init__(self, ffmpeg_path: str = "", ytdlp_path: str = ""):
+    def __init__(self, ffmpeg_path: str = "", ytdlp_path: str = "",
+                 settings=None):
         self.ffmpeg = ffmpeg_path or self._find_ffmpeg()
         self.ytdlp = ytdlp_path or self._find_ytdlp()
+        # v1.6.1: transcription needs settings (which backend, which
+        # Whisper model, the xAI key). Created here rather than required
+        # from callers, so every existing VideoProcessor() still works.
+        self._settings = settings
         logger.info("VideoProcessor: ffmpeg=%s, ytdlp=%s", self.ffmpeg, self.ytdlp)
+
+    @property
+    def settings(self):
+        if self._settings is None:
+            from .settings_store import SettingsStore
+            self._settings = SettingsStore()
+        return self._settings
 
     @staticmethod
     def _stderr_tail(stderr: bytes, limit: int = 500) -> str:
@@ -621,7 +633,8 @@ class VideoProcessor:
             logger.info("Dedup removed %d similar frames (%d → %d)", removed, len(frames), len(deduped))
         return deduped
 
-    async def get_transcript(self, source: str) -> list[TranscriptSegment]:
+    async def get_transcript(self, source: str,
+                             local_path: str = "") -> list[TranscriptSegment]:
         """Get what is SAID in the video, as timed segments.
 
         v1.6.1: pass the ORIGINAL source here — the URL for a download,
@@ -650,9 +663,136 @@ class VideoProcessor:
         except Exception as e:
             logger.warning("Transcript fetch failed: %s", e)
 
+        # Nothing published and nothing embedded: transcribe the audio.
+        # Measured on a 19 s clip — published captions got "really long
+        # TRUNKS", local Whisper heard "long hunts" — so this order is
+        # deliberate: exact text first, machine transcription only when
+        # there is none.
+        audio_source = local_path or ("" if is_url else source)
+        if audio_source and Path(audio_source).exists():
+            try:
+                segments = await self.transcribe_audio(audio_source)
+                if segments:
+                    return segments
+            except Exception as e:
+                logger.warning("Speech-to-text failed: %s", e)
+
         logger.info("No transcript available for %s",
                     "URL" if is_url else "local file")
         return []
+
+    async def transcribe_audio(self, video_path: str) -> list[TranscriptSegment]:
+        """Turn the spoken audio into timed text.
+
+        Backends, in the order they are tried when set to "auto":
+
+          grok    xAI speech-to-text, $0.10 per hour of audio, fast and
+                  the most accurate of the three. Needs an `xai` API key.
+          whisper faster-whisper running locally: free, offline, private.
+                  Measured here at ~3.7x real time on CPU (base/int8), so
+                  a two-hour film takes roughly half an hour.
+
+        Set general.transcription_backend to "grok", "whisper" or "off"
+        to pin one; "auto" (the default) uses Grok when a key exists and
+        falls back to Whisper.
+        """
+        backend = str(self.settings.get(
+            "general.transcription_backend", "auto") or "auto").lower()
+        if backend == "off":
+            return []
+
+        if backend in ("auto", "grok"):
+            key = (self.settings.get_ai_provider("xai") or {}).get("api_key")
+            if key:
+                try:
+                    return await self._grok_transcribe(video_path, key)
+                except Exception as e:
+                    logger.warning("Grok STT failed: %s", e)
+                    if backend == "grok":
+                        return []
+            elif backend == "grok":
+                logger.info("Grok STT selected but no xai API key is set")
+                return []
+
+        if backend in ("auto", "whisper"):
+            return await self._whisper_transcribe(video_path)
+        return []
+
+    async def _whisper_transcribe(self, video_path: str) -> list[TranscriptSegment]:
+        """Local faster-whisper. Imported lazily: the app must still run
+        (and describe) on a machine where it was never installed."""
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            logger.info("faster-whisper is not installed; no local "
+                        "transcription")
+            return []
+
+        size = str(self.settings.get(
+            "general.whisper_model", "base") or "base")
+
+        def _run() -> list[TranscriptSegment]:
+            model = WhisperModel(size, device="cpu", compute_type="int8")
+            segments, info = model.transcribe(video_path, beam_size=1)
+            out = [TranscriptSegment(start=float(s.start), end=float(s.end),
+                                     text=s.text.strip())
+                   for s in segments if s.text and s.text.strip()]
+            logger.info("Whisper(%s): %d segments, %.0fs of %s audio",
+                        size, len(out), info.duration, info.language)
+            return out
+
+        # Whisper is CPU-bound and blocks for minutes on a long video;
+        # off the event loop it goes, or the cancel button dies with it.
+        return await asyncio.get_running_loop().run_in_executor(None, _run)
+
+    async def _grok_transcribe(self, video_path: str,
+                               api_key: str) -> list[TranscriptSegment]:
+        """xAI speech-to-text (grok-voice-transcribe-2.0).
+
+        POST /v1/stt, multipart, with `file` last — the API requires that
+        ordering. Returns word-level segments with start/end times, which
+        is exactly the shape this app needs.
+        """
+        import aiohttp
+
+        path = Path(video_path)
+        if path.stat().st_size > 500 * 1024 * 1024:
+            logger.warning("Grok STT limit is 500 MB; file is %.0f MB",
+                           path.stat().st_size / 1e6)
+            return []
+
+        form = aiohttp.FormData()
+        form.add_field("model", "grok-voice-transcribe-2.0")
+        form.add_field("response_format", "verbose_json")
+        form.add_field("file", path.read_bytes(), filename=path.name,
+                       content_type="application/octet-stream")
+        timeout = aiohttp.ClientTimeout(total=1800)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                "https://api.x.ai/v1/stt",
+                headers={"Authorization": f"Bearer {api_key}"},
+                data=form,
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(f"Grok STT HTTP {resp.status}: "
+                                       f"{body[:200]}")
+                data = await resp.json()
+
+        segments = data.get("segments") or data.get("words") or []
+        out = [
+            TranscriptSegment(start=float(s.get("start", 0.0)),
+                              end=float(s.get("end", 0.0)),
+                              text=str(s.get("text", "")).strip())
+            for s in segments if str(s.get("text", "")).strip()
+        ]
+        if not out and data.get("text"):
+            # No timings came back: one block is still better than none.
+            out = [TranscriptSegment(start=0.0,
+                                     end=float(data.get("duration", 0.0)),
+                                     text=str(data["text"]).strip())]
+        logger.info("Grok STT: %d segments", len(out))
+        return out
 
     async def _embedded_subtitles(self, video_path: str) -> list[TranscriptSegment]:
         """Pull a subtitle track out of a local file with ffmpeg.
