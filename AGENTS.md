@@ -126,12 +126,25 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    = SATU sumber prompt; `tests/test_fixes22.py` mengunci peraturan ini.
    Preset lama dibuang hanya kalau teksnya masih teks asal kita (edit
    pengguna tidak pernah disentuh).
-14. **Handler = permukaan yang paling kerap terlepas.** Sebelum
+14. **GLM TIDAK BOLEH MENDENGAR audio video.** Diprob 20 Sep 2026: diminta
+   transkripkan ayat pertama, ia jawab "NO AUDIO ACCESS". Ia lihat frame
+   sahaja. Sebab itu preset `foreign` mustahil tanpa transkrip, dan arahan
+   lama "describe visuals AND sounds/speech" memang tidak pernah tercapai.
+   Penyelesaian: `VideoProcessor.get_transcript()` (sari kata → sari kata
+   terbenam → Grok STT/Whisper) + `build_transcript_block()`.
+   `provider_hears_audio()` menyimpan keupayaan ini per-provider.
+15. **Suffix enjin DITAMBAH SELEPAS prompt, jadi apa yang ia kata MENANG.**
+   Ia tidak boleh ada pendapat tentang APA yang dihurai — dua kali ia
+   membatalkan preset secara senyap (v1.6.0: "AND sounds/speech", kemudian
+   "important VISUALS" yang membunuh `foreign`). Format sahaja di situ.
+16. **`OmniDescriber.spec` DIJANA SEMULA oleh PyInstaller** daripada bendera
+   dalam `build.bat` setiap kali. Mengeditnya sia-sia — tukar `build.bat`.
+17. **Handler = permukaan yang paling kerap terlepas.** Sebelum
    `tests/test_fixes21.py` (17 Sep 2026) TIADA satu pun handler menu/butang
    tetingkap utama dipanggil oleh mana-mana test — tetingkap diuji, handler
    yang membukanya tidak. Di situlah bug butang Open mati bersembunyi.
    **Tambah handler baharu = tambah check dalam test_fixes21.**
-15. **Test MESTI guna settings terasing.** `run_gate.bat` set
+18. **Test MESTI guna settings terasing.** `run_gate.bat` set
    `ODC_CONFIG_DIR=%TEMP%\odc_gate_config`; `SettingsStore` hormat env var
    itu. Sebelum v1.5.5 gate menulis ke `settings.json` SEBENAR pengguna
    (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
@@ -183,7 +196,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.6.1 (tag terakhir `v1.5.6`; rumusan v1.5.4:
+- **Versi:** 1.6.1 (tag terakhir `v1.6.0`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
