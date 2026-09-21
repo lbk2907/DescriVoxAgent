@@ -156,6 +156,35 @@ descriptions in sync during playback.
     first — verified against OpenRouter: a 50.7 MB video uploaded
     successfully, about 98 MB is rejected. The two checkboxes are
     mutually exclusive.
+### Play a video that already has descriptions
+
+The **"Play Video with Existing Descriptions"** button (second under
+Tab, right after "Local Video File") is for a video whose descriptions
+already exist — made here earlier, or written by hand.
+
+1. Choose the video.
+2. If an `.srt`, `.vtt` or `.txt` with the SAME name sits beside it,
+   the app offers that file. Otherwise you pick one yourself.
+3. The player opens straight away.
+
+No AI pass, no cost, no waiting. The video is copied into the project
+folder, so it still plays if the original is moved or a USB stick is
+unplugged.
+
+### Interrupted downloads
+
+As of v1.6.7 an interrupted download **continues from where it
+stopped** instead of starting over. Press Cancel, close the app, or
+lose the connection — open the same video again and it carries on. A
+finished video is never touched, and a project that already has its
+video does not re-download at all.
+
+Uploads differ by provider. With Gemini the upload itself resumes.
+With GLM it cannot: the video goes in a single request and there is no
+way to continue one. What is saved there is the compression done
+before the upload — that result is now kept, so a retry skips the
+re-encode (about 2.7 minutes back on a ten-minute video).
+
 - **TTS tab**: speech engine, voice, speech speed.
   As of v1.6.6 there is a **"My screen reader"** option, labelled with
   the reader that was found (for example "My screen reader (NVDA)").

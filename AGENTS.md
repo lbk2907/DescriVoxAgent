@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 36 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 37 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 36 suite; run_gate.bat = semua
+tests/                           — 37 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -232,6 +232,33 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    Disahkan 22 Sep 2026: combo sebut "combo box default collapsed"
    (preset memang terpilih), kotak prompt sebut teks AD sebenar bukan
    labelnya sendiri.
+
+30. **Muat turun MESTI masuk folder media projek.** yt-dlp sambung
+   `.part` secara lalai; sebelum v1.6.7 setiap percubaan guna
+   `mkdtemp` baharu jadi fail separa jadi yatim. Sebab itu projek kini
+   dicipta SEBELUM muat turun (`_ensure_project_for`), bukan selepas AI
+   siap. Jangan pulangkan ordering itu.
+31. **JANGAN pilih fail muat turun dengan `sorted(glob("video.*"))[0]`.**
+   `video.f616.mp4` (aliran video sahaja, belum bercantum) datang
+   SEBELUM `video.mp4` ikut abjad — app akan huraikan video SENYAP.
+   Guna `VideoProcessor.completed_download()`: fail bercantum ada
+   TEPAT satu suffix, yang perantaraan ada dua.
+32. **`_compress_to` out_dir kini boleh jadi folder media projek.**
+   JANGAN `rmtree(out_dir)` bila gagal — itu akan padam video pengguna.
+   Padam fail output sahaja (`out.unlink`).
+33. **Fail pementasan ffmpeg MESTI kekal sambungan sebenar.** ffmpeg
+   pilih muxer ikut extension; `.part` gagal terus dengan "Error
+   initializing the muxer ... Invalid argument". Guna
+   `nama.partial.mp4`, bukan `nama.part`.
+34. **Susunan Tab wx ikut urutan PENCIPTAAN, bukan urutan sizer.**
+   Butang baharu yang ditambah ke sizer di tengah tetap jadi TERAKHIR
+   bawah Tab. Guna `MoveAfterInTabOrder(kawalan_sebelumnya)` lalu
+   sahkan dengan `tools/nvda_accessibility_check.py`.
+35. **Petunjuk prestasi JANGAN bunuh kerja.** `upload_cache_dir`
+   ditetapkan dari dalam saluran pemprosesan; setter asal guna
+   `self._providers` terus dan meletup pada `AIEngine.__new__()` —
+   seluruh kerja mati dengan "no descriptions saved". Guna `getattr`
+   + try/except untuk apa-apa yang sekadar mengoptimumkan.
 
 ## Prosedur Biasa
 

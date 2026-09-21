@@ -627,8 +627,12 @@ def test_upload_encoding_drops_what_the_model_cannot_use():
 
     src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
         encoding="utf-8")
+    # v1.6.7: the ffmpeg command moved into _compress_to when caching
+    # was added, so compress_video_for_upload is now the entry point
+    # and _compress_to does the encoding. Both are read: the settings
+    # are what matter, not which function holds them.
     start = src.index("def compress_video_for_upload")
-    body = src[start:start + 4000]
+    body = src[start:start + 8000]
     assert '"-an",' in body, \
         "audio is being uploaded to a provider that cannot hear it"
     assert f"fps={GLMProvider._UPLOAD_FPS}" in body.replace(

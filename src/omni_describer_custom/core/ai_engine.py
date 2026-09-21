@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import bisect
+import hashlib
 import json
 import inspect
 import logging
@@ -350,6 +351,12 @@ class AIProvider(ABC):
 
     name: str = "base"
     models: list[str] = []
+
+    # Where to keep the compressed upload copy so a retry does not
+    # re-encode the video (v1.6.7). Set by AIEngine to the project's
+    # media folder; empty means "use a throwaway temp dir", which is
+    # how every provider behaved before.
+    upload_cache_dir: str = ""
 
     @abstractmethod
     async def describe_image(
@@ -1260,7 +1267,8 @@ class GLMProvider(AIProvider):
                             on_status("compressing")
                         parts = [self.compress_video_for_upload(
                             path, self.COMPRESS_TARGET_BYTES,
-                            is_cancelled=is_cancelled)]
+                            is_cancelled=is_cancelled,
+                            cache_dir=self.upload_cache_dir)]
                 else:
                     parts = [path]
             total = len(parts)
@@ -1355,7 +1363,8 @@ class GLMProvider(AIProvider):
                 raise RuntimeError("cancelled")
             path = self.compress_video_for_upload(
                 path, self.COMPRESS_TARGET_BYTES,
-                is_cancelled=is_cancelled)
+                is_cancelled=is_cancelled,
+                cache_dir=self.upload_cache_dir)
             try:
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
@@ -1363,14 +1372,17 @@ class GLMProvider(AIProvider):
                     on_status("encoding")
                 b64 = base64.b64encode(path.read_bytes()).decode()
             finally:
-                # The compressed copy lives in its own mkdtemp dir and is
+                # A throwaway copy lives in its own mkdtemp dir and is
                 # NOT in the caller's parts list; without this cleanup an
                 # oversized part leaked ~40 MB per part in %TEMP%.
-                try:
-                    path.unlink(missing_ok=True)
-                    path.parent.rmdir()
-                except OSError:
-                    pass
+                # A CACHED copy is kept on purpose (v1.6.7) so a retry
+                # after a failed upload does not re-encode the video.
+                if not self.is_cached_upload(path):
+                    try:
+                        path.unlink(missing_ok=True)
+                        path.parent.rmdir()
+                    except OSError:
+                        pass
         else:
             if is_cancelled and is_cancelled():
                 raise RuntimeError("cancelled")
@@ -1523,20 +1535,99 @@ class GLMProvider(AIProvider):
             t.join(timeout=2.0)
         return ret, bytes(stderr_tail)
 
+    def upload_cache_name(self, path: Path, target_bytes: int) -> str:
+        """A name that changes whenever the compressed result would.
+
+        Keyed on the source file's identity and on every encode setting
+        that affects the output, so a cached copy is only reused when it
+        is genuinely the same job. Bumping _UPLOAD_HEIGHT or _UPLOAD_FPS
+        therefore invalidates old copies instead of silently serving
+        video encoded to the old settings.
+        """
+        try:
+            stat = path.stat()
+            identity = f"{path.name}:{stat.st_size}:{int(stat.st_mtime)}"
+        except OSError:
+            identity = path.name
+        recipe = (f"{identity}:{target_bytes}:{self._UPLOAD_HEIGHT}"
+                  f":{self._UPLOAD_FPS}")
+        digest = hashlib.sha256(recipe.encode("utf-8")).hexdigest()[:16]
+        return f"upload_{digest}.mp4"
+
     def compress_video_for_upload(
         self, path: Path, target_bytes: int,
         is_cancelled: Callable[[], bool] | None = None,
+        cache_dir: str = "",
     ) -> Path:
         """Re-encode a video down to about target_bytes (360p).
 
         Single-pass bitrate fit; quality is good enough for AI viewing
-        and far better than failing the whole run. Returns the temp
-        path of the compressed file.
+        and far better than failing the whole run.
+
+        With cache_dir — normally the project's media folder — the
+        result is kept and reused (v1.6.7). GLM sends video base64
+        inside one chat request, so an interrupted upload cannot be
+        resumed at the protocol level; but the expensive half is this
+        re-encode, which used to be thrown away on every failure and
+        redone from scratch on every retry. Caching it makes a retry
+        cost one upload instead of an upload plus minutes of ffmpeg.
+
+        Returns a path the caller must NOT delete when it is cached;
+        callers should compare against is_cached_upload().
         """
         import tempfile as _tf
         import shutil as _shutil
+        if cache_dir:
+            cached = Path(cache_dir) / self.upload_cache_name(
+                path, target_bytes)
+            if cached.exists() and cached.stat().st_size > 0:
+                logger.info("Reusing the compressed upload copy (%.1f MB): "
+                            "%s", cached.stat().st_size / 1e6, cached.name)
+                return cached
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
+            # Encode beside the final name, then rename. A compression
+            # killed halfway (Cancel, crash, power loss) must not leave
+            # a truncated file that the next run happily uploads as if
+            # it were the whole video.
+            # ".partial.mp4", not ".part": ffmpeg picks the muxer from
+            # the extension, and an unknown one fails outright with
+            # "Error initializing the muxer ... Invalid argument".
+            staging = cached.with_name(
+                f"{cached.stem}.partial{cached.suffix}")
+            staging.unlink(missing_ok=True)
+            self._compress_to(path, staging, target_bytes, is_cancelled)
+            staging.replace(cached)
+            logger.info("Compressed upload copy kept for retries: %s "
+                        "(%.1f MB)", cached.name,
+                        cached.stat().st_size / 1e6)
+            return cached
         out_dir = Path(_tf.mkdtemp(prefix="odc_vcompress_"))
-        out = out_dir / path.name
+        try:
+            return self._compress_to(path, out_dir / path.name,
+                                     target_bytes, is_cancelled)
+        except Exception:
+            _shutil.rmtree(out_dir, ignore_errors=True)
+            raise
+
+    @staticmethod
+    def is_cached_upload(path: Path) -> bool:
+        """True when this compressed copy is kept for retries.
+
+        Callers delete their temporary compressed file; deleting a
+        cached one would undo the whole point of caching it.
+        """
+        # ".partial." is a half-written encode, never something to keep
+        # or to upload; it only escapes here if a crash left one behind.
+        return (path.name.startswith("upload_")
+                and ".partial." not in path.name)
+
+    def _compress_to(
+        self, path: Path, out: Path, target_bytes: int,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> Path:
+        """Encode path into out at the upload settings. Raises on failure."""
+        import shutil as _shutil
+        out_dir = out.parent
         duration = 1.0
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(
@@ -1553,7 +1644,11 @@ class GLMProvider(AIProvider):
                             + int(m.group(2)) * 60
                             + float(m.group(3)))
         except RuntimeError:
-            _shutil.rmtree(out_dir, ignore_errors=True)
+            # Only the half-written output goes, never the directory:
+            # since v1.6.7 out_dir can be the PROJECT'S media folder,
+            # which holds the downloaded video. rmtree here would have
+            # deleted the user's video to clean up a failed encode.
+            out.unlink(missing_ok=True)
             raise
         except Exception:
             logger.debug("duration probe failed", exc_info=True)
@@ -1587,7 +1682,7 @@ class GLMProvider(AIProvider):
         ], is_cancelled, 1800)
         if ret != 0 or not out.exists():
             tail = stderr_tail.decode("utf-8", "replace")[-300:]
-            _shutil.rmtree(out_dir, ignore_errors=True)
+            out.unlink(missing_ok=True)  # never the directory: see above
             raise RuntimeError(f"video compression failed: {tail}")
         if out.stat().st_size > target_bytes * 1.3:
             logger.warning("compressed video still large: %.1f MB",
@@ -2187,6 +2282,34 @@ class AIEngine:
         self._default_provider: str = ""
         # v1.5.2: default output language for descriptions ('' = model decides).
         self.output_lang: str = ""
+        self._upload_cache_dir: str = ""
+
+    @property
+    def upload_cache_dir(self) -> str:
+        """Folder that keeps compressed upload copies between attempts."""
+        return getattr(self, "_upload_cache_dir", "")
+
+    @upload_cache_dir.setter
+    def upload_cache_dir(self, value: str) -> None:
+        """Set it here and every provider follows.
+
+        Providers are created lazily by set_provider(), so the value is
+        stored and re-applied there too — setting it before the
+        provider exists must not silently do nothing.
+
+        getattr rather than self._providers: this is a speed hint, and
+        it is set from inside the processing pipeline. An engine built
+        with __new__ (as the tests do) has no _providers, and the
+        AttributeError took the WHOLE JOB down — "no descriptions
+        saved" from a failed cache hint. Nothing here is worth that.
+        """
+        self._upload_cache_dir = value or ""
+        for provider in getattr(self, "_providers", {}).values():
+            try:
+                provider.upload_cache_dir = self._upload_cache_dir
+            except Exception:  # a provider stub with no such attribute
+                logger.debug("provider %s rejected the upload cache dir",
+                             getattr(provider, "name", "?"))
 
     def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "", api_format: str = "") -> None:
         """Configure a provider with credentials."""
@@ -2198,6 +2321,9 @@ class AIEngine:
         else:
             self._providers[name] = cls(api_key=api_key, base_url=base_url)
         self._default_provider = name
+        # A provider created after upload_cache_dir was set would
+        # otherwise miss it and quietly fall back to a temp dir.
+        self._providers[name].upload_cache_dir = self.upload_cache_dir
         logger.info("AI provider set: %s (model=%s)", name, model or "default")
 
     def set_default(self, name: str) -> None:

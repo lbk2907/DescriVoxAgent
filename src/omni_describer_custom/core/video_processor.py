@@ -324,6 +324,52 @@ class VideoProcessor:
             eta=m.group("eta") or "",
         )
 
+    @staticmethod
+    def _partial_bytes(out_dir: str) -> int:
+        """Bytes already downloaded into out_dir, across .part files.
+
+        Used only to tell the user a resume is happening; yt-dlp finds
+        and continues the parts by itself.
+        """
+        try:
+            return sum(p.stat().st_size
+                       for p in Path(out_dir).glob("*.part") if p.is_file())
+        except OSError:
+            return 0
+
+    # Files yt-dlp leaves behind that are not a playable result.
+    _NOT_A_VIDEO = {".part", ".ytdl", ".tmp", ".temp"}
+
+    @staticmethod
+    def completed_download(out_dir: str) -> str:
+        """The finished, MERGED video in out_dir, or "".
+
+        Only the merged output counts. yt-dlp downloads the video and
+        audio streams separately, naming them with the format id —
+        video.f616.mp4, video.f251.webm — and merges them into
+        video.mp4 at the end. An earlier version of this accepted any
+        video.* that was not a .part, so an interrupted download whose
+        video stream had finished was reported as complete and the app
+        would have described a SILENT video while skipping the rest of
+        the download. Caught on a real interrupted run, 22 Sep 2026.
+
+        The merged file has exactly one suffix; the intermediates have
+        two (.f616 + .mp4), which is what separates them.
+        """
+        try:
+            for candidate in sorted(Path(out_dir).glob("video.*")):
+                if not candidate.is_file() or candidate.stat().st_size <= 0:
+                    continue
+                suffixes = [s.lower() for s in candidate.suffixes]
+                if len(suffixes) != 1:
+                    continue  # video.f616.mp4, video.mp4.part, ...
+                if suffixes[0] in VideoProcessor._NOT_A_VIDEO:
+                    continue
+                return str(candidate)
+        except OSError:
+            pass
+        return ""
+
     async def download_video(
         self,
         url: str,
@@ -351,7 +397,21 @@ class VideoProcessor:
         if not url.lower().startswith(("http://", "https://")):
             raise SourceError(
                 f"Unsupported video URL (http/https only): {url[:80]}")
+        # v1.6.7: a caller that passes out_dir gets RESUMABLE downloads.
+        # yt-dlp continues a .part file by default (-c is its default),
+        # but every attempt used to land in a fresh mkdtemp, so the
+        # partial from the interrupted attempt was orphaned in a
+        # directory nobody looked at again. Measured: interrupted at
+        # 4,193,280 bytes, restarted in the same directory, yt-dlp
+        # printed "Resuming download at byte 4193280" and finished.
+        # A fresh temp dir stays the fallback for callers with nowhere
+        # stable to put it, where a restart simply starts over.
         out_dir = out_dir or tempfile.mkdtemp(prefix="odc_video_")
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        resuming = self._partial_bytes(out_dir)
+        if resuming:
+            logger.info("Resuming an interrupted download: %s already on "
+                        "disk in %s", f"{resuming / 1e6:.1f} MB", out_dir)
         out_tmpl = str(Path(out_dir) / "video.%(ext)s")
         args = [
             self.ytdlp,
@@ -446,21 +506,40 @@ class VideoProcessor:
             raise
         except Exception as e:
             raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
-        files = sorted(Path(out_dir).glob("video.*"))
-        if files:
-            logger.info("Downloaded source: %s", files[0])
-            return str(files[0])
-        raise SourceError(f"Download finished but no video file found in {out_dir} ({url})")
+        # v1.6.7: this used to be sorted(glob("video.*"))[0], which sorts
+        # video.f616.mp4 BEFORE video.mp4 and so returned the video-only
+        # stream — a silent video — whenever an intermediate survived.
+        # It normally does not, because yt-dlp deletes its own
+        # intermediates after merging; but one left by an earlier
+        # interrupted run is not yt-dlp's to clean, so making downloads
+        # resumable exposed it. Found on a real interrupted run.
+        merged = self.completed_download(out_dir)
+        if merged:
+            logger.info("Downloaded source: %s", merged)
+            return merged
+        leftovers = sorted(p.name for p in Path(out_dir).glob("video.*"))
+        raise SourceError(
+            f"Download finished but no merged video file in {out_dir} "
+            f"({url}); found only {leftovers or 'nothing'}")
 
     async def resolve_source(
         self,
         path_or_url: str,
         on_progress: Callable[[DownloadProgress], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        out_dir: str = "",
     ) -> str:
         """
         Resolve a video source. Remote URLs (YouTube etc.) are downloaded
-        via yt-dlp into a temp dir; local paths are returned unchanged.
+        via yt-dlp; local paths are returned unchanged.
+
+        Pass out_dir — normally the project's media folder — to make the
+        download resumable: an interrupted attempt continues from where
+        it stopped next time instead of starting over (v1.6.7). Without
+        it a throwaway temp dir is used and a restart re-downloads.
+
+        A video already finished in out_dir is returned as-is, so
+        reopening a project does not re-download what is already there.
 
         Raises SourceError with the REAL reason (bad URL, private video,
         network failure) instead of silently returning the URL, which used
@@ -470,8 +549,14 @@ class VideoProcessor:
             return str(Path(path_or_url).resolve())
         if not (path_or_url.startswith("http://") or path_or_url.startswith("https://")):
             return path_or_url
+        if out_dir:
+            done = self.completed_download(out_dir)
+            if done:
+                logger.info("Video already downloaded, skipping: %s", done)
+                return done
         return await self.download_video(
-            path_or_url, on_progress=on_progress, is_cancelled=is_cancelled)
+            path_or_url, out_dir=out_dir, on_progress=on_progress,
+            is_cancelled=is_cancelled)
 
     async def _probe_source_fps(self, video_path: str) -> float:
         """The video's own frame rate, or 0.0 when it cannot be read.

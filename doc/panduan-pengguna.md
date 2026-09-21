@@ -182,6 +182,37 @@ membacakan penerangan itu segerak semasa main balik.
     terlebih dahulu — disahkan terhadap OpenRouter: video 50.7 MB
     berjaya dimuat naik, kira-kira 98 MB ditolak. Kedua-dua kotak
     semak ini saling menolak.
+### Main video yang sudah ada penerangan
+
+Butang **"Main Video dengan Penerangan Sedia Ada"** (kedua dalam
+susunan Tab, selepas "Fail Video Tempatan") untuk video yang sudah ada
+fail penerangannya — sama ada dijana di sini sebelum ini, atau ditulis
+sendiri.
+
+1. Pilih video.
+2. Kalau ada fail `.srt`, `.vtt` atau `.txt` bernama SAMA di sebelah
+   video itu, aplikasi akan tanya sama ada mahu guna fail itu. Kalau
+   tiada, anda pilih sendiri.
+3. Pemain terus dibuka.
+
+Tiada pemprosesan AI, tiada kos, tiada menunggu. Video itu disalin ke
+dalam folder projek, jadi ia masih boleh dimain walaupun fail asal
+dipindahkan atau pemacu USB dicabut.
+
+### Muat turun yang terputus
+
+Mulai v1.6.7 muat turun yang terputus **disambung dari tempat ia
+berhenti**, bukan dimulakan semula. Tekan Cancel, tutup aplikasi, atau
+putus internet — bila anda buka video yang sama sekali lagi, ia
+menyambung. Video yang sudah siap tidak disentuh langsung, dan projek
+yang sudah ada videonya tidak akan memuat turun semula.
+
+Untuk muat naik: dengan Gemini ia memang boleh disambung. Dengan GLM
+tidak boleh — video dihantar dalam satu permintaan tunggal dan tiada
+cara untuk menyambungnya. Tetapi kerja mampatan sebelum muat naik kini
+disimpan, jadi percubaan semula tidak perlu mengekod semula video
+(kira-kira 2.7 minit dijimatkan untuk video 10 minit).
+
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
   Mulai v1.6.6 ada pilihan **"Pembaca skrin saya"**, dilabel dengan
   pembaca yang dijumpai (contoh "Pembaca skrin saya (NVDA)"). Ia

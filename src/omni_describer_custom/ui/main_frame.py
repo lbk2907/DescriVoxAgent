@@ -129,10 +129,24 @@ class MainFrame(wx.Frame):
                                  name="source_url")
         self.btn_youtube = wx.Button(panel, label=t("main.source_youtube"),
                                      name="source_youtube")
+        # v1.6.7: play a video that already HAS its descriptions, with
+        # no AI pass and no cost. Placed directly after "Local Video
+        # File" because it is the same act — opening a file you already
+        # have — and a screen-reader user meets the two together.
+        self.btn_play_existing = wx.Button(
+            panel, label=t("main.play_existing"), name="play_existing")
+        self.btn_play_existing.SetToolTip(t("main.play_existing_hint"))
 
-        for btn in (self.btn_local, self.btn_url, self.btn_youtube):
+        for btn in (self.btn_local, self.btn_play_existing,
+                    self.btn_url, self.btn_youtube):
             btn.SetMinSize((-1, _BTN_H))
             outer.Add(btn, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
+        # On MSW the Tab order follows CREATION order, not the order
+        # things were added to the sizer. Without this the new button
+        # would sit second on screen but last under Tab — and a
+        # screen-reader user navigates by Tab, so the two orders
+        # disagreeing is a real fault, not a cosmetic one.
+        self.btn_play_existing.MoveAfterInTabOrder(self.btn_local)
 
         outer.AddSpacer(8)
 
@@ -275,6 +289,7 @@ class MainFrame(wx.Frame):
         """
         self.SetTitle(t("main.title"))
         self.btn_local.SetLabel(t("main.source_local"))
+        self.btn_play_existing.SetLabel(t("main.play_existing"))
         self.btn_url.SetLabel(t("main.source_url"))
         self.btn_youtube.SetLabel(t("main.source_youtube"))
         self.btn_preset_open.SetLabel(t("main.btn_open"))
@@ -353,6 +368,7 @@ class MainFrame(wx.Frame):
         """Bind all UI events."""
         # Source buttons
         self.btn_local.Bind(wx.EVT_BUTTON, self._on_local_file)
+        self.btn_play_existing.Bind(wx.EVT_BUTTON, self._on_play_existing)
         self.btn_url.Bind(wx.EVT_BUTTON, self._on_direct_url)
         self.btn_youtube.Bind(wx.EVT_BUTTON, self._on_youtube_url)
 
@@ -560,6 +576,105 @@ class MainFrame(wx.Frame):
             self._log(t("main.log_selected", path=path))
             self.SetStatusText(t("main.log_file", name=Path(path).name))
         dlg.Destroy()
+
+    # ── Play a video that already has its descriptions ───────────
+
+    _SUBTITLE_SUFFIXES = (".srt", ".vtt", ".txt")
+
+    @staticmethod
+    def _find_sibling_subtitles(video: Path) -> Path | None:
+        """A subtitle file that clearly belongs to this video.
+
+        Only exact stem matches — movie.mp4 finds movie.srt, never some
+        other .srt that happens to share the folder. Guessing wrong
+        would play one film's descriptions over another's.
+
+        Static because it is a pure question about a path: it needs no
+        window, so it can be tested without building one.
+        """
+        for suffix in MainFrame._SUBTITLE_SUFFIXES:
+            candidate = video.with_suffix(suffix)
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def _on_play_existing(self, event):
+        """Open a video plus its existing descriptions and just play it.
+
+        No AI pass, no cost, no waiting: this is for the case where the
+        descriptions already exist — made here earlier, or written by
+        hand — and the user wants to listen to them again. Before
+        v1.6.7 the pieces existed but nothing joined them: importing an
+        SRT created a project with no video, so the player opened with
+        descriptions over silence.
+        """
+        wildcard = ("Video files|*.mp4;*.avi;*.mkv;*.mov;*.wmv;*.flv;*.webm"
+                    "|All files|*.*")
+        dlg = wx.FileDialog(
+            self, t("main.play_existing_pick_video"), wildcard=wildcard,
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        video = Path(dlg.GetPath())
+        dlg.Destroy()
+
+        subtitles = self._find_sibling_subtitles(video)
+        if subtitles is not None:
+            ask = wx.MessageDialog(
+                self, t("main.play_existing_found", name=subtitles.name),
+                t("main.play_existing"), wx.YES_NO | wx.ICON_QUESTION)
+            ask.SetYesNoLabels(t("main.play_existing_use_found"),
+                               t("main.play_existing_pick_other"))
+            use_it = ask.ShowModal() == wx.ID_YES
+            ask.Destroy()
+            if not use_it:
+                subtitles = None
+        if subtitles is None:
+            sub_dlg = wx.FileDialog(
+                self, t("main.play_existing_pick_subs"),
+                defaultDir=str(video.parent),
+                wildcard=("Timed text (*.srt;*.vtt;*.txt)|*.srt;*.vtt;*.txt"
+                          "|All files|*.*"),
+                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+            if sub_dlg.ShowModal() != wx.ID_OK:
+                sub_dlg.Destroy()
+                return
+            subtitles = Path(sub_dlg.GetPath())
+            sub_dlg.Destroy()
+
+        self._open_existing(video, subtitles)
+
+    def _open_existing(self, video: Path, subtitles: Path) -> None:
+        """Build a project from a video + subtitle pair and play it."""
+        from ..core import timeline_io
+        try:
+            descriptions = timeline_io.parse_any(str(subtitles))
+        except Exception as e:
+            logger.error("Could not read %s: %s", subtitles, e)
+            wx.MessageBox(t("impexp.import_failed", error=str(e)[:150]),
+                          t("main.play_existing"), wx.OK | wx.ICON_ERROR)
+            return
+        if not descriptions:
+            wx.MessageBox(t("impexp.invalid_file"), t("main.play_existing"),
+                          wx.OK | wx.ICON_WARNING)
+            return
+        try:
+            self.project_store.create_project(video.stem, str(video))
+            # Copy the video in, so the project still plays if the
+            # original is moved or a USB stick is unplugged.
+            self.project_store.persist_video_file(str(video))
+            self.project_store.save_descriptions(descriptions)
+        except Exception as e:
+            logger.error("Could not build a project for %s: %s", video, e)
+            wx.MessageBox(t("main.play_existing_failed", error=str(e)[:150]),
+                          t("main.play_existing"), wx.OK | wx.ICON_ERROR)
+            return
+        message = t("main.play_existing_ready",
+                    count=len(descriptions), name=video.name)
+        self._log(message)
+        self.SetStatusText(message, 0)
+        self._open_player()
 
     def _on_direct_url(self, event):
         """Open dialog to enter a direct video URL."""
@@ -944,6 +1059,7 @@ class MainFrame(wx.Frame):
         self._dl_done = False
         self.btn_preset_open.Disable()
         self.btn_local.Disable()
+        self.btn_play_existing.Disable()
         self.btn_url.Disable()
         self.btn_youtube.Disable()
 
@@ -1032,6 +1148,60 @@ class MainFrame(wx.Frame):
                 self._download_title, fallback="video")
         return Path(source).stem or "video"
 
+    def _ensure_project_for(self, source: str) -> str:
+        """Make sure a project exists before anything is downloaded.
+
+        Returns its media folder, which becomes the download directory
+        so an interrupted download resumes there next time (v1.6.7).
+
+        Returns "" on failure rather than raising: a project that
+        cannot be created should cost the user resumability, not the
+        whole job — the pipeline then falls back to a temp directory
+        exactly as it behaved before.
+        """
+        try:
+            current = self.project_store.current
+            if current is None:
+                name = (self._project_display_name(source)
+                        if not Path(source).exists() else Path(source).stem)
+                self.project_store.create_project(name, source)
+                current = self.project_store.current
+                self._project_created_by_run = True
+            if current is None:
+                return ""
+            return str(self.project_store.media_dir(current.id))
+        except Exception as e:
+            logger.warning("Could not prepare a project for %s (%s); the "
+                           "download will not be resumable", source, e)
+            return ""
+
+    def _discard_project_if_empty(self) -> None:
+        """Drop a project this run created that holds nothing at all.
+
+        Cancelling used to leave no trace; creating the project up front
+        would leave an empty one behind on every abandoned attempt. But
+        a project holding a PARTIAL download is kept deliberately —
+        that partial is the thing being resumed, and deleting it would
+        undo the feature.
+        """
+        if not getattr(self, "_project_created_by_run", False):
+            return
+        self._project_created_by_run = False
+        current = self.project_store.current
+        if current is None or current.descriptions:
+            return
+        try:
+            media = self.project_store.media_dir(current.id)
+            if any(media.iterdir()):
+                logger.info("Keeping project %s: it holds a partial "
+                            "download to resume", current.id)
+                return
+            self.project_store.delete_project(current.id)
+            logger.info("Discarded empty project %s after an abandoned run",
+                        current.id)
+        except Exception as e:
+            logger.warning("Could not tidy up empty project: %s", e)
+
     def _process_video(self, source: str, prompt: str):
         """Background video processing pipeline.
 
@@ -1114,6 +1284,23 @@ class MainFrame(wx.Frame):
             # involved; frame_dir/counter stay as harmless machinery.
             if not video_mode:
                 wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
+            # v1.6.7: the project is created HERE, before the download,
+            # not after the AI finishes. A download that dies halfway
+            # then has a permanent home to resume into; previously each
+            # attempt used a fresh temp dir, so the partial file was
+            # orphaned and the next attempt started from zero. The three
+            # later create_project calls are guarded by "if not current"
+            # and become no-ops.
+            download_dir = self._ensure_project_for(source)
+            # The same folder keeps the compressed upload copy, so a
+            # retry after a failed upload skips the re-encode. Guarded
+            # because it is only a speed hint: an engine that will not
+            # take it must cost the user a re-encode, not the job.
+            try:
+                self.ai_engine.upload_cache_dir = download_dir
+            except Exception as e:
+                logger.warning("Upload cache dir not accepted (%s); a "
+                               "retry will re-compress the video", e)
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
             last_ui_update = [0.0]
             stop_counter = threading.Event()
@@ -1160,7 +1347,8 @@ class MainFrame(wx.Frame):
                     resolved = loop.run_until_complete(vp.resolve_source(
                         source, on_progress=download_progress,
                         is_cancelled=lambda: bool(
-                            getattr(self, "_dl_cancelled", False)))
+                            getattr(self, "_dl_cancelled", False)),
+                        out_dir=download_dir)
                     )
                     self._pending_local_video = resolved
                 except SourceError as e:
@@ -1311,7 +1499,8 @@ class MainFrame(wx.Frame):
                     resolved = loop.run_until_complete(vp.resolve_source(
                         source, on_progress=download_progress,
                         is_cancelled=lambda: bool(
-                            getattr(self, "_dl_cancelled", False)))
+                            getattr(self, "_dl_cancelled", False)),
+                        out_dir=download_dir)
                     )
                     self._pending_local_video = resolved
                 except SourceError as e:
@@ -2037,8 +2226,13 @@ class MainFrame(wx.Frame):
         """
         self._hb_stop()
         self._processing = False
+        # v1.6.7: the project is created before the download now, so an
+        # abandoned run would otherwise leave an empty one behind. One
+        # that holds a partial download is kept — that is the resume.
+        self._discard_project_if_empty()
         self.btn_preset_open.Enable()
         self.btn_local.Enable()
+        self.btn_play_existing.Enable()
         self.btn_url.Enable()
         self.btn_youtube.Enable()
         if self._dl_cancelled or self._dl_done:

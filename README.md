@@ -11,6 +11,54 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.7
+
+**Interrupted work survives.** A download that dies halfway now carries
+on from where it stopped, and a failed upload no longer throws away the
+expensive part.
+
+- **Downloads resume.** yt-dlp has continued `.part` files by default
+  all along — the app was throwing that away by downloading into a
+  fresh random temp folder every attempt, orphaning the partial where
+  nothing would look for it again. Downloads go to the project's media
+  folder now, so the project is created *before* the download rather
+  than after the AI finishes. Measured on a real interrupted run:
+  stopped at 4,193,280 bytes, restarted, yt-dlp reported
+  `Resuming download at byte 4193280` and finished a valid file. A
+  finished video is left byte-for-byte alone on a re-run, and reopening
+  a project no longer re-downloads at all.
+- **Uploads: the honest answer differs by provider.** Gemini's upload
+  was already resumable. GLM sends the video base64 inside one chat
+  request, and OpenRouter has no resumable upload endpoint — that
+  cannot be fixed from this side, and claiming otherwise would be a
+  lie. What *is* recoverable is the re-encode that precedes it, which
+  used to be deleted in a `finally` block and redone from scratch on
+  every retry. It is kept in the project folder now. Measured on a
+  60-second clip: 16.2s the first time, 0.00s the second — for a
+  ten-minute video that is about 2.7 minutes back per retry.
+- **New button: Play Video with Existing Descriptions.** Pick a video,
+  and if an `.srt`/`.vtt`/`.txt` sits beside it with the same name the
+  app offers it; otherwise you choose one. It plays straight away — no
+  AI pass, no cost, no waiting. The pieces existed before but nothing
+  joined them: importing an SRT made a project with *no video*, so the
+  player opened with descriptions over silence.
+
+**Three faults this work exposed, all found by running rather than
+reading:**
+
+1. Making downloads resumable uncovered a latent bug: the finished file
+   was picked with `sorted(glob("video.*"))[0]`, and `video.f616.mp4`
+   sorts before `video.mp4`. With an intermediate stream left over from
+   an interrupted run, the app would have described a **silent video**
+   while skipping the rest of the download. A fresh temp dir had hidden
+   it, because yt-dlp deletes its own intermediates.
+2. The compression failure paths called `rmtree(out_dir)`. That was a
+   private temp dir before and is the **project's media folder** now —
+   it would have deleted the downloaded video to tidy up after a failed
+   encode.
+3. Staging the encode as `.part` broke ffmpeg outright, which picks its
+   muxer from the file extension.
+
 ## What's new in v1.6.6
 
 **The app speaks through whatever the computer already has.** This
