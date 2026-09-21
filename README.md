@@ -11,6 +11,34 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.2
+
+- **Pausing for narration is now a toggle in the player.** Holding the
+  video while a description is read helps a slide deck and gets in the
+  way of a talking head, so it is a preference rather than a policy —
+  and it sits in the player's control row, not two windows away in
+  Settings. Unticking it stops the very next hold; toggling it announces
+  what playback will now do, because a screen reader says "checked" but
+  not what that means.
+- **Adding a language now costs one file.** Translations moved from two
+  Python dicts in a 782-line module to `locales/<code>.json`, one file
+  per language; `strings.py` is a 130-line loader and the `t()` API did
+  not change. Each file describes itself — the name shown in the picker
+  (in its own language, since NVDA reads it aloud), the language name
+  the AI is told to write in, and a default TTS voice — so the Settings
+  pickers build themselves from whatever files are present.
+  See [doc/menambah-bahasa.md](doc/menambah-bahasa.md).
+- **The seven prompt presets stay in English on purpose.** The engine
+  appends "write every description in <language>", so a new language
+  does not mean translating seven long audio-description prompts.
+- Fixed: the pipeline accepted only `ms` or `en` as a description
+  language and silently discarded anything else, so a new language would
+  have been ignored without warning.
+- A broken locale file is skipped with a logged error instead of
+  stopping the app, and missing keys fall back to English **per key** —
+  a half-finished translation shows English, never raw key names read
+  aloud.
+
 ## What's new in v1.6.1
 
 **The AI can now know what was said, even though it cannot hear.** Probed

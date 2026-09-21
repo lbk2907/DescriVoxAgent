@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 32 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 33 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -62,7 +62,9 @@ src/omni_describer_custom/
 │   ├── player_window.py         — player + subtitle overlay + TTS narrasi
 │   ├── editor_window.py         — edit penerangan per-cue
 │   └── scene_explorer.py        — browse frame + penerangan
-└── i18n/strings.py              — EN + BM strings
+└── i18n/
+    ├── strings.py            — pemuat + API t()
+    └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
 tests/                           — 27 suite; run_gate.bat = semua
 doc/                             — panduan-pengguna.md (BM), README
 build.bat                        — compile → PyInstaller → smoke test → zip (FOREGROUND)
@@ -196,11 +198,11 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.6.1 (tag terakhir `v1.6.0`; rumusan v1.5.4:
+- **Versi:** 1.6.2 (tag terakhir `v1.6.0`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`)
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
-- 32 test suite, semua PASS (test_fixes19 = audit fix regression suite;
+- 33 test suite, semua PASS (test_fixes19 = audit fix regression suite;
   test_fixes20 = ghost progress dialog, dedupe label API, isolasi settings;
   test_fixes21 = SETIAP handler tetingkap utama + editor ditekan sungguh)
 - E2E GUI sebenar (`tools/e2e_gui_phase.py`) PASS dengan GLM sebenar:
