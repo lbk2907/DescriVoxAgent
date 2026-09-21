@@ -1,762 +1,92 @@
 """
 Omni Describer Custom — i18n strings.
 
-Base English strings with Malay (ms) translations.
-Usage: from omni_describer_custom.i18n.strings import t; t("menu.file")
+Translations live in locales/<code>.json, ONE FILE PER LANGUAGE. Adding
+a language means dropping a file in that folder — no code change, no
+compile step, and it appears in the Settings picker by itself.
+
+Each file carries its own metadata under "_meta": the name to show in
+the picker, the language name the AI is told to write in, and a default
+TTS voice. So a language is self-describing.
+
+Why JSON and not gettext (.po/.mo): this app keys strings symbolically
+("menu.file"), while gettext keys them by the English sentence itself —
+using it properly would mean rewriting 700+ call sites. gettext also
+needs a msgfmt compile step in build.bat, and its usual editor (Poedit)
+is a GUI whose screen-reader support we cannot vouch for. Editing JSON
+in a text editor with NVDA is direct and predictable.
+
+Usage is unchanged: from omni_describer_custom.i18n.strings import t
 """
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Base English strings (fallback)
-EN_STRINGS: dict[str, str] = {
-    # Menu
-    "menu.file": "File",
-    "menu.about": "About",
-    "menu.edit": "Edit",
-    "menu.view": "View",
-    "menu.help": "Help",
-    "menu.open_video": "Open Video File...",
-    "menu.open_url": "Open from URL...",
-    "menu.open_youtube": "Open from YouTube...",
-    "menu.settings": "Settings...",
-    "menu.exit": "Exit",
-    "menu.export_txt": "Export as TXT...",
-    "menu.export_srt": "Export as SRT...",
-    "menu.export_vtt": "Export as WebVTT...",
-    "menu.export_audio": "Export as Audio (spoken, synchronized)...",
-    "menu.import_desc": "Import Descriptions from SRT / VTT / text file...",
-    "impexp.dlg_import": "Import Descriptions",
-    "impexp.dlg_export": "Export",
-    "impexp.imported": "Imported {count} descriptions into project: {name}",
-    "impexp.import_failed": "Import failed: {error}",
-    "impexp.invalid_file": "No timed descriptions found in that file.\n\nExpected SRT, WebVTT, or lines like: 0:05 text to speak",
-    "impexp.no_project": "No project is open. Open or create a project first.",
-    "impexp.nothing_to_export": "The current project has no descriptions to export.",
-    "impexp.exported": "Exported {count} descriptions to:\n{path}",
-    "impexp.export_failed": "Export failed: {error}",
-    "impexp.exporting_title": "Exporting audio",
-    "impexp.rendering": "Rendering speech: {done} / {total}",
-    "impexp.audio_done": "Audio file ready:\n{path}\n\nSpoken: {rendered}, skipped: {skipped}",
-    "menu.export_mp3": "Export Audio (MP3)...",
-    "menu.save_project": "Save Project",
-    "menu.open_project": "Open Project...",
-    "menu.new_project": "New Project...",
-    "menu.close_project": "Close Project",
-    "settings.video_mode": "Full-video mode (GLM, Gemini or MiniMax)",
-    "settings.video_mode_hint": "AI watches the whole video once and gives timestamps itself. Ignored for other providers.",
-    "settings.fast_mode": "Fast one-shot mode (GLM): ALL frames in one AI request",
-    "settings.fast_mode_hint": "Frames get the H:MM:SS time burned in, and the AI watches them all at once. Ignored for other providers.",
-    "settings.provider_glm": "OpenRouter",
-    "settings.provider_gemini": "Gemini",
-    "settings.provider_minimax": "MiniMax",
-    "settings.provider_openai": "OpenAI",
-    "settings.provider_custom": "Custom",
-    "settings.fetch_models": "Fetch models",
-    "settings.fetching_models": "Fetching models...",
-    "settings.fetch_models_ok": "OK: {count} video models found.",
-    "settings.fetch_models_none": "No video-capable models found.",
-    "settings.fetch_models_error": "Error: {error}",
-    "settings.video_only_hint": "Only models supporting video input are listed; press Fetch models to refresh from the provider catalog.",
-    "video.fast_mode_enabled_log": "Fast one-shot mode: {count} frames with burned-in timestamps in {batches} AI request(s).",
-    "video.fast_extracting": "Extracting frames with burned-in timestamps...",
-    "video.fast_encoding": "Preparing {count} frames for the AI...",
-    "video.fast_batches": "Sending {count} frame(s) to the AI in {batches} request(s)...",
-    "video.mode_enabled_log": "Full-video mode: uploading the video to the AI provider (no frame extraction).",
-    "video.uploading_progress": "Uploading video to the AI provider: {pct}%",
-    "video.phase_uploading": "Uploading video to the AI provider...",
-    "video.phase_compressing": "Preparing video for upload (compressing)...",
-    "video.phase_splitting": "Splitting long video into parts...",
-    "video.part_of": "Processing part {part} of {total}...",
-    "video.part_progress": "Processing part {part} of {total}, overall {pct}%",
-    "video.split_progress": "Splitting and describing video: {pct}%",
-    "video.chunk_multi": "Long video: it will be split into parts of {chunk}s ({parts} parts).",
-    "video.chunk_single": "Video fits in one part (chunk length {chunk}s).",
-    "settings.chunk_seconds": "Video chunk length for AI analysis (seconds per part):",
-    "video.phase_processing": "The AI is watching the video (processing)...",
-    "video.phase_describing": "The AI is writing descriptions...",
-    "video.parsed_count": "The AI returned {count} timestamped descriptions",
-    "video.mm_file_error": "MiniMax reported an error for the uploaded video: {msg}",
-
-    # Main Window
-    "main.title": "Omni Describer Custom",
-    "main.video_source": "Video Source:",
-    "main.select_file": "Select File...",
-    "main.url": "URL:",
-    "main.provider": "AI Provider:",
-    "main.prompt": "Prompt Preset:",
-    "main.preset_hint": "Prompt preset (pick one, its text appears below for review):",
-    "main.custom_prompt": "Prompt to send (from preset, editable):",
-    "main.no_preset": "Please select a prompt preset.",
-    "status.preset_selected": "Preset selected: {name}",
-    "prompts.default_hint": "This is the default prompt: it describes everything visible in each video frame in detail.",
-    "main.start": "Start Processing",
-    "main.stop": "Stop",
-    "main.status": "Status:",
-    "main.progress": "Progress:",
-    "main.ready": "Ready",
-    "main.processing": "Processing...",
-    "status.complete": "Complete",
-    "status.failed": "Failed",
-
-    # Settings Dialog
-    "settings.title": "Settings",
-    "settings.saved": "Settings saved.",
-    "settings.ai_tab": "AI Settings",
-    "settings.tts_tab": "Audio Output",
-    "settings.general_tab": "General",
-    "settings.provider": "Provider:",
-    "settings.api_key": "API Key:",
-    "settings.api_key_placeholder": "Enter your API key...",
-    "settings.model": "Model:",
-    "settings.custom_model": "Custom Model:",
-    "settings.base_url": "Base URL:",
-    "settings.base_url_placeholder": "https://your-api.example.com/v1",
-    "settings.api_format": "API Format:",
-    "settings.format_auto": "Auto-detect",
-    "settings.format_openai": "OpenAI-compatible",
-    "settings.format_anthropic": "Anthropic Messages",
-    "settings.test_connection": "Test Connection",
-    "settings.testing": "Testing...",
-    "settings.test_ok": "OK: {result}",
-    "settings.test_error": "Error: {error}",
-    "settings.test_no_key": "No API key entered",
-    "settings.test_no_url": "Custom provider needs a Base URL",
-    "settings.enter_model_name": "Please enter a model name.",
-    "settings.tts_engine": "TTS Engine:",
-    "settings.voice": "Voice:",
-    "settings.speed": "Speed:",
-    "settings.frame_rate": "Frame Rate (FPS):",
-    "settings.frame_cap": "Max frames per video (0 = no limit):",
-    "settings.language": "Language:",
-    "settings.desc_language": "Description language (AI answers):",
-    "settings.preserve_resolution": "Keep full resolution for big videos (split instead of shrinking)",
-    "settings.preserve_resolution_hint": "Large videos are normally shrunk to 360p, which makes on-screen text unreadable. Turn this on for slides, tutorials and charts; it costs one extra AI request per part.",
-    "settings.transcription": "Speech-to-text (when the video has no subtitles):",
-    "settings.transcribe_auto": "Automatic (Grok if a key is set, else local Whisper)",
-    "settings.transcribe_whisper": "Local Whisper (free, offline, slower)",
-    "settings.transcribe_grok": "Grok (needs an xAI key, about $0.10 per hour of audio)",
-    "settings.transcribe_off": "Off (describe the picture only)",
-    "settings.transcription_hint": "The AI provider cannot hear the video. A transcript tells it what was said, so it stops repeating what you can already hear.",
-    "settings.xai_key": "xAI API key (for Grok speech-to-text):",
-    "settings.output_dir": "Output Directory:",
-    "settings.browse": "Browse...",
-    "settings.apply": "Apply",
-    "settings.cancel": "Cancel",
-    "settings.ok": "OK",
-
-    # Player Window
-    "player.title": "Described Video Player",
-    "player.load_srt": "Load SRT...",
-    "player.pause_for_narration": "Pause video while a description is read",
-    "player.pause_for_narration_hint": "Holds the video until the description finishes, then carries on. Useful for slides and tutorials, where a long description would otherwise be cut off by the next one.",
-    "player.pause_on": "Video will pause while descriptions are read",
-    "player.pause_off": "Video will keep playing while descriptions are read",
-    "player.current_desc": "Current Description:",
-    "player.upcoming": "Upcoming:",
-    "player.timeline": "Playback position",
-    "player.edit_descriptions": "Edit Descriptions...",
-    "player.ask_more": "Ask More...",
-    "player.explore": "Explore Scene...",
-    "player.export": "Export:",
-    "player.tokens_used": "Tokens used:",
-    "player.play": "Play",
-    "player.pause": "Pause",
-    "player.stop": "Stop",
-    "player.rewind": "Rewind",
-    "player.forward": "Forward",
-
-    # Editor Window
-    "editor.title": "Description Editor",
-    "editor.select_desc": "Select Description:",
-    "editor.start_time": "Start Time:",
-    "editor.end_time": "End Time:",
-    "editor.duration": "Duration:",
-    "editor.text": "Description Text:",
-    "editor.add_new": "Add New...",
-    "editor.delete": "Delete",
-    "editor.close": "Close",
-    "editor.no_descriptions": "No descriptions yet. Process a video first.",
-    "editor.time_validation": "Start time must be before end time.",
-
-    # Scene Explorer
-    "explorer.title": "Scene Explorer",
-    "explorer.analyze": "Analyze Scene",
-    "explorer.description": "Description:",
-    "explorer.objects": "Objects:",
-    "explorer.close": "Close",
-    "explorer.arrow_keys": "Use arrow keys to navigate",
-    "explorer.d_key": "D: Full description",
-    "explorer.l_key": "L: List objects",
-    "explorer.enter_key": "Enter: Describe nearest object",
-    "explorer.esc_key": "Escape: Close",
-
-    # Ask More Dialog
-    "askmore.title": "Ask About This Scene",
-    "askmore.question": "Your Question:",
-    "askmore.seconds": "Seconds around current time:",
-    "askmore.submit": "Submit",
-    "askmore.cancel": "Cancel",
-    "askmore.history": "Conversation History:",
-
-    # Status / Log
-    "status.loading_video": "Loading video...",
-    "status.extracting_frames": "Extracting frames...",
-    "status.analyzing": "Analyzing frames with AI...",
-    "status.analyzing_video": "The AI is analyzing the video...",
-    "status.generating_descriptions": "Generating descriptions...",
-    "status.ready": "Ready",
-    "status.no_provider": "No AI provider configured. Go to Settings.",
-    "status.no_api_key": "API key not set for {provider}. Go to Settings.",
-    "preset.needs_audio": (
-        "This preset conveys what people SAY, but {provider} only sees the "
-        "picture — it cannot hear the video's audio, so speech will be "
-        "missing and the result will look like an ordinary description.\n\n"
-        "Use a provider that processes audio (Gemini) for this preset.\n\n"
-        "Continue anyway with {provider}?"),
-    "status.error": "Error: {error}",
-    "status.frame_of": "Frame {current}/{total}",
-    "status.processing_complete": "Processing complete! {count} descriptions generated.",
-    "process.complete_with_video": "Processing complete! {count} descriptions generated.\n\nVideo saved at:\n{path}",
-    "log.video_saved_at": "Video saved at: {path}",
-    "download.heartbeat": "Working: {phase} ({secs}s)\nCancel is always available.",
-
-    # Download progress dialog
-    "download.dialog_title": "Downloading video",
-    "download.loading_info": "Loading video info...",
-    "download.download_done": "Download complete. Preparing frame extraction...",
-    "download.preparing": "Preparing download...",
-    "download.video": "Video stream",
-    "download.audio": "Audio stream",
-    "download.merging": "Merging video and audio with ffmpeg...",
-    "download.cancelling": "Cancelling download...",
-    "download.cancelled_log": "Download cancelled by user.",
-    "download.extracting": "Extracting frames...",
-    "download.extract_progress": "Extracting frames: {count} frames",
-    "download.analyzing": "AI analysis: {done}/{total} frames",
-    "process.frame_capped": "Frame cap reached: analyzing the first {cap} of {total} frames",
-    "cost.estimate": "Estimated cost for this video: about ${usd} in {parts} AI request(s)",
-    "cost.balance": "Provider balance remaining: ${usd}",
-    "cost.too_low": "WARNING: video requests need at least $1.00 of balance; this run will likely be refused.",
-    "process.transcript_ok": "Transcript found: {count} spoken segments — the AI will know what is said",
-    "process.transcript_none": "No transcript available; the AI will describe the picture only",
-    "video.phase_transcript": "Looking for a transcript of the speech...",
-    "download.cancel_analysis": "Cancelling AI analysis...",
-    "download.saving": "Saving project...",
-    "process.complete_title": "Processing complete",
-    "process.failed_title": "Processing failed",
-    "error.ai_empty": "AI returned no usable descriptions.",
-    "process.no_descriptions": "No descriptions were generated.\n\nThe AI provider returned no usable text. Check your API key and connection in Settings (Test Connection), then try again.\n\nDetails are in the log below.",
-    "project.dialog_title": "Open Project",
-    "project.opened_empty": "Project '{name}' has no descriptions.\n\nRun Start Processing on the video, or import descriptions from the File menu.",
-    "project.remove_btn": "&Remove",
-    "project.remove_confirm": "Delete project '{name}'?\n\nThis permanently removes its database, media folder (video + subtitles) and description list.\n\nThis cannot be undone.",
-    "project.remove_title": "Remove Project",
-    "project.removed_log": "Project removed: {name}",
-    "project.remove_failed": "Could not fully remove project '{name}': {error}",
-    "project.open_btn": "&Open",
-    "project.select_hint": "Select a project:",
-    "project.dedupe_found": "This video already has a project:",
-    "project.dedupe_open": "&Open existing project",
-    "project.dedupe_new": "&Process again as new project",
-    "project.dedupe_title": "Existing project found",
-
-    # Errors
-    "error.no_video": "No video loaded.",
-    "error.no_frames": "No frames extracted.",
-    "error.ai_failed": "AI analysis failed: {error}",
-    "error.tts_failed": "Text-to-speech failed: {error}",
-    "error.save_failed": "Failed to save: {error}",
-    "error.invalid_time": "Invalid time range.",
-
-    # Misc
-    "yes": "Yes",
-    "no": "No",
-    "ok": "OK",
-    "cancel": "Cancel",
-    "close": "Close",
-    "save": "Save",
-    "delete": "Delete",
-    "add": "Add",
-    "edit": "Edit",
-    "name": "Name:",
-    "path": "Path:",
-    "duration": "Duration:",
-    "language": "Language:",
-
-    # --- v1.5.4: main window labels, dialogs, status log ---
-    "main.source_local": "Local Video File",
-    "main.source_url": "Direct Video URL",
-    "main.source_youtube": "YouTube Video URL",
-    "main.btn_open": "Open",
-    "main.status_log": "Status Log",
-    "main.enter_url": "Enter video URL:",
-    "main.enter_youtube": "Enter YouTube video URL:",
-    "main.project_name": "Project name:",
-    "main.new_project": "New Project",
-    "main.no_saved_projects": "No saved projects found.",
-    "main.open_project_title": "Open Project",
-    "main.no_project": "No project open.",
-    "main.log_selected": "Selected: {path}",
-    "main.log_file": "File: {name}",
-    "main.log_url": "URL: {url}",
-    "main.log_youtube": "YouTube: {url}",
-    "main.log_preset": "Preset: {name}",
-    "main.log_project_created": "Project created: {name}",
-    "main.log_opened": "Opened: {name} ({count} descriptions)",
-    "main.log_project_saved": "Project saved",
-    "main.log_project": "Project: {name}",
-    "main.log_frames": "Extracted {count} frames at {fps} FPS",
-    "main.log_no_frames": "ERROR: No frames extracted",
-    "main.log_generated": "Generated {count} descriptions",
-    "main.log_opening_player": "Opening Player Window...",
-    # --- player window statuses (announced to NVDA) ---
-    "player.subtitle_failed": "Subtitle load failed",
-    "player.subtitle_error": "Could not read subtitle file:\n{error}",
-    "player.subtitle_empty": "Subtitle file was empty",
-    "player.subtitle_no_entries": "No subtitle entries found in that file.",
-    "player.subtitles_loaded": "Subtitles loaded: {count}",
-    "player.ended": "Ended",
-    "player.playing": "Playing (VLC)...",
-    "player.playing_audio": "Playing (audio)...",
-    "player.playing_sim": "Playing (simulated)...",
-    "player.paused": "Paused",
-    "player.stopped": "Stopped",
-    "player.speaking": "Speaking...",
-    "player.spoken": "Finished speaking",
-    "player.tts_failed": "TTS failed",
-    "player.tts_error": "TTS error: {error}",
-    "player.no_descriptions": "No descriptions available.",
-    "player.upcoming_end": "(end)",
-    # --- scene explorer ---
-    "scene.frame_info": "Frame {index} / {total}",
-    "scene.loading": "Loading frames...",
-    "scene.error": "Error: {msg}",
-    "scene.no_frames": "Could not extract frames from this video.",
-    "scene.no_video_loaded": "No video loaded. Open a project or process a video first.",
-    "scene.objects_prompt": "List all objects visible in this frame, one per line.",
-    "scene.no_ai": "No AI configured",
-    "scene.analyzing": "Analyzing...",
-    "scene.detecting": "Detecting objects...",
-    # --- ask more dialog ---
-    "ask.you": "You: {question}",
-    "ask.error": "Error: {error}",
-    "ask.empty_question": "Please enter a question.",
-    "ask.ai_none": "AI: (No AI engine configured)\n\n",
-    "ask.ai_prefix": "AI: {result}\n\n",
-    # --- editor window ---
-    "editor.col_start": "Start",
-    "editor.col_end": "End",
-    "editor.col_text": "Text",
-    "editor.read": "Read",
-    "editor.confirm_delete": "Delete this description?",
-    "editor.confirm_title": "Confirm Delete",
-    "editor.deleted": "Description deleted",
-    "editor.empty_text": "No text to read.",
-    # --- settings dialog ---
-    "settings.show": "Show",
-    "settings.hide": "Hide",
-    "settings.select_dir": "Select Output Directory",
-    "settings.model_hint": "e.g. my-model-v1",
-    "settings.lang_en": "English",
-    "settings.lang_ms": "Bahasa Melayu",
-    "settings.lang_system": "System",
-    "settings.engine_edge": "Edge TTS",
-    "settings.engine_sapi5": "SAPI5 (Windows)",
-    "settings.engine_openai": "OpenAI TTS",
-}
+LOCALES_DIR = Path(__file__).parent / "locales"
+FALLBACK_LANG = "en"
 
 
-# Malay translations
-MS_STRINGS: dict[str, str] = {
-    # Menu
-    "menu.file": "Fail",
-    "menu.about": "Perihal",
-    "menu.edit": "Sunting",
-    "menu.view": "Lihat",
-    "menu.help": "Bantuan",
-    "menu.open_video": "Buka Fail Video...",
-    "menu.open_url": "Buka dari URL...",
-    "menu.open_youtube": "Buka dari YouTube...",
-    "menu.settings": "Tetapan...",
-    "menu.exit": "Keluar",
-    "menu.export_txt": "Eksport sebagai TXT...",
-    "menu.export_srt": "Eksport sebagai SRT...",
-    "menu.export_vtt": "Eksport sebagai WebVTT...",
-    "menu.export_audio": "Eksport sebagai Audio (lisan, disegerak)...",
-    "menu.import_desc": "Import Penerangan dari fail SRT / VTT / teks...",
-    "impexp.dlg_import": "Import Penerangan",
-    "impexp.dlg_export": "Eksport",
-    "impexp.imported": "{count} penerangan diimport ke projek: {name}",
-    "impexp.import_failed": "Import gagal: {error}",
-    "impexp.invalid_file": "Tiada penerangan bertambah waktu dalam fail itu.\n\nJangkaan SRT, WebVTT, atau baris seperti: 0:05 teks untuk dilafal",
-    "impexp.no_project": "Tiada projek terbuka. Buka atau cipta projek dahulu.",
-    "impexp.nothing_to_export": "Projek semasa tiada penerangan untuk dieksport.",
-    "impexp.exported": "{count} penerangan dieksport ke:\n{path}",
-    "impexp.export_failed": "Eksport gagal: {error}",
-    "impexp.exporting_title": "Mengeksport audio",
-    "impexp.rendering": "Menjana suara: {done} / {total}",
-    "impexp.audio_done": "Fail audio siap:\n{path}\n\nDilafal: {rendered}, dilangkau: {skipped}",
-    "menu.export_mp3": "Eksport Audio (MP3)...",
-    "menu.save_project": "Simpan Projek",
-    "menu.open_project": "Buka Projek...",
-    "menu.new_project": "Projek Baharu...",
-    "menu.close_project": "Tutup Projek",
-    "settings.video_mode": "Mod video penuh (GLM, Gemini atau MiniMax)",
-    "settings.video_mode_hint": "AI menonton seluruh video sekali dan beri timestamp sendiri. Diabaikan untuk pembekal lain.",
-    "settings.fast_mode": "Mod pantas satu-request (GLM): SEMUA frame dalam satu permintaan AI",
-    "settings.fast_mode_hint": "Masa H:MM:SS dibakar pada setiap frame, dan AI menonton semuanya sekali gus. Diabaikan untuk pembekal lain.",
-    "settings.provider_glm": "OpenRouter",
-    "settings.provider_gemini": "Gemini",
-    "settings.provider_minimax": "MiniMax",
-    "settings.provider_openai": "OpenAI",
-    "settings.provider_custom": "Tersuai",
-    "settings.fetch_models": "Dapatkan model",
-    "settings.fetching_models": "Mendapatkan model...",
-    "settings.fetch_models_ok": "OK: {count} model video dijumpai.",
-    "settings.fetch_models_none": "Tiada model yang menyokong video.",
-    "settings.fetch_models_error": "Ralat: {error}",
-    "settings.video_only_hint": "Hanya model yang menyokong input video disenaraikan; tekan Dapatkan model untuk muat semula dari katalog pembekal.",
-    "video.fast_mode_enabled_log": "Mod pantas satu-request: {count} frame ber-cap masa terbakar dalam {batches} permintaan AI.",
-    "video.fast_extracting": "Mengekstrak frame dengan cap masa terbakar...",
-    "video.fast_encoding": "Menyediakan {count} frame untuk AI...",
-    "video.fast_batches": "Menghantar {count} frame kepada AI dalam {batches} permintaan...",
-    "video.mode_enabled_log": "Mod video penuh: memuat naik video ke penyedia AI (tanpa ekstraksi frame).",
-    "video.uploading_progress": "Memuat naik video ke penyedia AI: {pct}%",
-    "video.phase_uploading": "Memuat naik video ke penyedia AI...",
-    "video.phase_compressing": "Menyediakan video untuk dimuat naik (memampat)...",
-    "video.phase_splitting": "Memecahkan video panjang kepada beberapa bahagian...",
-    "video.part_of": "Memproses bahagian {part} daripada {total}...",
-    "video.part_progress": "Memproses bahagian {part} daripada {total}, keseluruhan {pct}%",
-    "video.split_progress": "Memecah dan menganalisis video: {pct}%",
-    "video.chunk_multi": "Video panjang: ia akan dipecah kepada bahagian {chunk}s ({parts} bahagian).",
-    "video.chunk_single": "Video muat dalam satu bahagian (panjang bahagian {chunk}s).",
-    "settings.chunk_seconds": "Panjang bahagian video untuk analisis AI (saat setiap bahagian):",
-    "video.phase_processing": "AI sedang menonton video (pemprosesan)...",
-    "video.phase_describing": "AI sedang menulis penerangan...",
-    "video.parsed_count": "AI pulangkan {count} penerangan ber-timestamp",
-    "video.mm_file_error": "MiniMax melaporkan ralat bagi video yang dimuat naik: {msg}",
+def _load_locales() -> tuple[dict[str, dict[str, str]], dict[str, dict]]:
+    """Read every locales/*.json. A broken file is skipped, not fatal:
+    one bad translation must never stop the app from starting."""
+    tables: dict[str, dict[str, str]] = {}
+    metas: dict[str, dict] = {}
+    if not LOCALES_DIR.is_dir():
+        logger.error("No locales directory at %s", LOCALES_DIR)
+        return tables, metas
+    for path in sorted(LOCALES_DIR.glob("*.json")):
+        code = path.stem
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error("Locale %s is unreadable, skipping: %s", path.name, e)
+            continue
+        metas[code] = data.pop("_meta", {"code": code, "name": code})
+        tables[code] = {k: v for k, v in data.items() if isinstance(v, str)}
+    logger.info("Locales loaded: %s", ", ".join(sorted(tables)) or "none")
+    return tables, metas
 
-    # Main Window
-    "main.title": "Omni Describer Custom",
-    "main.video_source": "Sumber Video:",
-    "main.select_file": "Pilih Fail...",
-    "main.url": "URL:",
-    "main.provider": "Pembekal AI:",
-    "main.prompt": "Preset Arahan:",
-    "main.preset_hint": "Preset arahan (pilih satu, teksnya muncul di bawah untuk semakan):",
-    "main.custom_prompt": "Arahan untuk dihantar (dari preset, boleh disunting):",
-    "main.no_preset": "Sila pilih preset arahan.",
-    "status.preset_selected": "Preset dipilih: {name}",
-    "prompts.default_hint": "Ini preset lalai: ia menghuraikan semua yang kelihatan dalam setiap frame video secara terperinci.",
-    "main.start": "Mula Pemprosesan",
-    "main.stop": "Henti",
-    "main.status": "Status:",
-    "main.progress": "Kemajuan:",
-    "main.ready": "Sedia",
-    "main.processing": "Memproses...",
-    "status.complete": "Selesai",
-    "status.failed": "Gagal",
 
-    # Settings Dialog
-    "settings.title": "Tetapan",
-    "settings.saved": "Tetapan disimpan.",
-    "settings.ai_tab": "Tetapan AI",
-    "settings.tts_tab": "Output Audio",
-    "settings.general_tab": "Am",
-    "settings.provider": "Pembekal:",
-    "settings.api_key": "Kunci API:",
-    "settings.api_key_placeholder": "Masukkan kunci API anda...",
-    "settings.model": "Model:",
-    "settings.custom_model": "Model Pilihan:",
-    "settings.base_url": "URL Asas:",
-    "settings.base_url_placeholder": "https://api-contoh-anda.example.com/v1",
-    "settings.api_format": "Format API:",
-    "settings.format_auto": "Auto-kesan",
-    "settings.format_openai": "Serasi OpenAI",
-    "settings.format_anthropic": "Pesanan Anthropic",
-    "settings.test_connection": "Uji Sambungan",
-    "settings.testing": "Menguji...",
-    "settings.test_ok": "OK: {result}",
-    "settings.test_error": "Ralat: {error}",
-    "settings.test_no_key": "Tiada kunci API dimasukkan",
-    "settings.test_no_url": "Pembekal custom perlau URL Asas",
-    "settings.enter_model_name": "Sila masukkan nama model.",
-    "settings.tts_engine": "Enjin TTS:",
-    "settings.voice": "Suara:",
-    "settings.speed": "Kelajuan:",
-    "settings.frame_rate": "Kadar Kerangka (FPS):",
-    "settings.frame_cap": "Had Maksimum Frame Setiap Video (0 = tiada had):",
-    "settings.language": "Bahasa:",
-    "settings.desc_language": "Bahasa huraian (jawapan AI):",
-    "settings.preserve_resolution": "Kekalkan resolusi penuh untuk video besar (pecah, bukan kecilkan)",
-    "settings.preserve_resolution_hint": "Video besar biasanya dikecilkan ke 360p, menjadikan teks pada skrin tidak terbaca. Hidupkan untuk slaid, tutorial dan carta; ia menambah satu permintaan AI bagi setiap bahagian.",
-    "settings.transcription": "Tukar pertuturan ke teks (bila video tiada sari kata):",
-    "settings.transcribe_auto": "Automatik (Grok jika ada kunci, jika tidak Whisper tempatan)",
-    "settings.transcribe_whisper": "Whisper tempatan (percuma, luar talian, lebih perlahan)",
-    "settings.transcribe_grok": "Grok (perlu kunci xAI, kira-kira $0.10 sejam audio)",
-    "settings.transcribe_off": "Tutup (huraikan gambar sahaja)",
-    "settings.transcription_hint": "Penyedia AI tidak boleh mendengar video. Transkrip memberitahunya apa yang diperkatakan, supaya ia berhenti mengulang apa yang anda memang dengar.",
-    "settings.xai_key": "Kunci API xAI (untuk Grok tukar pertuturan ke teks):",
-    "settings.output_dir": "Direktori Output:",
-    "settings.browse": "Layarari...",
-    "settings.apply": "Terapkan",
-    "settings.cancel": "Batal",
-    "settings.ok": "OK",
+_TABLES, _METAS = _load_locales()
 
-    # Player Window
-    "player.title": "Pemain Video Berpenerangan",
-    "player.load_srt": "Muat SRT...",
-    "player.pause_for_narration": "Jeda video semasa penerangan dibaca",
-    "player.pause_for_narration_hint": "Menahan video sehingga penerangan habis, kemudian sambung semula. Berguna untuk slaid dan tutorial, di mana penerangan panjang akan dipotong oleh penerangan seterusnya.",
-    "player.pause_on": "Video akan berhenti semasa penerangan dibaca",
-    "player.pause_off": "Video akan terus main semasa penerangan dibaca",
-    "player.current_desc": "Penerangan Semasa:",
-    "player.upcoming": "Akan Datang:",
-    "player.timeline": "Kedudukan main balik",
-    "player.edit_descriptions": "Sunting Penerangan...",
-    "player.ask_more": "Tanya Lagi...",
-    "player.explore": "Jelajah Adegan...",
-    "player.export": "Eksport:",
-    "player.tokens_used": "Token digunakan:",
-    "player.play": "Main",
-    "player.pause": "Jeda",
-    "player.stop": "Henti",
-    "player.rewind": "Undur",
-    "player.forward": "Maju",
-
-    # Editor Window
-    "editor.title": "Penyunting Penerangan",
-    "editor.select_desc": "Pilih Penerangan:",
-    "editor.start_time": "Masa Mula:",
-    "editor.end_time": "Masa Tamat:",
-    "editor.duration": "Tempoh:",
-    "editor.text": "Teks Penerangan:",
-    "editor.add_new": "Tambah Baharu...",
-    "editor.delete": "Padam",
-    "editor.close": "Tutup",
-    "editor.no_descriptions": "Tiada penerangan lagi. Proses video dahulu.",
-    "editor.time_validation": "Masa mula mesti sebelum masa tamat.",
-
-    # Scene Explorer
-    "explorer.title": "Penjelajah Adegan",
-    "explorer.analyze": "Analisis Adegan",
-    "explorer.description": "Penerangan:",
-    "explorer.objects": "Objek:",
-    "explorer.close": "Tutup",
-    "explorer.arrow_keys": "Gunakan anak panah untuk bergerak",
-    "explorer.d_key": "D: Penerangan penuh",
-    "explorer.l_key": "L: Senarai objek",
-    "explorer.enter_key": "Enter: Huraikan objek terdekat",
-    "explorer.esc_key": "Escape: Tutup",
-
-    # Ask More
-    "askmore.title": "Tanya Tentang Adegan Ini",
-    "askmore.question": "Soalan Anda:",
-    "askmore.seconds": "Saiz sekitar masa semasa:",
-    "askmore.submit": "Hantar",
-    "askmore.cancel": "Batal",
-    "askmore.history": "Sejarah Perbualan:",
-
-    # Status
-    "status.loading_video": "Memuatkan video...",
-    "status.extracting_frames": "Mengekstrak kerangka...",
-    "status.analyzing": "Menganalisis kerangka dengan AI...",
-    "status.analyzing_video": "AI sedang menganalisis video...",
-    "status.generating_descriptions": "Menerangkan penerangan...",
-    "status.ready": "Sedia",
-    "status.no_provider": "Tiada pembekal AI. Pergi ke Tetapan.",
-    "status.no_api_key": "Kunci API tidak diset untuk {provider}. Pergi ke Tetapan.",
-    "preset.needs_audio": (
-        "Preset ini menyampaikan apa yang DIPERKATAKAN, tetapi {provider} "
-        "hanya melihat gambar — ia tidak boleh mendengar audio video, jadi "
-        "pertuturan akan tertinggal dan hasilnya nampak seperti penerangan "
-        "biasa sahaja.\n\n"
-        "Guna penyedia yang memproses audio (Gemini) untuk preset ini.\n\n"
-        "Teruskan juga dengan {provider}?"),
-    "status.error": "Ralat: {error}",
-    "status.frame_of": "Kerangka {current}/{total}",
-    "status.processing_complete": "Pemprosesan selesai! {count} penerangan dijana.",
-    "process.complete_with_video": "Pemprosesan selesai! {count} penerangan dijana.\n\nVideo disimpan di:\n{path}",
-    "log.video_saved_at": "Video disimpan di: {path}",
-    "download.heartbeat": "Sedang bekerja: {phase} ({secs}s)\nBatal sentiasa tersedia.",
-
-    # Dialog kemajuan muat turun
-    "download.dialog_title": "Memuat turun video",
-    "download.loading_info": "Memuatkan maklumat video...",
-    "download.download_done": "Muat turun selesai. Bersedia untuk ekstrak frame...",
-    "download.preparing": "Menyediakan muat turun...",
-    "download.video": "Strim video",
-    "download.audio": "Strim audio",
-    "download.merging": "Menggabungkan video dan audio dengan ffmpeg...",
-    "download.cancelling": "Membatalkan muat turun...",
-    "download.cancelled_log": "Muat turun dibatalkan oleh pengguna.",
-    "download.extracting": "Mengekstrak frame...",
-    "download.extract_progress": "Mengekstrak frame: {count} frame",
-    "download.analyzing": "Analisis AI: {done}/{total} frame",
-    "process.frame_capped": "Had frame dicapai: menganalisis {cap} frame pertama daripada {total}",
-    "cost.estimate": "Anggaran kos video ini: kira-kira ${usd} dalam {parts} permintaan AI",
-    "cost.balance": "Baki penyedia: ${usd}",
-    "cost.too_low": "AMARAN: permintaan video perlukan baki sekurang-kurangnya $1.00; larian ini berkemungkinan ditolak.",
-    "process.transcript_ok": "Transkrip dijumpai: {count} segmen pertuturan — AI akan tahu apa yang diperkatakan",
-    "process.transcript_none": "Tiada transkrip; AI akan menghuraikan gambar sahaja",
-    "video.phase_transcript": "Mencari transkrip pertuturan...",
-    "download.cancel_analysis": "Membatalkan analisis AI...",
-    "download.saving": "Menyimpan projek...",
-    "process.complete_title": "Pemprosesan selesai",
-    "process.failed_title": "Pemprosesan gagal",
-    "error.ai_empty": "AI tidak memulangkan sebarang penerangan yang boleh diguna.",
-    "process.no_descriptions": "Tiada penerangan dijana.\n\nPenyedia AI tidak memulangkan teks yang boleh diguna. Semak kunci API dan sambungan dalam Tetapan (Uji Sambungan), kemudian cuba lagi.\n\nButiran ada dalam log di bawah.",
-    "project.dialog_title": "Buka Projek",
-    "project.opened_empty": "Projek '{name}' tiada penerangan.\n\nJalankan Mula Pemprosesan pada video, atau import penerangan dari menu File.",
-    "project.remove_btn": "&Buang",
-    "project.remove_confirm": "Padam projek '{name}'?\n\nIni memadam kekal pangkalan data, folder media (video + sari kata) dan senarai penerangan.\n\nTindakan ini tidak boleh dibatalkan.",
-    "project.remove_title": "Buang Projek",
-    "project.removed_log": "Projek dibuang: {name}",
-    "project.remove_failed": "Tidak dapat memadam projek '{name}' sepenuhnya: {error}",
-    "project.open_btn": "&Buka",
-    "project.select_hint": "Pilih projek:",
-    "project.dedupe_found": "Video ini sudah ada projek:",
-    "project.dedupe_open": "&Buka projek sedia ada",
-    "project.dedupe_new": "&Proses semula sebagai projek baharu",
-    "project.dedupe_title": "Projek sedia ada dijumpai",
-
-    # Errors
-    "error.no_video": "Tiada video dimuatkan.",
-    "error.no_frames": "Tiada kerangkan diekstrak.",
-    "error.ai_failed": "Analisis AI gagal: {error}",
-    "error.tts_failed": "Teks-ke-pertuturan gagal: {error}",
-    "error.save_failed": "Gagal simpan: {error}",
-    "error.invalid_time": "Julat masa tidak sah.",
-
-    # Misc
-    "yes": "Ya",
-    "no": "Tidak",
-    "ok": "OK",
-    "cancel": "Batal",
-    "close": "Tutup",
-    "save": "Simpan",
-    "delete": "Padam",
-    "add": "Tambah",
-    "edit": "Sunting",
-    "name": "Nama:",
-    "path": "Laluan:",
-    "duration": "Tempoh:",
-    "language": "Bahasa:",
-
-    # --- v1.5.4: label tetingkap utama, dialog, log status ---
-    "main.source_local": "Fail Video Tempatan",
-    "main.source_url": "URL Video Terus",
-    "main.source_youtube": "URL Video YouTube",
-    "main.btn_open": "Buka",
-    "main.status_log": "Log Status",
-    "main.enter_url": "Masukkan URL video:",
-    "main.enter_youtube": "Masukkan URL video YouTube:",
-    "main.project_name": "Nama projek:",
-    "main.new_project": "Projek Baharu",
-    "main.no_saved_projects": "Tiada projek tersimpan.",
-    "main.open_project_title": "Buka Projek",
-    "main.no_project": "Tiada projek dibuka.",
-    "main.log_selected": "Dipilih: {path}",
-    "main.log_file": "Fail: {name}",
-    "main.log_url": "URL: {url}",
-    "main.log_youtube": "YouTube: {url}",
-    "main.log_preset": "Preset: {name}",
-    "main.log_project_created": "Projek dicipta: {name}",
-    "main.log_opened": "Dibuka: {name} ({count} penerangan)",
-    "main.log_project_saved": "Projek disimpan",
-    "main.log_project": "Projek: {name}",
-    "main.log_frames": "{count} frame diekstrak pada {fps} FPS",
-    "main.log_no_frames": "RALAT: Tiada frame diekstrak",
-    "main.log_generated": "{count} penerangan dijana",
-    "main.log_opening_player": "Membuka Tetingkap Pemain...",
-    # --- status tetingkap pemain (diumumkan kepada NVDA) ---
-    "player.subtitle_failed": "Gagal memuatkan sari kata",
-    "player.subtitle_error": "Tidak dapat membaca fail sari kata:\n{error}",
-    "player.subtitle_empty": "Fail sari kata kosong",
-    "player.subtitle_no_entries": "Tiada entri sari kata dalam fail itu.",
-    "player.subtitles_loaded": "Sari kata dimuatkan: {count}",
-    "player.ended": "Tamat",
-    "player.playing": "Bermain (VLC)...",
-    "player.playing_audio": "Bermain (audio)...",
-    "player.playing_sim": "Bermain (simulasi)...",
-    "player.paused": "Dijeda",
-    "player.stopped": "Dihentikan",
-    "player.speaking": "Sedang membaca...",
-    "player.spoken": "Selesai membaca",
-    "player.tts_failed": "TTS gagal",
-    "player.tts_error": "Ralat TTS: {error}",
-    "player.no_descriptions": "Tiada penerangan tersedia.",
-    "player.upcoming_end": "(tamat)",
-    # --- pelayar skena ---
-    "scene.frame_info": "Frame {index} / {total}",
-    "scene.loading": "Memuatkan frame...",
-    "scene.error": "Ralat: {msg}",
-    "scene.no_frames": "Tidak dapat mengekstrak frame dari video ini.",
-    "scene.no_video_loaded": "Tiada video dimuatkan. Buka projek atau proses video dahulu.",
-    "scene.objects_prompt": "Senaraikan semua objek yang kelihatan dalam frame ini, satu setiap baris.",
-    "scene.no_ai": "AI tidak dikonfigurasi",
-    "scene.analyzing": "Menganalisis...",
-    "scene.detecting": "Mengesan objek...",
-    # --- dialog tanya lagi ---
-    "ask.you": "Anda: {question}",
-    "ask.error": "Ralat: {error}",
-    "ask.empty_question": "Sila masukkan soalan.",
-    "ask.ai_none": "AI: (Tiada enjin AI dikonfigurasi)\n\n",
-    "ask.ai_prefix": "AI: {result}\n\n",
-    # --- tetingkap editor ---
-    "editor.col_start": "Mula",
-    "editor.col_end": "Tamat",
-    "editor.col_text": "Teks",
-    "editor.read": "Baca",
-    "editor.confirm_delete": "Padam penerangan ini?",
-    "editor.confirm_title": "Sahkan Padam",
-    "editor.deleted": "Penerangan dipadam",
-    "editor.empty_text": "Tiada teks untuk dibaca.",
-    # --- dialog tetapan ---
-    "settings.show": "Tunjuk",
-    "settings.hide": "Sembunyi",
-    "settings.select_dir": "Pilih Direktori Output",
-    "settings.model_hint": "cth. model-saya-v1",
-    "settings.lang_en": "English",
-    "settings.lang_ms": "Bahasa Melayu",
-    "settings.lang_system": "Sistem",
-    "settings.engine_edge": "Edge TTS",
-    "settings.engine_sapi5": "SAPI5 (Windows)",
-    "settings.engine_openai": "OpenAI TTS",
-}
+# Kept as module-level names because the rest of the app and the test
+# suite import them directly.
+EN_STRINGS: dict[str, str] = _TABLES.get("en", {})
+MS_STRINGS: dict[str, str] = _TABLES.get("ms", {})
 
 
 class I18n:
     """Internationalization manager."""
 
-    _translations: dict[str, dict[str, str]] = {
-        "en": EN_STRINGS,
-        "ms": MS_STRINGS,
-    }
-    _current_lang: str = "en"
+    _translations: dict[str, dict[str, str]] = _TABLES
+    _meta: dict[str, dict] = _METAS
+    _current_lang: str = FALLBACK_LANG
 
     @classmethod
     def set_language(cls, lang: str) -> None:
-        """Set current language."""
-        if lang in cls._translations:
-            cls._current_lang = lang
-        else:
-            cls._current_lang = "en"
+        """Set current language, falling back to English if unknown."""
+        cls._current_lang = lang if lang in cls._translations else FALLBACK_LANG
         logger.info("Language set to: %s", cls._current_lang)
 
     @classmethod
+    def current_language(cls) -> str:
+        return cls._current_lang
+
+    @classmethod
     def t(cls, key: str, **kwargs: Any) -> str:
-        """
-        Translate a string key.
-        Usage: t("menu.file") or t("status.error", error="connection failed")
+        """Translate a key.
+
+        Falls back PER KEY to English, so a half-finished translation
+        shows English for the missing lines instead of raw key names.
         """
         strings = cls._translations.get(cls._current_lang, EN_STRINGS)
-        text = strings.get(key, EN_STRINGS.get(key, key))
+        text = strings.get(key) or EN_STRINGS.get(key, key)
         if kwargs:
             try:
                 text = text.format(**kwargs)
@@ -766,13 +96,32 @@ class I18n:
 
     @classmethod
     def add_translation(cls, lang: str, strings: dict[str, str]) -> None:
-        """Add a new language translation."""
+        """Add a translation at runtime (used by tests)."""
         cls._translations[lang] = strings
 
     @classmethod
     def available_languages(cls) -> list[str]:
-        """Return list of available language codes."""
-        return list(cls._translations.keys())
+        """Language codes found in locales/, English first."""
+        codes = sorted(cls._translations.keys())
+        if FALLBACK_LANG in codes:
+            codes.remove(FALLBACK_LANG)
+            codes.insert(0, FALLBACK_LANG)
+        return codes
+
+    @classmethod
+    def language_name(cls, lang: str) -> str:
+        """Name to show in the picker, in that language's own words."""
+        return cls._meta.get(lang, {}).get("name", lang)
+
+    @classmethod
+    def ai_language_name(cls, lang: str) -> str:
+        """What to tell the AI to write in, e.g. "Malay"."""
+        return cls._meta.get(lang, {}).get("ai_language", "")
+
+    @classmethod
+    def default_voice(cls, lang: str, engine: str = "edge") -> str:
+        """Default TTS voice for a language, when the file names one."""
+        return cls._meta.get(lang, {}).get(f"tts_voice_{engine}", "")
 
 
 # Convenience function

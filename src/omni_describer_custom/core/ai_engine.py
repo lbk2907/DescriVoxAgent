@@ -259,10 +259,27 @@ _LANGUAGE_DIRECTIVES = {
 def language_directive(lang: str) -> str:
     """Return the output-language directive for a language code.
 
-    'ms' -> Malay, 'en' -> English, anything else -> no directive
-    (model decides, previous behaviour).
+    v1.6.2: any language with a locale file works, not just the two
+    written out above. This is what makes a new language cheap — the
+    seven audio-description presets stay in English and the model is
+    simply told which language to write in, so adding Indonesian does
+    NOT mean translating seven long prompts.
+
+    An unknown code returns "" (model decides), as before.
     """
-    return _LANGUAGE_DIRECTIVES.get((lang or "").strip().lower(), "")
+    code = (lang or "").strip().lower()
+    if code in _LANGUAGE_DIRECTIVES:
+        return _LANGUAGE_DIRECTIVES[code]
+    try:
+        from ..i18n.strings import I18n
+
+        name = I18n.ai_language_name(code)
+    except Exception:       # i18n is not a hard dependency of the engine
+        name = ""
+    if not name:
+        return ""
+    return (f"\n\nIMPORTANT: Write EVERY description in {name}. "
+            "Do not use any other language.")
 
 
 def apply_output_language(prompt: str, lang: str) -> str:

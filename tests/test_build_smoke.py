@@ -53,6 +53,14 @@ def main() -> None:
              "at runtime with an import error")
     print("SMOKE_WHISPER_OK", flush=True)
 
+    # v1.6.2: translations are data files now, and PyInstaller only
+    # ships data it is told about. Miss them and the app starts in raw
+    # key names ("menu.file") — unusable, and silent until launch.
+    locales = list(INTERNAL.glob("**/locales/*.json"))
+    if len(locales) < 2:
+        fail(f"locale files not bundled: found {len(locales)}")
+    print(f"SMOKE_LOCALES_OK ({len(locales)} languages)", flush=True)
+
     size_before = LOG.stat().st_size if LOG.exists() else 0
 
     proc = subprocess.Popen([str(EXE)], cwd=str(ROOT / "dist" / "OmniDescriber"))

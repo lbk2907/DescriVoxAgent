@@ -21,6 +21,7 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
   --name OmniDescriber ^
   --paths src ^
   --add-data "doc;doc" ^
+  --add-data "src/omni_describer_custom/i18n/locales;omni_describer_custom/i18n/locales" ^
   --collect-submodules omni_describer_custom ^
   --hidden-import pywin32_system32 ^
   --hidden-import win32timezone ^

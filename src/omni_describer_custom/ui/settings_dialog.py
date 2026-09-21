@@ -292,9 +292,12 @@ class SettingsDialog(wx.Dialog):
         self.lang_choice.SetLabel(t("settings.language"))
         # Friendly labels on screen, raw ids stored (NVDA reads
         # "English", not "en").
+        # v1.6.2: built from the locale files present, so a new
+        # language appears here by dropping locales/<code>.json — no
+        # code change. Each file names itself in its own language.
         self._set_choice_labels(self.lang_choice, [
-            ("en", t("settings.lang_en")),
-            ("ms", t("settings.lang_ms")),
+            (code, I18n.language_name(code))
+            for code in I18n.available_languages()
         ])
         # v1.5.2: description output language (AI answers)
         sizer.Add(wx.StaticText(
@@ -305,10 +308,15 @@ class SettingsDialog(wx.Dialog):
         self.desc_lang_choice.SetLabel(t("settings.desc_language"))
         # Friendly labels; "system" follows the UI language. Raw ids
         # ("system"/"ms"/"en") stay for settings storage.
+        # "system" follows the UI language; every installed locale is
+        # also offered, because the language you read the app in is not
+        # always the language you want the descriptions in (sharing an
+        # SRT with someone else, for instance).
         self._set_choice_labels(self.desc_lang_choice, [
             ("system", t("settings.lang_system")),
-            ("ms", t("settings.lang_ms")),
-            ("en", t("settings.lang_en")),
+        ] + [
+            (code, I18n.language_name(code))
+            for code in I18n.available_languages()
         ])
         sizer.Add(self.desc_lang_choice, 0, wx.ALL | wx.EXPAND, 5)
         sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)

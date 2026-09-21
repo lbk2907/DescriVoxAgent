@@ -891,7 +891,12 @@ class MainFrame(wx.Frame):
         # ("ms"/"en"); kosong = ikut bahasa UI.
         desc_lang = str(self.settings.get(
             "general.description_language", "") or "").strip().lower()
-        if desc_lang not in ("ms", "en"):
+        # v1.6.2: was hardcoded to ("ms", "en"), which silently threw
+        # away any other choice and fell back to the UI language. Now
+        # anything with a locale file counts; "system" (or blank) still
+        # means "follow the UI".
+        from ..i18n.strings import I18n
+        if desc_lang not in I18n.available_languages():
             desc_lang = str(self.settings.get(
                 "general.language", "en") or "en").strip().lower()
         self.ai_engine.output_lang = desc_lang
