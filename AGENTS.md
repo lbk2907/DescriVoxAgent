@@ -128,25 +128,37 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    = SATU sumber prompt; `tests/test_fixes22.py` mengunci peraturan ini.
    Preset lama dibuang hanya kalau teksnya masih teks asal kita (edit
    pengguna tidak pernah disentuh).
-14. **GLM TIDAK BOLEH MENDENGAR audio video.** Diprob 20 Sep 2026: diminta
+14. **Model TIDAK mematuhi permintaan penempatan cue — guna mekanisme.**
+   Prompt v1.6.3 minta ia letak penerangan dalam celah antara pertuturan
+   (transkrip ada timestamp). Diukur: diberi transkrip dengan lubang 55
+   saat sengaja, ia letak 9 cue dalam separuh bercakap dan 7 dalam
+   separuh senyap — 56% masih dalam yang bising. Ia memilih tempat
+   sesuatu BERLAKU secara visual, bukan tempat audio lapang.
+   **Jawapan yang boleh diharap = togel jeda pemain**
+   (`player.pause_for_narration`), bukan ayat dalam prompt. Peraturan
+   prompt dikekalkan kerana ia betul dan percuma, bukan kerana ia
+   berkesan. Untuk kandungan padat dialog + aksi laju (contoh: video
+   Ocong, 91% pertuturan), jeda automatik memang cara yang betul —
+   itu kes *extended description* W3C.
+15. **GLM TIDAK BOLEH MENDENGAR audio video.** Diprob 20 Sep 2026: diminta
    transkripkan ayat pertama, ia jawab "NO AUDIO ACCESS". Ia lihat frame
    sahaja. Sebab itu preset `foreign` mustahil tanpa transkrip, dan arahan
    lama "describe visuals AND sounds/speech" memang tidak pernah tercapai.
    Penyelesaian: `VideoProcessor.get_transcript()` (sari kata → sari kata
    terbenam → Grok STT/Whisper) + `build_transcript_block()`.
    `provider_hears_audio()` menyimpan keupayaan ini per-provider.
-15. **Suffix enjin DITAMBAH SELEPAS prompt, jadi apa yang ia kata MENANG.**
+16. **Suffix enjin DITAMBAH SELEPAS prompt, jadi apa yang ia kata MENANG.**
    Ia tidak boleh ada pendapat tentang APA yang dihurai — dua kali ia
    membatalkan preset secara senyap (v1.6.0: "AND sounds/speech", kemudian
    "important VISUALS" yang membunuh `foreign`). Format sahaja di situ.
-16. **`OmniDescriber.spec` DIJANA SEMULA oleh PyInstaller** daripada bendera
+17. **`OmniDescriber.spec` DIJANA SEMULA oleh PyInstaller** daripada bendera
    dalam `build.bat` setiap kali. Mengeditnya sia-sia — tukar `build.bat`.
-17. **Handler = permukaan yang paling kerap terlepas.** Sebelum
+18. **Handler = permukaan yang paling kerap terlepas.** Sebelum
    `tests/test_fixes21.py` (17 Sep 2026) TIADA satu pun handler menu/butang
    tetingkap utama dipanggil oleh mana-mana test — tetingkap diuji, handler
    yang membukanya tidak. Di situlah bug butang Open mati bersembunyi.
    **Tambah handler baharu = tambah check dalam test_fixes21.**
-18. **Test MESTI guna settings terasing.** `run_gate.bat` set
+19. **Test MESTI guna settings terasing.** `run_gate.bat` set
    `ODC_CONFIG_DIR=%TEMP%\odc_gate_config`; `SettingsStore` hormat env var
    itu. Sebelum v1.5.5 gate menulis ke `settings.json` SEBENAR pengguna
    (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
