@@ -923,6 +923,131 @@ def test_saved_preference_is_what_the_player_opens_with():
         _close(f)
 
 
+# ── Reported by the user on the v1.6.3 build ─────────────────────
+
+def test_video_audio_returns_after_a_description():
+    """The player went silent after the first cue and stayed silent.
+
+    _pause_for_narration called _stop_ffplay(), which sets
+    _audio_backend to "none" — and _resume_after_narration then tested
+    that same flag to decide whether to restart. It never matched, so
+    the video audio died half a second after Play and never came back.
+    Narration kept working, which is exactly what the user reported:
+    descriptions read aloud, video silent.
+    """
+    f = _frame()
+    p = None
+    try:
+        p = _player_with_cue(f)
+        p._audio_backend = "ffplay"       # as if ffplay were playing
+        started = []
+        p._start_ffplay = lambda pos: (started.append(pos), True)[1]
+        p._stop_ffplay = lambda: setattr(p, "_audio_backend", "none")
+
+        p._pause_for_narration()
+        assert p._audio_backend == "none", "the hold did not stop the audio"
+        assert p._paused_backend == "ffplay", \
+            "the player forgot what it was playing before the hold"
+
+        p._resume_after_narration()
+        assert started, "audio was never restarted after the description"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_a_silent_video_says_why_in_the_log():
+    """"No sound" had to be diagnosed from scratch because a missing
+    ffplay produced no log line at all."""
+    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(
+        encoding="utf-8")
+    assert "ffplay not found on PATH" in src, \
+        "a missing player is silent about being missing"
+    assert "Audio via ffplay" in src, \
+        "the log never records which audio route started"
+
+
+def test_stop_ffplay_is_defined_once():
+    """It was defined twice; the second shadowed the first."""
+    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(
+        encoding="utf-8")
+    assert src.count("    def _stop_ffplay(self)") == 1, \
+        "duplicate definition is back"
+
+
+def test_progress_dialog_follows_the_real_phase():
+    """The dialog said "Loading video info... (808s)" while the title
+    said "Downloading video - 100%", thirteen minutes into an AI upload.
+
+    _hb_phase was written once, at the start, and never updated; and the
+    phase ticks did not mark themselves as progress, so the heartbeat
+    overwrote the correct line 1.5 seconds later.
+    """
+    import time as _time
+
+    f = _frame()
+    try:
+        f._hb_phase = "Loading video info..."
+        f._hb_start = _time.monotonic() - 800     # an old, stale phase
+
+        f._video_status_tick("uploading")
+        assert f._hb_phase != "Loading video info...", \
+            "the heartbeat still repeats the first phase forever"
+        assert _time.monotonic() - f._hb_start < 5, \
+            "the counter still shows the age of the whole job"
+
+        # A phase tick counts as progress, so the heartbeat stands down.
+        f._last_progress_at = 0.0
+        f._video_upload_tick(42.0)
+        assert _time.monotonic() - f._last_progress_at < 5, \
+            "upload progress does not hold the heartbeat off"
+    finally:
+        _close(f)
+
+
+def test_the_dialog_title_stops_claiming_to_download():
+    """A stand-in dialog, not a real wx.ProgressDialog.
+
+    Building one here segfaulted the suite: its constructor pumps the
+    event loop (AGENTS.md pitfall 8), and the pending events then land
+    on a frame the test is tearing down. The title logic is what matters
+    and it needs no real window.
+    """
+    class FakeDialog:
+        def __init__(self):
+            self.title = "Downloading video - 100%"
+
+        def SetTitle(self, text):
+            self.title = text
+
+        def Pulse(self, *a):
+            pass
+
+        def Update(self, *a):
+            return (True, False)      # (continue, skipped), as wx returns
+
+    f = _frame()
+    try:
+        fake = FakeDialog()
+        f._dl_dialog = fake
+        f._video_status_tick("processing")
+        assert "Downloading" not in fake.title, (
+            "still claims to be downloading during the AI phase: "
+            f"{fake.title!r}")
+        assert fake.title.strip(), "the title went blank"
+
+        f._video_upload_tick(42.0)
+        assert "42%" in fake.title, \
+            f"upload progress is missing from the title: {fake.title!r}"
+    finally:
+        f._dl_dialog = None       # never let the frame destroy the stub
+        _close(f)
+
+
 # ── Scene explorer + Ask More handlers ───────────────────────────
 
 def test_scene_explorer_arrow_keys_stay_in_range():
@@ -1114,6 +1239,15 @@ if __name__ == "__main__":
           test_toggle_is_announced_not_just_checked)
     check("saved preference is what the player opens with",
           test_saved_preference_is_what_the_player_opens_with)
+    check("video audio returns after a description",
+          test_video_audio_returns_after_a_description)
+    check("a silent video says why in the log",
+          test_a_silent_video_says_why_in_the_log)
+    check("_stop_ffplay defined once", test_stop_ffplay_is_defined_once)
+    check("progress dialog follows the real phase",
+          test_progress_dialog_follows_the_real_phase)
+    check("dialog title stops claiming to download",
+          test_the_dialog_title_stops_claiming_to_download)
     check("scene explorer arrow keys clamp",
           test_scene_explorer_arrow_keys_stay_in_range)
     check("ask more cancel closes cleanly",

@@ -51,6 +51,8 @@ class PlayerWindow(wx.Frame):
         # a different thing from the user pressing Pause — see
         # _pause_for_narration.
         self._auto_paused = False
+        # What was playing when the app held the video for a cue.
+        self._paused_backend = "none"
         try:
             from ..core.settings_store import SettingsStore
             self._settings = SettingsStore()
@@ -121,7 +123,14 @@ class PlayerWindow(wx.Frame):
         window disabled, ffmpeg's own controls hidden). Returns success."""
         self._stop_ffplay()
         media = self._audio_path()
-        if not media or not self._ffplay_available():
+        if not media:
+            logger.info("No local media file for this project; the player "
+                        "has descriptions but no video audio")
+            return False
+        if not self._ffplay_available():
+            logger.warning(
+                "ffplay not found on PATH: the video will be silent. "
+                "Install ffmpeg (which provides ffplay) for audio.")
             return False
         try:
             import subprocess
@@ -139,6 +148,7 @@ class PlayerWindow(wx.Frame):
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             self._audio_backend = "ffplay"
+            logger.info("Audio via ffplay from %.1fs: %s", seek_seconds, media)
             return True
         except Exception as e:
             logger.warning("ffplay start failed: %s", e)
@@ -150,17 +160,6 @@ class PlayerWindow(wx.Frame):
 
         Pause in ffplay mode simply kills the process (instant, verifiable
         silence); resume restarts it at the simulated clock position."""
-        if self._audio_proc is not None:
-            try:
-                self._audio_proc.terminate()
-            except Exception:
-                pass
-            self._audio_proc = None
-        if self._audio_backend == "ffplay":
-            self._audio_backend = "none"
-
-    def _stop_ffplay(self) -> None:
-        """Terminate the ffplay audio process, if running."""
         if self._audio_proc is not None:
             try:
                 self._audio_proc.terminate()
@@ -597,6 +596,14 @@ class PlayerWindow(wx.Frame):
         never resume.
         """
         self._auto_paused = True
+        # v1.6.4: remember what was playing BEFORE stopping it.
+        # _stop_ffplay() sets _audio_backend to "none", so the resume
+        # path used to test a flag its own pause had just cleared — the
+        # video audio died at the first description and never came back
+        # for the rest of the session. Narration kept working, which is
+        # why it looked like "the player has no sound but descriptions
+        # are read".
+        self._paused_backend = self._audio_backend
         if self._vlc_available and self._vlc_media is not None:
             try:
                 self._vlc.set_pause(1)
@@ -622,8 +629,14 @@ class PlayerWindow(wx.Frame):
                 self._vlc.set_pause(0)
             except Exception as e:
                 logger.debug("VLC resume after narration failed: %s", e)
-        elif self._audio_backend == "ffplay":
-            self._start_ffplay(self._position)
+        elif self._paused_backend == "ffplay":
+            # What was playing before the hold, not what is playing now:
+            # nothing is, because the hold stopped it.
+            if not self._start_ffplay(self._position):
+                logger.warning(
+                    "Could not restart audio after narration; the video "
+                    "will be silent from here")
+        self._paused_backend = "none"
         self._timer.Start(500)
 
     def _on_play_toggle(self, event):

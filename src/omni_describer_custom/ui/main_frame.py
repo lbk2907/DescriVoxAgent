@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -966,6 +967,26 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_TIMER, self._hb_tick, self._hb_timer)
         self._hb_timer.Start(1000)
 
+    def _hb_set_phase(self, phase: str) -> None:
+        """Tell the heartbeat which phase we are actually in now.
+
+        v1.6.4: this was the missing half. _hb_phase was written once, at
+        the start, with "Loading video info..." — and never again. The
+        dialog then repeated that line for the whole job while the
+        counter climbed: a user waiting 808 seconds was told the app was
+        still loading video info, and the title still read "Downloading
+        video - 100%" from a download that had finished long before.
+
+        Resetting _hb_start too means the seconds shown are the seconds
+        THIS phase has taken, which is the number a waiting user wants —
+        not the age of the whole job.
+        """
+        import time as _time
+        if not phase or phase == self._hb_phase:
+            return
+        self._hb_phase = phase
+        self._hb_start = _time.monotonic()
+
     def _hb_stop(self) -> None:
         if self._hb_timer is not None:
             self._hb_timer.Stop()
@@ -1709,7 +1730,7 @@ class MainFrame(wx.Frame):
         # Real progress is flowing: record the time so the 1s heartbeat
         # tick stands down (it resumes pulsing only in silent phases).
         try:
-            self._last_progress_at = __import__("time").monotonic()
+            self._last_progress_at = time.monotonic()
         except Exception:
             pass
         line = self._format_progress(p)
@@ -1766,6 +1787,26 @@ class MainFrame(wx.Frame):
             dlg.Update(pct, t("download.cancel_analysis"))
             self._close_download_progress()
 
+    def _set_dialog_phase_title(self, phase_line: str, pct: int | None = None) -> None:
+        """Put the CURRENT phase in the dialog title.
+
+        The title is what a screen reader announces when the dialog
+        takes focus, and what Win32 tools can read. It used to be
+        "Downloading video - N%" for every phase of the run, frozen at
+        the download's last percentage — so a user ten minutes into an
+        AI upload was told the download was finished at 100%.
+        """
+        dlg = self._dl_dialog
+        if dlg is None:
+            return
+        text = phase_line.rstrip(". ")
+        if pct is not None:
+            text = f"{text} - {pct}%"
+        try:
+            dlg.SetTitle(text)
+        except Exception:
+            logger.debug("dialog title update failed", exc_info=True)
+
     def _video_status_tick(self, phase: str):
         """Full-video mode: announce the current phase (UI thread).
 
@@ -1782,6 +1823,17 @@ class MainFrame(wx.Frame):
             "describing": "video.phase_describing",
         }
         line = t(phase_keys.get(phase, "video.phase_processing"))
+        # v1.6.4: three things had to change together here.
+        #
+        # The heartbeat now learns the new phase, so its once-a-second
+        # pulse repeats THIS phase instead of "Loading video info..."
+        # forever. Without that, the line below was overwritten 1.5
+        # seconds later and the truth was visible only in that window.
+        self._hb_set_phase(line)
+        # The title carried the word "Downloading" and the download's
+        # final percentage for the whole job. Phases that are not a
+        # download now say so, and drop the stale percentage.
+        self._set_dialog_phase_title(line)
         if dlg is not None:
             dlg.Pulse(line)
         self.SetStatusText(line)
@@ -1794,6 +1846,13 @@ class MainFrame(wx.Frame):
         """
         dlg = self._dl_dialog
         line = t("video.uploading_progress", pct=int(pct))
+        # v1.6.4: real progress is arriving, so the heartbeat must stand
+        # down — otherwise it overwrites this line a second and a half
+        # later with whatever phase it last knew about. Only the
+        # download tick used to record this, which is why every AI phase
+        # was eventually covered over.
+        self._last_progress_at = time.monotonic()
+        self._set_dialog_phase_title(t("video.phase_uploading"), int(pct))
         if dlg is not None:
             dlg.Update(min(99, int(pct)), line)
         self.SetStatusText(line)
