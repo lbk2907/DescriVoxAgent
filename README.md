@@ -11,6 +11,51 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.3
+
+Everything here came from running one real video the user supplied — a
+ten-minute Indonesian clip, 189 MB, no captions. The transcript fallback
+and the standard preset worked first time; three other things did not,
+and all three failed silently.
+
+- **The `foreign` preset returned nothing, twice, with no explanation.**
+  Captured from the API: the model had spent 15,995 of its 16,000
+  completion tokens on internal reasoning, leaving five for the answer.
+  Raising the limit does not help — it simply thinks more — so the
+  budget is now split rather than enlarged. An empty reply is also
+  logged with its finish reason and token breakdown, because "no
+  descriptions" with no reason is the worst possible report for someone
+  who cannot see the screen.
+- **Descriptions came back out of order.** Asked for speech and visuals
+  together, the model answered in two passes — 00:00, 00:04, 00:12,
+  00:30, then back to 00:16 — and both the SRT writer and the player
+  assume time order, so the story arrived shuffled. Now sorted, as the
+  Gemini path already was.
+- **A dropped connection lost the whole job.** Two failures in a row on
+  one 16 MB upload. Three attempts with backoff now, retrying only what
+  is worth retrying: a bad key or an oversized payload fails the same
+  way three times, so those are not retried.
+- **Uploads are about three times smaller.** Measured on that video:
+  3.4 MB for two minutes at 30 fps with audio, against 1.1 MB at 5 fps
+  without — and the leaner file described *better*, still reading the
+  gravestone text. A describing model samples frames rather than
+  watching at 30, and this provider cannot hear audio at all, which
+  since v1.6.1 travels separately as a transcript.
+- **The frame cap no longer throws away the end of the video.** It kept
+  the first N frames, so a cap of 30 on a ten-minute video described the
+  opening two minutes and left the other eight silent. It now samples
+  evenly across the whole thing.
+- **Frame rates above the source are clamped.** Asking 60 fps of a 30 fps
+  video made ffmpeg duplicate frames: 7,200 files and 208 MB of JPEGs
+  against 3,600 and 104 MB, with the scene dedup keeping exactly the
+  same 85 frames either way.
+- Presets now ask for descriptions to be placed in the gaps between
+  speech. Measured honestly, the model obeys this only weakly — given a
+  transcript with a deliberate silent half it still chose the talky half
+  56% of the time — so for dialogue-heavy content the reliable answer
+  remains the player's pause-for-narration toggle, which holds the video
+  whatever moment the model picked.
+
 ## What's new in v1.6.2
 
 - **Pausing for narration is now a toggle in the player.** Holding the
