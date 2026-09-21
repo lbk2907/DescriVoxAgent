@@ -1475,7 +1475,15 @@ class MainFrame(wx.Frame):
             cap = int(self.settings.get("general.frame_cap", 0) or 0)
             total_extracted = len(frames)
             if cap > 0 and total_extracted > cap:
-                frames = frames[:cap]
+                # v1.6.3: sample EVENLY across the video. This used to be
+                # frames[:cap], which kept the first N and dropped the
+                # rest — so a cap of 30 on a ten-minute video described
+                # the opening two minutes and left the other eight
+                # silent. A listener has no way to tell that from a film
+                # that simply stopped having anything to describe.
+                step = total_extracted / float(cap)
+                frames = [frames[min(total_extracted - 1, int(i * step))]
+                          for i in range(cap)]
                 wx.CallAfter(self._log, t("process.frame_capped", cap=cap, total=total_extracted))
 
             if not frames:

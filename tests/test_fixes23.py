@@ -656,6 +656,33 @@ def test_audio_is_only_stripped_for_the_provider_that_cannot_hear():
             "be able to hear the video")
 
 
+def test_frame_cap_samples_the_whole_video():
+    """The cap used to be frames[:cap] — the first N, rest discarded.
+
+    A cap of 30 on a ten-minute video therefore described the opening
+    two minutes and left the other eight silent, which a listener
+    cannot tell apart from a film that simply stopped having anything
+    worth describing.
+    """
+    src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
+        encoding="utf-8")
+    assert "frames = frames[:cap]" not in src, \
+        "the cap truncates again; the end of every long video is lost"
+    assert "step = total_extracted / float(cap)" in src, \
+        "the cap no longer samples evenly"
+
+    # The arithmetic itself: full span, no repeats, no overrun.
+    for total, cap in ((215, 30), (68, 30), (1000, 25), (31, 30)):
+        step = total / float(cap)
+        picked = [min(total - 1, int(i * step)) for i in range(cap)]
+        assert len(set(picked)) == cap, f"{total}->{cap}: repeated frames"
+        assert picked[0] == 0, "sampling skips the opening"
+        assert picked[-1] >= (total - 1) * 0.9, (
+            f"{total}->{cap}: last sample at {picked[-1]}, so the ending "
+            "is still being dropped")
+        assert max(picked) < total, "index past the end of the list"
+
+
 def test_foreign_preset_asks_for_one_merged_list():
     from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
 
@@ -730,6 +757,8 @@ if __name__ == "__main__":
           test_upload_encoding_drops_what_the_model_cannot_use)
     check("audio stripped only for the deaf provider",
           test_audio_is_only_stripped_for_the_provider_that_cannot_hear)
+    check("frame cap samples the whole video",
+          test_frame_cap_samples_the_whole_video)
     check("foreign preset asks for one merged list",
           test_foreign_preset_asks_for_one_merged_list)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
