@@ -1052,7 +1052,11 @@ class MainFrame(wx.Frame):
                 return
             if choice == wx.ID_CANCEL:
                 return
-            # ID_NO: fall through and process again as a new project
+            # ID_NO: fall through and process again as a new project.
+            # Forget which source the open project belongs to, so
+            # _ensure_project_for cannot decide to reuse it — the user
+            # just said they wanted a separate one.
+            self._project_source = ""
 
         self._processing = True
         self._dl_cancelled = False
@@ -1161,7 +1165,20 @@ class MainFrame(wx.Frame):
         """
         try:
             current = self.project_store.current
-            if current is None:
+            # Reuse ONLY a project this frame opened for THIS source.
+            # "current" alone is not enough: it survives from the last
+            # job, so describing video B straight after video A would
+            # have downloaded B into A's folder and overwritten A's
+            # descriptions. Verified before fixing — asking for B while
+            # A was current returned A's media directory.
+            # Two ways a project is known to belong to this source:
+            # this frame opened it for that source, or the project
+            # still records the source as its video_path (true until
+            # persist_video_file replaces it with the local copy).
+            owns_it = current is not None and (
+                getattr(self, "_project_source", "") == source
+                or (current.video_path or "") == source)
+            if not owns_it:
                 name = (self._project_display_name(source)
                         if not Path(source).exists() else Path(source).stem)
                 self.project_store.create_project(name, source)
@@ -1169,6 +1186,7 @@ class MainFrame(wx.Frame):
                 self._project_created_by_run = True
             if current is None:
                 return ""
+            self._project_source = source
             return str(self.project_store.media_dir(current.id))
         except Exception as e:
             logger.warning("Could not prepare a project for %s (%s); the "

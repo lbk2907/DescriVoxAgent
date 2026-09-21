@@ -151,13 +151,131 @@ def test_the_pipeline_creates_the_project_before_downloading():
         "not every download path was given the project folder")
 
 
+def _frame_with_store():
+    """A MainFrame whose projects live in a throwaway directory."""
+    from omni_describer_custom.core.project_store import ProjectStore
+    from omni_describer_custom.ui.main_frame import MainFrame
+    frame = MainFrame()
+    frame.project_store = ProjectStore(projects_dir=str(_tmp()))
+    return frame
+
+
+def _close(frame):
+    app = wx.GetApp()
+    for _ in range(6):
+        app.ProcessPendingEvents()
+        app.Yield()
+    try:
+        frame.Destroy()
+    except Exception:
+        pass
+    for _ in range(4):
+        app.ProcessPendingEvents()
+        app.Yield()
+
+
 def test_a_project_holding_a_partial_download_is_kept():
-    """Tidying up must not delete the thing being resumed."""
+    """Tidying up must not delete the thing being resumed.
+
+    Run, not read: an earlier version of this test only grepped for
+    iterdir() in the source, which proves nothing about behaviour.
+    """
+    frame = _frame_with_store()
+    try:
+        media = Path(frame._ensure_project_for(
+            "https://example.com/watch?v=abc"))
+        project_id = frame.project_store.current.id
+        assert media.is_dir(), media
+        # A download died halfway and left its partial behind.
+        (media / "video.f616.mp4.part").write_bytes(b"x" * 4096)
+
+        frame._discard_project_if_empty()
+        assert frame.project_store.current is not None, (
+            "the project was deleted along with the partial download "
+            "that was supposed to be resumed")
+        assert frame.project_store.current.id == project_id
+        assert (media / "video.f616.mp4.part").exists()
+    finally:
+        _close(frame)
+
+
+def test_a_project_with_nothing_in_it_is_discarded():
+    """Creating the project up front must not litter the list."""
+    frame = _frame_with_store()
+    try:
+        media = Path(frame._ensure_project_for(
+            "https://example.com/watch?v=xyz"))
+        assert media.is_dir()
+        assert not any(media.iterdir()), "expected an empty media folder"
+        frame._discard_project_if_empty()
+        assert frame.project_store.current is None, (
+            "an abandoned run left an empty project behind")
+    finally:
+        _close(frame)
+
+
+def test_a_different_video_never_lands_in_the_last_project():
+    """The stale-current bug, caught before shipping.
+
+    project_store.current survives the previous job, so describing
+    video B straight after video A reused A: B's download would have
+    gone into A's media folder and B's descriptions would have
+    overwritten A's. Measured before the fix — asking for B while A was
+    current returned A's directory.
+    """
+    frame = _frame_with_store()
+    try:
+        a_dir = frame._ensure_project_for("https://example.com/A")
+        a_id = frame.project_store.current.id
+        b_dir = frame._ensure_project_for("https://example.com/B")
+        b_id = frame.project_store.current.id
+        assert a_id != b_id, (
+            "a second video reused the first video's project")
+        assert a_dir != b_dir, (
+            f"both videos download into the same folder: {a_dir}")
+    finally:
+        _close(frame)
+
+
+def test_asking_for_the_same_source_twice_reuses_the_project():
+    """Otherwise every retry makes a new project and resumes nothing."""
+    frame = _frame_with_store()
+    try:
+        first = frame._ensure_project_for("https://example.com/same")
+        project_id = frame.project_store.current.id
+        second = frame._ensure_project_for("https://example.com/same")
+        assert first == second, (first, second)
+        assert frame.project_store.current.id == project_id
+    finally:
+        _close(frame)
+
+
+def test_choosing_a_new_project_is_honoured():
+    """"Describe it again as a new project" must not reuse the old one."""
     text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
-    body = text.split("def _discard_project_if_empty")[1][:1200]
-    assert "iterdir()" in body, (
-        "the cleanup does not look at whether a partial download is "
-        "there, so cancelling would delete it")
+    after_no = text.split("# ID_NO: fall through")[1][:400]
+    assert '_project_source = ""' in after_no, (
+        "answering 'new project' to the duplicate prompt would still "
+        "download into the existing project's folder")
+
+
+def test_an_existing_project_is_reused_not_replaced():
+    """Re-describing a project must resume ITS download, not start one."""
+    frame = _frame_with_store()
+    try:
+        frame.project_store.create_project("already here", "the-source")
+        existing_id = frame.project_store.current.id
+        media = Path(frame._ensure_project_for("the-source"))
+        assert frame.project_store.current.id == existing_id, (
+            "a second project was created for a source that already had "
+            "one, so its partial download would be ignored")
+        assert media == frame.project_store.media_dir(existing_id)
+        # Nothing this run created, so nothing this run may delete.
+        frame._discard_project_if_empty()
+        assert frame.project_store.current is not None, (
+            "the user's existing project was deleted by the tidy-up")
+    finally:
+        _close(frame)
 
 
 # ── The compressed upload copy ───────────────────────────────────
@@ -357,6 +475,16 @@ if __name__ == "__main__":
           test_the_pipeline_creates_the_project_before_downloading)
     check("a project holding a partial is kept",
           test_a_project_holding_a_partial_download_is_kept)
+    check("an empty project is discarded",
+          test_a_project_with_nothing_in_it_is_discarded)
+    check("a different video never lands in the last project",
+          test_a_different_video_never_lands_in_the_last_project)
+    check("the same source twice reuses the project",
+          test_asking_for_the_same_source_twice_reuses_the_project)
+    check("choosing a new project is honoured",
+          test_choosing_a_new_project_is_honoured)
+    check("an existing project is reused, not replaced",
+          test_an_existing_project_is_reused_not_replaced)
     check("the cache name follows the encode settings",
           test_the_cache_name_follows_the_encode_settings)
     check("a changed source gets a new cache name",
