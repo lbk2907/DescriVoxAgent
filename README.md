@@ -11,6 +11,36 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.4
+
+Two faults found by using the v1.6.3 build, both of which made the app
+lie to the person using it.
+
+- **The video had no sound while descriptions were read.** This was a
+  regression in the v1.6.1 narration hold: pausing for a description
+  stopped the audio *and* cleared the flag that the resume then checked,
+  so the sound died about half a second after Play and never came back.
+  Narration carried on working, which is why it looked like a player
+  with no audio rather than a broken pause. The player now remembers
+  what was playing before the hold and restores it. Manual Pause and
+  Play were never affected, which is why this hid for a version.
+- **The progress dialog reported a phase that had finished minutes
+  earlier.** It read "Downloading video - 100%" in the title and
+  "Working: Loading video info... (808s)" in the body, thirteen minutes
+  into an AI upload. The phase text was written once at startup and
+  never updated, the counter measured the age of the whole job rather
+  than the current phase, and the correct line — which was being written
+  — got overwritten a second and a half later by the stale one. All
+  three are fixed: the title follows the phase, the counter is per
+  phase, and a phase update counts as progress.
+- The player now logs which audio route it started, and says plainly
+  when ffplay is missing from PATH. "No sound" should never again need
+  diagnosing from scratch.
+
+Note for anyone else running this: the package deliberately ships no
+ffmpeg, ffplay, yt-dlp or VLC. They must be installed separately, and
+without ffplay the player will have descriptions but no video audio.
+
 ## What's new in v1.6.3
 
 Everything here came from running one real video the user supplied — a
