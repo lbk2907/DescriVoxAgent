@@ -193,10 +193,13 @@ def build_transcript_block(segments, start: float = 0.0,
     lines = "\n".join(f"[{int(t) // 60:02d}:{int(t) % 60:02d}] {txt}"
                       for t, txt in picked)
     return (
-        "\n\nWHAT IS SAID IN THIS VIDEO (already audible to the "
-        "listener — use it to understand what is happening and to avoid "
-        "repeating information they already have; do NOT narrate these "
-        "lines back unless the prompt above asks you to convey speech):\n"
+        "\n\nWHAT IS SAID IN THIS VIDEO, WITH THE TIMES IT IS SAID "
+        "(already audible to the listener). Use it three ways: to "
+        "understand what is happening; to avoid repeating information "
+        "they already have; and to CHOOSE YOUR MOMENTS — put your "
+        "descriptions in the gaps between these lines rather than over "
+        "them. Do NOT narrate these lines back unless the prompt above "
+        "asks you to convey speech:\n"
         f"{lines}\n"
     )
 

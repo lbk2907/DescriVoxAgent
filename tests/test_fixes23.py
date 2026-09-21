@@ -67,9 +67,10 @@ def test_block_carries_the_words_and_the_rule():
                                          (5.3, 8.0, "long trunks")))
     assert "here we are" in block and "long trunks" in block
     assert "already audible" in block, "no reason given for the transcript"
-    assert "do NOT narrate these lines back" in block, (
-        "without this the model reads the dialogue out, which is exactly "
-        "what every AD standard forbids")
+    # Case-insensitive: the rule may start a sentence. What matters is
+    # that it is there at all — without it the model reads the dialogue
+    # out, which is exactly what every AD standard forbids.
+    assert "not narrate these lines back" in block.lower(), block[:200]
 
 
 def test_block_is_limited_to_the_part_window():
@@ -683,6 +684,38 @@ def test_frame_cap_samples_the_whole_video():
         assert max(picked) < total, "index past the end of the list"
 
 
+def test_descriptions_are_asked_to_avoid_speech():
+    """The transcript carries timestamps, and until v1.6.3 nothing asked
+    the model to use them for PLACEMENT.
+
+    Measured on a real video: 14 of 15 descriptions started on top of a
+    line of dialogue. Narration over speech costs the listener both. The
+    transcript was already being sent; the two halves were simply never
+    connected.
+    """
+    from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
+
+    for name, text in DEFAULT_PROMPTS.items():
+        marker = ("TIADA ORANG BERCAKAP" if name.startswith("ms_")
+                  else "NO ONE IS SPEAKING")
+        assert marker in text, f"{name}: no rule about where to place cues"
+
+    block = build_transcript_block(_segs((1.0, 2.0, "hello")))
+    assert "CHOOSE YOUR MOMENTS" in block, \
+        "the transcript no longer offers its timings for placement"
+    assert "gaps between these lines" in block
+
+
+def test_the_no_gap_case_is_answered_too():
+    """A 91%-speech video has almost no gaps; the rule must say what to
+    do then, or the model is left guessing."""
+    from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
+
+    assert "no gap" in DEFAULT_PROMPTS["default"], \
+        "nothing tells the model what to do when the talking never stops"
+    assert "tanpa celah" in DEFAULT_PROMPTS["ms_default"]
+
+
 def test_frame_rate_is_clamped_to_the_source():
     """Asking for more frames than the video contains makes ffmpeg
     DUPLICATE them.
@@ -782,6 +815,10 @@ if __name__ == "__main__":
           test_audio_is_only_stripped_for_the_provider_that_cannot_hear)
     check("frame cap samples the whole video",
           test_frame_cap_samples_the_whole_video)
+    check("descriptions asked to avoid speech",
+          test_descriptions_are_asked_to_avoid_speech)
+    check("the no-gap case is answered too",
+          test_the_no_gap_case_is_answered_too)
     check("frame rate clamped to the source",
           test_frame_rate_is_clamped_to_the_source)
     check("unreadable source fps leaves the setting alone",
