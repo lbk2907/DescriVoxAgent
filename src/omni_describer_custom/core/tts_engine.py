@@ -284,6 +284,12 @@ class OpenAITTSEngine(TTSEngineBase):
         ]
 
 
+# Engines that synthesise to a file the app plays itself, and so know
+# when a description has finished being spoken. The player's automatic
+# pause depends on that: see TTSEngine.supports_narration_hold.
+HOLD_CAPABLE_ENGINES = frozenset({"edge", "sapi5", "openai"})
+
+
 class TTSEngine:
     """
     High-level TTS engine with fallback chain.
@@ -341,6 +347,22 @@ class TTSEngine:
                 loop.close()
         return self._engines[engine_name].get_voices()
 
+    def supports_narration_hold(self, engine: str = "") -> bool:
+        """Can the player pause the video for the whole of a description?
+
+        Only for engines that render speech to a file we then play to
+        completion — there, speak_and_play returns when the sentence has
+        actually finished, so the video can resume at the right moment.
+
+        An engine that hands text to a screen reader cannot answer that:
+        it returns as soon as the text is queued, which would resume the
+        video over the top of its own narration. Those engines get no
+        automatic hold, and the player says so rather than offering a
+        checkbox that does nothing.
+        """
+        name = engine or self._current_engine
+        return name in HOLD_CAPABLE_ENGINES
+
     def set_engine(self, name: str) -> bool:
         """Switch to a specific TTS engine. Returns True if successful."""
         if name not in self._engines or not self._engines[name].available:
@@ -386,7 +408,8 @@ class TTSEngine:
             except Exception as e:
                 logger.warning("MCI playback failed: %s", e)
 
-        for player in ("ffplay",):
+        from .tools import find_tool
+        for player in (find_tool("ffplay"),):
             try:
                 subprocess.run(
                     [player, "-nodisp", "-autoexit", "-loglevel", "quiet", path],

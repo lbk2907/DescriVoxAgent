@@ -10,7 +10,7 @@ set ODC_CONFIG_DIR=%TEMP%\odc_gate_config
 
 %PY% -m compileall -q src main.py >nul 2>&1 && (echo COMPILEALL_PASS) || (echo COMPILEALL_FAIL & set FAIL=1)
 
-for %%T in (run_checks test_minimal_repro test_fixes test_fixes2 test_fixes3 test_fixes4 test_fixes5 test_fixes6 test_fixes7 test_fixes8 test_fixes9 test_fixes10 test_fixes11 test_fixes12 test_fixes13 test_fixes14 test_fixes15 test_fixes16 test_fixes17 test_fixes18 test_fixes19 test_fixes20 test_fixes21 test_fixes22 test_fixes23 test_fixes24 test_chunked_video test_v130_player_srt test_acceptance test_gui_smoke test_timeline_io test_packaging_content test_pipeline) do (
+for %%T in (run_checks test_minimal_repro test_fixes test_fixes2 test_fixes3 test_fixes4 test_fixes5 test_fixes6 test_fixes7 test_fixes8 test_fixes9 test_fixes10 test_fixes11 test_fixes12 test_fixes13 test_fixes14 test_fixes15 test_fixes16 test_fixes17 test_fixes18 test_fixes19 test_fixes20 test_fixes21 test_fixes22 test_fixes23 test_fixes24 test_fixes25 test_chunked_video test_v130_player_srt test_acceptance test_gui_smoke test_timeline_io test_packaging_content test_pipeline) do (
   %PY% -u tests\%%T.py > "%TEMP%\gate_%%T.txt" 2>&1 && (echo %%T: PASS) || (echo %%T: FAIL & type "%TEMP%\gate_%%T.txt" & set FAIL=1)
 )
 

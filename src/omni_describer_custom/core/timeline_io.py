@@ -192,14 +192,17 @@ def to_vtt(descriptions: list[Description]) -> str:
 # ── Audio export ─────────────────────────────────────────────────
 
 def _ffmpeg() -> str:
-    exe = shutil.which("ffmpeg")
-    if not exe:
-        raise RuntimeError("ffmpeg not found on PATH; audio export requires ffmpeg")
-    return exe
+    from .tools import find_tool, tool_available
+    if not tool_available("ffmpeg"):
+        raise RuntimeError(
+            "ffmpeg not found — neither bundled with this app nor on "
+            "PATH; audio export requires ffmpeg")
+    return find_tool("ffmpeg")
 
 
 def _ffprobe_duration(path: str | Path) -> float:
-    exe = shutil.which("ffprobe") or "ffprobe"
+    from .tools import find_tool
+    exe = find_tool("ffprobe")
     try:
         out = subprocess.run(
             [exe, "-v", "error", "-show_entries", "format=duration",

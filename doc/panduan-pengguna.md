@@ -18,9 +18,12 @@ Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
    diperlukan; dokumen panduan ini turut dibundel dalam folder `doc`.
-3. Untuk main balik video tempatan, tiada keperluan tambahan. Untuk
-   pautan YouTube, pasang `yt-dlp` dan pastikan ia boleh dijumpai
-   melalui PATH.
+3. Mulai v1.6.5, tiada pemasangan lain diperlukan langsung. ffmpeg,
+   ffprobe, ffplay dan yt-dlp dibundel di dalam folder `_internal\bin`
+   aplikasi. Jangan padam folder itu — tanpanya muat turun YouTube,
+   pengekstrakan bingkai dan bunyi video semuanya berhenti berfungsi.
+   Kalau salah satunya hilang (contohnya dibuang antivirus), aplikasi
+   akan memberitahu anda semasa ia dibuka, bukan gagal senyap kemudian.
 
 Versi pembangun (skrip Python) masih boleh dimulakan dengan `run.bat`
 seperti di bawah.
@@ -101,7 +104,7 @@ Menu File kini ada empat fungsi timeline:
   (atau WAV) yang menyebut setiap penerangan dengan suara TTS anda
   pada masa yang betul. Fail ini boleh didengar bersebelahan video
   menggunakan mana-mana pemain media, tanpa perlu aplikasi ini.
-  Memerlukan ffmpeg pada PATH. Kemajuan ditunjukkan semasa jana;
+  Menggunakan ffmpeg yang dibundel. Kemajuan ditunjukkan semasa jana;
   suara, kelajuan, dan enjin mengikut tetapan TTS anda.
 
 Kegunaan biasa "describe by time": terima fail SRT penerangan yang

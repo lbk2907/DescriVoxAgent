@@ -59,6 +59,28 @@ def main():
             sys.path.insert(0, src_dir)
 
     try:
+        # v1.6.5: ffmpeg and friends ship with the app now, but a
+        # corrupted unzip or an antivirus quarantine can still remove
+        # them. Say so once, plainly, instead of letting each feature
+        # fail separately later with its own obscure error.
+        from omni_describer_custom.core.tools import (
+            log_tool_status, missing_tools)
+        log_tool_status()
+        absent = missing_tools()
+        if absent:
+            detail = "\n".join(f"• {name} — needed for {why}"
+                               for name, why in absent)
+            logger.error("Missing external tools:\n%s", detail)
+            wx.MessageBox(
+                "Some programs this app needs are missing:\n\n"
+                f"{detail}\n\n"
+                "They normally ship inside the app's own bin folder. If "
+                "that folder is empty, the download or unzip did not "
+                "finish, or antivirus removed the files. Re-extract the "
+                "app, or install ffmpeg and yt-dlp yourself.\n\n"
+                "The app will still start, but these features will fail.",
+                "Omni Describer Custom", wx.OK | wx.ICON_WARNING)
+
         from omni_describer_custom.ui.main_frame import MainFrame
         frame = MainFrame()
         frame.Show(True)

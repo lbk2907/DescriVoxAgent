@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from .tools import find_tool
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,42 +132,24 @@ class VideoProcessor:
         return text[:80].rstrip(" .") or fallback
 
     def _ffprobe_path(self) -> str:
-        """ffprobe next to ffmpeg when possible, else PATH."""
+        """ffprobe from the same place ffmpeg came from, else PATH.
+
+        Keeping the pair together matters: a bundled ffmpeg with a
+        system ffprobe can disagree about what a file contains.
+        """
         if self.ffmpeg.lower().endswith("ffmpeg.exe"):
             candidate = Path(self.ffmpeg).with_name("ffprobe.exe")
             if candidate.exists():
                 return str(candidate)
-        return "ffprobe"
+        return find_tool("ffprobe")
 
     def _find_ffmpeg(self) -> str:
-        """Find ffmpeg in bundled bin or PATH."""
-        candidates = [
-            Path(__file__).parent.parent.parent / "bin" / "ffmpeg.exe",
-            Path(__file__).parent.parent / "bin" / "ffmpeg.exe",
-            Path.cwd() / "bin" / "ffmpeg.exe",
-        ]
-        for c in candidates:
-            if c.exists():
-                return str(c)
-        # Try PATH
-        try:
-            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-            return "ffmpeg"
-        except Exception:
-            pass
-        return "ffmpeg"  # Hope for the best
+        """Find ffmpeg — bundled copy first, then PATH."""
+        return find_tool("ffmpeg")
 
     def _find_ytdlp(self) -> str:
-        """Find yt-dlp."""
-        candidates = [
-            Path(__file__).parent.parent.parent / "bin" / "yt-dlp.exe",
-            Path(__file__).parent.parent / "bin" / "yt-dlp.exe",
-            Path.cwd() / "bin" / "yt-dlp.exe",
-        ]
-        for c in candidates:
-            if c.exists():
-                return str(c)
-        return "yt-dlp"
+        """Find yt-dlp — bundled copy first, then PATH."""
+        return find_tool("yt-dlp")
 
     async def _probe_url(
             self, url: str,
@@ -376,9 +360,15 @@ class VideoProcessor:
             "-o", out_tmpl,
             "--no-playlist",
             "--newline",  # one progress line per update, parseable
-            "--",
-            url,
         ]
+        # v1.6.5: this format spec downloads video and audio separately
+        # and merges them WITH FFMPEG, which yt-dlp looks for on PATH by
+        # itself. Bundling ffmpeg is not enough — yt-dlp has to be told
+        # where it is, or the download fails at the merge on any machine
+        # without a system install.
+        if Path(self.ffmpeg).is_absolute():
+            args += ["--ffmpeg-location", str(Path(self.ffmpeg).parent)]
+        args += ["--", url]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args,

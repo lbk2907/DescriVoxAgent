@@ -114,9 +114,14 @@ class PlayerWindow(wx.Frame):
         return p if __import__("os").path.exists(p) else ""
 
     def _ffplay_available(self) -> bool:
-        """True if ffplay (bundled with ffmpeg) can be found."""
-        import shutil
-        return bool(shutil.which("ffplay"))
+        """True if ffplay can be found — bundled copy or PATH.
+
+        v1.6.5: this used to ask shutil.which alone, so the packaged app
+        was silent on any machine without a system ffmpeg even though
+        ffplay now ships beside it.
+        """
+        from ..core.tools import tool_available
+        return tool_available("ffplay")
 
     def _start_ffplay(self, seek_seconds: float) -> bool:
         """Start ffplay on the project's local media file (audio with video
@@ -129,13 +134,14 @@ class PlayerWindow(wx.Frame):
             return False
         if not self._ffplay_available():
             logger.warning(
-                "ffplay not found on PATH: the video will be silent. "
-                "Install ffmpeg (which provides ffplay) for audio.")
+                "ffplay not found (neither bundled nor on PATH): the "
+                "video will be silent.")
             return False
         try:
             import subprocess
+            from ..core.tools import find_tool
             cmd = [
-                "ffplay", "-vn", "-nodisp", "-loglevel", "quiet",
+                find_tool("ffplay"), "-vn", "-nodisp", "-loglevel", "quiet",
                 "-window_title", "omni_audio",
                 "-autoexit", "-nostats", "-hide_banner",
             ]
@@ -301,6 +307,14 @@ class PlayerWindow(wx.Frame):
             if self._settings else True))
         self.pause_narration_check.SetToolTip(
             t("player.pause_for_narration_hint"))
+        # v1.6.5: an engine that cannot report when a sentence finished
+        # cannot hold the video for it. Disable rather than hide — a
+        # checkbox that vanishes leaves the user wondering where the
+        # setting went; a disabled one with a reason does not.
+        if not self._hold_supported():
+            self.pause_narration_check.Enable(False)
+            self.pause_narration_check.SetToolTip(
+                t("player.pause_unavailable"))
 
         controls.Add(self.play_btn, 0, wx.ALL, 5)
         controls.Add(self.stop_btn, 0, wx.ALL, 5)
@@ -552,6 +566,12 @@ class PlayerWindow(wx.Frame):
         else:
             pause_for_narration = bool(self._settings.get(
                 "player.pause_for_narration", True)) if self._settings else True
+        # v1.6.5: the hold only works for engines that can say when the
+        # sentence ended. Asked of the engine every cue, not once at
+        # startup, because the user can switch engines while the player
+        # is open.
+        if pause_for_narration and not self._hold_supported():
+            pause_for_narration = False
         auto_paused = False
         if pause_for_narration and self._playing:
             self._pause_for_narration()
@@ -573,6 +593,23 @@ class PlayerWindow(wx.Frame):
 
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
+
+    def _hold_supported(self) -> bool:
+        """Does the current narration engine support the automatic pause?
+
+        Tolerant of a TTS object that predates the capability so the
+        player still runs against an older engine: absent the method,
+        assume the hold works, which is how it behaved before v1.6.5.
+        """
+        check = getattr(self.tts, "supports_narration_hold", None)
+        if check is None:
+            return True
+        try:
+            return bool(check())
+        except Exception as e:
+            logger.warning("Could not ask the TTS engine about the "
+                           "narration hold: %s", e)
+            return True
 
     def _on_pause_narration_toggle(self, event):
         """Persist the choice and say what it now does.

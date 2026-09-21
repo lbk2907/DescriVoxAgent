@@ -965,7 +965,9 @@ def test_a_silent_video_says_why_in_the_log():
     ffplay produced no log line at all."""
     src = Path("src/omni_describer_custom/ui/player_window.py").read_text(
         encoding="utf-8")
-    assert "ffplay not found on PATH" in src, \
+    # v1.6.5: ffplay now ships with the app, so the log says "neither
+    # bundled nor on PATH" — PATH alone is no longer the whole story.
+    assert "ffplay not found" in src, \
         "a missing player is silent about being missing"
     assert "Audio via ffplay" in src, \
         "the log never records which audio route started"

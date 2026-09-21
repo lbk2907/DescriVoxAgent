@@ -11,6 +11,46 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.5
+
+**The app now carries its own tools.** Every previous version assumed
+ffmpeg, ffprobe, ffplay and yt-dlp were already installed. On this
+machine they were, so it never showed — but given to anyone else, the
+app failed one phase at a time with errors that named no cause, and the
+player read descriptions over a silent video. The v1.6.4 note below
+even described that as deliberate. It is not any more.
+
+- **ffmpeg, ffprobe, ffplay and yt-dlp ship inside the package.** No
+  separate install, nothing to put on PATH.
+- **One function decides where they are.** Five places used to look
+  separately, and only one of them knew about the `bin` folder — which
+  is exactly why the packaged player was silent while the rest of the
+  app worked. They all go through `core/tools.py` now, and a test fails
+  the build if a new call site does its own lookup.
+- **A missing tool is reported at startup**, by name, with what it
+  costs you, instead of surfacing as an unexplained failure later.
+- **The automatic narration pause is limited to voices the app plays
+  itself** (Edge, Windows SAPI5, OpenAI). A voice spoken by a screen
+  reader returns as soon as the text is queued rather than when it has
+  been heard, so the video would resume over its own narration. With
+  such a voice the checkbox is disabled and says why.
+
+The bundled ffmpeg is the **GPL** build, because the app encodes upload
+copies with libx264, which LGPL builds do not include. Passing this app
+to someone else therefore means passing on FFmpeg's source offer too —
+see `NOTICE.md`, and keep `bin/FFMPEG-LICENSE.txt` in the folder.
+
+The binaries add **102 MB** to the download — measured, not estimated:
+the zip goes from 344 MB (v1.6.4) to 446 MB. The first attempt came out
+at 520 MB because PyInstaller recognises the ffmpeg DLLs as libraries
+and wrote a second copy of all seven next to the Python extensions;
+`tools/dedupe_build.py` removes those (avcodec alone was 118 MB), and a
+packaging check now fails the build if they come back.
+
+The binaries are not kept in git. `tools/fetch_binaries.py` downloads
+them into `bin/`, and `build.bat` runs it before packaging, so a fresh
+clone cannot quietly produce a build with none.
+
 ## What's new in v1.6.4
 
 Two faults found by using the v1.6.3 build, both of which made the app
@@ -40,6 +80,7 @@ lie to the person using it.
 Note for anyone else running this: the package deliberately ships no
 ffmpeg, ffplay, yt-dlp or VLC. They must be installed separately, and
 without ffplay the player will have descriptions but no video audio.
+*(No longer true as of v1.6.5 — all but VLC are bundled.)*
 
 ## What's new in v1.6.3
 
@@ -362,8 +403,18 @@ since apparent age is ordinary description vocabulary.
 
 - Windows with Python 3.13 at
   `C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe`
-- `ffmpeg`, `ffprobe` and `yt-dlp` available on PATH (or in the `bin`
-  folder)
+- The external binaries in `bin/`. They are not in git; fetch them once
+  after cloning:
+
+  ```
+  python tools\fetch_binaries.py
+  ```
+
+  This downloads ffmpeg, ffprobe, ffplay (GPL shared build, ~86 MB) and
+  yt-dlp. A system install on PATH is used as a fallback, but the
+  bundled copies are the ones that get tested and shipped.
+- VLC is still optional and separate; without it the player uses ffplay
+  for sound.
 
 ## Starting the app
 

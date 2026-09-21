@@ -168,6 +168,7 @@
   "player.pause_for_narration": "Pause video while a description is read",
   "player.pause_for_narration_hint": "Holds the video until the description finishes, then carries on. Useful for slides and tutorials, where a long description would otherwise be cut off by the next one.",
   "player.pause_off": "Video will keep playing while descriptions are read",
+  "player.pause_unavailable": "Not available with the current voice. The automatic pause needs a voice the app plays itself (Edge or Windows SAPI5), because it has to know when a description has finished.",
   "player.pause_on": "Video will pause while descriptions are read",
   "player.paused": "Paused",
   "player.play": "Play",

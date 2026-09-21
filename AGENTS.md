@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 33 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 34 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -55,7 +55,9 @@ src/omni_describer_custom/
 │   ├── settings_store.py        — settings.json (API key terenkripsi)
 │   ├── prompt_manager.py        — preset prompts per-bahasa
 │   ├── project_store.py         — named projects, persist video/media
-│   └── timeline_io.py           — import/export SRT/VTT/TXT/audio segerak
+│   ├── timeline_io.py           — import/export SRT/VTT/TXT/audio segerak
+│   └── tools.py                 — SATU tempat cari ffmpeg/ffprobe/ffplay/
+│                                  yt-dlp (bundle dulu, PATH kemudian)
 ├── ui/
 │   ├── main_frame.py            — window utama, pipeline _process_video, semua handler
 │   ├── settings_dialog.py       — tabbed settings (General/AI/Audio)
@@ -65,7 +67,9 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 27 suite; run_gate.bat = semua
+tests/                           — 34 suite; run_gate.bat = semua
+bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
+                                   (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
 build.bat                        — compile → PyInstaller → smoke test → zip (FOREGROUND)
 ```
@@ -164,6 +168,33 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    (Gemini provider jadi `http://127.0.0.1:.../v1beta` + key `test-key`).
    Jangan buang env var ni, dan jangan set dalam tool E2E — E2E memang
    perlu settings sebenar (key GLM).
+20. **Cari program luar HANYA melalui `core/tools.py:find_tool()`.**
+   Sebelum v1.6.5 ada LIMA tempat berasingan (`video_processor`,
+   `player_window`, `tts_engine`, `timeline_io`, `ai_engine`) dan hanya
+   satu tahu tentang folder `bin/`. Itulah sebab pemain terbungkus senyam
+   walaupun app lain berfungsi. `tests/test_fixes25.py` gagalkan gate
+   kalau ada call site buat carian sendiri — disahkan menangkap
+   kesemua 11 baris versi lama.
+21. **Binari luar TIDAK dalam git (217 MB).** `tools/fetch_binaries.py`
+   muat turun ke `bin/`; `build.bat` langkah [1/5] jalankannya. Clone
+   baharu TANPA langkah ini menghasilkan app yang nampak siap tapi gagal
+   pada muat turun pertama.
+22. **ffmpeg terbungkus ialah binaan GPL, bukan LGPL** — `ai_engine`
+   encode dengan `libx264` yang hanya wujud dalam binaan GPL. Kalau
+   seseorang tukar ke LGPL untuk jimat obligasi, mampatan muat naik
+   akan pecah. Obligasi dicatat dalam `NOTICE.md`; jangan buang
+   `bin/FFMPEG-LICENSE.txt` atau `bin/FFMPEG-VERSION.txt`.
+23. **PyInstaller DUPLIKASI setiap .dll dalam `--add-data`.** Ia kenal
+   fail itu sebagai pustaka lalu tulis salinan kedua ke `_internal\`
+   selain dalam `bin\` — 189 MB terbuang dalam binaan 1.6.5 pertama
+   (avcodec sahaja 118 MB). `tools/dedupe_build.py` buang salinan yang
+   BYTE-IDENTICAL sahaja dan gagalkan binaan kalau berbeza.
+   `test_packaging_content.py` jaga supaya ia tak kembali.
+24. **Jeda naratif hanya untuk enjin yang tahu bila ayat habis.**
+   `HOLD_CAPABLE_ENGINES` = enjin yang render ke fail lalu app main
+   sendiri (edge, sapi5, openai). Enjin pembaca skrin pulang sebaik
+   teks dibaris-gilir, jadi video akan sambung atas naratifnya sendiri.
+   Ini yang mengehadkan reka bentuk integrasi Prism nanti.
 
 ## Prosedur Biasa
 

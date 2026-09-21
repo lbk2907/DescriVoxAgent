@@ -46,7 +46,10 @@ def test_stderr_tail():
     assert len(vp._stderr_tail(big, limit=100)) <= 100
 check("_stderr_tail keeps real error, drops banner, honours limit", test_stderr_tail)
 
-# 2. ffprobe resolution: sebelah ffmpeg.exe jika ada, else PATH fallback
+# 2. ffprobe resolution: sebelah ffmpeg.exe jika ada, else find_tool
+# v1.6.5: fallback bukan lagi nama kosong "ffprobe" — ia melalui
+# find_tool, yang menemui salinan terbungkus dalam bin/. Ujian ini kini
+# menyemak ffprobe yang BOLEH dijalankan, bukan rentetan tertentu.
 def test_ffprobe_path():
     tmp = tempfile.mkdtemp(prefix="vp_ffprobe_")
     try:
@@ -54,16 +57,19 @@ def test_ffprobe_path():
         fake_bin.mkdir()
         (fake_bin / "ffmpeg.exe").write_bytes(b"")
         vp = VideoProcessor(ffmpeg_path=str(fake_bin / "ffmpeg.exe"), ytdlp_path="yt-dlp")
-        # tiada ffprobe.exe sebelah -> fallback "ffprobe"
-        assert vp._ffprobe_path() == "ffprobe"
+        # tiada ffprobe.exe sebelah -> fallback ke salinan terbungkus
+        fallback = vp._ffprobe_path()
+        assert fallback != str(fake_bin / "ffprobe.exe")
+        assert Path(fallback).name.startswith("ffprobe"), fallback
+        # ada ffprobe.exe sebelah -> guna yang itu (pasangan sepadan)
         (fake_bin / "ffprobe.exe").write_bytes(b"")
         assert vp._ffprobe_path() == str(fake_bin / "ffprobe.exe")
-        # ffmpeg dari PATH (bukan .exe path) -> fallback
+        # ffmpeg dari PATH (bukan .exe path) -> fallback yang sama
         vp2 = VideoProcessor(ffmpeg_path="ffmpeg", ytdlp_path="yt-dlp")
-        assert vp2._ffprobe_path() == "ffprobe"
+        assert vp2._ffprobe_path() == fallback
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-check("ffprobe resolves next to ffmpeg.exe with PATH fallback", test_ffprobe_path)
+check("ffprobe resolves next to ffmpeg.exe with bundled fallback", test_ffprobe_path)
 
 # 3. Sumber hilang: fail fast, pulangkan [] tanpa panggil ffmpeg
 def test_missing_source_fail_fast():

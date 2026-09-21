@@ -17,8 +17,12 @@ On a new computer without Python, use the ready-built package:
    folder, for example `C:\OmniDescriber`.
 2. Double-click `OmniDescriber.exe` inside it. No installation is
    needed; this guide is also bundled in the `doc` folder.
-3. For local video playback nothing else is required. For YouTube
-   links, install `yt-dlp` and make sure it can be found through PATH.
+3. As of v1.6.5 nothing else needs installing at all. ffmpeg, ffprobe,
+   ffplay and yt-dlp are bundled in the app's `_internal\bin` folder.
+   Do not delete it — without it YouTube downloads, frame extraction
+   and the video's sound all stop working. If one of them goes missing
+   (antivirus quarantine, for instance) the app tells you when it
+   starts rather than failing silently later.
 
 The developer version (Python scripts) can still be started with
 `run.bat` as described below.
@@ -77,7 +81,7 @@ The File menu has four timeline functions:
 - **Export as Audio (spoken, synchronised)**: generate a single MP3
   (or WAV) file that speaks every description with your TTS voice at
   the right time. You can listen to it next to the video with any
-  media player, without this app. Requires ffmpeg on PATH. Progress is
+  media player, without this app. Uses the bundled ffmpeg. Progress is
   shown while generating; voice, speed, and engine follow your TTS
   settings.
 

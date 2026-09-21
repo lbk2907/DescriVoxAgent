@@ -1462,11 +1462,12 @@ class GLMProvider(AIProvider):
 
     @staticmethod
     def _ffmpeg() -> str:
-        import shutil
-        exe = shutil.which("ffmpeg")
-        if not exe:
-            raise RuntimeError("ffmpeg not found on PATH")
-        return exe
+        from .tools import find_tool, tool_available
+        if not tool_available("ffmpeg"):
+            raise RuntimeError(
+                "ffmpeg not found — neither bundled with this app nor on "
+                "PATH; video compression cannot run")
+        return find_tool("ffmpeg")
 
     def _run_ffmpeg_cancellable(
         self, cmd: list[str],

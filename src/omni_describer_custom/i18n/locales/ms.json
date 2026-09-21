@@ -168,6 +168,7 @@
   "player.pause_for_narration": "Jeda video semasa penerangan dibaca",
   "player.pause_for_narration_hint": "Menahan video sehingga penerangan habis, kemudian sambung semula. Berguna untuk slaid dan tutorial, di mana penerangan panjang akan dipotong oleh penerangan seterusnya.",
   "player.pause_off": "Video akan terus main semasa penerangan dibaca",
+  "player.pause_unavailable": "Tidak tersedia dengan suara semasa. Jeda automatik memerlukan suara yang dimainkan oleh aplikasi sendiri (Edge atau Windows SAPI5), kerana ia perlu tahu bila penerangan sudah habis.",
   "player.pause_on": "Video akan berhenti semasa penerangan dibaca",
   "player.paused": "Dijeda",
   "player.play": "Main",
