@@ -1059,27 +1059,78 @@ class GLMProvider(AIProvider):
         self.api_key = api_key
         self.base_url = (base_url or "https://openrouter.ai/api/v1").rstrip("/")
 
+    # v1.6.3: a video request uploads tens of megabytes and then waits
+    # minutes for the answer, so a dropped connection is not a rare
+    # event — two in a row were seen on a 16 MB upload (WinError 64,
+    # then WinError 121). Without a retry the whole job is lost at
+    # whatever percent it died, after the user already paid the time.
+    _NETWORK_RETRIES = 3
+    _RETRY_BACKOFF_SECONDS = 5.0
+    # Tokens the model may spend thinking before it must start writing.
+    # 2000 measured as ample: the run that produced a full answer used 17.
+    _REASONING_BUDGET = 2000
+
     async def _chat(self, payload: dict, timeout: float) -> str:
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"GLM HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"GLM API error: {data['error']}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from GLM)"
-                return choices[0]["message"]["content"]
+        last_error: Exception | None = None
+        for attempt in range(1, self._NETWORK_RETRIES + 1):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url, json=payload, headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=timeout),
+                    ) as resp:
+                        if resp.status in (429, 500, 502, 503, 504):
+                            # Provider-side wobble: worth another go.
+                            body = await resp.text()
+                            raise aiohttp.ClientError(
+                                f"HTTP {resp.status}: {body[:120]}")
+                        if resp.status != 200:
+                            # 4xx (bad key, no credit, payload too big):
+                            # retrying cannot help and would burn time.
+                            body = await resp.text()
+                            raise RuntimeError(
+                                f"GLM HTTP {resp.status}: {body[:200]}")
+                        data = await resp.json()
+                        if "error" in data:
+                            raise RuntimeError(f"GLM API error: {data['error']}")
+                        choices = data.get("choices", [])
+                        if not choices:
+                            return "(no response from GLM)"
+                        choice = choices[0]
+                        content = choice.get("message", {}).get("content") or ""
+                        if not content.strip():
+                            # An empty reply used to surface as "no
+                            # descriptions" with no explanation. Name the
+                            # cause: usually the reasoning budget ate the
+                            # whole allowance (finish_reason "length").
+                            usage = data.get("usage", {}) or {}
+                            reasoning = (usage.get("completion_tokens_details")
+                                         or {}).get("reasoning_tokens")
+                            logger.error(
+                                "GLM returned EMPTY content "
+                                "(finish_reason=%s, completion_tokens=%s, "
+                                "reasoning_tokens=%s). The model spent its "
+                                "budget thinking instead of answering.",
+                                choice.get("finish_reason"),
+                                usage.get("completion_tokens"), reasoning)
+                        return content
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+                last_error = e
+                if attempt >= self._NETWORK_RETRIES:
+                    break
+                wait = self._RETRY_BACKOFF_SECONDS * attempt
+                logger.warning(
+                    "Network error on attempt %d/%d (%s); retrying in %.0fs",
+                    attempt, self._NETWORK_RETRIES, e, wait)
+                await asyncio.sleep(wait)
+        raise RuntimeError(
+            f"GLM request failed after {self._NETWORK_RETRIES} attempts: "
+            f"{last_error}")
 
     async def describe_image(
         self, image_path: str, prompt: str, model: str = ""
@@ -1248,6 +1299,14 @@ class GLMProvider(AIProvider):
                             10.0 + 90.0 * done_parts / max(1, total))
                     except Exception:
                         logger.debug("on_split_progress raised", exc_info=True)
+            # v1.6.3: sort before returning, as the Gemini path already
+            # did. Observed on a real run: asked for BOTH speech and
+            # visuals, the model answered in two passes — 00:00, 00:04,
+            # 00:12, 00:30, 00:48, then back to 00:16, 00:17, 00:22.
+            # Unsorted cues reach the SRT and the player, which both
+            # assume chronological order, so the listener gets the story
+            # out of sequence.
+            merged.sort(key=lambda pair: pair[0])
             return merged
         finally:
             import shutil as _shutil
@@ -1338,6 +1397,18 @@ class GLMProvider(AIProvider):
         payload = {
             "model": model or self.models[0],
             "max_tokens": 16000,
+            # v1.6.3: CAP THE THINKING. Measured on a real 45-second
+            # clip with the `foreign` preset: the model spent 15,995 of
+            # its 16,000 completion tokens on internal reasoning, leaving
+            # FIVE for the answer, and returned empty content with
+            # finish_reason "length". The app reported "no descriptions"
+            # with no reason given. With the cap: 17 reasoning tokens,
+            # finish_reason "stop", a full correct answer.
+            #
+            # This is AGENTS.md pitfall 7 one level up — raising
+            # max_tokens does not help, because the model simply thinks
+            # more. The budget has to be split, not enlarged.
+            "reasoning": {"max_tokens": self._REASONING_BUDGET},
             "messages": [{
                 "role": "user",
                 "content": [

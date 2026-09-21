@@ -507,6 +507,116 @@ def test_preserve_resolution_reaches_the_provider():
         "the setting never reaches the engine"
 
 
+# ── Found by running a real 10-minute video (v1.6.3) ─────────────
+#
+# A user's Indonesian clip, no captions, 189 MB. Three separate faults
+# surfaced that no unit test had reached, each one silent.
+
+def test_video_request_caps_the_reasoning_budget():
+    """The fault that produced NOTHING, twice, with no explanation.
+
+    Measured on a 45-second clip with the `foreign` preset: the model
+    spent 15,995 of its 16,000 completion tokens on internal reasoning,
+    leaving five for the answer, and returned empty content with
+    finish_reason "length". Capping the thinking fixed it outright — 17
+    reasoning tokens, finish_reason "stop", a full answer. Raising
+    max_tokens does NOT help: the model simply thinks more.
+    """
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    assert '"reasoning": {"max_tokens": self._REASONING_BUDGET}' in src, \
+        "video requests no longer cap the thinking budget"
+    assert 0 < GLMProvider._REASONING_BUDGET < 16000, \
+        "the reasoning budget must leave room for the answer"
+
+
+def test_empty_reply_is_explained_not_swallowed():
+    """"No descriptions" with no reason is the worst possible report for
+    someone who cannot see the screen."""
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    assert "GLM returned EMPTY content" in src, \
+        "an empty model reply is silent again"
+    assert "reasoning_tokens" in src, \
+        "the diagnosis does not report what the budget went on"
+
+
+def test_glm_cues_come_back_in_time_order():
+    """Observed: asked for speech AND visuals, the model answered in two
+    passes — 00:00, 00:04, 00:12, 00:30, 00:48, then back to 00:16,
+    00:17, 00:22. The SRT and the player both assume time order, so the
+    listener got the story out of sequence. The Gemini path already
+    sorted; this one did not."""
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    glm_start = src.index("class GLMProvider")
+    glm_body = src[glm_start:src.index("class ", glm_start + 10)]
+    assert "merged.sort(key=lambda pair: pair[0])" in glm_body, \
+        "GLM results are returned unsorted again"
+
+
+def test_network_errors_are_retried_then_reported():
+    """A video request uploads tens of megabytes and waits minutes. Two
+    dropped connections in a row were seen on one 16 MB upload; without
+    a retry the whole job dies at whatever percent it reached."""
+    import asyncio as aio
+
+    import aiohttp
+
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    prov = GLMProvider()
+    prov.api_key = "k"
+    prov.base_url = "https://example.invalid/v1"
+    attempts = []
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def post(self, *a, **k):
+            attempts.append(1)
+            raise aiohttp.ClientError("connection reset")
+
+    real_session = aiohttp.ClientSession
+    real_sleep = aio.sleep
+    aiohttp.ClientSession = lambda *a, **k: FakeSession()
+    aio.sleep = lambda *a, **k: real_sleep(0)      # no real backoff waits
+    try:
+        try:
+            aio.run(prov._chat({"model": "m"}, timeout=5))
+            assert False, "a dead connection should raise, not return"
+        except RuntimeError as e:
+            assert "after 3 attempts" in str(e), str(e)
+            assert "connection reset" in str(e), \
+                "the report hides what actually went wrong"
+        assert len(attempts) == 3, f"retried {len(attempts)} times"
+    finally:
+        aiohttp.ClientSession = real_session
+        aio.sleep = real_sleep
+
+
+def test_client_errors_are_not_retried():
+    """A bad key or an oversized payload will fail identically three
+    times; retrying only wastes the user's minutes."""
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    assert "if resp.status in (429, 500, 502, 503, 504):" in src, \
+        "no distinction between a provider wobble and a client error"
+
+
+def test_foreign_preset_asks_for_one_merged_list():
+    from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
+
+    assert "ONE LIST ONLY" in DEFAULT_PROMPTS["foreign"]
+    assert "SATU SENARAI SAHAJA" in DEFAULT_PROMPTS["ms_foreign"]
+
+
 if __name__ == "__main__":
     check("no transcript adds nothing", test_no_transcript_adds_nothing)
     check("block carries words and the rule",
@@ -560,5 +670,17 @@ if __name__ == "__main__":
           test_fitting_chunk_gives_up_rather_than_shredding)
     check("preserve resolution reaches the provider",
           test_preserve_resolution_reaches_the_provider)
+    check("video request caps the reasoning budget",
+          test_video_request_caps_the_reasoning_budget)
+    check("empty reply is explained, not swallowed",
+          test_empty_reply_is_explained_not_swallowed)
+    check("GLM cues come back in time order",
+          test_glm_cues_come_back_in_time_order)
+    check("network errors retried then reported",
+          test_network_errors_are_retried_then_reported)
+    check("client errors are not retried",
+          test_client_errors_are_not_retried)
+    check("foreign preset asks for one merged list",
+          test_foreign_preset_asks_for_one_merged_list)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

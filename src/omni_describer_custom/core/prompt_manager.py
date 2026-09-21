@@ -140,7 +140,10 @@ DEFAULT_PROMPTS = {
         "read any subtitles on screen. CONVEYING SPEECH IS THE MAIN JOB of "
         "this preset: whenever someone says something that matters, say "
         "what they said — that outranks describing what you can see. The "
-        "ceiling here is 25 words, not 12."
+        "ceiling here is 25 words, not 12. ONE LIST ONLY: weave what is "
+        "said into the same chronological list as what is seen, in time "
+        "order. Do not write the speech first and the visuals afterwards, "
+        "and do not produce two passes."
     ),
 
     # 5. Netflix names this genre explicitly: silence carries the tension.
@@ -204,7 +207,11 @@ DEFAULT_PROMPTS = {
         "MENYAMPAIKAN PERTUTURAN ADALAH KERJA UTAMA preset ini: setiap "
         "kali seseorang berkata sesuatu yang penting, nyatakan apa yang "
         "dikatakannya — itu lebih penting daripada menghuraikan visual. "
-        "Untuk itu siling di sini ialah 25 patah perkataan, bukan 12."
+        "Untuk itu siling di sini ialah 25 patah perkataan, bukan 12. "
+        "SATU SENARAI SAHAJA: gabungkan apa yang dikatakan ke dalam "
+        "senarai kronologi yang sama dengan apa yang dilihat, mengikut "
+        "urutan masa. Jangan tulis pertuturan dahulu kemudian visual "
+        "kemudian, dan jangan hasilkan dua pusingan."
     ),
 
     "ms_suspense": _AD_CORE_MS + (
