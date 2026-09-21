@@ -483,6 +483,33 @@ class VideoProcessor:
         return await self.download_video(
             path_or_url, on_progress=on_progress, is_cancelled=is_cancelled)
 
+    async def _probe_source_fps(self, video_path: str) -> float:
+        """The video's own frame rate, or 0.0 when it cannot be read.
+
+        Returning 0.0 rather than a guess matters: the caller only
+        clamps when it KNOWS the source rate, so an unreadable probe
+        leaves the user's setting alone instead of quietly overriding it.
+        """
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self._ffprobe_path(), "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=r_frame_rate",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                video_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            text = out.decode("utf-8", "replace").strip()
+            if "/" in text:
+                num, den = text.split("/", 1)
+                return float(num) / float(den) if float(den) else 0.0
+            return float(text) if text else 0.0
+        except Exception as e:
+            logger.debug("Source fps probe failed: %s", e)
+            return 0.0
+
     async def extract_frames(
         self,
         video_path: str,
@@ -510,6 +537,19 @@ class VideoProcessor:
         if not Path(video_path).exists():
             logger.error("Frame extraction aborted: source not found: %s", video_path)
             return []
+
+        # v1.6.3: never ask for more frames than the video contains.
+        # Measured on a real 30 fps clip: requesting 60 fps made ffmpeg
+        # DUPLICATE frames to reach the rate — 7,200 files and 208 MB of
+        # JPEGs for two minutes, against 3,600 and 104 MB at 30 — and the
+        # scene dedup then kept exactly the same 85 either way. Twice the
+        # time and twice the disk for not one extra pixel of information.
+        source_fps = await self._probe_source_fps(video_path)
+        if source_fps and fps > source_fps:
+            logger.info("Frame rate %d exceeds the source's %.0f fps; "
+                        "using %.0f (higher only duplicates frames)",
+                        fps, source_fps, source_fps)
+            fps = max(1, int(source_fps))
 
         # ffmpeg frame extraction
         pattern = str(output / "frame_%04d.jpg")

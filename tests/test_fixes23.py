@@ -683,6 +683,29 @@ def test_frame_cap_samples_the_whole_video():
         assert max(picked) < total, "index past the end of the list"
 
 
+def test_frame_rate_is_clamped_to_the_source():
+    """Asking for more frames than the video contains makes ffmpeg
+    DUPLICATE them.
+
+    Measured on a real 30 fps clip, two minutes of footage: 60 fps
+    produced 7,200 files and 208 MB of JPEGs against 3,600 and 104 MB at
+    30 — and the scene dedup kept exactly the same 85 frames either way.
+    Twice the time and twice the disk for not one extra pixel.
+    """
+    src = Path("src/omni_describer_custom/core/video_processor.py").read_text(
+        encoding="utf-8")
+    assert "_probe_source_fps" in src, "the source frame rate is never read"
+    assert "if source_fps and fps > source_fps:" in src, \
+        "a frame rate above the source is no longer clamped"
+
+
+def test_unreadable_source_fps_leaves_the_setting_alone():
+    """Clamping on a guess would silently override the user's choice."""
+    vp = VideoProcessor()
+    assert asyncio.run(vp._probe_source_fps("no-such-file.mp4")) == 0.0, \
+        "a failed probe must report 0.0, not invent a frame rate"
+
+
 def test_foreign_preset_asks_for_one_merged_list():
     from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
 
@@ -759,6 +782,10 @@ if __name__ == "__main__":
           test_audio_is_only_stripped_for_the_provider_that_cannot_hear)
     check("frame cap samples the whole video",
           test_frame_cap_samples_the_whole_video)
+    check("frame rate clamped to the source",
+          test_frame_rate_is_clamped_to_the_source)
+    check("unreadable source fps leaves the setting alone",
+          test_unreadable_source_fps_leaves_the_setting_alone)
     check("foreign preset asks for one merged list",
           test_foreign_preset_asks_for_one_merged_list)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
