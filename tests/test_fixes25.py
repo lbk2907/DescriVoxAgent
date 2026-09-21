@@ -267,8 +267,13 @@ def test_hold_is_offered_only_by_engines_that_know_when_speech_ends():
         HOLD_CAPABLE_ENGINES, TTSEngine)
     assert "edge" in HOLD_CAPABLE_ENGINES
     assert "sapi5" in HOLD_CAPABLE_ENGINES
+    # Built without engine instances on purpose: this exercises the
+    # HOLD_CAPABLE_ENGINES fallback, the answer used when no live
+    # engine object is there to ask. v1.6.6 added the instance-first
+    # path, which test_fixes26 covers against real backends.
     engine = TTSEngine.__new__(TTSEngine)
     engine._current_engine = "edge"
+    engine._engines = {}
     assert engine.supports_narration_hold() is True
     assert engine.supports_narration_hold("sapi5") is True
     # A screen-reader engine returns as soon as text is queued, so the

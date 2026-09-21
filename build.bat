@@ -37,6 +37,7 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
   --hidden-import win32timezone ^
   --hidden-import comtypes.stream ^
   --collect-all pyttsx3 ^
+  --collect-all prism ^
   --collect-all edge_tts ^
   --collect-all openai ^
   --collect-all aiohttp ^

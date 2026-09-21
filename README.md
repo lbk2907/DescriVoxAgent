@@ -11,6 +11,50 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.6
+
+**The app speaks through whatever the computer already has.** This
+answers a specific complaint: give the app to someone whose computer
+has no NVDA and they cannot use it. Two separate gaps hid behind that
+sentence, and both are closed by [Prism](https://github.com/ethindp/prism),
+which reaches NVDA, JAWS, ZDSR, ZoomText, PC-Talker and the rest, and
+falls back to SAPI or OneCore when no reader is running.
+
+- **"My screen reader" is now a narration voice.** Settings › Audio
+  offers it alongside Edge, SAPI5 and OpenAI, labelled with the reader
+  it actually found — "My screen reader (NVDA)" — so you can see it was
+  detected rather than hope. It is never selected automatically; that
+  would override a voice you had already chosen.
+- **Status messages are spoken when nothing else would speak them.**
+  The app announces by moving keyboard focus, which a screen reader
+  reads aloud and a computer without one passes over in silence. All
+  four windows now also speak the message through Prism *only* when no
+  screen reader is running, so nothing is ever said twice.
+
+**What a screen reader cannot do, and what the app does about it.**
+Measured, not assumed:
+
+| Backend | speak | reports when finished | set rate | set voice |
+|---|---|---|---|---|
+| NVDA | yes | **no** | no | no |
+| SAPI / OneCore | yes | yes | yes | yes |
+
+A screen reader returns the moment text is queued; it never says when
+it finished. So with it selected, the player's automatic narration
+pause is disabled with a reason, and the Voice and Speed controls are
+disabled too — your reader owns those, and offering settings that do
+nothing is worse than not offering them. The app reads this from the
+live backend rather than from the engine's name, so Prism running on
+SAPI does get the pause.
+
+**Accessibility is now verified by listening.** `tools/nvda_accessibility_check.py`
+tabs through the real window and asks NVDA what it announced. Reading
+the source is what let v1.5.4 ship a broken preset combo; this hears
+it instead. See Development below.
+
+The custom AI provider entry has been emptied, so that slot is yours
+to configure.
+
 ## What's new in v1.6.5
 
 **The app now carries its own tools.** Every previous version assumed
@@ -549,6 +593,26 @@ land in an `audio/` folder next to the outputs.
 - i18n audit (every `t("...")` key exists in both EN and MS, no
   unlabeled buttons): `python tests\audit_i18n.py` — prints
   `AUDIT_PASS`.
+- **Accessibility, verified by listening rather than by reading:**
+
+  ```bash
+  python tools/nvda_accessibility_check.py --steps 12
+  ```
+
+  This tabs through the real window and asks NVDA what it announced,
+  through the local [NVDA HTTP Bridge](https://127.0.0.1:19281) plugin.
+  It needs NVDA running; without the bridge it exits 2 rather than
+  reporting a pass it cannot justify, so "not verified" is never
+  mistaken for "fine".
+
+  It exists because reading the source is what let v1.5.4 ship: three
+  controls whose accessible name was set with `SetLabel()` looked
+  correct in code, silently lost their state, and reached a real user.
+  The two controls that broke then are now checked by name — the
+  preset combo must announce a selected value, and the prompt box must
+  announce the preset text rather than its own label. The judgement
+  logic is a pure function covered by `tests\test_fixes27.py`, because
+  a detector nobody has seen fail is not a detector.
 
 ## Building a distributable exe (deployment)
 

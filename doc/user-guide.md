@@ -157,6 +157,18 @@ descriptions in sync during playback.
     successfully, about 98 MB is rejected. The two checkboxes are
     mutually exclusive.
 - **TTS tab**: speech engine, voice, speech speed.
+  As of v1.6.6 there is a **"My screen reader"** option, labelled with
+  the reader that was found (for example "My screen reader (NVDA)").
+  It speaks through NVDA, JAWS, ZDSR or whatever is running. With it
+  selected, the Voice and Speed controls are disabled — your screen
+  reader owns those, not this app; change them in the reader's own
+  settings. The automatic pause during descriptions is unavailable
+  too, because a screen reader never reports when it has finished
+  speaking a sentence.
+
+  On a computer with **no** screen reader at all, the app speaks
+  status messages itself through Windows SAPI or OneCore. When a
+  reader is running it stays quiet, so nothing is read out twice.
 
 Processing notice: when processing finishes, a dialog shows
 "Processing finished! N descriptions generated." If the AI fails or

@@ -28,6 +28,16 @@ class TTSEngineBase(ABC):
     name: str = "base"
     available: bool = False
 
+    # v1.6.6: an engine that speaks through something else — a screen
+    # reader — produces no file to play. speak() cannot serve it, so
+    # speak_and_play routes past the file path entirely.
+    speaks_directly: bool = False
+
+    # Whether the player may hold the video for a whole description.
+    # True for engines that render to a file we play to completion,
+    # because those finish when we say they finish.
+    supports_hold: bool = True
+
     @abstractmethod
     async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
         """Generate speech and return path to audio file. Returns '' if unavailable."""
@@ -284,9 +294,63 @@ class OpenAITTSEngine(TTSEngineBase):
         ]
 
 
+class PrismEngine(TTSEngineBase):
+    """The voice the user already has: their screen reader.
+
+    Added in v1.6.6 for a concrete complaint — handing the app to
+    someone without NVDA left them with software they could not use.
+    Prism reaches NVDA, JAWS, ZDSR, ZoomText, PC-Talker and the rest,
+    and falls back to SAPI or OneCore on a machine with no reader at
+    all, so there is always a voice.
+
+    It speaks; it does not hand back a file. Voice and speed belong to
+    the screen reader's own settings and are deliberately not fought
+    over here — a blind user has already tuned their reader, and
+    overriding that would be rude as well as usually impossible (NVDA
+    reports supports_set_rate False).
+    """
+
+    name = "screen_reader"
+    speaks_directly = True
+
+    def __init__(self):
+        from .speech import get_speech
+        self._speech = get_speech()
+        self.available = self._speech.available
+        # Asked of the live backend rather than assumed: Prism on SAPI
+        # can report speaking state, Prism on NVDA cannot.
+        self.supports_hold = self._speech.can_report_speaking
+
+    @property
+    def backend_name(self) -> str:
+        return self._speech.backend_name
+
+    async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
+        """No file is produced — see speak_direct.
+
+        Returning "" rather than raising keeps the fallback chain in
+        TTSEngine.speak() intact: callers that need a file (audio
+        export) move on to an engine that can make one.
+        """
+        return ""
+
+    def speak_direct(self, text: str) -> bool:
+        """Say it, waiting only where waiting means something."""
+        return self._speech.speak_and_wait(text)
+
+    def stop(self) -> None:
+        self._speech.stop()
+
+    def get_voices(self) -> list[dict]:
+        """Screen readers do not expose their voice list; they own it."""
+        return []
+
+
 # Engines that synthesise to a file the app plays itself, and so know
 # when a description has finished being spoken. The player's automatic
 # pause depends on that: see TTSEngine.supports_narration_hold.
+# Kept as the fallback answer; an engine instance that knows better
+# (PrismEngine asks its live backend) overrides it.
 HOLD_CAPABLE_ENGINES = frozenset({"edge", "sapi5", "openai"})
 
 
@@ -311,8 +375,12 @@ class TTSEngine:
             "edge": edge,
             "sapi5": sapi5,
             "openai": openai_tts,
+            "screen_reader": PrismEngine(),
         }
-        # Prefer configured default, else first available
+        # Prefer configured default, else first available. The screen
+        # reader is not in the automatic order: it is a deliberate
+        # choice, and picking it for someone who did not ask would
+        # override the narration voice they had already set.
         preferred = self.settings.get("default_engine", "") if isinstance(self.settings, dict) else ""
         order = ([preferred] if preferred else []) + ["edge", "sapi5", "openai"]
         for name in order:
@@ -361,6 +429,9 @@ class TTSEngine:
         checkbox that does nothing.
         """
         name = engine or self._current_engine
+        instance = self._engines.get(name)
+        if instance is not None:
+            return bool(getattr(instance, "supports_hold", True))
         return name in HOLD_CAPABLE_ENGINES
 
     def set_engine(self, name: str) -> bool:
@@ -434,6 +505,18 @@ class TTSEngine:
         SAPI5 (offline Windows voice) so playback narration is never
         silently skipped.
         """
+        # v1.6.6: a screen-reader engine speaks for itself; there is no
+        # file to generate or play. Branch BEFORE speak(), because
+        # speak() treats an empty path as failure and would fall
+        # through to a different voice than the user chose.
+        engine_name = engine or self._current_engine
+        chosen = self._engines.get(engine_name)
+        if chosen is not None and getattr(chosen, "speaks_directly", False):
+            if not chosen.available:
+                logger.warning("TTS engine %s is not available", engine_name)
+                return False
+            return chosen.speak_direct(text)
+
         audio_path = ""
         try:
             loop = asyncio.new_event_loop()
@@ -524,6 +607,9 @@ class TTSEngine:
         eng = self._engines.get(self._current_engine)
         if eng and eng.available:
             try:
+                if getattr(eng, "speaks_directly", False):
+                    eng.speak_direct(text)
+                    return
                 loop = asyncio.new_event_loop()
                 loop.run_until_complete(eng.speak(text))
                 loop.close()

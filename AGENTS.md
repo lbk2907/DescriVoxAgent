@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 34 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 36 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 34 suite; run_gate.bat = semua
+tests/                           — 36 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -191,10 +191,47 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    BYTE-IDENTICAL sahaja dan gagalkan binaan kalau berbeza.
    `test_packaging_content.py` jaga supaya ia tak kembali.
 24. **Jeda naratif hanya untuk enjin yang tahu bila ayat habis.**
-   `HOLD_CAPABLE_ENGINES` = enjin yang render ke fail lalu app main
-   sendiri (edge, sapi5, openai). Enjin pembaca skrin pulang sebaik
-   teks dibaris-gilir, jadi video akan sambung atas naratifnya sendiri.
-   Ini yang mengehadkan reka bentuk integrasi Prism nanti.
+   `HOLD_CAPABLE_ENGINES` = jawapan SANDARAN (edge, sapi5, openai)
+   bila tiada objek enjin untuk ditanya. Sejak v1.6.6
+   `supports_narration_hold` tanya instance dulu (`supports_hold`),
+   jadi Prism-atas-SAPI dapat jeda dan Prism-atas-NVDA tidak.
+25. **Prism = suara pada mesin TANPA pembaca skrin.** `core/speech.py`.
+   `_announce` guna fokus MSAA/UIA (berfungsi dengan SEMUA pembaca
+   skrin, bukan NVDA sahaja) — tetapi SENYAP kalau tiada pembaca skrin
+   langsung. `speech.announce()` bercakap HANYA dalam kes itu; kalau
+   pembaca skrin ada ia diam supaya tidak bercakap dua kali.
+26. **Keupayaan backend Prism BERBEZA jauh — jangan andai.** Diukur
+   22 Sep 2026: NVDA `supports_is_speaking=False`, `set_rate=False`,
+   `set_voice=False`, `speak_to_memory=False`. SAPI/OneCore semuanya
+   True. Sebab itu jeda naratif, Voice dan Speed dilumpuhkan bila
+   `screen_reader` dipilih. Baca dari backend HIDUP (`features`),
+   bukan dari nama enjin.
+27. **`ODC_PRISM_BACKEND` paksa satu backend ikut nama** ("SAPI",
+   "NVDA", "OneCore"). Tanpa ini cabang "tiada pembaca skrin" TIDAK
+   BOLEH diuji pada mesin pemilik (NVDA sentiasa berjalan).
+   `test_fixes26.py` guna subprocess kerana `PrismSpeech` singleton
+   mengikat backend pada penggunaan pertama.
+28. **Enjin yang `speaks_directly` TIDAK hasilkan fail.**
+   `speak_and_play` mesti bercabang SEBELUM `speak()`, kerana `speak()`
+   anggap laluan kosong sebagai gagal lalu jatuh ke enjin lain — suara
+   yang user pilih akan diganti senyap. Eksport audio tetap guna enjin
+   berasaskan fail.
+29. **AKSESIBILITI DISAHKAN DENGAN MENDENGAR, bukan membaca kod.**
+   `tools/nvda_accessibility_check.py` tab keliling tetingkap sebenar
+   lalu tanya NVDA apa yang diumumkan, melalui NVDA HTTP Bridge
+   (`http://127.0.0.1:19281`, plugin dalam scratchpad NVDA; repo di
+   `C:\Users\USER\nvda-http-bridge`). Pitfall 12 lolos dulu KERANA
+   kod nampak betul. Jalankan selepas apa-apa perubahan UI:
+   ```
+   python tools/nvda_accessibility_check.py --steps 12
+   ```
+   Perlu NVDA berjalan; tanpa bridge ia keluar kod 2 (BUKAN 0) supaya
+   "tak disahkan" tidak disalah baca sebagai "lulus". Logik penilaian
+   ialah fungsi tulen dan diuji dalam `test_fixes27.py` — pengesan yang
+   tak pernah dilihat gagal bukan pengesan.
+   Disahkan 22 Sep 2026: combo sebut "combo box default collapsed"
+   (preset memang terpilih), kotak prompt sebut teks AD sebenar bukan
+   labelnya sendiri.
 
 ## Prosedur Biasa
 

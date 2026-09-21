@@ -19,6 +19,10 @@ dependencies = [
     "aiohttp>=3.9",
     "pywin32>=306; sys_platform == 'win32'",
     "yt-dlp>=2025.6.9",
+    # Prism: speaks through whatever screen reader is running (NVDA,
+    # JAWS, ZDSR, ...) and falls back to SAPI/OneCore when none is, so
+    # the app has a voice on a computer that has no screen reader.
+    "prismatoid>=0.18.2",
 ]
 
 [project.optional-dependencies]

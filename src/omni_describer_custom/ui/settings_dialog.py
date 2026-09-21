@@ -259,6 +259,7 @@ class SettingsDialog(wx.Dialog):
             ("edge", t("settings.engine_edge")),
             ("sapi5", t("settings.engine_sapi5")),
             ("openai", t("settings.engine_openai")),
+            ("screen_reader", self._screen_reader_label()),
         ])
         sizer.Add(self.tts_engine_choice, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -616,9 +617,42 @@ class SettingsDialog(wx.Dialog):
         else:
             self.model_choice.SetSelection(0)
 
+    def _screen_reader_label(self) -> str:
+        """Name the reader we actually found, not a generic label.
+
+        "Screen reader (NVDA)" tells the user it was detected;
+        "Screen reader" alone leaves them guessing whether it works.
+        """
+        try:
+            from ..core.speech import get_speech
+            speech = get_speech()
+            if speech.available:
+                return t("settings.engine_screen_reader_named").format(
+                    backend=speech.backend_name)
+        except Exception as e:
+            logger.debug("Could not name the screen reader: %s", e)
+        return t("settings.engine_screen_reader")
+
     def _on_tts_engine_changed(self, event):
         """Update voice list when TTS engine changes."""
-        self._refresh_voice_list(self._choice_value(self.tts_engine_choice))
+        engine = self._choice_value(self.tts_engine_choice)
+        self._refresh_voice_list(engine)
+        self._sync_voice_controls(engine)
+
+    def _sync_voice_controls(self, engine: str) -> None:
+        """Voice and speed belong to the screen reader, not to us.
+
+        NVDA reports supports_set_rate and supports_set_voice as False,
+        so leaving these enabled would offer settings that silently do
+        nothing. Disabled with a reason instead.
+        """
+        owns_its_voice = engine == "screen_reader"
+        for widget in (self.voice_choice, self.speed_slider):
+            widget.Enable(not owns_its_voice)
+            if owns_its_voice:
+                widget.SetToolTip(t("settings.engine_owns_voice"))
+            else:
+                widget.SetToolTip(None)
 
     def _refresh_voice_list(self, engine: str):
         """Populate voice dropdown with real voices for the given engine."""
@@ -841,6 +875,10 @@ class SettingsDialog(wx.Dialog):
                 pass
         saved_speed = self.settings.get(f"tts.engines.{default_tts}.speed", 1.0)
         self.speed_slider.SetValue(int(float(saved_speed) * 10))
+        # Applied on load too, not only on change: opening the dialog
+        # with the screen reader already saved must show the voice and
+        # speed controls as the dead ends they are.
+        self._sync_voice_controls(default_tts)
 
         # General
         lang = self.settings.get("general.language", "en")

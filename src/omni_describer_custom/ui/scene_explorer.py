@@ -104,9 +104,21 @@ class SceneExplorer(wx.Frame):
         panel.Layout()
 
     def _announce(self, msg: str) -> None:
-        """Set status text and move focus so NVDA announces it."""
+        """Set status text and move focus so a screen reader reads it.
+
+        v1.6.6: the focus move says nothing on a computer with no
+        screen reader at all, which is how someone given this app ends
+        up staring at a silent window. speech.announce() speaks the
+        message through Prism in exactly that case, and stays quiet
+        when a reader is running so nothing is said twice.
+        """
         self.status_text.SetLabel(msg)
         self.status_text.SetFocus()
+        try:
+            from ..core.speech import announce as _speak_status
+            _speak_status(msg)
+        except Exception:
+            pass  # an announcement must never break the action itself
 
     def _default_prompt(self) -> str:
         """Per-language default AI prompt, consistent with MainFrame.

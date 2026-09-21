@@ -183,6 +183,18 @@ membacakan penerangan itu segerak semasa main balik.
     berjaya dimuat naik, kira-kira 98 MB ditolak. Kedua-dua kotak
     semak ini saling menolak.
 - **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
+  Mulai v1.6.6 ada pilihan **"Pembaca skrin saya"**, dilabel dengan
+  pembaca yang dijumpai (contoh "Pembaca skrin saya (NVDA)"). Ia
+  bercakap melalui NVDA, JAWS, ZDSR atau apa sahaja yang sedang
+  berjalan. Bila pilihan ini dipilih, kotak Suara dan Kelajuan
+  dilumpuhkan — pembaca skrin anda yang menentukannya, bukan aplikasi
+  ini; ubah dalam tetapan pembaca skrin itu sendiri. Jeda automatik
+  semasa penerangan juga tidak tersedia, kerana pembaca skrin tidak
+  memberitahu bila ayat sudah habis dibaca.
+
+  Pada komputer yang **tiada** pembaca skrin langsung, aplikasi akan
+  bercakap sendiri (SAPI/OneCore Windows) untuk mesej status. Kalau
+  ada pembaca skrin, aplikasi diam supaya tiada yang dibaca dua kali.
 
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
 "Pemprosesan selesai! N penerangan dijana." Jika AI gagal atau tidak

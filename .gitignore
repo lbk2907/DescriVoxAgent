@@ -51,3 +51,6 @@ _e2e_*.txt
 # Bundled external binaries (~217 MB) - fetched by tools/fetch_binaries.py
 bin/*.exe
 bin/*.dll
+
+# Accessibility check run log
+_a11y_app_log.txt
