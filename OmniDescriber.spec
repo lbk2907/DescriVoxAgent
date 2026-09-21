@@ -2,7 +2,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('doc', 'doc')]
+datas = [('doc', 'doc'), ('src/omni_describer_custom/i18n/locales', 'omni_describer_custom/i18n/locales')]
 binaries = []
 hiddenimports = ['pywin32_system32', 'win32timezone', 'comtypes.stream']
 hiddenimports += collect_submodules('omni_describer_custom')
