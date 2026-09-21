@@ -1069,6 +1069,12 @@ class GLMProvider(AIProvider):
     # Tokens the model may spend thinking before it must start writing.
     # 2000 measured as ample: the run that produced a full answer used 17.
     _REASONING_BUDGET = 2000
+    # Upload encoding. Raising these costs upload time on a slow link
+    # and buys nothing a describing model uses; lowering them starts to
+    # lose on-screen text, which IS used. 360p/5fps measured as the
+    # point where description quality stopped improving.
+    _UPLOAD_HEIGHT = 360
+    _UPLOAD_FPS = 5
 
     async def _chat(self, payload: dict, timeout: float) -> str:
         url = f"{self.base_url}/chat/completions"
@@ -1552,7 +1558,24 @@ class GLMProvider(AIProvider):
         ret, stderr_tail = self._run_ffmpeg_cancellable([
             self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
             "error", "-i", str(path),
-            "-vf", "scale=-2:360",
+            # v1.6.3: encode for a DESCRIBER, not for a viewer.
+            #
+            # -an: this provider cannot hear the video at all (probed:
+            # "NO AUDIO ACCESS"), and since v1.6.1 the words are sent
+            # separately as a transcript. Every audio byte uploaded was
+            # therefore paying postage on something nobody receives.
+            #
+            # fps=5: a describing model samples frames; it does not
+            # watch at 30. Measured on a real 2-minute clip: 3.4 MB at
+            # 30 fps with audio versus 1.1 MB at 5 fps without, and the
+            # leaner file produced MORE detail, not less — it still read
+            # the gravestone text and caught a minibus crossing frame.
+            #
+            # On a 72 KB/s link, which is what the user actually had,
+            # that is the difference between a 5-minute upload and a
+            # 90-second one.
+            "-vf", f"scale=-2:{self._UPLOAD_HEIGHT},fps={self._UPLOAD_FPS}",
+            "-an",
             "-c:v", "libx264", "-preset", "veryfast",
             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
             "-bufsize", f"{int(kbps * 2)}k",

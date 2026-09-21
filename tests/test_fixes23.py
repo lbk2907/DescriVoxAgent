@@ -610,6 +610,52 @@ def test_client_errors_are_not_retried():
         "no distinction between a provider wobble and a client error"
 
 
+def test_upload_encoding_drops_what_the_model_cannot_use():
+    """Encode for a describer, not for a viewer.
+
+    Measured on a real 2-minute clip: 3.4 MB at 30 fps with audio
+    versus 1.1 MB at 5 fps without — and the leaner file produced MORE
+    detail, still reading the gravestone text and catching a minibus
+    crossing frame. On the 72 KB/s link the user actually had, that is
+    a 90-second upload instead of a five-minute one.
+
+    The audio is pure waste here: this provider cannot hear it (probed),
+    and since v1.6.1 the words travel separately as a transcript.
+    """
+    from omni_describer_custom.core.ai_engine import GLMProvider
+
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    start = src.index("def compress_video_for_upload")
+    body = src[start:start + 4000]
+    assert '"-an",' in body, \
+        "audio is being uploaded to a provider that cannot hear it"
+    assert f"fps={GLMProvider._UPLOAD_FPS}" in body.replace(
+        "self._UPLOAD_FPS", str(GLMProvider._UPLOAD_FPS)) or \
+        "self._UPLOAD_FPS" in body, "frame rate is not capped for upload"
+    assert 1 <= GLMProvider._UPLOAD_FPS <= 10, \
+        f"{GLMProvider._UPLOAD_FPS} fps is either wasteful or too sparse"
+    assert GLMProvider._UPLOAD_HEIGHT >= 288, \
+        "below 288p on-screen text stops being legible, and the " \
+        "description of unreadable text is wrong, not merely vague"
+
+
+def test_audio_is_only_stripped_for_the_provider_that_cannot_hear():
+    """Gemini DOES process the audio track; stripping it there would
+    throw away information the model uses."""
+    import re
+
+    src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
+        encoding="utf-8")
+    classes = [(m.start(), m.group(1))
+               for m in re.finditer(r"^class (\w+)", src, re.M)]
+    for match in re.finditer(r"compress_video_for_upload", src):
+        owner = [name for pos, name in classes if pos < match.start()][-1]
+        assert owner == "GLMProvider", (
+            f"the audio-stripping encoder is used by {owner}, which may "
+            "be able to hear the video")
+
+
 def test_foreign_preset_asks_for_one_merged_list():
     from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
 
@@ -680,6 +726,10 @@ if __name__ == "__main__":
           test_network_errors_are_retried_then_reported)
     check("client errors are not retried",
           test_client_errors_are_not_retried)
+    check("upload encoding drops what the model cannot use",
+          test_upload_encoding_drops_what_the_model_cannot_use)
+    check("audio stripped only for the deaf provider",
+          test_audio_is_only_stripped_for_the_provider_that_cannot_hear)
     check("foreign preset asks for one merged list",
           test_foreign_preset_asks_for_one_merged_list)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
