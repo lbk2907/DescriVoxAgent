@@ -818,14 +818,97 @@ def test_user_pause_during_narration_wins():
         _close(f)
 
 
-def test_holding_can_be_switched_off():
+def test_player_has_a_visible_toggle_for_holding():
+    """The choice belongs in the player, not buried in Settings: whether
+    holding helps depends on the video in front of you."""
+    f = _frame()
+    p = None
+    try:
+        p = _player_with_cue(f)
+        assert hasattr(p, "pause_narration_check"), \
+            "no toggle in the player window"
+        assert p.pause_narration_check.GetLabel(), \
+            "toggle has no label for a screen reader to read"
+    finally:
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_toggle_takes_effect_on_the_next_cue():
+    """Unticking it must stop the very next hold, not wait for a restart."""
     f = _frame()
     p = None
     before = f.settings.get("player.pause_for_narration", True)
     try:
         p = _player_with_cue(f)
-        f.settings.set("player.pause_for_narration", False)
         p._settings = f.settings
+        f.tts_engine.speak_and_play = lambda text, *a, **k: True
+
+        p.pause_narration_check.SetValue(False)
+        p._on_pause_narration_toggle(None)
+        p._narrated.clear()
+        p._maybe_narrate()
+        assert not p._auto_paused, "held despite the toggle being off"
+        assert f.settings.get("player.pause_for_narration") is False, \
+            "the choice was not remembered"
+
+        p.pause_narration_check.SetValue(True)
+        p._on_pause_narration_toggle(None)
+        p._narrated.clear()
+        p._playing = True
+        p._maybe_narrate()
+        assert p._auto_paused, "did not hold after the toggle was switched on"
+    finally:
+        f.settings.set("player.pause_for_narration", before)
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_toggle_is_announced_not_just_checked():
+    """A screen reader says "checked"; it does not say what that does."""
+    f = _frame()
+    p = None
+    before = f.settings.get("player.pause_for_narration", True)
+    try:
+        p = _player_with_cue(f)
+        p._settings = f.settings
+        p.pause_narration_check.SetValue(False)
+        p._on_pause_narration_toggle(None)
+        assert p.status_text.GetLabel(), "switching it off said nothing"
+        off_text = p.status_text.GetLabel()
+        p.pause_narration_check.SetValue(True)
+        p._on_pause_narration_toggle(None)
+        assert p.status_text.GetLabel() != off_text, \
+            "on and off are announced identically"
+    finally:
+        f.settings.set("player.pause_for_narration", before)
+        if p is not None:
+            try:
+                p.Destroy()
+            except Exception:
+                pass
+        _close(f)
+
+
+def test_saved_preference_is_what_the_player_opens_with():
+    """v1.6.1: the checkbox is the live source of truth, so the stored
+    preference decides what the player STARTS with, not what it does
+    mid-session (the toggle covers that)."""
+    f = _frame()
+    p = None
+    before = f.settings.get("player.pause_for_narration", True)
+    try:
+        f.settings.set("player.pause_for_narration", False)
+        p = _player_with_cue(f)
+        assert p.pause_narration_check.GetValue() is False,             "player ignored the saved preference when it opened"
         spoken = []
         f.tts_engine.speak_and_play = lambda text, *a, **k: spoken.append(text)
         p._maybe_narrate()
@@ -1023,7 +1106,14 @@ if __name__ == "__main__":
           test_auto_hold_is_not_the_user_pressing_pause)
     check("user pause during narration wins",
           test_user_pause_during_narration_wins)
-    check("holding can be switched off", test_holding_can_be_switched_off)
+    check("player has a visible toggle",
+          test_player_has_a_visible_toggle_for_holding)
+    check("toggle takes effect on the next cue",
+          test_toggle_takes_effect_on_the_next_cue)
+    check("toggle is announced, not just checked",
+          test_toggle_is_announced_not_just_checked)
+    check("saved preference is what the player opens with",
+          test_saved_preference_is_what_the_player_opens_with)
     check("scene explorer arrow keys clamp",
           test_scene_explorer_arrow_keys_stay_in_range)
     check("ask more cancel closes cleanly",

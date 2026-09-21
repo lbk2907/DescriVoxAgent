@@ -152,6 +152,10 @@ EN_STRINGS: dict[str, str] = {
     # Player Window
     "player.title": "Described Video Player",
     "player.load_srt": "Load SRT...",
+    "player.pause_for_narration": "Pause video while a description is read",
+    "player.pause_for_narration_hint": "Holds the video until the description finishes, then carries on. Useful for slides and tutorials, where a long description would otherwise be cut off by the next one.",
+    "player.pause_on": "Video will pause while descriptions are read",
+    "player.pause_off": "Video will keep playing while descriptions are read",
     "player.current_desc": "Current Description:",
     "player.upcoming": "Upcoming:",
     "player.timeline": "Playback position",
@@ -507,6 +511,10 @@ MS_STRINGS: dict[str, str] = {
     # Player Window
     "player.title": "Pemain Video Berpenerangan",
     "player.load_srt": "Muat SRT...",
+    "player.pause_for_narration": "Jeda video semasa penerangan dibaca",
+    "player.pause_for_narration_hint": "Menahan video sehingga penerangan habis, kemudian sambung semula. Berguna untuk slaid dan tutorial, di mana penerangan panjang akan dipotong oleh penerangan seterusnya.",
+    "player.pause_on": "Video akan berhenti semasa penerangan dibaca",
+    "player.pause_off": "Video akan terus main semasa penerangan dibaca",
     "player.current_desc": "Penerangan Semasa:",
     "player.upcoming": "Akan Datang:",
     "player.timeline": "Kedudukan main balik",

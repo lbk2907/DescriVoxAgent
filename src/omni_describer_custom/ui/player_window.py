@@ -289,9 +289,25 @@ class PlayerWindow(wx.Frame):
         self.load_srt_btn = wx.Button(panel, label=t("player.load_srt"),
                                       name="load_srt")
 
+        # v1.6.1: hold-while-speaking is a preference, not a policy. It
+        # lives HERE as well as in Settings because whether it helps
+        # depends on the video in front of you — a slide deck needs it,
+        # a talking head does not — and changing it should not mean
+        # leaving the player. Takes effect on the next cue.
+        self.pause_narration_check = wx.CheckBox(
+            panel, label=t("player.pause_for_narration"),
+            name="pause_for_narration")
+        self.pause_narration_check.SetValue(bool(
+            self._settings.get("player.pause_for_narration", True)
+            if self._settings else True))
+        self.pause_narration_check.SetToolTip(
+            t("player.pause_for_narration_hint"))
+
         controls.Add(self.play_btn, 0, wx.ALL, 5)
         controls.Add(self.stop_btn, 0, wx.ALL, 5)
         controls.AddStretchSpacer()
+        controls.Add(self.pause_narration_check, 0,
+                     wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         controls.Add(self.load_srt_btn, 0, wx.ALL, 5)
         controls.Add(self.rewind_btn, 0, wx.ALL, 5)
         controls.Add(self.forward_btn, 0, wx.ALL, 5)
@@ -364,6 +380,8 @@ class PlayerWindow(wx.Frame):
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
+        self.pause_narration_check.Bind(wx.EVT_CHECKBOX,
+                                        self._on_pause_narration_toggle)
         self.load_srt_btn.Bind(wx.EVT_BUTTON, self._on_load_srt)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
@@ -529,8 +547,12 @@ class PlayerWindow(wx.Frame):
         # 9.9s into a 5s gap, so three of four cues collided and the
         # listener lost them. Pausing costs a longer runtime; not pausing
         # costs the content itself.
-        pause_for_narration = bool(self._settings.get(
-            "player.pause_for_narration", True)) if self._settings else True
+        widget = getattr(self, "pause_narration_check", None)
+        if widget is not None:
+            pause_for_narration = bool(widget.GetValue())
+        else:
+            pause_for_narration = bool(self._settings.get(
+                "player.pause_for_narration", True)) if self._settings else True
         auto_paused = False
         if pause_for_narration and self._playing:
             self._pause_for_narration()
@@ -552,6 +574,19 @@ class PlayerWindow(wx.Frame):
 
         self._tts_thread = threading.Thread(target=_narrate_bg, daemon=True)
         self._tts_thread.start()
+
+    def _on_pause_narration_toggle(self, event):
+        """Persist the choice and say what it now does.
+
+        Announced, not just checked: a screen-reader user hears the
+        control's new state but not what it means for playback.
+        """
+        on = bool(self.pause_narration_check.GetValue())
+        if self._settings:
+            self._settings.set("player.pause_for_narration", on)
+        # If they switch it off mid-cue, let the current hold finish
+        # rather than resuming into the middle of a sentence.
+        self._announce(t("player.pause_on") if on else t("player.pause_off"))
 
     def _pause_for_narration(self) -> None:
         """Hold playback while a description is spoken.
