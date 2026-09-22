@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 37 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 38 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 37 suite; run_gate.bat = semua
+tests/                           — 38 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -266,6 +266,38 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `self._providers` terus dan meletup pada `AIEngine.__new__()` —
    seluruh kerja mati dengan "no descriptions saved". Guna `getattr`
    + try/except untuk apa-apa yang sekadar mengoptimumkan.
+36. **Bendera build ≠ hasil build. SEMAK `dist/` SEBENAR.** v1.6.6
+   hantar Prism dengan `--collect-all prism` dan ujian semak bendera
+   itu dalam `build.bat` — lulus. App yang dihantar log "No module
+   named 'prism._prism_cffi'" dan ciri suara pembaca skrin MATI
+   sepenuhnya. Sebabnya `prism/_native.py` tambah folder ke `__path__`
+   ketika RUNTIME, jadi PyInstaller tak nampak extension itu.
+   `hooks/hook-prism.py` membetulkannya. **Ujian pembungkusan MESTI
+   baca fail dalam `dist/`, bukan bendera dalam `build.bat`.**
+37. **ADA DUA tempat pembersihan bahagian video, bukan satu.**
+   `_describe_video_part` (satu bahagian) DAN blok `finally` dalam
+   laluan chunked yang `unlink` setiap `part != path`. Yang kedua
+   memadam salinan cache muat naik, jadi cache v1.6.7 tak pernah
+   bertahan satu kerja pun dalam mod video penuh. Kedua-duanya kini
+   semak `is_cached_upload()`.
+38. **Log MESTI cetak LALUAN PENUH, bukan nama fail.** "Compressed
+   upload copy kept for retries: upload_xxx.mp4" nampak betul
+   sedangkan fail itu ditulis lalu dipadam — nama sahaja tak dapat
+   bezakan "disimpan" daripada "disimpan lalu dibuang".
+39. **Folder temp yang ditinggalkan TIDAK pernah dibersihkan** sebelum
+   v1.6.7: 115 folder muat turun = 806 MB pada mesin pemilik.
+   `core/housekeeping.py` sapu prefix `odc_*` yang berumur >24 jam
+   ketika app dibuka. **Tambah prefix `mkdtemp` baharu ke
+   `_OUR_PREFIXES`** — `test_fixes29` gagalkan gate kalau terlupa.
+40. **Automasi GUI: TIGA cara "berjaya" tanpa berbuat apa-apa.**
+   (a) UIA `invoke()` — butang wx tak melaksanakannya; (b)
+   `click_input()` dengan app di latar — klik mendarat pada tetingkap
+   lain; (c) `click_input()` walaupun di hadapan — butang Open hanya
+   **15 piksel lebar** (combo preset ambil baris itu). Guna navigasi
+   Tab + sahkan fokus melalui NVDA bridge, kemudian Enter. Lihat
+   `tools/e2e_full_verify.py:focus_and_activate`.
+41. **Endpoint mentah NVDA bridge TIADA pembalut `data`** — hanya CLI
+   yang menambahnya. `r.get("data", r)`, bukan `r["data"]`.
 
 ## Prosedur Biasa
 

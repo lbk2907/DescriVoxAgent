@@ -263,13 +263,36 @@ def test_labels_exist_in_both_languages():
 # ── Packaging ────────────────────────────────────────────────────
 
 def test_the_build_ships_prism():
-    """prism carries a .pyd and a .dll; without them it imports and dies."""
-    text = (ROOT / "build.bat").read_text(encoding="utf-8")
-    assert "--collect-all prism" in text, (
-        "build.bat does not bundle prism, so the packaged app would have "
-        "no screen-reader voice at all")
+    """Check the BUILD, not the build flags.
+
+    The first version of this test read build.bat for "--collect-all
+    prism" and passed — while the shipped app logged "No module named
+    'prism._prism_cffi'" and had no screen-reader voice at all.
+    prism/_native.py appends its directory to __path__ at runtime, so
+    PyInstaller never saw the extension and dropped it; hooks/hook-prism.py
+    puts it back. A flag is an intention, not a result.
+    """
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "prismatoid" in pyproject, "prismatoid is not a declared dependency"
+    hook = ROOT / "hooks" / "hook-prism.py"
+    assert hook.exists(), (
+        "no PyInstaller hook for prism, so the native extension would be "
+        "dropped from the build again")
+    assert "--additional-hooks-dir hooks" in (
+        ROOT / "build.bat").read_text(encoding="utf-8"), (
+        "the hooks directory is not passed to PyInstaller")
+
+    internal = ROOT / "dist" / "OmniDescriber" / "_internal"
+    if not internal.is_dir():
+        print("       (no build present — skipping the on-disk check)")
+        return
+    found = list(internal.rglob("_prism_cffi*.pyd"))
+    assert found, (
+        "the build has no _prism_cffi extension anywhere: prism will "
+        "import and die, exactly as it did in v1.6.6")
+    native = internal / "prism" / "_native"
+    assert (native / "prism.dll").exists(), (
+        "prism.dll is missing; the extension loads it by directory")
 
 
 def test_a_missing_prism_does_not_stop_the_app():

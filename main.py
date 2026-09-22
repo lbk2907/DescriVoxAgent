@@ -81,6 +81,17 @@ def main():
                 "The app will still start, but these features will fail.",
                 "Omni Describer Custom", wx.OK | wx.ICON_WARNING)
 
+        # v1.6.7: a crashed or killed run leaves its temp folders
+        # behind and nothing ever came back for them — 806 MB of
+        # abandoned downloads had built up on the author's machine.
+        # Only this app's own folders, only ones a day old or more.
+        try:
+            from omni_describer_custom.core.housekeeping import (
+                sweep_stale_temp)
+            sweep_stale_temp()
+        except Exception as e:
+            logger.warning("Temp cleanup skipped: %s", e)
+
         from omni_describer_custom.ui.main_frame import MainFrame
         frame = MainFrame()
         frame.Show(True)

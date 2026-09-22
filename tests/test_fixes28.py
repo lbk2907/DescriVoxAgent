@@ -374,6 +374,35 @@ def test_a_failed_encode_never_deletes_the_directory():
     assert "out.unlink" in body, "the half-written output is not cleaned up"
 
 
+def test_the_parts_cleanup_spares_the_cached_upload():
+    """The cleanup that made the whole cache pointless.
+
+    _describe_video_part was taught to keep a cached copy, but the
+    chunked path has a SECOND cleanup — a finally block that unlinks
+    every part that is not the original file — and it deleted the
+    cached copy too. So in full-video mode, which is what this user
+    actually runs, the cache never survived a single job.
+
+    Caught by watching a real run: the app logged "Compressed upload
+    copy kept for retries: upload_91c6be6de3d45df7.mp4 (5.4 MB)" and
+    the file was nowhere on disk afterwards.
+    """
+    text = (SRC / "core" / "ai_engine.py").read_text(encoding="utf-8")
+    cleanup = text.split("part_dirs: set[Path] = set()")[1][:900]
+    assert "is_cached_upload" in cleanup, (
+        "the parts cleanup deletes cached upload copies, so the retry "
+        "saving is thrown away at the end of every job")
+
+
+def test_the_cache_log_line_says_where():
+    """"Kept" and "kept then deleted" must be distinguishable."""
+    text = (SRC / "core" / "ai_engine.py").read_text(encoding="utf-8")
+    block = text.split("kept for retries")[1][:300]
+    assert "cached.name" not in block, (
+        "the log records only the file name, so a cached copy written "
+        "to the wrong place looks identical to one written correctly")
+
+
 def test_the_cache_directory_reaches_every_provider():
     engine = AIEngine()
     engine.upload_cache_dir = r"C:\somewhere"
@@ -530,6 +559,9 @@ if __name__ == "__main__":
           test_staging_keeps_an_extension_ffmpeg_understands)
     check("a failed encode never deletes the directory",
           test_a_failed_encode_never_deletes_the_directory)
+    check("the parts cleanup spares the cached upload",
+          test_the_parts_cleanup_spares_the_cached_upload)
+    check("the cache log line says where", test_the_cache_log_line_says_where)
     check("the cache directory reaches every provider",
           test_the_cache_directory_reaches_every_provider)
     check("compression falls back to a temp dir",

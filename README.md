@@ -11,6 +11,54 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## Verified end to end, 22 September 2026
+
+One complete run of the **shipped exe** — real video, real AI call —
+watched through NVDA via the local bridge, plus a leak and security
+audit. It found four things that the gate, the source and the build
+had all reported as fine.
+
+- **Prism was dead in the shipped build.** The app logged `No module
+  named 'prism._prism_cffi'` at startup: the whole screen-reader voice
+  added in v1.6.6 did nothing for anyone who installed it.
+  `prism/_native.py` appends its own directory to `__path__` at
+  *runtime*, so PyInstaller never saw the extension and dropped it
+  while `--collect-all prism` reported success. The v1.6.6 test read
+  `build.bat` for that flag — an intention, not a result.
+  `hooks/hook-prism.py` fixes it, and the test now reads `dist/`.
+- **The upload cache deleted itself.** The chunked path has a *second*
+  cleanup that unlinks every part, and the cached copy is a part — so
+  v1.6.7's retry saving never survived a single job in full-video
+  mode, which is the mode actually configured here. The app even
+  logged "kept for retries" as it happened, because the log printed
+  only the file name and not where it went.
+- **806 MB of abandoned temp folders**: 115 download directories and
+  120 frame directories from runs that crashed or were killed, which
+  nothing ever came back for. `core/housekeeping.py` now sweeps our
+  own `odc_*` folders older than a day at startup; the first run
+  freed 414 MB.
+- **Nothing leaked.** No plaintext key in the log, the settings file,
+  37 gate outputs or the shipped zip; the key is encrypted at rest and
+  still readable back; the package ships no `settings.json`; the app
+  opens no network port; and the NVDA bridge binds to `127.0.0.1`
+  only.
+
+**Prism reaches nine Windows screen readers** — NVDA, JAWS, ZDSR,
+ZoomText, PC-Talker, BoyPCReader, SenseReader, SystemAccess and
+WindowEyes — and falls back to SAPI or OneCore when none is running.
+Measured on this machine: `create_best()` picked NVDA (priority 103,
+the highest), and every backend was classified correctly as reader or
+synthesiser.
+
+**Two honest quality findings from the descriptions themselves.** The
+model exceeded its own 12-word ceiling on 3 of 5 cues, the worst being
+36 words — about 14 seconds of speech into a 3-second slot. And cues
+are given a fixed 3-second length, so two cues less than 3s apart
+overlap: here cue 1 (0–3s) and cue 2 (2–5s) did. With the narration
+pause on, both are heard in full; with it off, the second is trampled.
+Neither is new in v1.6.7 and neither is fixed by asking the model more
+firmly (see AGENTS.md pitfall 14).
+
 ## What's new in v1.6.7
 
 **Interrupted work survives.** A download that dies halfway now carries

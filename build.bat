@@ -38,6 +38,7 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
   --hidden-import comtypes.stream ^
   --collect-all pyttsx3 ^
   --collect-all prism ^
+  --additional-hooks-dir hooks ^
   --collect-all edge_tts ^
   --collect-all openai ^
   --collect-all aiohttp ^

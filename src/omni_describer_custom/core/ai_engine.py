@@ -1330,7 +1330,14 @@ class GLMProvider(AIProvider):
             part_dirs: set[Path] = set()
             for p in parts:
                 try:
-                    if p != path:
+                    # A cached upload copy is kept ON PURPOSE so a retry
+                    # skips the re-encode (v1.6.7). This loop deleted it
+                    # anyway, which made the whole cache pointless in the
+                    # full-video path — the one actually configured here.
+                    # Only found by watching a real run: the app logged
+                    # "Compressed upload copy kept for retries" and the
+                    # file was not on disk afterwards.
+                    if p != path and not self.is_cached_upload(p):
                         p.unlink(missing_ok=True)
                         if p.parent.name.startswith(
                                 ("odc_vcompress_", "odc_vsplit_")):
@@ -1597,9 +1604,11 @@ class GLMProvider(AIProvider):
             staging.unlink(missing_ok=True)
             self._compress_to(path, staging, target_bytes, is_cancelled)
             staging.replace(cached)
+            # Full path, not just the name: with only the name, "it was
+            # kept" could not be told apart from "it was kept somewhere
+            # else and then deleted", which is what happened.
             logger.info("Compressed upload copy kept for retries: %s "
-                        "(%.1f MB)", cached.name,
-                        cached.stat().st_size / 1e6)
+                        "(%.1f MB)", cached, cached.stat().st_size / 1e6)
             return cached
         out_dir = Path(_tf.mkdtemp(prefix="odc_vcompress_"))
         try:
