@@ -1666,7 +1666,8 @@ class MainFrame(wx.Frame):
                 frames = loop.run_until_complete(
                     vp.extract_frames(source, fps=fps, output_dir=frame_dir,
                                       on_progress=download_progress,
-                                      is_cancelled=lambda: bool(getattr(self, "_dl_cancelled", False)))
+                                      is_cancelled=lambda: bool(getattr(self, "_dl_cancelled", False)),
+                                      download_dir=download_dir)
                 )
             except SourceError as e:
                 if "cancelled" in str(e).lower():

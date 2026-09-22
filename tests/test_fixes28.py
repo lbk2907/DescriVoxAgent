@@ -174,6 +174,37 @@ def _close(frame):
         app.Yield()
 
 
+def test_frame_mode_downloads_into_the_project_too():
+    """The default path reaches the download through extract_frames.
+
+    v1.6.7 was very nearly shipped with only the two full-video paths
+    resumable. Frame mode — the default, the path most runs take —
+    calls extract_frames(source), which resolves the URL itself, so it
+    kept using a throwaway temp dir. Found by cancelling a real run
+    and finding the project's media folder empty.
+    """
+    import inspect
+    sig = inspect.signature(VideoProcessor.extract_frames)
+    assert "download_dir" in sig.parameters, (
+        "extract_frames cannot be told where to download, so frame "
+        "mode would not resume")
+    text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
+    call = text.split("vp.extract_frames(")[1][:500]
+    assert "download_dir=download_dir" in call, (
+        "frame mode still downloads to a throwaway temp dir")
+
+
+def test_every_download_entry_point_was_covered():
+    """Count them, so a fourth path cannot be added unnoticed."""
+    text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
+    entries = text.count("vp.resolve_source(") + text.count("vp.extract_frames(")
+    wired = text.count("out_dir=download_dir") + text.count(
+        "download_dir=download_dir")
+    assert entries == wired, (
+        f"{entries} download entry points but only {wired} given the "
+        f"project folder — one of them still uses a temp dir")
+
+
 def test_a_project_holding_a_partial_download_is_kept():
     """Tidying up must not delete the thing being resumed.
 
@@ -473,6 +504,10 @@ if __name__ == "__main__":
           test_resolve_source_takes_a_download_directory)
     check("the project is created before downloading",
           test_the_pipeline_creates_the_project_before_downloading)
+    check("frame mode downloads into the project too",
+          test_frame_mode_downloads_into_the_project_too)
+    check("every download entry point was covered",
+          test_every_download_entry_point_was_covered)
     check("a project holding a partial is kept",
           test_a_project_holding_a_partial_download_is_kept)
     check("an empty project is discarded",

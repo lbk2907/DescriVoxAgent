@@ -593,6 +593,7 @@ class VideoProcessor:
         detect_scene_changes: bool = True,
         on_progress: Callable[[DownloadProgress], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        download_dir: str = "",
     ) -> list[Frame]:
         """
         Extract frames at specified FPS.
@@ -601,9 +602,18 @@ class VideoProcessor:
         Remote URLs are downloaded first (on_progress receives structured
         DownloadProgress: percent, MB downloaded/total, speed, ETA).
         Raises SourceError when the source cannot be resolved.
+
+        download_dir makes that download resumable, the same as passing
+        out_dir to resolve_source. v1.6.7 shipped without it for one
+        release cycle: frame mode — the DEFAULT path, the one most runs
+        take — reaches the download through here rather than calling
+        resolve_source itself, so it kept using a throwaway temp dir
+        while the full-video paths resumed. Found by cancelling a real
+        run and seeing an empty project media folder.
         """
         video_path = await self.resolve_source(
-            video_path, on_progress=on_progress, is_cancelled=is_cancelled)
+            video_path, on_progress=on_progress, is_cancelled=is_cancelled,
+            out_dir=download_dir)
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 

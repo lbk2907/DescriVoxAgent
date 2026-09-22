@@ -198,7 +198,12 @@ def test_full_pipeline_copies_frames():
         async def gvi(source, **kwargs):
             return FakeInfo()
 
-        async def ef(source, fps=5, output_dir="", on_progress=None, is_cancelled=None):
+        # **kwargs so a new argument on the real extract_frames does not
+        # fail this stub: v1.6.7 added download_dir and the mismatch
+        # surfaced as "no descriptions saved", which names the symptom
+        # and hides the cause.
+        async def ef(source, fps=5, output_dir="", on_progress=None,
+                     is_cancelled=None, **kwargs):
             if on_progress:
                 on_progress(None)  # touch the dialog path like download does
             for i in range(3):
