@@ -275,7 +275,11 @@ def main() -> int:
     if not (config_dir / "settings.json").exists():
         print(f"No settings.json in {config_dir}; the run needs a real key")
         return 2
-    projects_dir = config_dir / "projects"
+    # ODC_CONFIG_DIR isolates settings.json ONLY. Projects live in the
+    # user's Documents folder either way, which the first run of this
+    # script did not know — it watched an empty directory while the job
+    # finished elsewhere and reported a timeout.
+    projects_dir = Path.home() / "Documents" / "OmniDescriber" / "projects"
 
     ready, detail = bridge_ready()
     if not ready:
@@ -378,8 +382,7 @@ def main() -> int:
 
         print("\n== ARTEFACTS ON DISK ==", flush=True)
         if project.get("_db"):
-            media = Path(project["_db"]).parent / (
-                Path(project["_db"]).stem) / "media"
+            media = Path(project["_db"]).with_suffix("") / "media"
             if media.is_dir():
                 for item in sorted(media.iterdir()):
                     print(f"    {item.name}: {item.stat().st_size} bytes",
@@ -387,6 +390,15 @@ def main() -> int:
                 srt = media / "descriptions.srt"
                 record("SRT written beside the video", srt.exists(),
                        f"{srt.stat().st_size} bytes" if srt.exists() else "")
+                # v1.6.7's retry saving: the compressed upload copy must
+                # still be here. A second cleanup used to delete it at
+                # the end of every job in full-video mode.
+                cached = list(media.glob("upload_*.mp4"))
+                record("the compressed upload copy survived the job",
+                       bool(cached),
+                       f"{cached[0].name} "
+                       f"({cached[0].stat().st_size/1e6:.1f} MB)"
+                       if cached else "deleted by the parts cleanup")
     finally:
         try:
             proc.terminate()
