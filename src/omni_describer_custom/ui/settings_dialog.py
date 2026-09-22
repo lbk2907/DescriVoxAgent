@@ -333,6 +333,17 @@ class SettingsDialog(wx.Dialog):
         self.frame_cap_spin = wx.SpinCtrl(panel, min=0, max=100000, initial=0, name="frame_cap")
         sizer.Add(self.frame_cap_spin, 0, wx.ALL | wx.EXPAND, 5)
 
+        # v1.6.10: the floor to the cap above. Deduplication keeps one
+        # frame for any stretch that does not change, so a 100-second
+        # held shot left the AI with nothing to look at and nothing to
+        # describe. 0 turns it off.
+        sizer.Add(wx.StaticText(panel, label=t("settings.max_frame_gap"),
+                                name="max_frame_gap_label"), 0, wx.ALL, 5)
+        self.max_gap_spin = wx.SpinCtrl(panel, min=0, max=600, initial=30,
+                                        name="max_frame_gap")
+        self.max_gap_spin.SetToolTip(t("settings.max_frame_gap_hint"))
+        sizer.Add(self.max_gap_spin, 0, wx.ALL | wx.EXPAND, 5)
+
         # v1.4.1: chunk length for full-video mode (seconds per part).
         sizer.Add(wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"), 0, wx.ALL, 5)
         self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=600, name="chunk_seconds")
@@ -810,6 +821,8 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("general.frame_rate", int(fps))
 
         self.settings.set("general.frame_cap", int(self.frame_cap_spin.GetValue()))
+        self.settings.set("general.max_frame_gap",
+                          int(self.max_gap_spin.GetValue()))
 
         self.settings.set("general.chunk_seconds",
                           int(self.chunk_spin.GetValue()))
@@ -897,6 +910,8 @@ class SettingsDialog(wx.Dialog):
             self.fps_choice.SetStringSelection(fps)
 
         self.frame_cap_spin.SetValue(int(self.settings.get("general.frame_cap", 0) or 0))
+        self.max_gap_spin.SetValue(
+            int(self.settings.get("general.max_frame_gap", 30) or 0))
 
         chunk_val = int(self.settings.get("general.chunk_seconds", 600) or 600)
         self.chunk_spin.SetValue(max(60, chunk_val))

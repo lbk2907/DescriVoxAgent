@@ -11,6 +11,43 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.10
+
+**The AI is never left blind for long.** Frame deduplication compares
+each frame only with the last one it kept and discards anything 85%
+similar, so a stretch of video that does not change was reduced to a
+*single* frame however long it ran. The model then had nothing to look
+at for that whole stretch and could describe nothing in it.
+
+Measured on a 120-second clip whose middle 100 seconds were one
+unchanging image:
+
+| | frames | longest stretch with no frame |
+|---|---|---|
+| before | 3 — at 0s, 10s, 110s | **100 s** |
+| v1.6.10 | 6 | **25 s** |
+
+On four real videos — a Malay news broadcast, an English talk, a
+cooking vlog and an amateur outdoor clip — the frame counts are
+**unchanged** (34, 37, 36, 19). The floor only acts where
+deduplication actually left a hole, so ordinary video costs nothing.
+
+A held shot is not an empty one: a lecturer stands at a slide, text
+appears, someone shifts position, and all of that sits inside the
+similarity threshold. Loosening that threshold would undo
+deduplication everywhere, so the *gap* is bounded instead. Inserted
+frames are real extracted frames at real timestamps — never invented.
+
+Settings › General has **"Never leave the AI blind for longer than"**,
+default 30 seconds, 0 to switch it off. It is the floor to the frame
+cap already there, which is the ceiling.
+
+The idea is borrowed from
+[devinilabs/claude-watch](https://github.com/devinilabs/claude-watch),
+which calls it a coverage floor and uses 45 seconds for study notes;
+30 is used here because this app has to describe the picture rather
+than summarise it. Their code was read, not installed.
+
 ## What's new in v1.6.9
 
 **The transcript now says the same thing twice.** Since v1.6.8 the app

@@ -125,6 +125,9 @@ class SettingsStore:
             # Optional cap on analysed frames per video (0 = no limit).
             # Default keeps existing behaviour unchanged.
             "frame_cap": 0,
+            # Longest stretch the AI may be left with no frame at all.
+            # 0 disables it; see VideoProcessor._apply_coverage_floor.
+            "max_frame_gap": 30,
             # Seconds per part when a long video is split for the AI
             # (full-video mode). 600 = 10 minutes (user request v1.5.3).
             "chunk_seconds": 600,

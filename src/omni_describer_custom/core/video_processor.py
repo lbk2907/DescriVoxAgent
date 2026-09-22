@@ -752,7 +752,12 @@ class VideoProcessor:
 
         # Deduplicate similar frames if scene detection enabled
         if detect_scene_changes and result:
-            result = self._deduplicate_frames(result)
+            try:
+                max_gap = float(self.settings.get(
+                    "general.max_frame_gap", 30.0) or 0.0)
+            except (TypeError, ValueError):
+                max_gap = 30.0
+            result = self._deduplicate_frames(result, max_gap=max_gap)
 
         logger.info("Extracted %d frames at %d FPS", len(result), fps)
         return result
@@ -772,7 +777,60 @@ class VideoProcessor:
         except Exception:
             return ""
 
-    def _deduplicate_frames(self, frames: list[Frame], threshold: float = 0.85) -> list[Frame]:
+    @staticmethod
+    def _apply_coverage_floor(kept: list[Frame], every: list[Frame],
+                              max_gap: float) -> list[Frame]:
+        """Put frames back wherever deduplication left the model blind.
+
+        Deduplication compares each frame only with the last one it
+        kept, so a stretch that does not change is reduced to a single
+        frame however long it runs. Measured on a 120-second clip whose
+        middle 100 seconds were one unchanging image: three frames
+        survived, at 0s, 10s and 110s. For a hundred seconds the model
+        had nothing to look at and could describe nothing, however much
+        was said or happened in that time.
+
+        A held shot is not the same as an empty one: a lecturer stands
+        at a slide, text appears, someone shifts position — all of it
+        well inside the 85% hash-similarity threshold that discards the
+        frame. So the gap is bounded rather than the threshold loosened,
+        which would undo deduplication everywhere else.
+
+        Borrowed from devinilabs/claude-watch, which calls it a coverage
+        floor and uses 45 seconds for study notes. Thirty is used here
+        because this app has to DESCRIBE the picture, not summarise it.
+
+        Frames are taken from `every` — real extracted frames at real
+        timestamps — never invented.
+        """
+        if max_gap <= 0 or len(kept) < 2 or not every:
+            return kept
+        by_time = sorted(every, key=lambda f: f.timestamp)
+        filled: list[Frame] = []
+        for index, frame in enumerate(kept):
+            filled.append(frame)
+            if index + 1 >= len(kept):
+                break
+            start, end = frame.timestamp, kept[index + 1].timestamp
+            span = end - start
+            if span <= max_gap:
+                continue
+            needed = int(span // max_gap)
+            for step in range(1, needed + 1):
+                target = start + step * (span / (needed + 1))
+                nearest = min(by_time, key=lambda f: abs(f.timestamp - target))
+                if start < nearest.timestamp < end and nearest not in filled:
+                    filled.append(nearest)
+        filled.sort(key=lambda f: f.timestamp)
+        added = len(filled) - len(kept)
+        if added:
+            logger.info("Coverage floor added %d frame(s) so no stretch "
+                        "longer than %.0fs is left undescribed",
+                        added, max_gap)
+        return filled
+
+    def _deduplicate_frames(self, frames: list[Frame], threshold: float = 0.85,
+                            max_gap: float = 30.0) -> list[Frame]:
         """Remove near-duplicate consecutive frames based on hash similarity."""
         if len(frames) < 2:
             return frames
@@ -794,7 +852,7 @@ class VideoProcessor:
         removed = len(frames) - len(deduped)
         if removed > 0:
             logger.info("Dedup removed %d similar frames (%d → %d)", removed, len(frames), len(deduped))
-        return deduped
+        return self._apply_coverage_floor(deduped, frames, max_gap)
 
     async def get_transcript(self, source: str,
                              local_path: str = "") -> list[TranscriptSegment]:
