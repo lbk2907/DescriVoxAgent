@@ -189,6 +189,59 @@ def to_vtt(descriptions: list[Description]) -> str:
     return "\n".join(out)
 
 
+# ── How long a description takes to say ──────────────────────────
+
+# Words per second for a synthesised voice at normal speed. English
+# TTS runs at roughly 150 words per minute, which is 2.5 a second; the
+# user's own speed multiplier scales it. Used both to size a cue and to
+# tell the model how much room a silent gap really holds.
+WORDS_PER_SECOND_AT_1X = 2.5
+
+# Below this, a cue is unreadable on the player timeline however short
+# its text is.
+MIN_CUE_SECONDS = 2.0
+
+
+def speaking_seconds(text: str, speed: float = 1.0) -> float:
+    """Roughly how long this description takes to speak aloud.
+
+    Measured need: the model wrote 97 words for a 50-second clip that
+    had 77 words of silence to put them in, and every cue was given a
+    fixed three seconds regardless. A 36-word description in a 3-second
+    cue overruns by ten seconds and lands on top of the dialogue.
+    """
+    words = len(str(text).split())
+    rate = WORDS_PER_SECOND_AT_1X * max(0.5, float(speed or 1.0))
+    return max(MIN_CUE_SECONDS, words / rate)
+
+
+def silent_gaps(segments, start: float = 0.0, end: float | None = None,
+                min_seconds: float = 1.0) -> list[tuple[float, float]]:
+    """Stretches of the video where nobody is speaking.
+
+    Built from the transcript the app already fetches. Gaps shorter
+    than min_seconds are dropped: there is no useful description that
+    fits in half a second, and offering one invites the model to try.
+    """
+    spans = []
+    for seg in segments or []:
+        s = float(getattr(seg, "start", 0.0))
+        e = float(getattr(seg, "end", s))
+        if e > s:
+            spans.append((s, e))
+    spans.sort()
+
+    gaps: list[tuple[float, float]] = []
+    cursor = float(start)
+    for s, e in spans:
+        if s - cursor >= min_seconds:
+            gaps.append((cursor, s))
+        cursor = max(cursor, e)
+    if end is not None and float(end) - cursor >= min_seconds:
+        gaps.append((cursor, float(end)))
+    return gaps
+
+
 # ── Audio export ─────────────────────────────────────────────────
 
 def _ffmpeg() -> str:

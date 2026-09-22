@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 38 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 39 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 38 suite; run_gate.bat = semua
+tests/                           — 39 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -298,6 +298,25 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `tools/e2e_full_verify.py:focus_and_activate`.
 41. **Endpoint mentah NVDA bridge TIADA pembalut `data`** — hanya CLI
    yang menambahnya. `r.get("data", r)`, bukan `r["data"]`.
+42. **Transkrip Whisper tempatan TIDAK MENENTU pada audio sukar.**
+   Fail sama, model sama (`base`), tiga larian melalui
+   `get_transcript`: dialog pertama dilaporkan pada 30.0s, 30.0s, lalu
+   0.0s; liputan 40%, 32%, 93%. Puncanya fallback suhu
+   faster-whisper yang MENSAMPEL secara rawak bila ambang logprob
+   gagal. **Bajet jurang (v1.6.8) hanya sebaik transkrip ini** —
+   jangan anggap jurang yang dilaporkan itu pasti.
+   **CUBAAN YANG GAGAL, jangan ulang:** `beam_size=5 + vad_filter=True`
+   menjadikannya LEBIH TERUK — liputan jatuh ke 20% dan VAD membuang
+   pertuturan sebenar (dialog pertama dilaporkan 40.0s, bukan 30.0s).
+   Diukur 22 Sep 2026. Kalau hendak baiki, ukur dahulu; jangan tukar
+   tetapan kerana ia "sepatutnya lebih baik".
+43. **Model TAHU tempat dialog, tetapi TIDAK tahu berapa ruang.**
+   Diperiksa: transkrip memang dihantar (921 aksara, baris bertimestamp
+   + arahan guna jurang), dan penempatan cue sebenarnya baik. Yang
+   hilang ialah aritmetik — klip 50s ada ~77 patah ruang, model tulis
+   97 lalu 99. `_gap_budget_block()` kini senaraikan setiap jurang dan
+   bilangan patah yang muat, berskala dengan kelajuan TTS pengguna.
+   Ini corak pitfall 14: beri nombor, bukan permintaan.
 
 ## Prosedur Biasa
 

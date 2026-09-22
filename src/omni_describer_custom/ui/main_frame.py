@@ -1152,6 +1152,72 @@ class MainFrame(wx.Frame):
                 self._download_title, fallback="video")
         return Path(source).stem or "video"
 
+    def _tts_speed(self) -> float:
+        """The speed the user's chosen narration voice actually runs at."""
+        try:
+            engine = self.settings.get("tts.default_engine", "edge") or "edge"
+            return float(self.settings.get(
+                f"tts.engines.{engine}.speed", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            return 1.0
+
+    def _tts_words_per_second(self) -> float:
+        from ..core.timeline_io import WORDS_PER_SECOND_AT_1X
+        return WORDS_PER_SECOND_AT_1X * max(0.5, self._tts_speed())
+
+    def _time_cues_by_length(self, pairs, transcript=None):
+        """Give each cue the time its text actually needs, and report
+        the ones that still land on top of speech.
+
+        Every cue used to get a flat three seconds. A 36-word
+        description takes about ten seconds to say at 1.5x, so it ran
+        into the next cue AND into the dialogue — measured on a real
+        run, where cue 1 (0-3s) and cue 2 (2-5s) overlapped outright.
+
+        The text is never altered here. Only the timing is corrected,
+        and anything still colliding is named so the user can decide.
+        """
+        from ..core.timeline_io import speaking_seconds
+        speed = self._tts_speed()
+        speaking = [(secs, text, speaking_seconds(text, speed))
+                    for secs, text in pairs]
+
+        objects = []
+        collisions = []
+        for index, (secs, text, needed) in enumerate(speaking):
+            end = secs + needed
+            # Never run into the next description: shorten rather than
+            # overlap, because two voices at once is no description.
+            if index + 1 < len(speaking):
+                end = min(end, speaking[index + 1][0])
+            objects.append(type("Obj", (), {
+                "id": 0,
+                "start_time": secs,
+                "end_time": max(secs + 0.5, end),
+                "text": text,
+                "edited": False,
+                "created_at": "",
+                "frame_path": "",  # no frame: AI watched the video
+            })())
+            for seg in transcript or []:
+                s = float(getattr(seg, "start", 0.0))
+                e = float(getattr(seg, "end", s))
+                if secs < e and secs + needed > s:
+                    collisions.append((secs, len(text.split())))
+                    break
+        return objects, collisions
+
+    def _report_cue_collisions(self, collisions, total: int) -> None:
+        """Say plainly which descriptions will talk over the dialogue."""
+        if not collisions:
+            return
+        where = ", ".join(f"{secs:.0f}s ({words} words)"
+                          for secs, words in collisions[:6])
+        message = t("process.cues_overrun", count=len(collisions),
+                    total=total, where=where)
+        logger.info("Cue/speech collisions: %s", where)
+        wx.CallAfter(self._log, message)
+
     def _ensure_project_for(self, source: str) -> str:
         """Make sure a project exists before anything is downloaded.
 
@@ -1309,6 +1375,12 @@ class MainFrame(wx.Frame):
             # orphaned and the next attempt started from zero. The three
             # later create_project calls are guarded by "if not current"
             # and become no-ops.
+            # Declared for the WHOLE pipeline, not inside one branch.
+            # It was assigned only under "if video_mode", while fast
+            # mode reads it too — a NameError that would have killed
+            # every fast-mode job with an unexplained "Processing
+            # error". Caught by walking the branches, not by reading.
+            transcript: list = []
             download_dir = self._ensure_project_for(source)
             # The same folder keeps the compressed upload copy, so a
             # retry after a failed upload skips the re-encode. Guarded
@@ -1319,6 +1391,15 @@ class MainFrame(wx.Frame):
             except Exception as e:
                 logger.warning("Upload cache dir not accepted (%s); a "
                                "retry will re-compress the video", e)
+            # v1.6.8: the model is told how many words fit in each
+            # silent gap, and that depends on how fast THIS user's
+            # voice speaks. A listener at 1.5x gets a bigger budget
+            # than one at 1.0x, instead of a figure that suits neither.
+            try:
+                self.ai_engine.words_per_second = self._tts_words_per_second()
+            except Exception as e:
+                logger.warning("Speaking rate not accepted (%s); the "
+                               "default pace will be used", e)
             frame_dir = tempfile.mkdtemp(prefix="odc_frames_")
             last_ui_update = [0.0]
             stop_counter = threading.Event()
@@ -1470,19 +1551,12 @@ class MainFrame(wx.Frame):
                         raise
                     raise
                 wx.CallAfter(self._log, t("video.parsed_count", count=len(pairs)))
-                desc_objects = []
-                for secs, text in pairs:
-                    desc_objects.append(type("Obj", (), {
-                        "id": 0,
-                        "start_time": secs,
-                        # Spoken descriptions typically need a few seconds;
-                        # 3s keeps the player timeline readable.
-                        "end_time": secs + 3.0,
-                        "text": text,
-                        "edited": False,
-                        "created_at": "",
-                        "frame_path": "",  # no frame: AI watched the video
-                    })())
+                # v1.6.8: a cue lasts as long as its text takes to
+                # say, not a flat 3 seconds. Anything still landing
+                # on the dialogue is named in the log.
+                desc_objects, _clashes = self._time_cues_by_length(
+                    pairs, transcript)
+                self._report_cue_collisions(_clashes, len(pairs))
                 if not self.project_store.current:
                     name = self._project_display_name(source)
                     self.project_store.create_project(name, source)
@@ -1631,19 +1705,12 @@ class MainFrame(wx.Frame):
                     raise
                 wx.CallAfter(self._log, t("video.parsed_count",
                                           count=len(pairs)))
-                desc_objects = []
-                for secs, text in pairs:
-                    desc_objects.append(type("Obj", (), {
-                        "id": 0,
-                        "start_time": secs,
-                        # Spoken descriptions typically need a few
-                        # seconds; 3s keeps the player timeline readable.
-                        "end_time": secs + 3.0,
-                        "text": text,
-                        "edited": False,
-                        "created_at": "",
-                        "frame_path": "",
-                    })())
+                # v1.6.8: a cue lasts as long as its text takes to
+                # say, not a flat 3 seconds. Anything still landing
+                # on the dialogue is named in the log.
+                desc_objects, _clashes = self._time_cues_by_length(
+                    pairs, transcript)
+                self._report_cue_collisions(_clashes, len(pairs))
                 if not self.project_store.current:
                     video_name = (self._project_display_name(source)
                                   if not Path(source).exists()

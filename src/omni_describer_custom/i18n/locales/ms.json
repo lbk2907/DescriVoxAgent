@@ -208,6 +208,7 @@
   "process.frame_capped": "Had frame dicapai: menganalisis {cap} frame pertama daripada {total}",
   "process.no_descriptions": "Tiada penerangan dijana.\n\nPenyedia AI tidak memulangkan teks yang boleh diguna. Semak kunci API dan sambungan dalam Tetapan (Uji Sambungan), kemudian cuba lagi.\n\nButiran ada dalam log di bawah.",
   "process.transcript_none": "Tiada transkrip; AI akan menghuraikan gambar sahaja",
+  "process.cues_overrun": "{count} daripada {total} penerangan terlalu panjang untuk kesenyapan tempatnya dan masih dibaca apabila orang mula bercakap: {where}. Pendekkan dalam editor, atau hidupkan jeda semasa penerangan dalam pemain.",
   "process.transcript_ok": "Transkrip dijumpai: {count} segmen pertuturan — AI akan tahu apa yang diperkatakan",
   "project.dedupe_found": "Video ini sudah ada projek:",
   "project.dedupe_new": "&Proses semula sebagai projek baharu",

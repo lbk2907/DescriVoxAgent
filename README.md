@@ -11,6 +11,44 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.8
+
+**Descriptions are written to fit the silence.** This started from the
+owner's hunch that the model must not be getting the dialogue, or it
+would not write over it. Testing that turned up something more precise,
+and partly proved him right.
+
+The transcript *is* sent — 921 characters of timed lines for a
+50-second clip, with an explicit instruction to use the gaps — and the
+model's *placement* was mostly good. What was missing was arithmetic.
+Nothing ever told it how much room a gap holds, so it picked a sensible
+moment and then wrote far too much for it. Measured: about **77 words**
+of silence available in that clip, **97 words** written in one run and
+**99** in the next.
+
+- **The prompt now lists every silent gap and how many words fit in
+  it**, scaled by your own TTS speed — at 1.5x you are offered more
+  words than a listener at 1.0x, instead of a figure that suits
+  neither. This is arithmetic rather than a plea; asking for "12 words
+  maximum" had already failed twice.
+- **A cue now lasts as long as its text takes to say.** Every cue used
+  to get a flat three seconds, so a 36-word description overran by ten
+  seconds and collided with both the next cue and the dialogue. In one
+  real run cue 1 (0–3s) and cue 2 (2–5s) overlapped outright. Cues are
+  now sized from their word count and never run into the next one.
+- **Anything still landing on speech is named in the log**, with the
+  time and word count, so you can shorten it in the editor or switch
+  on the narration pause.
+
+**A known limit, measured and deliberately not "fixed".** The local
+Whisper transcript is unreliable on hard audio. The same file, same
+model, three runs: first speech reported at 30.0s, 30.0s, then 0.0s;
+coverage 40%, 32%, 93%. The gap budget is only ever as good as that.
+Raising `beam_size` and enabling the VAD filter was tried and made it
+**worse** — coverage fell to 20% and real speech was dropped — so
+nothing was changed. If this is worth attacking, it needs measurement
+first, not a setting that ought to help.
+
 ## Verified end to end, 22 September 2026
 
 One complete run of the **shipped exe** — real video, real AI call —

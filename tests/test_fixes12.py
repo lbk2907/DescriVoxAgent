@@ -530,9 +530,27 @@ def test_process_video_full_branch_integration():
                         failures.append(f"text0: {descs[0].text!r}")
                     if any(d.frame_path for d in descs):
                         failures.append("frame_path should be empty")
-                    if [d.end_time for d in descs] != [3.0, 13.0]:
-                        failures.append(
-                            f"end times: {[d.end_time for d in descs]}")
+                    # v1.6.8: a cue lasts as long as its text takes to
+                    # say, not a flat 3 seconds. The first line here is
+                    # seven words and the second twelve, so their ends
+                    # differ — what matters is that each one covers its
+                    # own speech and never reaches the next cue.
+                    from omni_describer_custom.core.timeline_io import (
+                        speaking_seconds)
+                    for i, d in enumerate(descs):
+                        needed = speaking_seconds(d.text, 1.0)
+                        room = (descs[i + 1].start_time - d.start_time
+                                if i + 1 < len(descs) else needed)
+                        want = min(needed, room)
+                        if abs((d.end_time - d.start_time) - want) > 0.35:
+                            failures.append(
+                                f"cue {i} lasts "
+                                f"{d.end_time - d.start_time:.1f}s, needs "
+                                f"{want:.1f}s for {len(d.text.split())} words")
+                        if i + 1 < len(descs) and \
+                                d.end_time > descs[i + 1].start_time + 0.01:
+                            failures.append(
+                                f"cue {i} runs into the next one")
                 if not Path(frame.project_store._db_path(cur.id)).exists():
                     failures.append("sqlite db missing in isolated dir")
         finally:

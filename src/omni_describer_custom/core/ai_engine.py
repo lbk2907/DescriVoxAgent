@@ -157,7 +157,8 @@ async def estimate_video_cost(duration_seconds: float, model: str,
 
 def build_transcript_block(segments, start: float = 0.0,
                            end: float | None = None,
-                           offset: float = 0.0, limit: int = 120) -> str:
+                           offset: float = 0.0, limit: int = 120,
+                           words_per_second: float = 2.5) -> str:
     """Render the words spoken in a time range, for the prompt.
 
     v1.6.1: this is how a provider that cannot hear (GLM) still knows
@@ -202,7 +203,61 @@ def build_transcript_block(segments, start: float = 0.0,
         "them. Do NOT narrate these lines back unless the prompt above "
         "asks you to convey speech:\n"
         f"{lines}\n"
+        + _gap_budget_block(segments, start, end, offset, words_per_second)
     )
+
+
+def _gap_budget_block(segments, start: float, end: float | None,
+                      offset: float, words_per_second: float) -> str:
+    """Name each silent gap and how many words actually fit in it.
+
+    Asking for "12 words maximum" did not work, and asking harder is
+    not a plan (AGENTS.md pitfall 14). This gives arithmetic instead of
+    a plea. Measured on a real 50-second clip: it holds 77 words of
+    silence, and the model wrote 97 and then 99 — about a quarter more
+    than there was room for — because nothing ever told it the budget.
+
+    The rate follows the user's own TTS speed, so a listener at 1.5x
+    is offered more words than one at 1.0x rather than a figure that
+    suits neither.
+    """
+    if end is None:
+        return ""
+    from .timeline_io import silent_gaps
+
+    gaps = silent_gaps(segments, start=start, end=end, min_seconds=1.0)
+    if not gaps:
+        return (
+            "\n\nTHERE IS NO SILENCE IN THIS PART. Someone is speaking "
+            "throughout. Describe only what cannot be understood from "
+            "the words alone, and keep it to a few words.\n")
+
+    rows = []
+    total = 0
+    for a, b in gaps:
+        words = int((b - a) * words_per_second)
+        if words < 1:
+            continue
+        total += words
+        rows.append(
+            f"  {int((a - offset) // 60):02d}:{int((a - offset) % 60):02d}"
+            f"-{int((b - offset) // 60):02d}:{int((b - offset) % 60):02d}"
+            f"  about {words} words fit here")
+    if not rows:
+        return ""
+    listing = "\n".join(rows)
+    return (
+        "\n\nHOW MUCH ROOM YOU ACTUALLY HAVE. These are the silent "
+        "stretches, with the number of words that can be SPOKEN ALOUD "
+        "in each before the next line of dialogue starts. This is "
+        "measured, not a style preference: text longer than this is "
+        "still being read out when the speech begins, and the listener "
+        "loses both.\n"
+        f"{listing}\n"
+        f"Your whole answer must fit in about {total} words across all "
+        "of these gaps. Start each description inside a gap and make it "
+        "short enough to finish inside the SAME gap. If something will "
+        "not fit, leave it out rather than overrun.\n")
 
 
 FULL_VIDEO_TS_PROMPT_SUFFIX = (
@@ -357,6 +412,12 @@ class AIProvider(ABC):
     # media folder; empty means "use a throwaway temp dir", which is
     # how every provider behaved before.
     upload_cache_dir: str = ""
+
+    # How fast the descriptions will actually be spoken, so the model
+    # can be told how many words fit in each silent gap (v1.6.8). The
+    # default matches a synthesised voice at normal speed; the GUI
+    # overrides it from the user's own TTS speed setting.
+    words_per_second: float = 2.5
 
     @abstractmethod
     async def describe_image(
@@ -1421,7 +1482,8 @@ class GLMProvider(AIProvider):
         if transcript:
             part_end = offset + part_seconds if part_seconds else None
             spoken = build_transcript_block(
-                transcript, start=offset, end=part_end, offset=offset)
+                transcript, start=offset, end=part_end, offset=offset,
+                words_per_second=self.words_per_second)
         payload = {
             "model": model or self.models[0],
             "max_tokens": 16000,
@@ -2320,6 +2382,31 @@ class AIEngine:
                 logger.debug("provider %s rejected the upload cache dir",
                              getattr(provider, "name", "?"))
 
+    @property
+    def words_per_second(self) -> float:
+        """Speaking rate used to budget words against silent gaps."""
+        return getattr(self, "_words_per_second", 2.5)
+
+    @words_per_second.setter
+    def words_per_second(self, value: float) -> None:
+        """Set it here and every provider follows.
+
+        Same guarded shape as upload_cache_dir, and for the same
+        reason: this is set from inside the processing pipeline, and a
+        hint about pacing must never take the whole job down.
+        """
+        try:
+            rate = float(value)
+        except (TypeError, ValueError):
+            rate = 2.5
+        self._words_per_second = max(0.5, rate)
+        for provider in getattr(self, "_providers", {}).values():
+            try:
+                provider.words_per_second = self._words_per_second
+            except Exception:
+                logger.debug("provider %s rejected the speaking rate",
+                             getattr(provider, "name", "?"))
+
     def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "", api_format: str = "") -> None:
         """Configure a provider with credentials."""
         if name not in self.PROVIDERS:
@@ -2333,6 +2420,7 @@ class AIEngine:
         # A provider created after upload_cache_dir was set would
         # otherwise miss it and quietly fall back to a temp dir.
         self._providers[name].upload_cache_dir = self.upload_cache_dir
+        self._providers[name].words_per_second = self.words_per_second
         logger.info("AI provider set: %s (model=%s)", name, model or "default")
 
     def set_default(self, name: str) -> None:

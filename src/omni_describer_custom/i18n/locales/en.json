@@ -208,6 +208,7 @@
   "process.frame_capped": "Frame cap reached: analyzing the first {cap} of {total} frames",
   "process.no_descriptions": "No descriptions were generated.\n\nThe AI provider returned no usable text. Check your API key and connection in Settings (Test Connection), then try again.\n\nDetails are in the log below.",
   "process.transcript_none": "No transcript available; the AI will describe the picture only",
+  "process.cues_overrun": "{count} of {total} descriptions are too long for the silence they sit in and will still be playing when someone speaks: {where}. Shorten them in the editor, or turn on the pause during narration in the player.",
   "process.transcript_ok": "Transcript found: {count} spoken segments — the AI will know what is said",
   "project.dedupe_found": "This video already has a project:",
   "project.dedupe_new": "&Process again as new project",
