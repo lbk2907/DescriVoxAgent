@@ -11,6 +11,55 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.9
+
+**The transcript now says the same thing twice.** Since v1.6.8 the app
+spends the local transcript — it tells the model how many words fit in
+each silent gap — so a transcript that changed between runs changed
+the budget with it. It did: the same file, same model, three runs
+reported first speech at 30.0s, 30.0s, then 0.0s.
+
+Benchmarked across **seven genuinely different videos**, two runs each
+(`tools/whisper_bench.py`): a Malay news broadcast, an English talk, a
+cooking vlog with a music bed, two Indonesian cartoons, an amateur
+outdoor clip, and two text-to-speech clips whose speech times are
+known exactly.
+
+| | not deterministic | clean Malay | the music clip |
+|---|---|---|---|
+| old defaults | 3 of 7 | 35% | invented 17 lines of Korean |
+| v1.6.9 | **0 of 7** | **96%** | correctly found silence |
+
+- `temperature=0.0` — the library default is a *list* of temperatures,
+  and every value above zero samples, so a hard passage was re-decoded
+  at random until it passed a threshold. That was the entire source of
+  the drift.
+- `condition_on_previous_text=False` — one bad guess no longer steers
+  the rest of the file.
+- **Voice activity detection**, tuned (`threshold` 0.3 rather than the
+  0.5 default, with padding so first and last syllables survive). This
+  is what stops music being transcribed into confident nonsense.
+- **Repeat loops are dropped.** Turning the fallback off removes the
+  randomness but leaves the model nowhere to retry, so it can loop
+  instead: 27 seconds of "Mememememe" scored 29.7 on Whisper's own
+  compression ratio where real lines score 1.7–2.8. Those are filtered
+  and counted in the log.
+
+**The model was NOT changed, and that is a correction.** An earlier,
+weaker benchmark took three cuts from *one* video and made the `small`
+model look like the answer — 0 hallucinations against 32. On genuinely
+separate videos it reversed: `small` produced twelve hallucinated
+segments where `base` produced two. Measuring one video three times
+measures one video. `base` also stays free of a 464 MB download and
+runs about four times faster.
+
+**What is still not solved.** Neither setting is clean on hard cartoon
+audio — a couple of invented segments survive. And the compression
+filter catches repeat loops only: the seventeen Korean segments scored
+1.8–1.9, indistinguishable from real speech by that measure. The VAD
+prevents that case rather than detecting it, which means a video where
+VAD wrongly rejects real speech would go silently untranscribed.
+
 ## What's new in v1.6.8
 
 **Descriptions are written to fit the silence.** This started from the

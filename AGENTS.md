@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 39 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 40 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 39 suite; run_gate.bat = semua
+tests/                           — 40 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -298,7 +298,7 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `tools/e2e_full_verify.py:focus_and_activate`.
 41. **Endpoint mentah NVDA bridge TIADA pembalut `data`** — hanya CLI
    yang menambahnya. `r.get("data", r)`, bukan `r["data"]`.
-42. **Transkrip Whisper tempatan TIDAK MENENTU pada audio sukar.**
+42. **Transkrip Whisper tempatan DAHULUNYA tidak menentu** (dibaiki v1.6.9).
    Fail sama, model sama (`base`), tiga larian melalui
    `get_transcript`: dialog pertama dilaporkan pada 30.0s, 30.0s, lalu
    0.0s; liputan 40%, 32%, 93%. Puncanya fallback suhu
@@ -317,6 +317,22 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    97 lalu 99. `_gap_budget_block()` kini senaraikan setiap jurang dan
    bilangan patah yang muat, berskala dengan kelajuan TTS pengguna.
    Ini corak pitfall 14: beri nombor, bukan permintaan.
+44. **UJI PADA VIDEO YANG BENAR-BENAR BERBEZA, bukan potongan dari
+   satu video.** Penanda aras pertama saya ambil tiga keping dari SATU
+   video dan menyimpulkan model `small` ialah jawapannya (0 halusinasi
+   lwn 32). Pada tujuh video berasingan ia TERBALIK — `small` beri 12
+   halusinasi, `base` beri 2. Mengukur satu video tiga kali ialah
+   mengukur satu video. `tools/whisper_bench.py` ada set yang betul:
+   berita Melayu, ceramah Inggeris, vlog bermuzik, dua kartun
+   Indonesia, rakaman amatur, dua klip TTS berkebenaran diketahui.
+45. **DUA jenis halusinasi Whisper, hanya satu boleh ditapis.**
+   (a) Gelung berulang — "Mememe..." 27 saat, compression_ratio 29.7;
+   baris tulen 1.7-2.8. `_looks_hallucinated()` tangkap ini.
+   (b) Fantasi muzik — 17 baris teks KOREA pada vlog memasak Inggeris,
+   compression_ratio 1.8-1.9, **tidak dapat dibezakan** dengan nisbah.
+   Hanya VAD menghalangnya, dengan tidak menghantar muzik kepada model
+   langsung. JANGAN matikan `vad_filter` menyangka ia hanya
+   pengoptimuman.
 
 ## Prosedur Biasa
 

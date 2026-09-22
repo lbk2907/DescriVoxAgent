@@ -138,22 +138,22 @@ def build_clips(source: str = "") -> list[Path]:
         if not clip.exists() or clip.stat().st_size == 0:
             print(f"  building {name} ...", flush=True)
             clip = build_tts_clip(name, spec)
+        elif not (BENCH / f"{name}.truth.json").exists():
+            # Clip kept, ground truth missing: write it, or the
+            # accuracy column reads "-" and nobody notices why.
+            (BENCH / f"{name}.truth.json").write_text(
+                json.dumps({"lines": spec["lines"], "duration": 40.0},
+                           indent=2), encoding="utf-8")
         built.append(clip)
 
-    # Real-world clips cut from a video the user already has, if one
-    # was given: synthetic speech is clean, and clean is not the case
-    # that broke.
-    if source and Path(source).exists():
-        for label, start, length in (("real_early", 0, 50),
-                                     ("real_middle", 120, 50),
-                                     ("real_late", 300, 50)):
-            clip = BENCH / f"{label}.mp4"
-            if not clip.exists() or clip.stat().st_size == 0:
-                print(f"  cutting {label} ...", flush=True)
-                subprocess.run(
-                    [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
-                     "-ss", str(start), "-i", source, "-t", str(length),
-                     "-c", "copy", str(clip)], check=True, capture_output=True)
+    # Every other clip already in the folder. Cutting three pieces out
+    # of ONE video was the first attempt and it is not a test of
+    # anything: the same speaker, the same recording, the same noise.
+    # Put genuinely separate videos here instead — different
+    # languages, studio against amateur, speech over music.
+    names = {c.stem for c in built}
+    for clip in sorted(BENCH.glob("*.mp4")):
+        if clip.stem not in names and clip.stat().st_size > 0:
             built.append(clip)
     return built
 
@@ -165,6 +165,19 @@ def transcribe(clip: Path, model_size: str, kw: dict):
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     segments, _ = model.transcribe(str(clip), **kw)
     return [s for s in segments if s.text and s.text.strip()]
+
+
+def _duration(clip: Path) -> float:
+    """Real length, because the clips are no longer all the same."""
+    from omni_describer_custom.core.tools import find_tool
+    out = subprocess.run(
+        [find_tool("ffprobe"), "-v", "error", "-show_entries",
+         "format=duration", "-of", "default=nw=1:nk=1", str(clip)],
+        capture_output=True, text=True)
+    try:
+        return float(out.stdout.strip().splitlines()[0])
+    except (ValueError, IndexError):
+        return 60.0
 
 
 def truth_gaps(name: str) -> list[tuple[float, float]] | None:
@@ -235,7 +248,7 @@ def main() -> int:
     print("-" * 100, flush=True)
 
     for clip in clips:
-        duration = 40.0 if clip.stem.startswith("tts_") else 50.0
+        duration = _duration(clip)
         for label, size, kw in CONFIGS:
             counts, covs, halluc, errs = [], [], 0, "  -  "
             t0 = time.monotonic()

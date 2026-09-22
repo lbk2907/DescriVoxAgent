@@ -22,6 +22,44 @@ from .tools import find_tool
 
 logger = logging.getLogger(__name__)
 
+# How the local transcript is decoded. Since v1.6.8 the app spends this
+# transcript: it tells the model how many words fit in each silent gap,
+# so a transcript that moves between runs moves the budget with it.
+#
+# Benchmarked across seven genuinely different videos, two runs each
+# (tools/whisper_bench.py), against the previous defaults:
+#
+#                        not deterministic   clean Malay   music clip
+#   old (fallback on)         3 of 7             35%      invented 17
+#                                                         Korean lines
+#   these settings            0 of 7             96%      correctly
+#                                                         found silence
+#
+# temperature=0.0 — the default is a fallback LIST, and every value
+#   above zero samples, so a hard passage is re-decoded at random until
+#   it passes a threshold. That is the whole source of the drift: the
+#   same file reported first speech at 30.0s, 30.0s, then 0.0s.
+# condition_on_previous_text=False — stops one bad guess steering the
+#   rest of the file.
+# vad_filter — Silero decides what is speech BEFORE Whisper sees it.
+#   This is what stops music being transcribed into confident nonsense.
+#   threshold 0.3 rather than the 0.5 default because the cartoon and
+#   news audio here is quiet in places; speech_pad_ms keeps the first
+#   and last syllable of each line.
+WHISPER_DECODE: dict = {
+    "temperature": 0.0,
+    "condition_on_previous_text": False,
+    "vad_filter": True,
+    "vad_parameters": {
+        "threshold": 0.3,
+        "min_speech_duration_ms": 100,
+        "speech_pad_ms": 400,
+    },
+}
+
+# Whisper's own threshold for "this text is a repeat loop".
+WHISPER_COMPRESSION_LIMIT = 2.4
+
 
 class SourceError(RuntimeError):
     """Raised when a video source (URL or file) cannot be resolved/downloaded.
@@ -843,6 +881,29 @@ class VideoProcessor:
             return await self._whisper_transcribe(video_path)
         return []
 
+    @staticmethod
+    def _looks_hallucinated(segment) -> bool:
+        """Is this segment text Whisper invented rather than heard?
+
+        Only the repeat loop is caught here, by the compression ratio
+        Whisper itself uses to spot one. Measured: a real line scores
+        1.7-2.8, while 27 seconds of "Mememememe..." scored 29.7.
+        Turning the temperature fallback off removes the randomness but
+        gives the model nowhere to retry, so these loops become more
+        likely, not less — hence the filter.
+
+        The OTHER kind of hallucination, plausible words invented over
+        music, is not detectable this way: seventeen segments of Korean
+        text on an English cooking video scored 1.8-1.9, well inside
+        the normal range. The VAD filter is what handles that case, by
+        never sending music to the model at all.
+        """
+        try:
+            ratio = float(getattr(segment, "compression_ratio", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return False
+        return ratio > WHISPER_COMPRESSION_LIMIT
+
     async def _whisper_transcribe(self, video_path: str) -> list[TranscriptSegment]:
         """Local faster-whisper. Imported lazily: the app must still run
         (and describe) on a machine where it was never installed."""
@@ -858,13 +919,23 @@ class VideoProcessor:
 
         def _run() -> list[TranscriptSegment]:
             model = WhisperModel(size, device="cpu", compute_type="int8")
-            segments, info = model.transcribe(video_path, beam_size=1)
-            out = [TranscriptSegment(start=float(s.start), end=float(s.end),
-                                     text=s.text.strip())
-                   for s in segments if s.text and s.text.strip()]
-            logger.info("Whisper(%s): %d segments, %.0fs of %s audio",
-                        size, len(out), info.duration, info.language)
-            return out
+            segments, info = model.transcribe(
+                video_path, beam_size=1, **WHISPER_DECODE)
+            kept: list[TranscriptSegment] = []
+            dropped = 0
+            for s in segments:
+                text = (s.text or "").strip()
+                if not text:
+                    continue
+                if self._looks_hallucinated(s):
+                    dropped += 1
+                    continue
+                kept.append(TranscriptSegment(start=float(s.start),
+                                              end=float(s.end), text=text))
+            logger.info("Whisper(%s): %d segments (%d dropped as "
+                        "hallucination), %.0fs of %s audio",
+                        size, len(kept), dropped, info.duration, info.language)
+            return kept
 
         # Whisper is CPU-bound and blocks for minutes on a long video;
         # off the event loop it goes, or the cancel button dies with it.
