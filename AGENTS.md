@@ -238,6 +238,13 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `mkdtemp` baharu jadi fail separa jadi yatim. Sebab itu projek kini
    dicipta SEBELUM muat turun (`_ensure_project_for`), bukan selepas AI
    siap. Jangan pulangkan ordering itu.
+   **ADA TIGA PINTU MASUK muat turun, bukan satu.** Dua panggil
+   `vp.resolve_source(...)` terus (mod video penuh); yang KETIGA ialah
+   mod bingkai — laluan LALAI — yang panggil `vp.extract_frames(source)`
+   dan resolve URL di dalamnya. Menampal dua yang pertama sahaja nampak
+   betul dalam diff dan tetap salah: mod bingkai masih guna temp dir.
+   `test_fixes28` kira pintu masuk lawan yang berwayar supaya pintu
+   keempat tak boleh ditambah senyap.
 31. **JANGAN pilih fail muat turun dengan `sorted(glob("video.*"))[0]`.**
    `video.f616.mp4` (aliran video sahaja, belum bercantum) datang
    SEBELUM `video.mp4` ikut abjad — app akan huraikan video SENYAP.
