@@ -18,10 +18,15 @@ how the app uses them. Measured on this machine, 22 Sep 2026:
     OneCore   speak yes, is_speaking yes, to_memory yes, rate yes, voice yes
 
 A screen reader takes text and returns immediately; it will not say
-when it has finished. So it cannot drive the player's narration hold —
-the video would resume over the top of its own description. That is
-not a limitation to work around, it is the reason the hold asks the
-engine first.
+when it has finished. v1.6.6 treated that as the end of the matter and
+refused the narration hold for any screen-reader voice.
+
+That was too absolute. v1.6.11 listens for the end instead: the
+reader's own process falls silent when the sentence is over, and
+Windows meters every process's audio (core/audio_meter.py). That works
+on any NVDA version, because it asks nothing of NVDA. The API route —
+NVDA's synchronous speakSsml — was measured and rejected: on NVDA
+2025.3 it hung on the first call, a race fixed only in NVDA 2026.2.
 """
 
 from __future__ import annotations
@@ -41,6 +46,28 @@ _SCREEN_READER_BACKENDS = frozenset({
     "SenseReader", "SystemAccess", "WindowEyes", "Orca", "VoiceOver",
     "SpeechDispatcher", "AndroidScreenReader", "UIA",
 })
+
+
+# Process image names for screen readers whose audio can be metered to
+# tell when a sentence ends (core/audio_meter.py). NVDA is measured on
+# this machine. JAWS runs as jfw.exe, which Freedom Scientific documents.
+# Readers not listed simply get no narration hold, as before.
+_READER_PROCESSES: dict[str, tuple[str, ...]] = {
+    "NVDA": ("nvda.exe",),
+    "JAWS": ("jfw.exe",),
+}
+
+
+def _estimate_seconds(text: str) -> float:
+    """How long to wait when nothing can say the sentence is over.
+
+    Deliberately slow (normal speed, 2.5 words a second) — this user's
+    NVDA was measured at about 6 — because waiting too long costs a
+    moment of paused video and waiting too little talks over the end of
+    the description.
+    """
+    from .timeline_io import speaking_seconds
+    return speaking_seconds(text, 1.0)
 
 
 class PrismSpeech:
@@ -113,12 +140,8 @@ class PrismSpeech:
         return self.backend_name in _SCREEN_READER_BACKENDS
 
     @property
-    def can_report_speaking(self) -> bool:
-        """Can it tell us when a sentence has finished?
-
-        False for every screen reader tested. The player's narration
-        hold depends on this being true.
-        """
+    def _natively_reports(self) -> bool:
+        """The backend itself says when it is speaking (SAPI, OneCore)."""
         if not self.available or self._features is None:
             return False
         try:
@@ -127,8 +150,36 @@ class PrismSpeech:
             return False
 
     @property
+    def _meter(self):
+        """An audio meter on this screen reader's process, if one fits.
+
+        Only readers whose process name is known are listed. A wrong
+        name would simply find nothing and fall back, but a name is not
+        claimed here without a reason to believe it.
+        """
+        names = _READER_PROCESSES.get(self.backend_name)
+        if not names:
+            return None
+        from . import audio_meter
+        if not audio_meter.available():
+            return None
+        return audio_meter.ReaderMeter(names)
+
+    @property
+    def can_report_speaking(self) -> bool:
+        """Can the app tell when a sentence has finished?
+
+        True for synthesisers that report it themselves, and — since
+        v1.6.11 — for screen readers whose process can be listened to.
+        NVDA gives no such signal on any released version that does not
+        hang (see core/audio_meter.py), so the answer for NVDA comes
+        from its audio, not from NVDA.
+        """
+        return self._natively_reports or self._meter is not None
+
+    @property
     def speaking(self) -> bool:
-        if not self.can_report_speaking:
+        if not self._natively_reports:
             return False
         try:
             with self._lock:
@@ -141,8 +192,8 @@ class PrismSpeech:
     def speak(self, text: str, interrupt: bool = True) -> bool:
         """Say something. Returns False if nothing could say it.
 
-        Does NOT wait: a screen reader cannot be waited for. Use
-        speak_and_wait when the caller needs the end of the sentence.
+        Does NOT wait. Use speak_and_wait when the caller needs the end
+        of the sentence.
         """
         if not self.available or not text.strip():
             return False
@@ -157,21 +208,53 @@ class PrismSpeech:
     def speak_and_wait(self, text: str, timeout: float = 120.0) -> bool:
         """Say something and block until it has been said.
 
-        Only honest on a backend that reports speaking state; on a
-        screen reader it returns as soon as the text is handed over,
-        because there is nothing to wait on. Callers that care must
-        check can_report_speaking rather than assume this blocked.
+        Three ways to know, best first:
+
+          1. the backend reports it (SAPI, OneCore);
+          2. the screen reader's audio is heard falling silent;
+          3. neither is possible — wait as long as the text should take
+             to say, estimated slowly so the video waits a little too
+             long rather than resuming over the end of the sentence.
+
+        Never waits past `timeout`, so a reader that keeps talking —
+        or a meter that misreads — cannot freeze the player.
         """
+        t0 = time.monotonic()
+        meter = None if self._natively_reports else self._meter
+        if meter is not None:
+            # The meter must be ready BEFORE the speech starts, so it is
+            # handed the speak call rather than following it.
+            limit = min(timeout, max(15.0, _estimate_seconds(text) * 3))
+            outcome = meter.speak_and_wait(
+                lambda: self.speak(text, interrupt=True), limit)
+            logger.debug("Speech end via audio meter on %s: %s (%.1fs)",
+                         self.backend_name, outcome, time.monotonic() - t0)
+            if outcome == "not-spoken":
+                return False
+            if outcome in ("finished", "timeout"):
+                return True
+            # "no-sound" / "no-meter": the meter could not hear this
+            # reader, so fall back to the estimate below.
+            remaining = _estimate_seconds(text) - (time.monotonic() - t0)
+            if remaining > 0:
+                time.sleep(min(remaining, timeout))
+            return True
+
         if not self.speak(text, interrupt=True):
             return False
-        if not self.can_report_speaking:
-            return True
-        deadline = time.monotonic() + timeout
-        # Give the backend a moment to raise the flag before polling it,
-        # or a fast start looks like an instant finish.
-        time.sleep(0.05)
-        while self.speaking and time.monotonic() < deadline:
+
+        if self._natively_reports:
+            deadline = t0 + timeout
+            # Give the backend a moment to raise the flag before polling
+            # it, or a fast start looks like an instant finish.
             time.sleep(0.05)
+            while self.speaking and time.monotonic() < deadline:
+                time.sleep(0.05)
+            return True
+
+        remaining = _estimate_seconds(text) - (time.monotonic() - t0)
+        if remaining > 0:
+            time.sleep(min(remaining, timeout))
         return True
 
     def stop(self) -> None:

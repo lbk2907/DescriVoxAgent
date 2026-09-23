@@ -11,6 +11,57 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
+## What's new in v1.6.11
+
+**The narration pause now works with NVDA, on any NVDA version.** The
+player can hold the video while a description is spoken and resume it
+when the speech ends. For voices the app plays itself that was always
+easy. For a screen-reader voice it was refused outright in v1.6.6,
+because NVDA hands back control the moment text is queued and never
+says when it finished.
+
+Measured in the real player, NVDA 2025.3, screen-reader voice selected:
+
+| description | video held for |
+|---|---|
+| 5 words | 1.43 s |
+| 26 words | 4.64 s |
+
+The video stops as the description starts and resumes the moment NVDA
+falls silent.
+
+**How: it listens.** Windows keeps a peak-level meter on every audio
+session, and every session belongs to a process. When NVDA's process
+goes quiet for 0.6 s, the sentence is over. That asks nothing of NVDA,
+so it holds on every NVDA version. It is also ready for JAWS; other
+readers keep the previous behaviour until their process can be
+checked.
+
+**Why not NVDA's own API.** NVDA 2024.1 added a synchronous
+`speakSsml` meant to block until speech ends. On NVDA 2025.3 it
+**hung on the very first call** and never returned — a race NV Access
+fixed only in NVDA 2026.2
+([nvaccess/nvda#20220](https://github.com/nvaccess/nvda/pull/20220)),
+triggered by something as ordinary as a keypress. `isSpeaking` arrives
+in NVDA 2026.3, which is not yet released. An API answer would have
+worked only for people on the newest NVDA. No controller-client DLL is
+needed for this.
+
+**Three mistakes found by measuring, each now tested:**
+- Searching only the default output device found no NVDA at all. NVDA
+  here is routed to its own device, apart from media — common for a
+  blind user — so every device is searched.
+- Finding NVDA's process with `tasklist` took 0.83 s, longer than a
+  three-word description takes to say at this user's rate, so short
+  descriptions were reported as silent. It now takes about 0.03 s.
+- Looking the meter up after speaking missed short sentences for the
+  same reason; it is now ready before the speech starts.
+
+If NVDA's audio cannot be heard — muted, or an unusual audio path —
+the pause falls back to waiting as long as the text should take,
+estimated slowly so the video waits a little too long rather than
+resuming over the end of the sentence. It never waits indefinitely.
+
 ## What's new in v1.6.10
 
 **The AI is never left blind for long.** Frame deduplication compares

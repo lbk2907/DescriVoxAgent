@@ -19,9 +19,11 @@ The capability difference is the load-bearing part. Measured here:
     SAPI      speak yes, is_speaking yes, rate yes, voice yes
 
 A screen reader returns the moment text is queued. It will not say
-when it finished. So the player's narration hold cannot use it, the
-voice and speed settings cannot drive it, and announcements must not
-be duplicated through it. Each of those is checked below, and the
+when it finished. v1.6.6 concluded the narration hold could therefore
+never use it; v1.6.11 hears the end instead, through the reader's own
+audio (core/audio_meter.py), and the hold tests below now measure that.
+Voice and speed still cannot be driven from here, and announcements
+must still not be duplicated through it. Each of those is checked below, and the
 no-screen-reader half is forced with ODC_PRISM_BACKEND because this
 machine runs NVDA and would otherwise only ever test one branch.
 """
@@ -109,20 +111,45 @@ def test_it_is_not_chosen_for_anyone_automatically():
 
 # ── The capability difference, which everything else rests on ────
 
-def test_a_screen_reader_cannot_drive_the_narration_hold():
-    """NVDA reports supports_is_speaking False — so no hold."""
+def test_nvda_itself_still_cannot_say_it_finished():
+    """The reason the audio meter exists, kept pinned.
+
+    NVDA reports supports_is_speaking False through Prism. Its own
+    synchronous speakSsml was measured on NVDA 2025.3 and HUNG on the
+    first call (fixed only in NVDA 2026.2). If NVDA ever reports this
+    natively, the meter becomes a fallback rather than the answer.
+    """
     result = _in_subprocess("""
 import json
 from omni_describer_custom.core.speech import get_speech
 s = get_speech()
-print(json.dumps({"backend": s.backend_name,
-                  "reader": s.is_screen_reader,
-                  "can_report": s.can_report_speaking}))
+print(json.dumps({"reader": s.is_screen_reader,
+                  "native": s._natively_reports}))
 """, backend="NVDA")
     assert result["reader"] is True, f"NVDA not seen as a reader: {result}"
-    assert result["can_report"] is False, (
-        "NVDA claims it can report speaking state; if that is ever true "
-        "the hold logic needs revisiting, not this test relaxing")
+    assert result["native"] is False, (
+        "NVDA now reports speaking state itself; revisit whether the "
+        "audio meter is still needed")
+
+
+def test_nvda_can_drive_the_hold_through_its_audio():
+    """v1.6.11: the reader's process falls silent when the sentence ends.
+
+    This replaced a test that asserted the opposite. That test's own
+    message said "if that is ever true the hold logic needs revisiting,
+    not this test relaxing" — the logic was revisited, and the measured
+    answer is core/audio_meter.py.
+    """
+    result = _in_subprocess("""
+import json
+from omni_describer_custom.core.speech import get_speech
+s = get_speech()
+print(json.dumps({"can_report": s.can_report_speaking,
+                  "meter": s._meter is not None}))
+""", backend="NVDA")
+    assert result["meter"] is True, "no audio meter for NVDA's process"
+    assert result["can_report"] is True, (
+        "NVDA can be heard finishing, but the app still says it cannot")
 
 
 def test_a_synthesiser_can_drive_it():
@@ -142,16 +169,47 @@ print(json.dumps({"hold": e.supports_narration_hold("screen_reader")}))
         "refused — the capability is being ignored")
 
 
-def test_the_hold_is_refused_on_a_screen_reader():
+def test_the_hold_waits_as_long_as_nvda_speaks():
+    """The whole point, measured rather than assumed.
+
+    A flag saying "can report" proves nothing about the video. This
+    speaks a short and a long sentence through NVDA and checks that the
+    wait grows with the text — which it can only do if the end of the
+    speech is really being detected. Measured when written: 3 words
+    1.46 s, 32 words 5.14 s.
+    """
+    result = _in_subprocess("""
+import json, time
+from omni_describer_custom.core.speech import get_speech
+s = get_speech()
+def timed(text):
+    time.sleep(1.5)
+    t0 = time.monotonic(); s.speak_and_wait(text)
+    return time.monotonic() - t0
+short = timed("Gate check. Short.")
+long_ = timed("Gate check. This is a much longer sentence that should keep "
+              "the screen reader talking for several seconds before it stops.")
+print(json.dumps({"short": short, "long": long_}))
+""", backend="NVDA")
+    assert result["long"] > result["short"] + 1.0, (
+        f"the wait did not grow with the text (short {result['short']:.2f}s, "
+        f"long {result['long']:.2f}s) — the end of speech is not being "
+        f"detected, and the video would resume over the description")
+    assert result["long"] < 20.0, (
+        f"waited {result['long']:.1f}s for one sentence; something is "
+        f"holding the video far past the speech")
+
+
+def test_the_hold_is_granted_on_nvda():
     result = _in_subprocess("""
 import json
 from omni_describer_custom.core.tts_engine import TTSEngine
 e = TTSEngine({})
 print(json.dumps({"hold": e.supports_narration_hold("screen_reader")}))
 """, backend="NVDA")
-    assert result["hold"] is False, (
-        "the player would hold the video for a voice that never reports "
-        "finishing, so playback would resume over its own narration")
+    assert result["hold"] is True, (
+        "the narration hold is still refused for NVDA even though its "
+        "audio can be heard finishing")
 
 
 def test_waiting_actually_waits_where_waiting_is_possible():
@@ -312,11 +370,14 @@ if __name__ == "__main__":
     check("screen reader offered as a voice",
           test_screen_reader_is_offered_as_a_narration_engine)
     check("not chosen automatically", test_it_is_not_chosen_for_anyone_automatically)
-    check("a screen reader cannot drive the hold",
-          test_a_screen_reader_cannot_drive_the_narration_hold)
+    check("NVDA itself still cannot say it finished",
+          test_nvda_itself_still_cannot_say_it_finished)
+    check("NVDA can drive the hold through its audio",
+          test_nvda_can_drive_the_hold_through_its_audio)
     check("a synthesiser can drive it", test_a_synthesiser_can_drive_it)
-    check("hold refused on a screen reader",
-          test_the_hold_is_refused_on_a_screen_reader)
+    check("the hold waits as long as NVDA speaks",
+          test_the_hold_waits_as_long_as_nvda_speaks)
+    check("the hold is granted on NVDA", test_the_hold_is_granted_on_nvda)
     check("waiting actually waits", test_waiting_actually_waits_where_waiting_is_possible)
     check("quiet when a reader is running",
           test_announcements_stay_quiet_when_a_reader_is_running)

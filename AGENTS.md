@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 41 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 42 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -67,7 +67,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 41 suite; run_gate.bat = semua
+tests/                           — 42 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -203,9 +203,12 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
 26. **Keupayaan backend Prism BERBEZA jauh — jangan andai.** Diukur
    22 Sep 2026: NVDA `supports_is_speaking=False`, `set_rate=False`,
    `set_voice=False`, `speak_to_memory=False`. SAPI/OneCore semuanya
-   True. Sebab itu jeda naratif, Voice dan Speed dilumpuhkan bila
-   `screen_reader` dipilih. Baca dari backend HIDUP (`features`),
-   bukan dari nama enjin.
+   True. Sebab itu Voice dan Speed dilumpuhkan bila `screen_reader`
+   dipilih. Baca dari backend HIDUP (`features`), bukan dari nama enjin.
+   **DIBETULKAN v1.6.11:** entri ini dahulu berkata jeda naratif juga
+   TIDAK BOLEH untuk pembaca skrin. Itu terlalu mutlak — lihat pitfall
+   46. NVDA sendiri memang tidak melaporkan, tetapi bunyinya boleh
+   didengar berhenti.
 27. **`ODC_PRISM_BACKEND` paksa satu backend ikut nama** ("SAPI",
    "NVDA", "OneCore"). Tanpa ini cabang "tiada pembaca skrin" TIDAK
    BOLEH diuji pada mesin pemilik (NVDA sentiasa berjalan).
@@ -333,6 +336,30 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    Hanya VAD menghalangnya, dengan tidak menghantar muzik kepada model
    langsung. JANGAN matikan `vad_filter` menyangka ia hanya
    pengoptimuman.
+46. **Masa tamat pertuturan pembaca skrin = DENGAR bunyinya, bukan
+   tanya API.** `core/audio_meter.py` baca meter puncak Windows pada
+   sesi audio proses pembaca skrin. Senyap ≥0.6s = ayat habis. Diukur
+   dalam pemain sebenar dengan NVDA 2025.3: 5 patah → video dijeda
+   1.43s, 26 patah → 4.64s. Berfungsi pada SEMUA versi NVDA kerana ia
+   tidak meminta apa-apa daripada NVDA.
+   **Laluan API DITOLAK, jangan cuba lagi tanpa ukur:** `speakSsml`
+   segerak (controller client v2, NVDA 2024.1+) TERSEKAT pada panggilan
+   pertama di NVDA 2025.3 — perlumbaan yang dibaiki hanya NVDA 2026.2
+   (nvaccess/nvda#20220), dicetus oleh tekanan kekunci biasa.
+   `isSpeaking` hanya NVDA 2026.3 (belum stabil). DLL controller client
+   TIDAK diperlukan untuk ciri ini.
+47. **Tiga kesilapan meter, semuanya dijumpai dengan mengukur:**
+   (a) cari peranti LALAI sahaja → tiada sesi NVDA langsung; NVDA di
+   sini dihalakan ke peranti 0, lalai Windows peranti 1. Cari SEMUA.
+   (b) `tasklist` untuk cari proses → 0.83s, lebih lama daripada ayat
+   3 patah pada kadar NVDA pengguna (~6 patah/saat). Guna
+   `QueryFullProcessImageNameW` (~0.03s keseluruhan).
+   (c) cari meter SELEPAS bercakap → terlepas ayat pendek. Sediakan
+   SEBELUM `speak()`; `ReaderMeter.speak_and_wait(speak_fn, ...)`.
+48. **Salinan `nvdaControllerClient64.dll` di akar projek TIDAK
+   ditandatangani** (API v1.0, 4 fungsi sahaja). Versi rasmi 2026.2
+   ditandatangani NV Access Limited melalui GlobalSign. Ia tidak
+   digunakan oleh mana-mana kod; pemilik meletakkannya 23 Sep 2026.
 
 ## Prosedur Biasa
 
