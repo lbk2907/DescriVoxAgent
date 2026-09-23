@@ -645,6 +645,10 @@ class PlayerWindow(wx.Frame):
         never resume.
         """
         self._auto_paused = True
+        # v1.6.11: timed so the log can say how long the video waited.
+        # Without it, "the video did not pause for the description" could
+        # not be told apart from "it paused, but too briefly".
+        self._hold_started = time.monotonic()
         # v1.6.4: remember what was playing BEFORE stopping it.
         # _stop_ffplay() sets _audio_backend to "none", so the resume
         # path used to test a flag its own pause had just cleared — the
@@ -668,6 +672,12 @@ class PlayerWindow(wx.Frame):
         If they pressed Pause or Stop while the cue was being read, that
         decision wins: resuming would override a deliberate action.
         """
+        started = getattr(self, "_hold_started", None)
+        if started is not None:
+            logger.info("Narration hold released after %.2fs (voice: %s)",
+                        time.monotonic() - started,
+                        getattr(self.tts, "_current_engine", "?"))
+            self._hold_started = None
         if not self._auto_paused:
             return
         self._auto_paused = False

@@ -227,7 +227,10 @@ class PrismSpeech:
             limit = min(timeout, max(15.0, _estimate_seconds(text) * 3))
             outcome = meter.speak_and_wait(
                 lambda: self.speak(text, interrupt=True), limit)
-            logger.debug("Speech end via audio meter on %s: %s (%.1fs)",
+            # INFO, not DEBUG: whether the meter heard the end or fell
+            # back to an estimate is the first question any report of
+            # "the pause was wrong" will need answering.
+            logger.info("Speech end via audio meter on %s: %s (%.1fs)",
                          self.backend_name, outcome, time.monotonic() - t0)
             if outcome == "not-spoken":
                 return False
