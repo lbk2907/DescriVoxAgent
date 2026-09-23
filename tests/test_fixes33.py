@@ -1,4 +1,4 @@
-"""Regression round 33: hearing when a screen reader stops (v1.6.11).
+"""Regression round 33: hearing when a screen reader stops (v1.7.1).
 
 The narration hold pauses the video while a description is spoken. For
 a screen-reader voice that needs the END of the speech, and NVDA gives

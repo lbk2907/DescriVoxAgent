@@ -333,7 +333,7 @@ class SettingsDialog(wx.Dialog):
         self.frame_cap_spin = wx.SpinCtrl(panel, min=0, max=100000, initial=0, name="frame_cap")
         sizer.Add(self.frame_cap_spin, 0, wx.ALL | wx.EXPAND, 5)
 
-        # v1.6.10: the floor to the cap above. Deduplication keeps one
+        # v1.7.0: the floor to the cap above. Deduplication keeps one
         # frame for any stretch that does not change, so a 100-second
         # held shot left the AI with nothing to look at and nothing to
         # describe. 0 turns it off.

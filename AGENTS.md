@@ -36,6 +36,9 @@ dikekalkan dalam setiap perubahan UI.
 6. **Commit konvensyen:** mesej ringkas, jenis dulu (`feat:`, `fix:`, `test:`, `docs:`, `release:`).
    Version bump + README changelog bila release (`__version__` dalam `src/omni_describer_custom/__init__.py`
    = sumber tunggal versi).
+   **Penomboran (arahan pemilik, 23 Sep 2026):** digit terakhir berhenti pada 9.
+   Selepas 1.6.9 ialah **1.7.0**, bukan 1.6.10; selepas 1.7.9 ialah 1.8.0.
+   (1.7.0 dan 1.7.1 asalnya ditag 1.6.10 dan 1.6.11, kemudian dinamakan semula.)
 7. **Fail untracked `VEDIO DESCRIBER.PY.txt` JANGAN disentuh** — sketch pemilik, asal package `video_describer`.
 8. **Kerja latar (background) boleh terorphan** kalau server agent restart — build PyInstaller
    JALAN FOREGROUND (8-10 minit) supaya tak terputus.
@@ -205,7 +208,7 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `set_voice=False`, `speak_to_memory=False`. SAPI/OneCore semuanya
    True. Sebab itu Voice dan Speed dilumpuhkan bila `screen_reader`
    dipilih. Baca dari backend HIDUP (`features`), bukan dari nama enjin.
-   **DIBETULKAN v1.6.11:** entri ini dahulu berkata jeda naratif juga
+   **DIBETULKAN v1.7.1:** entri ini dahulu berkata jeda naratif juga
    TIDAK BOLEH untuk pembaca skrin. Itu terlalu mutlak — lihat pitfall
    46. NVDA sendiri memang tidak melaporkan, tetapi bunyinya boleh
    didengar berhenti.
@@ -406,8 +409,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.6.2 (tag terakhir `v1.6.1`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`)
+- **Versi:** 1.7.1 (tag `v1.7.1`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 42 suite dalam `run_gate.bat`.
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
 - 33 test suite, semua PASS (test_fixes19 = audit fix regression suite;

@@ -21,7 +21,7 @@ A screen reader takes text and returns immediately; it will not say
 when it has finished. v1.6.6 treated that as the end of the matter and
 refused the narration hold for any screen-reader voice.
 
-That was too absolute. v1.6.11 listens for the end instead: the
+That was too absolute. v1.7.1 listens for the end instead: the
 reader's own process falls silent when the sentence is over, and
 Windows meters every process's audio (core/audio_meter.py). That works
 on any NVDA version, because it asks nothing of NVDA. The API route —
@@ -170,7 +170,7 @@ class PrismSpeech:
         """Can the app tell when a sentence has finished?
 
         True for synthesisers that report it themselves, and — since
-        v1.6.11 — for screen readers whose process can be listened to.
+        v1.7.1 — for screen readers whose process can be listened to.
         NVDA gives no such signal on any released version that does not
         hang (see core/audio_meter.py), so the answer for NVDA comes
         from its audio, not from NVDA.

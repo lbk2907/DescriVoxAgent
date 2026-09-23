@@ -645,7 +645,7 @@ class PlayerWindow(wx.Frame):
         never resume.
         """
         self._auto_paused = True
-        # v1.6.11: timed so the log can say how long the video waited.
+        # v1.7.1: timed so the log can say how long the video waited.
         # Without it, "the video did not pause for the description" could
         # not be told apart from "it paused, but too briefly".
         self._hold_started = time.monotonic()

@@ -1,4 +1,4 @@
-"""Regression round 32: never leave the AI blind (v1.6.10).
+"""Regression round 32: never leave the AI blind (v1.7.0).
 
 Deduplication compares each frame only with the last one it kept and
 discards anything 85% similar, so a stretch of video that does not

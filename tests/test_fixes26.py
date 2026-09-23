@@ -20,7 +20,7 @@ The capability difference is the load-bearing part. Measured here:
 
 A screen reader returns the moment text is queued. It will not say
 when it finished. v1.6.6 concluded the narration hold could therefore
-never use it; v1.6.11 hears the end instead, through the reader's own
+never use it; v1.7.1 hears the end instead, through the reader's own
 audio (core/audio_meter.py), and the hold tests below now measure that.
 Voice and speed still cannot be driven from here, and announcements
 must still not be duplicated through it. Each of those is checked below, and the
@@ -133,7 +133,7 @@ print(json.dumps({"reader": s.is_screen_reader,
 
 
 def test_nvda_can_drive_the_hold_through_its_audio():
-    """v1.6.11: the reader's process falls silent when the sentence ends.
+    """v1.7.1: the reader's process falls silent when the sentence ends.
 
     This replaced a test that asserted the opposite. That test's own
     message said "if that is ever true the hold logic needs revisiting,

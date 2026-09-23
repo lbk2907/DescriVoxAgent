@@ -11,7 +11,11 @@ built-in player reads the descriptions in sync with playback.
 A full Malay user guide is in `doc/panduan-pengguna.md`; the English
 version is `doc/user-guide.md`.
 
-## What's new in v1.6.11
+Version numbers: the last digit stops at 9, so 1.6.9 is followed by
+1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
+1.6.10 and 1.6.11; an older zip with those names is the same code.
+
+## What's new in v1.7.1
 
 **The narration pause now works with NVDA, on any NVDA version.** The
 player can hold the video while a description is spoken and resume it
@@ -62,7 +66,7 @@ the pause falls back to waiting as long as the text should take,
 estimated slowly so the video waits a little too long rather than
 resuming over the end of the sentence. It never waits indefinitely.
 
-## What's new in v1.6.10
+## What's new in v1.7.0
 
 **The AI is never left blind for long.** Frame deduplication compares
 each frame only with the last one it kept and discards anything 85%
@@ -76,7 +80,7 @@ unchanging image:
 | | frames | longest stretch with no frame |
 |---|---|---|
 | before | 3 — at 0s, 10s, 110s | **100 s** |
-| v1.6.10 | 6 | **25 s** |
+| v1.7.0 | 6 | **25 s** |
 
 On four real videos — a Malay news broadcast, an English talk, a
 cooking vlog and an amateur outdoor clip — the frame counts are
