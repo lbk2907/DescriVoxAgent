@@ -91,6 +91,22 @@ def main() -> None:
         print("SMOKE_ALIVE_OK", flush=True)
     finally:
         if proc.poll() is None:
+            # Post WM_CLOSE directly to the process's top-level windows so the
+            # main frame receives the close event even if helper/IME windows exist
+            try:
+                import ctypes
+                from ctypes import wintypes
+                user32 = ctypes.windll.user32
+                def _close_cb(hwnd, _):
+                    pid = wintypes.DWORD()
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    if pid.value == proc.pid:
+                        user32.PostMessageW(hwnd, 0x0010, 0, 0)
+                    return True
+                WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+                user32.EnumWindows(WNDENUMPROC(_close_cb), 0)
+            except Exception:
+                pass
             subprocess.run(["taskkill", "/PID", str(proc.pid)],
                            capture_output=True, timeout=30)
             try:
