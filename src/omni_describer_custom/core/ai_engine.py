@@ -461,8 +461,8 @@ class GeminiProvider(AIProvider):
     name = "gemini"
     models = [
         "gemini-2.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.0-flash",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
     ]
 
     def __init__(self, api_key: str = "", base_url: str = ""):
@@ -551,7 +551,14 @@ class GeminiProvider(AIProvider):
         size = path.stat().st_size
         mime = self._video_mime(video_path)
         base = self.base_url.rstrip("/")
-        url = f"{base}/files?uploadType=resumable&key={self.api_key}"
+        if "generativelanguage.googleapis.com" in base and "/upload" not in base:
+            upload_base = base.replace(
+                "generativelanguage.googleapis.com",
+                "generativelanguage.googleapis.com/upload",
+            )
+        else:
+            upload_base = base
+        url = f"{upload_base}/files?uploadType=resumable&key={self.api_key}"
         headers = {
             "X-Goog-Upload-Protocol": "resumable",
             "X-Goog-Upload-Command": "start",
