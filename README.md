@@ -15,6 +15,15 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.3
+
+**Gemini now defaults to `gemini-3.8-flash`.** Google limits the 2.5
+models to accounts that used them before, so a new user entering a
+Gemini key got an error on the old default, `gemini-2.5-flash`. The
+list now reads `gemini-3.8-flash`, `gemini-3.5-flash-lite`, then
+`gemini-2.5-flash`; a saved choice of 2.5 is kept. Both new models
+were checked in full-video mode and hear the video's audio.
+
 ## What's new in v1.7.2
 
 **Google Gemini API full-video mode restored.** Resolved an upload
