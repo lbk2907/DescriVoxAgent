@@ -354,12 +354,16 @@ def apply_output_language(prompt: str, lang: str) -> str:
 #   "[00:05] text" / "- 12:34 - text" / "01:02:03.500 text" / "(0:59) text"
 # Deterministic: the timestamp must be followed by a delimiter or
 # whitespace before the description, so "12:34" alone never matches.
+# v1.7.4: also tolerates what models actually emit despite being told
+# not to \u2014 "1. [00:05] ...", "**[00:05]** ...", "[00:05]A dog" \u2014 which
+# used to be dropped silently. Text glued to the stamp must not start
+# with a digit, so "12:345" is never read as 12:34 + "5".
 _TS_LINE_RE = re.compile(
-    r"^\s*[-*\u2022]?\s*[\[\(]?\s*"
+    r"^\s*(?:\d{1,3}[.)]\s+)?[-*\u2022]?\s*(?:\*\*|__)?\s*[\[\(]?\s*"
     r"(?:(?P<h>\d{1,2}):)?(?P<m>\d{1,2}):(?P<s>\d{1,2})(?:[.,](?P<f>\d{1,3}))?"
-    r"\s*[\]\)]?"
+    r"\s*[\]\)]?\s*(?:\*\*|__)?"
     r"\s*[-\u2013:\u2022]?"  # optional separator like "-" or ":"
-    r"(?P<text>\s\S.*)?$"
+    r"(?:\s+(?P<text>\S.*)|(?P<glued>[^\s\d:.,\])].*))?$"
 )
 
 
@@ -378,7 +382,7 @@ def parse_gemini_timestamp_lines(text: str) -> list[tuple[float, str]]:
                 + int(m.group("m")) * 60 + int(m.group("s")))
         if m.group("f"):
             secs += float("0." + m.group("f"))
-        desc = (m.group("text") or "").strip()
+        desc = (m.group("text") or m.group("glued") or "").strip()
         if desc:
             out.append((float(secs), desc))
     return out
@@ -399,6 +403,123 @@ def _strip_think(text: str) -> str:
         # Truncated mid-thinking: keep only anything before the block.
         return text.split("<think>", 1)[0].strip()
     return _THINK_RE.sub("", text).strip()
+
+
+# v1.7.4: placeholders a provider returns instead of a description.
+# They are fine in the chat window, but a frame whose "description" is
+# "(empty response)" was saved as a cue and read aloud to the listener.
+_PLACEHOLDER_PREFIXES = ("(error:", "(no response", "(no text",
+                         "(empty response")
+
+
+def is_placeholder_text(text: str) -> bool:
+    """True when text is not a real description and must not be spoken."""
+    t = (text or "").strip()
+    return (not t or t == "(cancelled)"
+            or t.lower().startswith(_PLACEHOLDER_PREFIXES))
+
+
+# v1.7.4: every provider retries a provider-side wobble, not just GLM.
+# One HTTP 429 used to throw away a Gemini full-video job after the
+# upload and processing had already been paid for.
+_TRANSIENT_STATUSES = (429, 500, 502, 503, 504)
+HTTP_RETRIES = 3
+HTTP_RETRY_BACKOFF_SECONDS = 3.0
+
+
+class _TransientHTTPError(Exception):
+    """A status worth another attempt (rate limit, overload)."""
+
+
+async def _sleep_cancellable(seconds: float,
+                             is_cancelled: Callable[[], bool] | None) -> None:
+    loop = asyncio.get_running_loop()
+    end = loop.time() + seconds
+    while True:
+        if is_cancelled is not None and is_cancelled():
+            raise RuntimeError("cancelled")
+        left = end - loop.time()
+        if left <= 0:
+            return
+        await asyncio.sleep(min(0.5, left))
+
+
+async def _http_json(
+    method: str, url: str, *, label: str,
+    headers: dict | None = None, payload: Any = None,
+    timeout: float = 60.0,
+    is_cancelled: Callable[[], bool] | None = None,
+) -> dict:
+    """One JSON request with retries on 429/5xx and network errors.
+
+    The status is checked BEFORE the body is decoded: an HTML error
+    page used to raise aiohttp's ContentTypeError, whose text carries
+    the full request URL — and with it any key in the query string.
+    Error messages here name the provider and status, never the URL.
+    """
+    last: Exception | None = None
+    for attempt in range(1, HTTP_RETRIES + 1):
+        if is_cancelled is not None and is_cancelled():
+            raise RuntimeError("cancelled")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.request(
+                    method, url, json=payload, headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=timeout),
+                ) as resp:
+                    body = await resp.text()
+                    if resp.status in _TRANSIENT_STATUSES:
+                        raise _TransientHTTPError(
+                            f"HTTP {resp.status}: {body[:120]}")
+                    if resp.status != 200:
+                        raise RuntimeError(
+                            f"{label} HTTP {resp.status}: {body[:200]}")
+                    try:
+                        data = json.loads(body)
+                    except ValueError:
+                        raise RuntimeError(
+                            f"{label}: reply was not JSON: {body[:200]}"
+                        ) from None
+                    if not isinstance(data, dict):
+                        raise RuntimeError(
+                            f"{label}: unexpected reply: {body[:200]}")
+                    return data
+        except (_TransientHTTPError, aiohttp.ClientError,
+                asyncio.TimeoutError, OSError) as e:
+            last = e
+            if attempt >= HTTP_RETRIES:
+                break
+            wait = HTTP_RETRY_BACKOFF_SECONDS * attempt
+            logger.warning("%s: %s on attempt %d/%d; retrying in %.0fs",
+                           label, str(e) or type(e).__name__,
+                           attempt, HTTP_RETRIES, wait)
+            await _sleep_cancellable(wait, is_cancelled)
+    raise RuntimeError(
+        f"{label} request failed after {HTTP_RETRIES} attempts: "
+        f"{str(last) or type(last).__name__}")
+
+
+def _gemini_text(data: dict) -> str:
+    """Join every visible text part of a Gemini reply.
+
+    Taking parts[0] only dropped the rest of a reply that arrived in
+    several parts; thought parts are the model's reasoning, not the
+    answer. Returns "" (with the reason logged) when nothing came back,
+    e.g. a safety block.
+    """
+    candidates = data.get("candidates") or []
+    if not candidates:
+        logger.warning("Gemini returned no candidates (blockReason=%s)",
+                       (data.get("promptFeedback") or {}).get("blockReason"))
+        return ""
+    cand = candidates[0] or {}
+    parts = (cand.get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts
+                   if isinstance(p, dict) and not p.get("thought"))
+    if not text.strip():
+        logger.warning("Gemini returned no text (finishReason=%s)",
+                       cand.get("finishReason"))
+    return text
 
 
 class AIProvider(ABC):
@@ -479,7 +600,7 @@ class GeminiProvider(AIProvider):
         model = model or self.models[0]
         img_b64, mime = self._load_image_b64(image_path)
 
-        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/{model}:generateContent"
         payload = {
             "contents": [
                 {
@@ -497,18 +618,17 @@ class GeminiProvider(AIProvider):
             "generationConfig": {"maxOutputTokens": 1024},
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Gemini error: {data['error']}")
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    return "(no response from Gemini)"
-                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                return text or "(empty response)"
+        data = await _http_json("POST", url, label="Gemini",
+                                headers=self._auth_headers(),
+                                payload=payload, timeout=60)
+        if "error" in data:
+            raise RuntimeError(f"Gemini error: {data['error']}")
+        return _gemini_text(data) or "(empty response)"
+
+    def _auth_headers(self) -> dict:
+        # v1.7.4: the key travels in a header, never in the URL, so it
+        # cannot surface in an exception text, a log line or a cue.
+        return {"x-goog-api-key": self.api_key}
 
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
@@ -560,8 +680,9 @@ class GeminiProvider(AIProvider):
             )
         else:
             upload_base = base
-        url = f"{upload_base}/files?uploadType=resumable&key={self.api_key}"
+        url = f"{upload_base}/files?uploadType=resumable"
         headers = {
+            **self._auth_headers(),
             "X-Goog-Upload-Protocol": "resumable",
             "X-Goog-Upload-Command": "start",
             "X-Goog-Upload-Header-Content-Length": str(size),
@@ -605,7 +726,12 @@ class GeminiProvider(AIProvider):
                             raise RuntimeError(
                                 f"Gemini upload HTTP {resp.status}: {text[:200]}")
                         if is_last:
-                            payload = await resp.json()
+                            # Decoded by hand: resp.json() on a wrong
+                            # content type raises with the URL in it.
+                            try:
+                                payload = json.loads(await resp.text())
+                            except ValueError:
+                                payload = {}
                             fobj = payload.get("file", {})
                             uri = fobj.get("uri") or fobj.get("name", "")
                             if not uri:
@@ -634,32 +760,27 @@ class GeminiProvider(AIProvider):
         import asyncio as _aio
         base = self.base_url.rstrip("/")
         name = uri.split("/v1beta/")[-1] if "/v1beta/" in uri else uri
-        url = f"{base}/{name}?key={self.api_key}"
+        url = f"{base}/{name}"
         loop = _aio.get_running_loop()
         deadline = loop.time() + timeout
-        async with aiohttp.ClientSession() as session:
-            while True:
-                if is_cancelled is not None and is_cancelled():
-                    raise RuntimeError(
-                        "cancelled while waiting for Gemini to process the video")
-                async with session.get(url,
-                                       timeout=aiohttp.ClientTimeout(total=60)) as resp:
-                    if resp.status != 200:
-                        text = await resp.text()
-                        raise RuntimeError(
-                            f"Gemini file status HTTP {resp.status}: {text[:200]}")
-                    data = await resp.json()
-                state = data.get("state", "")
-                if state == "ACTIVE":
-                    return
-                if state == "FAILED":
-                    raise RuntimeError(
-                        "Gemini failed to process the video: "
-                        f"{data.get('error', {}).get('message', 'unknown error')}")
-                await _aio.sleep(5)
-                if loop.time() > deadline:
-                    raise RuntimeError(
-                        "Timed out waiting for Gemini to process the video")
+        while True:
+            if is_cancelled is not None and is_cancelled():
+                raise RuntimeError(
+                    "cancelled while waiting for Gemini to process the video")
+            data = await _http_json("GET", url, label="Gemini file status",
+                                    headers=self._auth_headers(),
+                                    timeout=60, is_cancelled=is_cancelled)
+            state = data.get("state", "")
+            if state == "ACTIVE":
+                return
+            if state == "FAILED":
+                raise RuntimeError(
+                    "Gemini failed to process the video: "
+                    f"{data.get('error', {}).get('message', 'unknown error')}")
+            await _aio.sleep(5)
+            if loop.time() > deadline:
+                raise RuntimeError(
+                    "Timed out waiting for Gemini to process the video")
 
     async def _generate_with_video(
         self, uri: str, mime: str, prompt: str, model: str,
@@ -667,7 +788,7 @@ class GeminiProvider(AIProvider):
     ) -> str:
         """One generateContent call carrying the whole video."""
         base = self.base_url.rstrip("/")
-        url = f"{base}/models/{model}:generateContent?key={self.api_key}"
+        url = f"{base}/models/{model}:generateContent"
         payload = {
             "contents": [{"parts": [
                 {"text": prompt},
@@ -675,17 +796,13 @@ class GeminiProvider(AIProvider):
             ]}],
             "generationConfig": {"maxOutputTokens": 8192},
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload,
-                                    timeout=aiohttp.ClientTimeout(total=600)) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Gemini error: {data['error']}")
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    return ""
-                return candidates[0].get("content", {}).get("parts", [{}])[0].get(
-                    "text", "")
+        data = await _http_json("POST", url, label="Gemini",
+                                headers=self._auth_headers(),
+                                payload=payload, timeout=600,
+                                is_cancelled=is_cancelled)
+        if "error" in data:
+            raise RuntimeError(f"Gemini error: {data['error']}")
+        return _gemini_text(data)
 
     async def describe_video_full(
         self, video_path: str, prompt: str, model: str = "",
@@ -741,23 +858,17 @@ class GeminiProvider(AIProvider):
             contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
         contents.append({"role": "user", "parts": [{"text": question}]})
 
-        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+        url = f"{self.base_url}/models/{model}:generateContent"
         payload = {
             "contents": contents,
             "generationConfig": {"maxOutputTokens": 1024},
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Gemini error: {data['error']}")
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    return "(no response from Gemini)"
-                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                return text or "(empty response)"
+        data = await _http_json("POST", url, label="Gemini",
+                                headers=self._auth_headers(),
+                                payload=payload, timeout=60)
+        if "error" in data:
+            raise RuntimeError(f"Gemini error: {data['error']}")
+        return _gemini_text(data) or "(empty response)"
 
 
 
@@ -805,20 +916,14 @@ class OpenAIProvider(AIProvider):
             "Content-Type": "application/json",
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"OpenAI HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"OpenAI error: {data['error']}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from OpenAI)"
-                return choices[0]["message"]["content"]
+        data = await _http_json("POST", url, label="OpenAI", headers=headers,
+                                payload=payload, timeout=60)
+        if "error" in data:
+            raise RuntimeError(f"OpenAI error: {data['error']}")
+        choices = data.get("choices", [])
+        if not choices:
+            return "(no response from OpenAI)"
+        return choices[0]["message"]["content"]
 
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
@@ -859,20 +964,14 @@ class OpenAIProvider(AIProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"OpenAI HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"OpenAI error: {data['error']}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from OpenAI)"
-                return choices[0]["message"]["content"]
+        data = await _http_json("POST", url, label="OpenAI", headers=headers,
+                                payload=payload, timeout=60)
+        if "error" in data:
+            raise RuntimeError(f"OpenAI error: {data['error']}")
+        choices = data.get("choices", [])
+        if not choices:
+            return "(no response from OpenAI)"
+        return choices[0]["message"]["content"]
 
 
 
@@ -966,23 +1065,17 @@ class MiniMaxProvider(AIProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                data = await resp.json()
-                if resp.status != 200:
-                    raise RuntimeError(
-                        f"MiniMax HTTP {resp.status}: {str(data)[:200]}")
-                base = data.get("base_resp", {}) or {}
-                if base.get("status_code", 0) != 0:
-                    raise RuntimeError(
-                        f"MiniMax error: {base.get('status_msg', data)}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from MiniMax)"
-                return choices[0]["message"]["content"]
+        data = await _http_json("POST", url, label="MiniMax", headers=headers,
+                                payload=payload, timeout=timeout,
+                                is_cancelled=is_cancelled)
+        base = data.get("base_resp", {}) or {}
+        if base.get("status_code", 0) != 0:
+            raise RuntimeError(
+                f"MiniMax error: {base.get('status_msg', data)}")
+        choices = data.get("choices", [])
+        if not choices:
+            return "(no response from MiniMax)"
+        return choices[0]["message"]["content"]
 
     async def describe_video_full(
         self, video_path: str, prompt: str, model: str = "",
@@ -1327,11 +1420,14 @@ class GLMProvider(AIProvider):
                         if fitting and duration > 0:
                             if on_status:
                                 on_status("splitting")
+                            # keep_resolution: the split used to scale
+                            # to 360p anyway, undoing this whole branch.
                             starts, parts = self.split_video_for_upload(
                                 path, fitting,
                                 is_cancelled=is_cancelled,
                                 on_status=on_status,
-                                on_split_progress=on_split_progress)
+                                on_split_progress=on_split_progress,
+                                keep_resolution=True)
                     if not parts:
                         if on_status:
                             on_status("compressing")
@@ -1342,6 +1438,14 @@ class GLMProvider(AIProvider):
                 else:
                     parts = [path]
             total = len(parts)
+            # v1.7.4: each part's REAL length. chunk_seconds was passed
+            # instead, so a 60 s clip was described as if it ran to
+            # 10:00 — the gap budget offered ~1,300 words of "silence"
+            # after the video ended, and a preserve-resolution part got
+            # the next parts' speech. 0 = unknown (probe failed).
+            ends = list(starts[1:len(parts)]) + [duration]
+            part_lens = [max(0.0, e - s) if duration > 0 else 0.0
+                         for s, e in zip(starts, ends)]
             merged: list[tuple[float, str]] = []
             done_parts = 0
             prev_summary = ""
@@ -1350,6 +1454,7 @@ class GLMProvider(AIProvider):
                     raise RuntimeError("cancelled")
                 if on_part:
                     on_part(i + 1, total)
+                part_len = part_lens[i] if i < len(part_lens) else 0.0
                 # v1.5.3: pass a short summary of the previous part so
                 # the model keeps its bearings (no "the video starts
                 # with" at minute 20) and keeps one name per character.
@@ -1358,7 +1463,7 @@ class GLMProvider(AIProvider):
                     is_cancelled=is_cancelled, offset=offset,
                     part_index=i + 1, part_total=total,
                     prev_summary=prev_summary, transcript=transcript,
-                    part_seconds=chunk_seconds)
+                    part_seconds=part_len)
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -1371,7 +1476,7 @@ class GLMProvider(AIProvider):
                         is_cancelled=is_cancelled, offset=offset,
                         part_index=i + 1, part_total=total,
                         prev_summary=prev_summary, transcript=transcript,
-                        part_seconds=chunk_seconds)
+                        part_seconds=part_len)
                 if pairs:
                     prev_summary = "; ".join(
                         txt for _, txt in pairs[-6:])
@@ -1548,6 +1653,17 @@ class GLMProvider(AIProvider):
         if on_status:
             on_status("parsing")
         pairs = parse_gemini_timestamp_lines(_strip_think(text))
+        if part_seconds and part_seconds > 0:
+            # v1.7.4: a time the model invents past the end of this part
+            # used to land inside the NEXT part, or after the video had
+            # ended. A second of slack covers rounding at the cut.
+            kept = [(min(t, part_seconds), d) for (t, d) in pairs
+                    if t <= part_seconds + 1.0]
+            if len(kept) < len(pairs):
+                logger.warning("part %d: dropped %d cue(s) past its end "
+                               "(%.1f s)", part_index,
+                               len(pairs) - len(kept), part_seconds)
+            pairs = kept
         return [(t + offset, d) for (t, d) in pairs]
 
     @staticmethod
@@ -1803,6 +1919,7 @@ class GLMProvider(AIProvider):
         is_cancelled: Callable[[], bool] | None = None,
         on_status: Callable[[str], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
+        keep_resolution: bool = False,
     ) -> tuple[list[float], list[Path]]:
         """Split a video into consecutive parts of about chunk_seconds.
 
@@ -1810,23 +1927,53 @@ class GLMProvider(AIProvider):
         bitrate (keyframe-aligned cuts, uniform parts). Returns
         (start_offsets_seconds, part_paths). Parts live in a temp dir;
         the caller deletes them when done.
+
+        keep_resolution (v1.7.4): no 360p scale, and the source's own
+        bitrate — the caller already chose a part length that fits.
         """
-        import subprocess as _sp
+        import shutil as _shutil
         import tempfile as _tf
         duration = self._probe_duration(path, is_cancelled=is_cancelled)
         if duration <= 0:
             raise RuntimeError("cannot split an unreadable video")
+        out_dir = Path(_tf.mkdtemp(prefix="odc_vsplit_"))
+        try:
+            return self._split_into(path, out_dir, duration, chunk_seconds,
+                                    is_cancelled, on_status,
+                                    on_split_progress, keep_resolution)
+        except BaseException:
+            # v1.7.4: on cancel or failure the caller never receives the
+            # part list, so nobody else can delete these parts.
+            _shutil.rmtree(out_dir, ignore_errors=True)
+            raise
+
+    def _split_into(
+        self, path: Path, out_dir: Path, duration: float,
+        chunk_seconds: int,
+        is_cancelled: Callable[[], bool] | None,
+        on_status: Callable[[str], None] | None,
+        on_split_progress: Callable[[float], None] | None,
+        keep_resolution: bool,
+    ) -> tuple[list[float], list[Path]]:
+        import subprocess as _sp
         n_parts = max(1, int(duration / chunk_seconds + 0.999))
         target = min(self.COMPRESS_TARGET_BYTES,
                      max(4 * 1024 * 1024,
                          int(self.MAX_VIDEO_BYTES * 0.8 / n_parts)))
         kbps = max(80, int(target * 8 * 0.95 / duration / 1000))
-        out_dir = Path(_tf.mkdtemp(prefix="odc_vsplit_"))
+        scale: list[str] = ["-vf", "scale=-2:360"]
+        if keep_resolution:
+            scale = []
+            try:
+                kbps = max(80, int(path.stat().st_size * 8 / duration
+                                   / 1000))
+            except OSError:
+                pass
         pattern = out_dir / "part_%04d.mp4"
         cmd = [
             self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
             "error", "-progress", "pipe:1", "-i", str(path),
-            "-vf", "scale=-2:360",
+            *scale,
             "-c:v", "libx264", "-preset", "veryfast",
             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
             "-bufsize", f"{int(kbps * 2)}k",
@@ -1863,6 +2010,9 @@ class GLMProvider(AIProvider):
             if is_cancelled and is_cancelled():
                 try:
                     proc.kill()
+                    # Windows keeps the open part locked until ffmpeg
+                    # has really exited; the cleanup needs it gone.
+                    proc.wait(timeout=10)
                 except Exception:
                     pass
                 raise RuntimeError("cancelled")
@@ -2187,7 +2337,6 @@ class CustomProvider(AIProvider):
     async def _call_openai(self, model: str, prompt: str, img_b64: str, mime: str) -> str:
         """OpenAI-compatible chat completions (vision)."""
         data_url = f"data:{mime};base64,{img_b64}"
-        url = f"{self.base_url}/chat/completions"
         payload = {
             "model": model,
             "max_tokens": 1024,
@@ -2199,29 +2348,10 @@ class CustomProvider(AIProvider):
                 ],
             }],
         }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=120),
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Custom API error: {data['error']}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from custom API)"
-                return choices[0]["message"]["content"]
+        return await self._post_openai(payload)
 
     async def _call_anthropic(self, model: str, prompt: str, img_b64: str, mime: str) -> str:
         """Anthropic Messages API format."""
-        url = f"{self.base_url}/messages"
         payload = {
             "model": model,
             "max_tokens": 1024,
@@ -2235,24 +2365,7 @@ class CustomProvider(AIProvider):
                 ],
             }],
         }
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=120),
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                for block in data.get("content", []):
-                    if block.get("type") == "text":
-                        return block["text"]
-                return "(no text in custom API response)"
+        return await self._post_anthropic(payload)
 
     async def describe_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
@@ -2297,47 +2410,40 @@ class CustomProvider(AIProvider):
             for m in (history or [])
         ]
         messages.append({"role": "user", "content": question})
-        async with aiohttp.ClientSession() as session:
-            if fmt == FORMAT_ANTHROPIC:
-                url = f"{self.base_url}/messages"
-                payload = {"model": model, "max_tokens": 1024, "messages": messages}
-                headers = {
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                }
-                async with session.post(
-                    url, json=payload, headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=120),
-                ) as resp:
-                    if resp.status != 200:
-                        body = await resp.text()
-                        raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
-                    data = await resp.json()
-                    for block in data.get("content", []):
-                        if block.get("type") == "text":
-                            return block["text"]
-                    return "(no text in custom API response)"
-            url = f"{self.base_url}/chat/completions"
-            payload = {"model": model, "max_tokens": 1024, "messages": messages}
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            }
-            async with session.post(
-                url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=120),
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"Custom API HTTP {resp.status}: {body[:200]}")
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Custom API error: {data['error']}")
-                choices = data.get("choices", [])
-                if not choices:
-                    return "(no response from custom API)"
-                return choices[0]["message"]["content"]
+        if fmt == FORMAT_ANTHROPIC:
+            return await self._post_anthropic(
+                {"model": model, "max_tokens": 1024, "messages": messages})
+        return await self._post_openai(
+            {"model": model, "max_tokens": 1024, "messages": messages})
+
+    async def _post_openai(self, payload: dict) -> str:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        data = await _http_json("POST", f"{self.base_url}/chat/completions",
+                                label="Custom API", headers=headers,
+                                payload=payload, timeout=120)
+        if "error" in data:
+            raise RuntimeError(f"Custom API error: {data['error']}")
+        choices = data.get("choices", [])
+        if not choices:
+            return "(no response from custom API)"
+        return choices[0]["message"]["content"]
+
+    async def _post_anthropic(self, payload: dict) -> str:
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        data = await _http_json("POST", f"{self.base_url}/messages",
+                                label="Custom API", headers=headers,
+                                payload=payload, timeout=120)
+        for block in data.get("content", []):
+            if block.get("type") == "text":
+                return block["text"]
+        return "(no text in custom API response)"
 
 
 class AIEngine:

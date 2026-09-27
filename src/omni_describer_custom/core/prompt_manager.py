@@ -372,7 +372,10 @@ class PromptManager:
     def delete_preset(self, name: str) -> bool:
         """Delete a prompt preset. Returns True if existed."""
         lang_key = f"{self._language}_{name}"
-        return self.settings.delete_prompt(lang_key)
+        # A universal preset (no language prefix) is listed under its
+        # bare name, so deleting by that name must reach it too.
+        return (self.settings.delete_prompt(lang_key)
+                or self.settings.delete_prompt(name))
 
     def get_default_prompt(self) -> str:
         """Get the default prompt for current language."""
@@ -394,7 +397,8 @@ class PromptManager:
         """Import prompts dict. Returns count of imported prompts."""
         count = 0
         for name, text in prompts.items():
-            if text.strip():
+            # A hand-edited import file can hold null or a number here.
+            if isinstance(name, str) and isinstance(text, str) and text.strip():
                 self.settings.set_prompt(name, text)
                 count += 1
         return count
