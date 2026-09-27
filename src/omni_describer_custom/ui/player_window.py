@@ -33,6 +33,7 @@ class PlayerWindow(wx.Frame):
         project_store: ProjectStore,
         tts_engine: TTSEngine,
         ai_engine=None,
+        settings=None,
     ):
         self.project = project_store.current
         self.store = project_store
@@ -53,11 +54,18 @@ class PlayerWindow(wx.Frame):
         self._auto_paused = False
         # What was playing when the app held the video for a cue.
         self._paused_backend = "none"
-        try:
-            from ..core.settings_store import SettingsStore
-            self._settings = SettingsStore()
-        except Exception:      # settings are a nicety here, not a need
-            self._settings = None
+        # v1.7.4: share the app's SettingsStore. A second store held a
+        # stale snapshot and each one's save overwrote the other's keys
+        # (a pause toggle here wiped a new API key saved in Settings).
+        self._settings = settings
+        if self._settings is None:
+            self._settings = getattr(parent, "settings", None)
+        if self._settings is None:
+            try:
+                from ..core.settings_store import SettingsStore
+                self._settings = SettingsStore()
+            except Exception:  # settings are a nicety here, not a need
+                self._settings = None
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
         self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
@@ -370,7 +378,9 @@ class PlayerWindow(wx.Frame):
         self.ask_btn = wx.Button(panel, label=t("player.ask_more"), name="ask_more")
         self.explore_btn = wx.Button(panel, label=t("player.explore"), name="explore")
         speaker = chr(0x1F50A)
-        self.speak_btn = wx.Button(panel, label=speaker + " Read Description", name="speak_desc")
+        self.speak_btn = wx.Button(
+            panel, label=speaker + " " + t("player.read_description"),
+            name="speak_desc")
 
         action_row.Add(self.edit_btn, 0, wx.ALL, 5)
         action_row.Add(self.ask_btn, 0, wx.ALL, 5)
@@ -445,6 +455,10 @@ class PlayerWindow(wx.Frame):
             elif desc.start_time > self._position:
                 self._current_desc_idx = max(0, i - 1)
                 break
+        else:
+            # v1.7.4: past every cue -> the LAST one is current, not the
+            # first (the loop used to fall through leaving index 0).
+            self._current_desc_idx = len(descs) - 1
 
         current = descs[self._current_desc_idx]
         # v1.5.4: only touch the widget when the text changed, so the
@@ -559,6 +573,11 @@ class PlayerWindow(wx.Frame):
             return
         desc = self.project.descriptions[self._current_desc_idx]
         if desc.id in self._narrated:
+            return
+        # v1.7.4: never speak a cue before its start time. Before the
+        # first cue the display falls back to cue 0, which used to be
+        # narrated at 0:00 for a scene not yet on screen.
+        if desc.start_time > self._position:
             return
         if not desc.text.strip():
             return
@@ -712,10 +731,14 @@ class PlayerWindow(wx.Frame):
     def _do_play(self):
         self._paused_by_user = False
         if self._vlc_available and self._vlc_media is not None:
+            self._auto_paused = False
             self._vlc.play()
             self._playing = True
             self._announce(t("player.playing"))
             self._set_play_label(True)
+            # v1.7.4: a narration hold stops the timer; if the user
+            # paused or stopped during it, nothing else restarts it.
+            self._timer.Start(500)
             return
         if not self._playing:
             # v1.4.0: real audio via ffplay when VLC is unavailable but a
@@ -731,11 +754,13 @@ class PlayerWindow(wx.Frame):
     def _do_pause(self):
         self._paused_by_user = True
         if self._vlc_available and self._vlc_media is not None:
-            self._vlc.pause()
-            self._playing = self._vlc.is_playing()
-            self._announce(
-                t("player.paused") if not self._playing else t("player.playing"))
-            self._set_play_label(self._playing)
+            # v1.7.4: set_pause(1), not pause(): pause() TOGGLES, so
+            # pressing Pause during a narration hold (already paused)
+            # started the video again.
+            self._vlc.set_pause(1)
+            self._playing = False
+            self._announce(t("player.paused"))
+            self._set_play_label(False)
             return
         if self._audio_backend == "ffplay":
             self._stop_ffplay()  # instant, verifiable silence on pause
@@ -793,7 +818,10 @@ class PlayerWindow(wx.Frame):
     def _on_ask(self, event):
         """Open 'ask more' dialog."""
         from .ask_more_dialog import AskMoreDialog
-        dlg = AskMoreDialog(self, self.ai_engine)
+        dlg = AskMoreDialog(
+            self, self.ai_engine,
+            descriptions=self.project.descriptions if self.project else None,
+            position=self._position)
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -830,6 +858,15 @@ class PlayerWindow(wx.Frame):
 
     def _on_close(self, event):
         self._playing = False
+        # v1.7.4: an open editor is a child frame; Destroy() below would
+        # take it down without its EVT_CLOSE, losing unsaved edits.
+        from .editor_window import EditorWindow
+        for child in list(self.GetChildren()):
+            if isinstance(child, EditorWindow):
+                try:
+                    child.save_edits()
+                except Exception as e:
+                    logger.error("Saving editor on player close failed: %s", e)
         self.tts.stop()
         self._stop_ffplay()
         if self._vlc_available and self._vlc is not None:

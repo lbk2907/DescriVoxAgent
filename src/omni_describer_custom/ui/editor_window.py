@@ -24,6 +24,8 @@ class EditorWindow(wx.Frame):
         self.store = project_store
         self.tts = tts_engine
         self._current_idx = 0
+        self._loaded_desc = None  # description currently in the fields
+        self._saved = False
 
         super().__init__(parent, title=t("editor.title"),
                          size=(800, 600))
@@ -119,20 +121,61 @@ class EditorWindow(wx.Frame):
         except Exception:
             pass  # an announcement must never break the action itself
 
-    def _load_descriptions(self):
-        """Load descriptions into list."""
+    def _commit_fields(self) -> None:
+        """Write the edit fields back into the description they show.
+
+        v1.7.4: edits used to be written only for the item selected when
+        the window closed, so editing one description and then selecting
+        another silently threw the first edit away. Tracked by object,
+        not index, so a delete or re-sort cannot redirect the write.
+        """
+        desc = self._loaded_desc
+        if desc is None or not self.store.current:
+            return
+        if not any(d is desc for d in self.store.current.descriptions):
+            return
+        text = self.text_ctrl.GetValue()
+        try:
+            start = float(self.start_time_ctrl.GetValue())
+            end = float(self.end_time_ctrl.GetValue())
+        except ValueError:
+            logger.warning("Editor: invalid time kept unchanged for %s", desc.id)
+            start, end = desc.start_time, desc.end_time
+        if (text, start, end) != (desc.text, desc.start_time, desc.end_time):
+            desc.text = text
+            desc.start_time = start
+            desc.end_time = end
+            desc.edited = True
+
+    def _sort_descriptions(self) -> None:
+        """Keep the list in time order: the player's cue lookup assumes
+        it, so an out-of-order entry was never narrated (v1.7.4)."""
+        if self.store.current:
+            self.store.current.descriptions.sort(key=lambda d: d.start_time)
+
+    def _load_descriptions(self, select=None):
+        """Load descriptions into list, selecting `select` (a description
+        object) or the first entry."""
+        self._loaded_desc = None
         self.desc_list.DeleteAllItems()
         if not self.store.current:
             return
 
-        for desc in self.store.current.descriptions:
+        descs = self.store.current.descriptions
+        for desc in descs:
             idx = self.desc_list.GetItemCount()
             self.desc_list.InsertItem(idx, f"{desc.start_time:.1f}s")
             self.desc_list.SetItem(idx, 1, f"{desc.end_time:.1f}s")
             self.desc_list.SetItem(idx, 2, desc.text[:100])
 
-        if self.store.current.descriptions:
-            self.desc_list.Select(0)
+        if descs:
+            idx = 0
+            for i, d in enumerate(descs):
+                if d is select:
+                    idx = i
+                    break
+            self.desc_list.Select(idx)
+            self.desc_list.Focus(idx)
             self._on_select(None)
 
     def _on_select(self, event):
@@ -140,9 +183,16 @@ class EditorWindow(wx.Frame):
         idx = self.desc_list.GetFirstSelected()
         if idx == wx.NOT_FOUND or not self.store.current:
             return
+        descs = self.store.current.descriptions
+        if idx >= len(descs):
+            return
+        desc = descs[idx]
+        if desc is self._loaded_desc:
+            return
+        self._commit_fields()
 
         self._current_idx = idx
-        desc = self.store.current.descriptions[idx]
+        self._loaded_desc = desc
         self.start_time_ctrl.SetValue(str(desc.start_time))
         self.end_time_ctrl.SetValue(str(desc.end_time))
         self.text_ctrl.SetValue(desc.text)
@@ -151,12 +201,12 @@ class EditorWindow(wx.Frame):
         """Add new description."""
         if not self.store.current:
             return
-        new_desc = type('Desc', (), {
-            'id': 0, 'start_time': 0.0, 'end_time': 5.0,
-            'text': '', 'edited': False, 'created_at': '', 'frame_path': ''
-        })()
+        self._commit_fields()
+        from ..core.project_store import Description as _Desc
+        new_desc = _Desc(id=0, start_time=0.0, end_time=5.0, text="")
         self.store.add_description(new_desc)
-        self._load_descriptions()
+        self._sort_descriptions()
+        self._load_descriptions(select=new_desc)
         self._announce(t("editor.add_new"))
 
     def _on_delete(self, event):
@@ -170,8 +220,10 @@ class EditorWindow(wx.Frame):
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
         ) != wx.YES:
             return
+        self._commit_fields()
         desc = self.store.current.descriptions[idx]
         self.store.delete_description(desc.id)
+        self._loaded_desc = None
         self._load_descriptions()
         self._announce(t("editor.deleted"))
 
@@ -190,19 +242,23 @@ class EditorWindow(wx.Frame):
                 logger.error("TTS speak error: %s", e)
         threading.Thread(target=speak, daemon=True).start()
 
+    def save_edits(self) -> None:
+        """Commit the fields, keep time order, and write to the project.
+
+        Public so the player can call it before destroying this child
+        window (v1.7.4: closing the player lost unsaved editor edits).
+        Idempotent; safe to call more than once.
+        """
+        if self._saved or not self.store.current:
+            return
+        self._commit_fields()
+        self._sort_descriptions()
+        self.store.save_descriptions(self.store.current.descriptions)
+        self._saved = True
+
     def _on_close(self, event):
         """Save and close."""
-        # Save changes
-        if self.store.current:
-            for i, desc in enumerate(self.store.current.descriptions):
-                if i == self._current_idx:
-                    try:
-                        desc.start_time = float(self.start_time_ctrl.GetValue())
-                        desc.end_time = float(self.end_time_ctrl.GetValue())
-                    except ValueError:
-                        pass
-                    desc.text = self.text_ctrl.GetValue()
-            self.store.save_descriptions(self.store.current.descriptions)
+        self.save_edits()
         self.Destroy()
 
 

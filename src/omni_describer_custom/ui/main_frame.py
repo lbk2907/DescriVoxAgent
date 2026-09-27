@@ -922,7 +922,10 @@ class MainFrame(wx.Frame):
         except Exception as e:
             errors.append(str(e))
         try:
-            if db_path.exists():
+            # Keep the .db while its media survives (a file locked by the
+            # player): the project stays listed and can be deleted later,
+            # instead of leaving an orphan folder behind.
+            if db_path.exists() and not errors:
                 db_path.unlink()
         except Exception as e:
             errors.append(str(e))
@@ -1837,7 +1840,10 @@ class MainFrame(wx.Frame):
             frames_dir.mkdir(parents=True, exist_ok=True)
             desc_objects = []
             for i, (frame, text) in enumerate(zip(frames, descriptions)):
-                if not text or text.startswith("(error:") or text == "(cancelled)":
+                # v1.7.4: "(empty response)" and "(no response from ...)"
+                # are not descriptions either; they were saved and spoken.
+                from ..core.ai_engine import is_placeholder_text
+                if is_placeholder_text(text):
                     continue
                 perm = frames_dir / Path(frame.path).name
                 try:
@@ -2375,7 +2381,8 @@ class MainFrame(wx.Frame):
         """Open the described video player window."""
         from .player_window import PlayerWindow
         try:
-            win = PlayerWindow(self, self.project_store, self.tts_engine, self.ai_engine)
+            win = PlayerWindow(self, self.project_store, self.tts_engine,
+                               self.ai_engine, settings=self.settings)
             win.Show()
         except Exception as e:
             logger.error("Failed to open PlayerWindow: %s", e)

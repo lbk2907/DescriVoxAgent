@@ -678,9 +678,14 @@ class SettingsDialog(wx.Dialog):
             voices = self.tts_engine.get_voices(engine)
             names = [v["name"] for v in voices]
             if names:
-                self.voice_choice.SetItems(names)
+                # v1.7.4: keep "Default" as the first entry. Replacing the
+                # list outright meant that once a voice was picked there
+                # was no way back to the engine's default voice.
+                self.voice_choice.SetItems(["Default"] + names)
                 if current in names:
                     self.voice_choice.SetStringSelection(current)
+                else:
+                    self.voice_choice.SetSelection(0)
         except Exception as e:
             logger.warning("Voice list fetch failed for %s: %s", engine, e)
 

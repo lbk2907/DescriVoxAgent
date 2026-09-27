@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 class AskMoreDialog(wx.Dialog):
     """Dialog for asking follow-up questions about a scene."""
 
-    def __init__(self, parent, ai_engine: AIEngine | None):
+    def __init__(self, parent, ai_engine: AIEngine | None,
+                 descriptions=None, position: float = 0.0):
         self.ai = ai_engine
         self._history: list[dict] = []
+        # v1.7.4: the scene context the "seconds" field refers to. It was
+        # shown but never read, so the AI got the bare question with no
+        # idea which part of the video it was about.
+        self._descriptions = list(descriptions or [])
+        self._position = float(position or 0.0)
 
         super().__init__(parent, title=t("askmore.title"), size=(500, 400))
 
@@ -106,17 +112,22 @@ class AskMoreDialog(wx.Dialog):
             self.submit_btn.Enable()
             return
 
+        # v1.7.4: capture history BEFORE recording this question; the
+        # worker used to read it afterwards, so the question was sent
+        # twice (once in history, once as the prompt).
+        history = list(self._history[-5:]) or None
+        context = self._scene_context()
+        prompt = f"{context}\n\n{question}" if context else question
+
         def ask():
             import asyncio
             from ..core.ai_engine import apply_output_language
-            q = apply_output_language(question, getattr(
+            q = apply_output_language(prompt, getattr(
                 self.ai, "output_lang", ""))
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                result = loop.run_until_complete(
-                    self.ai.ask(q, self._history[-5:] if self._history else None)
-                )
+                result = loop.run_until_complete(self.ai.ask(q, history))
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})
                 wx.CallAfter(self.history_text.AppendText,
@@ -135,6 +146,26 @@ class AskMoreDialog(wx.Dialog):
         self._history.append({"role": "user", "content": question})
         threading.Thread(target=ask, daemon=True).start()
         self.question_text.SetValue("")
+
+    def _scene_context(self) -> str:
+        """Descriptions within +/- N seconds of the playback position,
+        N from the seconds field. Empty when there is nothing to add."""
+        if not self._descriptions:
+            return ""
+        try:
+            window = max(0.0, float(self.seconds_ctrl.GetValue().strip()))
+        except ValueError:
+            window = 10.0
+        lo, hi = self._position - window, self._position + window
+        lines = [
+            f"[{d.start_time:.1f}s-{d.end_time:.1f}s] {d.text}"
+            for d in self._descriptions
+            if d.end_time >= lo and d.start_time <= hi and d.text.strip()
+        ]
+        if not lines:
+            return ""
+        return t("ask.context", position=f"{self._position:.1f}",
+                 seconds=f"{window:g}") + "\n" + "\n".join(lines)
 
     def _on_cancel(self, event):
         if self.IsModal():

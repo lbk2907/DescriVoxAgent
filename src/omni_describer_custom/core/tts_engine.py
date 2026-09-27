@@ -22,6 +22,34 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _usable_or_discard(path: str | None) -> str:
+    """Return `path` if it holds audio; otherwise delete it and return "".
+
+    v1.7.4: engines create the temp file BEFORE synthesis, so every
+    failed call (offline Edge, bad key) left an empty file in %TEMP% —
+    one per cue, and the player retries failed cues every tick.
+    """
+    if not path:
+        return ""
+    try:
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            return path
+    except OSError:
+        pass
+    _discard(path)
+    return ""
+
+
+def _discard(path: str | None) -> None:
+    """Delete a temp file after a failed synthesis (may be partial)."""
+    if not path:
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 class TTSEngineBase(ABC):
     """Abstract base class for TTS engines."""
 
@@ -107,6 +135,7 @@ class SAPI5Engine(TTSEngineBase):
     async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
         if not self.available:
             return ""
+        tmp = None
         try:
             # Serialize COM access: SAPI5 is not thread-safe and the UI can
             # trigger overlapping speaks (Read button + playback narration).
@@ -142,11 +171,10 @@ class SAPI5Engine(TTSEngineBase):
                         stream.Close()
                 finally:
                     pythoncom.CoUninitialize()
-            if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
-                return tmp.name
-            return ""
+            return _usable_or_discard(tmp.name)
         except Exception as e:
             logger.error("SAPI5 speak error: %s", e)
+            _discard(tmp.name if tmp else None)
             return ""
 
     def stop(self) -> None:
@@ -200,6 +228,7 @@ class EdgeTTSEngine(TTSEngineBase):
     async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
         if not self.available:
             return ""
+        tmp = None
         try:
             import edge_tts
             voice = voice or "en-US-JennyNeural"
@@ -208,11 +237,10 @@ class EdgeTTSEngine(TTSEngineBase):
             tmp.close()
             communicate = edge_tts.Communicate(text, voice, rate=rate)
             await communicate.save(tmp.name)
-            if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
-                return tmp.name
-            return ""
+            return _usable_or_discard(tmp.name)
         except Exception as e:
             logger.error("Edge TTS error: %s", e)
+            _discard(tmp.name if tmp else None)
             return ""
 
     def stop(self) -> None:
@@ -260,6 +288,7 @@ class OpenAITTSEngine(TTSEngineBase):
     async def speak(self, text: str, voice: str = "", speed: float = 1.0) -> str:
         if not self.available or not self._client:
             return ""
+        tmp = None
         try:
             voice = voice or "alloy"
             response = await self._client.audio.speech.create(
@@ -271,11 +300,10 @@ class OpenAITTSEngine(TTSEngineBase):
             tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
             tmp.close()
             await response.astream_to_file(tmp.name)
-            if Path(tmp.name).exists() and Path(tmp.name).stat().st_size > 0:
-                return tmp.name
-            return ""
+            return _usable_or_discard(tmp.name)
         except Exception as e:
             logger.error("OpenAI TTS error: %s", e)
+            _discard(tmp.name if tmp else None)
             return ""
 
     def stop(self) -> None:
@@ -364,6 +392,15 @@ class TTSEngine:
         self.settings = settings or {}
         self._engines: dict[str, TTSEngineBase] = {}
         self._current_engine: str = ""
+        # v1.7.4: what is playing right now, so stop() can silence it.
+        # stop() used to reach only the engines, never the playback, so
+        # "Read Description" overlapped narration and closing the player
+        # left a description talking.
+        self._play_lock = threading.Lock()
+        self._mci_aliases: set[str] = set()
+        self._ffplay_procs: set = set()
+        self._alias_seq = 0
+        self._stop_gen = 0  # bumped by stop(); ends an async WAV wait
         self._init_engines()
 
     def _init_engines(self):
@@ -459,7 +496,31 @@ class TTSEngine:
         if ext == ".wav" and sys.platform == "win32":
             try:
                 import winsound
-                winsound.PlaySound(path, winsound.SND_FILENAME)  # blocks until done
+                duration = None
+                try:
+                    import wave
+                    with wave.open(path, "rb") as wf:
+                        duration = wf.getnframes() / float(wf.getframerate())
+                except Exception:
+                    duration = None
+                if duration is None or not hasattr(self, "_play_lock"):
+                    winsound.PlaySound(path, winsound.SND_FILENAME)  # blocks
+                    return True
+                # v1.7.4: async + wait on the known length, so stop()
+                # can end it. A synchronous PlaySound cannot be stopped
+                # from another thread (measured: PlaySound(None) did not
+                # release it), and callers rely on this call blocking
+                # until the audio finishes (the narration hold).
+                with self._play_lock:
+                    gen = self._stop_gen
+                winsound.PlaySound(
+                    path, winsound.SND_FILENAME | winsound.SND_ASYNC
+                    | winsound.SND_NODEFAULT)
+                end = time.monotonic() + duration + 0.15
+                while time.monotonic() < end:
+                    if self._stop_gen != gen:
+                        break
+                    time.sleep(0.05)
                 return True
             except Exception as e:
                 logger.warning("winsound playback failed: %s", e)
@@ -468,13 +529,39 @@ class TTSEngine:
             try:
                 import ctypes
                 winmm = ctypes.windll.winmm
-                alias = f"omni_tts_{int(time.time() * 1000)}"
+                with self._play_lock:
+                    self._alias_seq += 1
+                    alias = f"omni_tts_{os.getpid()}_{self._alias_seq}"
                 cmd = f'open "{path}" type mpegvideo alias {alias}'
                 if winmm.mciSendStringW(cmd, None, 0, 0) == 0:
+                    # v1.7.4: no 'play ... wait'. An MCI device answers
+                    # only the thread that opened it, so stop() from the
+                    # UI thread could not end a blocking wait (measured).
+                    # Play, then poll here until it ends or stop() bumps
+                    # the generation; this thread also closes it.
+                    with self._play_lock:
+                        self._mci_aliases.add(alias)
+                        gen = self._stop_gen
                     try:
-                        winmm.mciSendStringW(f"play {alias} wait", None, 0, 0)
+                        if winmm.mciSendStringW(f"play {alias}", None, 0, 0) == 0:
+                            buf = ctypes.create_unicode_buffer(64)
+                            deadline = time.monotonic() + 600
+                            time.sleep(0.05)
+                            while time.monotonic() < deadline:
+                                if self._stop_gen != gen:
+                                    winmm.mciSendStringW(
+                                        f"stop {alias}", None, 0, 0)
+                                    break
+                                if winmm.mciSendStringW(
+                                        f"status {alias} mode", buf, 64, 0) != 0:
+                                    break
+                                if buf.value == "stopped":
+                                    break
+                                time.sleep(0.05)
                     finally:
                         winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+                        with self._play_lock:
+                            self._mci_aliases.discard(alias)
                     return True
             except Exception as e:
                 logger.warning("MCI playback failed: %s", e)
@@ -482,10 +569,19 @@ class TTSEngine:
         from .tools import find_tool
         for player in (find_tool("ffplay"),):
             try:
-                subprocess.run(
+                proc = subprocess.Popen(
                     [player, "-nodisp", "-autoexit", "-loglevel", "quiet", path],
-                    timeout=120,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
+                with self._play_lock:
+                    self._ffplay_procs.add(proc)
+                try:
+                    proc.wait(timeout=120)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                finally:
+                    with self._play_lock:
+                        self._ffplay_procs.discard(proc)
                 return True
             except FileNotFoundError:
                 continue
@@ -593,10 +689,33 @@ class TTSEngine:
         return ""
 
     def stop(self) -> None:
-        """Stop all TTS engines."""
+        """Stop all TTS engines AND any audio this engine is playing."""
         for eng in self._engines.values():
             try:
                 eng.stop()
+            except Exception:
+                pass
+        self._stop_playback()
+
+    def _stop_playback(self) -> None:
+        """Silence winsound, MCI and ffplay playback started by _play_file."""
+        if not hasattr(self, "_play_lock"):
+            return  # built without __init__ (tests); nothing was played
+        with self._play_lock:
+            self._stop_gen += 1
+        if sys.platform == "win32":
+            try:
+                import winsound
+                winsound.PlaySound(None, 0)  # stops a sync SND_FILENAME play
+            except Exception as e:
+                logger.debug("winsound stop failed: %s", e)
+            # MCI playback is stopped and closed by its own thread when it
+            # sees _stop_gen change (see _play_file).
+        with self._play_lock:
+            procs = list(self._ffplay_procs)
+        for proc in procs:
+            try:
+                proc.terminate()
             except Exception:
                 pass
 
