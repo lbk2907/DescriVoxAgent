@@ -164,10 +164,22 @@ class VideoProcessor:
             return fallback
         # Replace path-illegal characters with a space, collapse whitespace
         text = _re.sub(r'[\\/:*?"<>|]+', " ", text)
+        # Invisible format characters (U+202E right-to-left override,
+        # zero-width joiners...) make a name that reads differently
+        # from what it is; control characters are illegal in paths.
+        import unicodedata as _ud
+        text = "".join(ch for ch in text
+                       if _ud.category(ch) not in ("Cf", "Cc"))
         text = _re.sub(r"\s+", " ", text).strip(" .")
         if not text:
             return fallback
-        return text[:80].rstrip(" .") or fallback
+        text = text[:80].rstrip(" .") or fallback
+        # Reserved DOS device names are unusable as a file name on
+        # Windows even with an extension (NUL.txt is still NUL).
+        stem = text.split(".", 1)[0].strip().upper()
+        if _re.fullmatch(r"CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]", stem):
+            text = "_" + text
+        return text
 
     def _ffprobe_path(self) -> str:
         """ffprobe from the same place ffmpeg came from, else PATH.
@@ -202,7 +214,7 @@ class VideoProcessor:
         proc = await asyncio.create_subprocess_exec(
             self.ytdlp,
             "--dump-json", "--no-playlist", "--no-warnings",
-            url,
+            "--", url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -736,7 +748,12 @@ class VideoProcessor:
             logger.error("Frame extraction failed: %s", e)
             return []
 
-        frames = sorted(output.glob("frame_*.jpg"))
+        # Sort by the frame NUMBER, not the name: past 9,999 frames
+        # ffmpeg writes frame_10000.jpg, which sorts as text between
+        # frame_1000 and frame_1001 and shifted every later timestamp
+        # (a 17-minute video at 10 fps put its ending at 100 s).
+        frames = sorted(output.glob("frame_*.jpg"),
+                        key=self._frame_number)
         result = []
 
         for i, frame_path in enumerate(frames):
@@ -761,6 +778,12 @@ class VideoProcessor:
 
         logger.info("Extracted %d frames at %d FPS", len(result), fps)
         return result
+
+    @staticmethod
+    def _frame_number(path: Path) -> tuple[int, str]:
+        """Numeric sort key for frame_NNNN.jpg (name as a tie-break)."""
+        tail = path.stem.rpartition("_")[2]
+        return (int(tail) if tail.isdigit() else -1, path.name)
 
     def _hash_frame(self, frame_path: str) -> str:
         """Simple perceptual hash for scene change detection."""
@@ -1048,6 +1071,19 @@ class VideoProcessor:
         logger.info("Grok STT: %d segments", len(out))
         return out
 
+    @staticmethod
+    async def _kill_and_reap(proc) -> None:
+        """Kill a timed-out child and wait for it, so it neither outlives
+        the call nor leaves its pipes open."""
+        try:
+            proc.kill()
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=10)
+        except Exception:
+            pass
+
     async def _embedded_subtitles(self, video_path: str) -> list[TranscriptSegment]:
         """Pull a subtitle track out of a local file with ffmpeg.
 
@@ -1065,7 +1101,12 @@ class VideoProcessor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=120)
+            try:
+                await asyncio.wait_for(proc.communicate(), timeout=120)
+            except asyncio.TimeoutError:
+                await self._kill_and_reap(proc)
+                logger.debug("Embedded subtitle extraction timed out")
+                return []
             if Path(out).exists() and Path(out).stat().st_size > 0:
                 return self._parse_vtt(out)
             return []
@@ -1086,16 +1127,29 @@ class VideoProcessor:
         try:
             proc = await asyncio.create_subprocess_exec(
                 self.ytdlp,
-                "--write-auto-sub",
+                # --write-subs too: without it yt-dlp ignores the
+                # uploader's own captions and takes only the automatic
+                # ones. --no-playlist: a watch?v=X&list=... URL would
+                # otherwise fetch captions for the whole list and the
+                # first file found could belong to another video.
+                "--write-subs", "--write-auto-sub",
+                "--no-playlist",
                 "--sub-lang", "en,ms,id",
                 "--sub-format", "vtt",
                 "--skip-download",
                 "-o", str(Path(tmp) / "%(id)s.%(ext)s"),
-                video_url,
+                "--", video_url,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+            try:
+                await asyncio.wait_for(proc.communicate(), timeout=60)
+            except asyncio.TimeoutError:
+                # wait_for only abandons the read; the process would keep
+                # running and writing into the temp dir removed below.
+                await self._kill_and_reap(proc)
+                logger.warning("yt-dlp subtitle fetch timed out")
+                return []
 
             # Find subtitle files
             subs = list(Path(tmp).glob("*.vtt"))

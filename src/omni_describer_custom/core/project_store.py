@@ -11,6 +11,7 @@ import logging
 import sqlite3
 import shutil
 import time
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -64,19 +65,49 @@ class ProjectStore:
     def _db_path(self, project_id: int) -> Path:
         return self.projects_dir / f"project_{project_id}.db"
 
+    def _connect(self, db_path) -> "closing[sqlite3.Connection]":
+        """A connection that is CLOSED when the with-block ends, error
+        or not. A connection left open on an error path keeps the .db
+        locked on Windows (WinError 32), so the project could not be
+        deleted while the app ran."""
+        return closing(sqlite3.connect(str(db_path)))
+
+    # Highest id ever handed out. Ids are never reused: a new project
+    # that inherited a deleted one's id also inherited whatever was
+    # left in project_<id>/media, and a finished video.mp4 there was
+    # taken as ITS download -- the wrong video got described.
+    _LAST_ID_FILE = "last_project_id.txt"
+
+    def _next_project_id(self) -> int:
+        highest = 0
+        for p in self.projects_dir.glob("project_*"):
+            tail = p.name.split(".", 1)[0].split("_", 1)[-1]
+            if not tail.isdigit():
+                continue
+            # A folder counts only when something is in it: an orphan
+            # left by an older version may still hold a video, while an
+            # empty media/ folder carries nothing a new project could
+            # mistake for its own.
+            if p.is_dir() and not any(f.is_file() for f in p.rglob("*")):
+                continue
+            highest = max(highest, int(tail))
+        marker = self.projects_dir / self._LAST_ID_FILE
+        try:
+            highest = max(highest, int(marker.read_text(encoding="utf-8").strip()))
+        except (OSError, ValueError):
+            pass
+        next_id = highest + 1
+        try:
+            marker.write_text(str(next_id), encoding="utf-8")
+        except OSError as e:
+            logger.warning("Could not record last project id: %s", e)
+        return next_id
+
     def create_project(self, name: str, video_path: str, provider: str = "", model: str = "") -> Project:
         """Create a new project with a unique auto-incremented ID."""
         now = time.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Determine next ID from existing project files
-        existing = self.projects_dir.glob("project_*.db")
-        max_id = 0
-        for p in existing:
-            try:
-                max_id = max(max_id, int(p.stem.split("_")[1]))
-            except (ValueError, IndexError):
-                pass
-        next_id = max_id + 1
+        next_id = self._next_project_id()
 
         project = Project(
             id=next_id,
@@ -89,8 +120,7 @@ class ProjectStore:
         )
 
         db_path = self._db_path(next_id)
-        conn = sqlite3.connect(str(db_path))
-        try:
+        with self._connect(db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,8 +152,6 @@ class ProjectStore:
                 (next_id, name, video_path, provider, model, now, now),
             )
             conn.commit()
-        finally:
-            conn.close()
 
         self._current = project
         logger.info("Project created: id=%d name=%s", project.id, name)
@@ -136,11 +164,15 @@ class ProjectStore:
             logger.error("Project not found: %d", project_id)
             return None
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        with self._connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM projects WHERE id = ?",
+                               (project_id,)).fetchone()
+            desc_rows = conn.execute(
+                "SELECT * FROM descriptions WHERE project_id = ? ORDER BY start_time",
+                (project_id,),
+            ).fetchall() if row else []
         if not row:
-            conn.close()
             return None
 
         project = Project(
@@ -156,11 +188,6 @@ class ProjectStore:
         project._db_path = str(db_path)
         self._current = project
 
-        # Load descriptions
-        desc_rows = conn.execute(
-            "SELECT * FROM descriptions WHERE project_id = ? ORDER BY start_time",
-            (project_id,),
-        ).fetchall()
         project.descriptions = [
             Description(
                 id=r["id"],
@@ -174,7 +201,6 @@ class ProjectStore:
             for r in desc_rows
         ]
 
-        conn.close()
         logger.info("Project opened: id=%d name=%s (%d descriptions)", project.id, project.name, len(project.descriptions))
         return project
 
@@ -184,13 +210,12 @@ class ProjectStore:
             return
         self._current.video_duration = duration
         try:
-            conn = sqlite3.connect(str(self._db_path(self._current.id)))
-            conn.execute(
-                "UPDATE projects SET video_duration = ?, updated_at = ? WHERE id = ?",
-                (duration, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
-            )
-            conn.commit()
-            conn.close()
+            with self._connect(self._db_path(self._current.id)) as conn:
+                conn.execute(
+                    "UPDATE projects SET video_duration = ?, updated_at = ? WHERE id = ?",
+                    (duration, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
+                )
+                conn.commit()
         except Exception as e:
             logger.error("Failed to persist video duration: %s", e)
 
@@ -206,13 +231,12 @@ class ProjectStore:
             return
         self._current.video_path = video_path
         try:
-            conn = sqlite3.connect(str(self._db_path(self._current.id)))
-            conn.execute(
-                "UPDATE projects SET video_path = ?, updated_at = ? WHERE id = ?",
-                (video_path, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
-            )
-            conn.commit()
-            conn.close()
+            with self._connect(self._db_path(self._current.id)) as conn:
+                conn.execute(
+                    "UPDATE projects SET video_path = ?, updated_at = ? WHERE id = ?",
+                    (video_path, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
+                )
+                conn.commit()
         except Exception as e:
             logger.error("Failed to persist video path: %s", e)
 
@@ -245,8 +269,7 @@ class ProjectStore:
             logger.error("No project open")
             return
 
-        conn = sqlite3.connect(str(self._db_path(self._current.id)))
-        try:
+        with self._connect(self._db_path(self._current.id)) as conn:
             conn.execute("DELETE FROM descriptions WHERE project_id = ?", (self._current.id,))
             for desc in descriptions:
                 cursor = conn.execute(
@@ -269,8 +292,6 @@ class ProjectStore:
                 # a single editor delete wiped all cues from the project.
                 desc.id = cursor.lastrowid
             conn.commit()
-        finally:
-            conn.close()
 
         self._current.updated_at = time.strftime("%Y-%m-%d %H:%M:%S")
         self._current.descriptions = descriptions
@@ -282,24 +303,23 @@ class ProjectStore:
             logger.error("No project open")
             return desc
 
-        conn = sqlite3.connect(str(self._db_path(self._current.id)))
-        cursor = conn.execute(
-            """INSERT INTO descriptions
-               (project_id, start_time, end_time, text, edited, created_at, frame_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
-                self._current.id,
-                desc.start_time,
-                desc.end_time,
-                desc.text,
-                int(desc.edited),
-                desc.created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
-                desc.frame_path,
-            ),
-        )
-        desc.id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+        with self._connect(self._db_path(self._current.id)) as conn:
+            cursor = conn.execute(
+                """INSERT INTO descriptions
+                   (project_id, start_time, end_time, text, edited, created_at, frame_path)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    self._current.id,
+                    desc.start_time,
+                    desc.end_time,
+                    desc.text,
+                    int(desc.edited),
+                    desc.created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
+                    desc.frame_path,
+                ),
+            )
+            desc.id = cursor.lastrowid
+            conn.commit()
         self._current.descriptions.append(desc)
         return desc
 
@@ -307,10 +327,9 @@ class ProjectStore:
         """Delete a description by ID."""
         if not self._current:
             return False
-        conn = sqlite3.connect(str(self._db_path(self._current.id)))
-        conn.execute("DELETE FROM descriptions WHERE id = ?", (desc_id,))
-        conn.commit()
-        conn.close()
+        with self._connect(self._db_path(self._current.id)) as conn:
+            conn.execute("DELETE FROM descriptions WHERE id = ?", (desc_id,))
+            conn.commit()
         self._current.descriptions = [d for d in self._current.descriptions if d.id != desc_id]
         return True
 
@@ -337,26 +356,42 @@ class ProjectStore:
         projects = []
         for db_path in sorted(self.projects_dir.glob("project_*.db")):
             try:
-                conn = sqlite3.connect(str(db_path))
-                conn.row_factory = sqlite3.Row
-                row = conn.execute("SELECT id, name, video_path, provider, updated_at FROM projects ORDER BY updated_at DESC").fetchone()
+                with self._connect(db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute("SELECT id, name, video_path, provider, updated_at FROM projects ORDER BY updated_at DESC").fetchone()
                 if row:
                     projects.append(dict(row))
-                conn.close()
             except Exception as e:
                 logger.warning("Error reading project %s: %s", db_path, e)
         return projects
 
     def delete_project(self, project_id: int) -> bool:
-        """Delete a project entirely."""
+        """Delete a project entirely: its .db AND its project_<id>/ folder.
+
+        The folder holds the downloaded video. Leaving it behind let a
+        later project that got the same id pick up that video as its
+        own finished download. The id is also never handed out again
+        (see _next_project_id). The folder goes first: if a file in it
+        is locked (the player has the video open) the .db is kept, so
+        nothing is left half-deleted and invisible.
+        """
         db_path = self._db_path(project_id)
+        folder = self.projects_dir / f"project_{project_id}"
+        if not db_path.exists() and not folder.exists():
+            return False
+        if folder.exists():
+            try:
+                shutil.rmtree(folder)
+            except OSError as e:
+                logger.error("Could not delete project folder %s: %s",
+                             folder, e)
+                return False
         if db_path.exists():
             db_path.unlink()
-            if self._current and self._current.id == project_id:
-                self._current = None
-            logger.info("Project deleted: %d", project_id)
-            return True
-        return False
+        if self._current and self._current.id == project_id:
+            self._current = None
+        logger.info("Project deleted: %d", project_id)
+        return True
 
     @property
     def current(self) -> Project | None:

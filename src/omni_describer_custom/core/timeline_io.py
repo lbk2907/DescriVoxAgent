@@ -24,12 +24,39 @@ logger = logging.getLogger(__name__)
 # ── Time formatting / parsing ────────────────────────────────────
 
 _SRT_TIME = re.compile(
-    r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?$"
+    r"^(?:(\d{1,3}):)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?$"
 )
 
+# Hours may run past 99 (fmt_srt_time writes 100:00:00,000) and the
+# milliseconds may be absent ("00:00:03 --> 00:00:04", seen in the
+# wild). The (?<!\d) stops a search starting inside "100:" at "00:".
 _TIME_LINE = re.compile(
-    r"(\d{1,2}:)?(\d{1,2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}:)?(\d{1,2}):(\d{2})[,.](\d{1,3})"
+    r"(?<!\d)(\d{1,3}:)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?\s*-->\s*"
+    r"(\d{1,3}:)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?"
 )
+
+
+def read_timed_text(path: str | Path) -> str:
+    """Read a subtitle/text file whatever its encoding.
+
+    Real files arrive as UTF-8 (with or without BOM), UTF-16 (Notepad
+    "Unicode", Subtitle Edit) and ANSI/cp1252. Reading everything as
+    UTF-8 with errors="replace" returned NO cues for UTF-16 and turned
+    "Café" into "Caf" plus a replacement mark for cp1252, silently.
+    """
+    raw = Path(path).read_bytes()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8", errors="replace")
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16", errors="replace")
+    # UTF-16 without a BOM: every other byte of ASCII text is NUL.
+    if len(raw) >= 4 and raw.count(b"\x00") >= len(raw) // 4:
+        enc = "utf-16-le" if raw[1:2] == b"\x00" else "utf-16-be"
+        return raw.decode(enc, errors="replace")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")
 
 
 def _secs(h: str | None, m: str, s: str, ms: str | None) -> float:
@@ -99,7 +126,7 @@ def _parse_cue_block(block: list[str]):
 
 def parse_srt(path: str | Path) -> list[Description]:
     """Parse an SRT file into timed descriptions."""
-    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    text = read_timed_text(path)
     descs = []
     for cue in _iter_cue_blocks(text):
         if cue and cue[2]:
@@ -115,9 +142,13 @@ def parse_vtt(path: str | Path) -> list[Description]:
 # ── Simple text parsing ──────────────────────────────────────────
 
 # "00:05 text", "0:00:05 text", "00:05 - 00:12 text", "90.5 text"
+# Bare seconds need a decimal point or an "s" ("90.5", "90s"): a plain
+# integer is too often the first word of prose — "2024 was a good year"
+# became a cue at 2024 s and stretched the one before it to 33 minutes.
+_SIMPLE_STAMP = r"(?:(?:\d{1,3}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?|\d+\.\d+s?|\d+s)"
 _SIMPLE_LINE = re.compile(
-    r"^\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?|\d+(?:\.\d+)?)"
-    r"(?:\s*[-–—]\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?|\d+(?:\.\d+)?))?"
+    rf"^\s*({_SIMPLE_STAMP})"
+    rf"(?:\s*[-–—]\s*({_SIMPLE_STAMP}))?"
     r"\s+(.+)$"
 )
 
@@ -126,18 +157,19 @@ def parse_simple(path: str | Path) -> list[Description]:
     """Parse a simple timed-text file: one description per line.
 
     Formats: 'TIMESTAMP text' or 'START - END text'.
-    TIMESTAMP: H:MM:SS, M:SS, or bare seconds.
+    TIMESTAMP: H:MM:SS, M:SS, or bare seconds with a decimal point
+    or an "s" suffix ("90.5", "90s").
     End time defaults to the next line's start (minimum 1 second).
     """
     descs = []
-    for raw in Path(path).read_text(encoding="utf-8-sig", errors="replace").splitlines():
+    for raw in read_timed_text(path).splitlines():
         if not raw.strip() or raw.strip().startswith("#"):
             continue
         m = _SIMPLE_LINE.match(raw)
         if not m:
             continue
-        start = parse_timestamp(m.group(1))
-        end = parse_timestamp(m.group(2)) if m.group(2) else None
+        start = parse_timestamp(m.group(1).rstrip("s"))
+        end = parse_timestamp(m.group(2).rstrip("s")) if m.group(2) else None
         if start is None:
             continue
         if end is None or end <= start:
@@ -161,20 +193,44 @@ def parse_any(path: str | Path) -> list[Description]:
         return parse_srt(p)
     if suffix == ".vtt":
         return parse_vtt(p)
-    text = p.read_text(encoding="utf-8-sig", errors="replace")
-    if "WEBVTT" in text[:200] or "-->" in text:
+    text = read_timed_text(p)
+    # A real cue timing line, not just any "-->": a plain-text file
+    # whose description contains an arrow used to be handed to the SRT
+    # parser and came back empty.
+    if text.lstrip().startswith("WEBVTT") or _TIME_LINE.search(text):
         return parse_srt(p)
     return parse_simple(p)
 
 
 # ── SRT / VTT writing ────────────────────────────────────────────
 
+def _cue_text(text: str) -> str:
+    """Cue text safe inside one SRT/VTT block.
+
+    A blank line ENDS a cue, so a description with a paragraph break
+    was cut in half: the second paragraph vanished on re-import and
+    other players mis-read the file. Blank lines are dropped and lone
+    CRs normalised; the line breaks themselves are kept.
+    """
+    text = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(ln for ln in text.split("\n") if ln.strip())
+
+
+def _cue_end(d: Description) -> float:
+    """An end time that is really after the start. 0 (or anything
+    earlier than the start) used to write an invalid cue such as
+    "00:00:10,000 --> 00:00:00,000"."""
+    if d.end_time and d.end_time > d.start_time:
+        return d.end_time
+    return max(0.0, d.start_time) + MIN_CUE_SECONDS
+
+
 def to_srt(descriptions: list[Description]) -> str:
     out = []
     for i, d in enumerate(sorted(descriptions, key=lambda d: d.start_time), 1):
         out.append(str(i))
-        out.append(f"{fmt_srt_time(d.start_time)} --> {fmt_srt_time(d.end_time)}")
-        out.append(d.text.replace("\r\n", "\n"))
+        out.append(f"{fmt_srt_time(d.start_time)} --> {fmt_srt_time(_cue_end(d))}")
+        out.append(_cue_text(d.text))
         out.append("")
     return "\n".join(out)
 
@@ -183,8 +239,8 @@ def to_vtt(descriptions: list[Description]) -> str:
     out = ["WEBVTT", ""]
     for i, d in enumerate(sorted(descriptions, key=lambda d: d.start_time), 1):
         out.append(str(i))
-        out.append(f"{fmt_vtt_time(d.start_time)} --> {fmt_vtt_time(d.end_time)}")
-        out.append(d.text.replace("\r\n", "\n"))
+        out.append(f"{fmt_vtt_time(d.start_time)} --> {fmt_vtt_time(_cue_end(d))}")
+        out.append(_cue_text(d.text))
         out.append("")
     return "\n".join(out)
 
@@ -355,16 +411,19 @@ def export_audio(
                     skipped += 1
                     continue
                 wav = tmp / f"n{len(clips):05d}.wav"
-                _to_wav(audio, wav)
+                try:
+                    _to_wav(audio, wav)
+                finally:
+                    # tts.speak() returns a NamedTemporaryFile(delete=False);
+                    # remove the source clip after conversion (v1.5.4: one
+                    # orphan WAV/MP3 per cue used to stay behind in
+                    # %TEMP%) -- also when the conversion itself fails.
+                    try:
+                        Path(audio).unlink(missing_ok=True)
+                    except OSError:
+                        pass
                 clips.append(wav)
                 delays.append(int(round(d.start_time * 1000)))
-                # tts.speak() returns a NamedTemporaryFile(delete=False);
-                # remove the source clip after conversion (v1.5.4: one
-                # orphan WAV/MP3 per cue used to stay behind in %TEMP%).
-                try:
-                    Path(audio).unlink(missing_ok=True)
-                except OSError:
-                    pass
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
