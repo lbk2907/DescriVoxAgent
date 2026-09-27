@@ -394,11 +394,17 @@ def main() -> int:
                 # still be here. A second cleanup used to delete it at
                 # the end of every job in full-video mode.
                 cached = list(media.glob("upload_*.mp4"))
-                record("the compressed upload copy survived the job",
-                       bool(cached),
-                       f"{cached[0].name} "
-                       f"({cached[0].stat().st_size/1e6:.1f} MB)"
-                       if cached else "deleted by the parts cleanup")
+                # Only GLM compresses before upload; Gemini sends the
+                # original file, so there is no copy to survive.
+                settings = json.loads((config_dir / "settings.json")
+                                      .read_text(encoding="utf-8"))
+                provider = settings.get("ai", {}).get("default_provider")
+                if provider == "glm":
+                    record("the compressed upload copy survived the job",
+                           bool(cached),
+                           f"{cached[0].name} "
+                           f"({cached[0].stat().st_size/1e6:.1f} MB)"
+                           if cached else "deleted by the parts cleanup")
     finally:
         try:
             proc.terminate()

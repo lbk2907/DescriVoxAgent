@@ -58,6 +58,10 @@ def main():
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
+    # Before anything can start ffmpeg or yt-dlp: no console windows.
+    from omni_describer_custom.core.no_console import install as _no_console
+    _no_console()
+
     try:
         # v1.6.5: ffmpeg and friends ship with the app now, but a
         # corrupted unzip or an antivirus quarantine can still remove
