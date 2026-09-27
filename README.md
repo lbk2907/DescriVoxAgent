@@ -15,6 +15,19 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.2
+
+**Google Gemini API full-video mode restored.** Resolved an upload
+endpoint issue where Google Files API resumable uploads omitted the
+`/upload/` subpath, causing Google to return HTTP 200 without the
+`X-Goog-Upload-URL` header and blocking Gemini video descriptions.
+Updated the Gemini model catalog to active models (`gemini-2.5-flash`,
+`gemini-3.8-flash`, and `gemini-3.5-flash-lite`).
+
+Enhanced the build test harness (`test_build_smoke.py`) to deliver
+`WM_CLOSE` messages directly to top-level application windows across
+helper and IME frames.
+
 ## What's new in v1.7.1
 
 **The narration pause now works with NVDA, on any NVDA version.** The
