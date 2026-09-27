@@ -460,9 +460,11 @@ class AIProvider(ABC):
 class GeminiProvider(AIProvider):
     name = "gemini"
     models = [
-        "gemini-2.5-flash",
         "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
+        # Google limits 2.5 to accounts that used it before; kept
+        # last so an existing saved choice stays selectable.
+        "gemini-2.5-flash",
     ]
 
     def __init__(self, api_key: str = "", base_url: str = ""):

@@ -98,7 +98,7 @@ class SettingsStore:
             "default_provider": "",
             "fast_mode": False,
             "providers": {
-                "gemini": {"api_key": "", "model": "gemini-2.5-flash"},
+                "gemini": {"api_key": "", "model": "gemini-3.8-flash"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
                 "glm": {"api_key": "", "model": "z-ai/glm-5.3-flash", "base_url": "https://openrouter.ai/api/v1"},
                 "custom": {"api_key": "", "model": "", "base_url": "", "api_format": "auto"},

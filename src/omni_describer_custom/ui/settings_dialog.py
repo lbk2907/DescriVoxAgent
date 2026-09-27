@@ -21,9 +21,11 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "MiniMax-M3",
     ],
     "gemini": [
-        "gemini-2.5-flash",
         "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
+        # Google limits 2.5 to accounts that used it before; kept
+        # last so an existing saved choice stays selectable.
+        "gemini-2.5-flash",
     ],
     "openai": [
         "gpt-4o",
