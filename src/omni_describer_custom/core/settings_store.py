@@ -2,6 +2,23 @@
 Omni Describer Custom — Settings Store.
 
 Encrypted JSON settings for API keys, preferences, and configuration.
+
+v1.7.4 hardening (tests/test_fixes36.py):
+  - saves are atomic (temp file + os.replace), so a crash mid-write can
+    no longer leave a half-written settings.json;
+  - a settings.json that cannot be parsed is set aside as
+    settings.json.corrupt-<timestamp> instead of being silently
+    overwritten with defaults (which used to wipe every saved key);
+  - a key DPAPI cannot decrypt (profile moved to another PC, SID
+    change) keeps its original blob on disk instead of being dropped;
+  - every SettingsStore for the same file in this process shares ONE
+    in-memory state and lock. The main window, player window and video
+    processor each make their own store; they used to save their own
+    stale snapshot over each other's changes;
+  - DEFAULTS are deep-merged on load and non-dict sections repaired;
+  - on Windows a DPAPI failure no longer falls back to the reversible
+    XOR form: the key stays in memory for this session but is not
+    written. Old XOR blobs are still READ so they migrate to DPAPI.
 """
 
 from __future__ import annotations
@@ -10,7 +27,11 @@ import base64
 import json
 import logging
 import os
+import shutil
 import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +66,14 @@ except ImportError:  # non-Windows or headless environments
     win32crypt = None  # type: ignore[assignment]
 
 
+class SecretProtectError(Exception):
+    """The key could not be protected; it must not be written."""
+
+
+class SecretUnprotectError(Exception):
+    """A stored key blob could not be decrypted."""
+
+
 def _simple_encrypt(text: str, key: str = "odc-default-key-2026") -> str:
     """XOR obfuscation fallback (not real encryption; non-Windows only)."""
     result = []
@@ -59,32 +88,116 @@ def _simple_decrypt(encoded: str, key: str = "odc-default-key-2026") -> str:
     return _simple_encrypt(encoded, key)  # XOR is symmetric
 
 
-def _protect_secret(text: str) -> str:
-    """Protect an API key at rest.
+def _protect_secret_strict(text: str) -> str:
+    """Protect an API key at rest, or raise SecretProtectError.
 
-    Windows: DPAPI (user-scoped; no key material in source or binary).
-    Elsewhere, or if DPAPI fails: legacy XOR obfuscation fallback.
+    Windows: DPAPI only. The XOR form is reversible by anyone who reads
+    this source, so on Windows a DPAPI failure means "do not write the
+    key", never "write it weakly".
+    Elsewhere: legacy XOR obfuscation (no DPAPI exists).
     """
     if win32crypt is not None:
         try:
             blob = win32crypt.CryptProtectData(text.encode("utf-8"), "OmniDescriber", None, None, None, 0)
             return _DPAPI_PREFIX + base64.b64encode(blob).decode("ascii")
-        except Exception as e:  # pragma: no cover - defensive
-            logger.warning("DPAPI protect failed, falling back to XOR: %s", e)
+        except Exception as e:
+            raise SecretProtectError(f"DPAPI protect failed: {e}") from e
+    if sys.platform == "win32":
+        raise SecretProtectError("DPAPI (pywin32) is not available")
     return _simple_encrypt(text)
 
 
-def _unprotect_secret(encoded: str) -> str:
-    """Recover an API key stored by _protect_secret or by legacy XOR."""
-    if encoded.startswith(_DPAPI_PREFIX) and win32crypt is not None:
+def _protect_secret(text: str) -> str:
+    """Protect an API key at rest (compat wrapper; "" if it cannot)."""
+    try:
+        return _protect_secret_strict(text)
+    except SecretProtectError as e:
+        logger.error("API key not protected: %s", e)
+        return ""
+
+
+def _unprotect_secret_strict(encoded: str) -> str:
+    """Recover a stored key, or raise SecretUnprotectError."""
+    if encoded.startswith(_DPAPI_PREFIX):
+        if win32crypt is None:
+            raise SecretUnprotectError("DPAPI blob but DPAPI is unavailable")
         try:
             blob = base64.b64decode(encoded[len(_DPAPI_PREFIX):])
             _desc, value = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
             return value.decode("utf-8") if isinstance(value, bytes) else str(value)
-        except Exception as e:  # pragma: no cover - defensive
-            logger.error("DPAPI unprotect failed: %s", e)
-            return ""
-    return _simple_decrypt(encoded)
+        except Exception as e:
+            raise SecretUnprotectError(f"DPAPI unprotect failed: {e}") from e
+    return _simple_decrypt(encoded)  # legacy XOR: read so it migrates
+
+
+def _unprotect_secret(encoded: str) -> str:
+    """Recover an API key stored by _protect_secret or by legacy XOR."""
+    try:
+        return _unprotect_secret_strict(encoded)
+    except SecretUnprotectError as e:
+        logger.error("%s", e)
+        return ""
+
+
+def _deep_copy(value: Any) -> Any:
+    return json.loads(json.dumps(value))
+
+
+def _merge_defaults(data: dict, defaults: dict, path: tuple = ()) -> None:
+    """Fill in missing keys from defaults, repairing non-dict sections.
+
+    Individual provider configs (ai.providers.<name>) are left exactly
+    as saved: set_ai_provider stores a whole dict, and injecting e.g. a
+    default base_url into it would change which endpoint a user's
+    provider talks to. Missing providers are still added.
+    """
+    for key, dval in defaults.items():
+        if key not in data:
+            data[key] = _deep_copy(dval)
+        elif isinstance(dval, dict):
+            if not isinstance(data[key], dict):
+                logger.warning("Settings: section %s was %s, not a table; "
+                               "reset to defaults", ".".join(path + (key,)),
+                               type(data[key]).__name__)
+                data[key] = _deep_copy(dval)
+            elif path + (key,) != ("ai", "providers"):
+                _merge_defaults(data[key], dval, path + (key,))
+            else:
+                for pname, pdefault in dval.items():
+                    if pname not in data[key]:
+                        data[key][pname] = _deep_copy(pdefault)
+
+
+class _SharedState:
+    """One settings file's state, shared by every store in the process."""
+
+    def __init__(self) -> None:
+        self.lock = threading.RLock()
+        self.data: dict[str, Any] | None = None
+        self.last_bytes: bytes | None = None  # what we last read/wrote
+        # provider -> the original api_key_enc blob we could not decrypt.
+        self.undecryptable: dict[str, str] = {}
+        # Set when a corrupt file could not be set aside: writing would
+        # destroy it, so saves are refused until it is dealt with.
+        self.save_blocked = False
+
+
+_SHARED: dict[str, _SharedState] = {}
+_SHARED_LOCK = threading.Lock()
+
+
+def _shared_for(path: Path) -> _SharedState:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = Path(os.path.abspath(path))
+    key = os.path.normcase(str(resolved))
+    with _SHARED_LOCK:
+        state = _SHARED.get(key)
+        if state is None:
+            state = _SharedState()
+            _SHARED[key] = state
+        return state
 
 
 class SettingsStore:
@@ -146,44 +259,168 @@ class SettingsStore:
     def __init__(self, config_dir: str = ""):
         self.config_dir = Path(config_dir) if config_dir else _get_config_dir()
         self.settings_file = self.config_dir / "settings.json"
-        self._data: dict[str, Any] = {}
-        self._load()
-
-    def _load(self):
-        """Load settings from file."""
-        if self.settings_file.exists():
+        self._shared = _shared_for(self.settings_file)
+        with self._shared.lock:
             try:
-                self._data = json.loads(self.settings_file.read_text(encoding="utf-8"))
-                # Decrypt API keys
-                for provider in self._data.get("ai", {}).get("providers", {}):
-                    if isinstance(self._data["ai"]["providers"][provider], dict):
-                        enc_key = self._data["ai"]["providers"][provider].get("api_key_enc", "")
-                        if enc_key:
-                            self._data["ai"]["providers"][provider]["api_key"] = _unprotect_secret(enc_key)
-                            del self._data["ai"]["providers"][provider]["api_key_enc"]
-                logger.info("Settings loaded from %s", self.settings_file)
-            except Exception as e:
-                logger.error("Settings load error: %s", e)
-                self._data = json.loads(json.dumps(self.DEFAULTS))
-        else:
-            self._data = json.loads(json.dumps(self.DEFAULTS))
+                disk = self._read_disk_bytes()
+            except OSError as e:
+                # Exists but unreadable right now (locked, permissions):
+                # NOT corrupt, so never set aside or overwrite it.
+                logger.error("Settings read error: %s", e)
+                if self._shared.data is None:
+                    self._data = _deep_copy(self.DEFAULTS)
+                    self._shared.save_blocked = True
+                return
+            # Reload when this is the first store for the file, or the
+            # file changed behind our back (another process, a hand
+            # edit, a test rewriting it). Otherwise join the live state.
+            if self._shared.data is None or disk != self._shared.last_bytes:
+                self._load(disk)
+
+    # All stores for one file see the same dict; assignment replaces
+    # its CONTENTS so no other store is left holding a stale copy.
+    @property
+    def _data(self) -> dict[str, Any]:
+        return self._shared.data  # type: ignore[return-value]
+
+    @_data.setter
+    def _data(self, value: dict[str, Any]) -> None:
+        with self._shared.lock:
+            if self._shared.data is None:
+                self._shared.data = {}
+            self._shared.data.clear()
+            self._shared.data.update(value)
+
+    def _read_disk_bytes(self) -> bytes | None:
+        """File bytes, None if absent; other OSErrors propagate."""
+        try:
+            return self.settings_file.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def _set_aside_corrupt(self) -> None:
+        """Keep an unreadable settings file under a new name."""
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        target = self.settings_file.with_name(f"settings.json.corrupt-{stamp}")
+        n = 1
+        while target.exists():
+            target = self.settings_file.with_name(
+                f"settings.json.corrupt-{stamp}-{n}")
+            n += 1
+        try:
+            os.replace(self.settings_file, target)
+        except OSError:
+            try:
+                shutil.copy2(self.settings_file, target)
+            except OSError as e:
+                logger.error("Settings file is corrupt and could not be "
+                             "set aside (%s); it will NOT be overwritten", e)
+                self._shared.save_blocked = True
+                return
+        logger.warning("Settings file was unreadable; kept it as %s and "
+                       "started from defaults", target.name)
+
+    def _load(self, disk: bytes | None = None):
+        """Load settings from file (caller holds the shared lock)."""
+        state = self._shared
+        state.undecryptable = {}
+        state.save_blocked = False
+        if disk is None:
+            self._data = _deep_copy(self.DEFAULTS)
+            state.last_bytes = None
             self._save()
+            return
+        try:
+            loaded = json.loads(disk.decode("utf-8-sig"))
+            if not isinstance(loaded, dict):
+                raise ValueError(f"top level is {type(loaded).__name__}, "
+                                 "not an object")
+        except Exception as e:
+            logger.error("Settings load error: %s", e)
+            self._set_aside_corrupt()
+            self._data = _deep_copy(self.DEFAULTS)
+            state.last_bytes = None
+            if not state.save_blocked:
+                self._save()
+            return
+
+        _merge_defaults(loaded, self.DEFAULTS)
+        providers = loaded["ai"]["providers"]
+        for provider, cfg in providers.items():
+            if not isinstance(cfg, dict):
+                continue
+            enc_key = cfg.pop("api_key_enc", "")
+            if not enc_key:
+                continue
+            try:
+                cfg["api_key"] = _unprotect_secret_strict(enc_key)
+            except SecretUnprotectError as e:
+                logger.error("API key for %s could not be decrypted (%s); "
+                             "the stored key is kept, re-enter it in "
+                             "Settings to replace it", provider, e)
+                cfg["api_key"] = ""
+                state.undecryptable[provider] = enc_key
+        self._data = loaded
+        state.last_bytes = disk
+        logger.info("Settings loaded from %s", self.settings_file)
 
     def _save(self):
-        """Save settings to file (with encrypted API keys)."""
-        try:
-            data = json.loads(json.dumps(self._data))  # Deep copy
-            # Encrypt API keys
-            for provider in data.get("ai", {}).get("providers", {}):
-                if isinstance(data["ai"]["providers"][provider], dict):
-                    api_key = data["ai"]["providers"][provider].get("api_key", "")
+        """Save settings to file (with encrypted API keys), atomically."""
+        state = self._shared
+        with state.lock:
+            if state.save_blocked:
+                logger.error("Settings not saved: the settings file is "
+                             "corrupt and could not be set aside")
+                return
+            tmp_name = ""
+            try:
+                data = _deep_copy(self._data)
+                for provider, cfg in data.get("ai", {}).get("providers", {}).items():
+                    if not isinstance(cfg, dict):
+                        continue
+                    api_key = cfg.pop("api_key", "")
                     if api_key:
-                        data["ai"]["providers"][provider]["api_key_enc"] = _protect_secret(api_key)
-                        del data["ai"]["providers"][provider]["api_key"]
-            self.settings_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            logger.debug("Settings saved")
-        except Exception as e:
-            logger.error("Settings save error: %s", e)
+                        try:
+                            cfg["api_key_enc"] = _protect_secret_strict(api_key)
+                        except SecretProtectError as e:
+                            logger.error("API key for %s NOT saved: %s",
+                                         provider, e)
+                            old = state.undecryptable.get(provider)
+                            if old:
+                                cfg["api_key_enc"] = old
+                    elif provider in state.undecryptable:
+                        # Never drop a key blob just because this
+                        # machine cannot read it.
+                        cfg["api_key_enc"] = state.undecryptable[provider]
+                payload = json.dumps(data, indent=2).encode("utf-8")
+                self.config_dir.mkdir(parents=True, exist_ok=True)
+                fd, tmp_name = tempfile.mkstemp(
+                    prefix="settings.json.", suffix=".tmp",
+                    dir=str(self.config_dir))
+                with os.fdopen(fd, "wb") as f:
+                    f.write(payload)
+                    f.flush()
+                    os.fsync(f.fileno())
+                for attempt in range(5):
+                    try:
+                        os.replace(tmp_name, self.settings_file)
+                        break
+                    except PermissionError:
+                        # Antivirus / indexer briefly holding the file.
+                        if attempt == 4:
+                            raise
+                        time.sleep(0.05 * (attempt + 1))
+                tmp_name = ""
+                state.last_bytes = payload
+                logger.debug("Settings saved")
+            except Exception as e:
+                logger.error("Settings save error: %s", e)
+            finally:
+                if tmp_name:
+                    try:
+                        os.unlink(tmp_name)
+                    except OSError:
+                        pass
 
     def get(self, key_path: str, default: Any = None) -> Any:
         """Get a setting by dot-path (e.g. 'ai.default_provider')."""
@@ -199,13 +436,14 @@ class SettingsStore:
     def set(self, key_path: str, value: Any) -> None:
         """Set a setting by dot-path."""
         keys = key_path.split(".")
-        target = self._data
-        for key in keys[:-1]:
-            if key not in target:
-                target[key] = {}
-            target = target[key]
-        target[keys[-1]] = value
-        self._save()
+        with self._shared.lock:
+            target = self._data
+            for key in keys[:-1]:
+                if not isinstance(target.get(key), dict):
+                    target[key] = {}
+                target = target[key]
+            target[keys[-1]] = value
+            self._save()
 
     def get_ai_provider(self, name: str) -> dict:
         """Get AI provider config (with decrypted API key)."""
@@ -216,12 +454,16 @@ class SettingsStore:
 
     def set_ai_provider(self, name: str, config: dict) -> None:
         """Set AI provider config (API key will be encrypted on save)."""
-        if "ai" not in self._data:
-            self._data["ai"] = {}
-        if "providers" not in self._data["ai"]:
-            self._data["ai"]["providers"] = {}
-        self._data["ai"]["providers"][name] = dict(config)
-        self._save()
+        with self._shared.lock:
+            if not isinstance(self._data.get("ai"), dict):
+                self._data["ai"] = {}
+            if not isinstance(self._data["ai"].get("providers"), dict):
+                self._data["ai"]["providers"] = {}
+            self._data["ai"]["providers"][name] = dict(config)
+            if config.get("api_key"):
+                # A new key replaces the one we could not decrypt.
+                self._shared.undecryptable.pop(name, None)
+            self._save()
 
     def get_prompts(self) -> dict[str, str]:
         """Get all prompt presets."""
@@ -233,21 +475,25 @@ class SettingsStore:
 
     def set_prompt(self, name: str, text: str) -> None:
         """Set a prompt preset."""
-        if "prompts" not in self._data:
-            self._data["prompts"] = {}
-        self._data["prompts"][name] = text
-        self._save()
+        with self._shared.lock:
+            if not isinstance(self._data.get("prompts"), dict):
+                self._data["prompts"] = {}
+            self._data["prompts"][name] = text
+            self._save()
 
     def delete_prompt(self, name: str) -> bool:
         """Delete a prompt preset. Returns True if existed."""
-        prompts = self._data.get("prompts", {})
-        if name in prompts:
-            del prompts[name]
-            self._save()
-            return True
-        return False
+        with self._shared.lock:
+            prompts = self._data.get("prompts", {})
+            if name in prompts:
+                del prompts[name]
+                self._save()
+                return True
+            return False
 
     def reset(self) -> None:
         """Reset all settings to defaults."""
-        self._data = json.loads(json.dumps(self.DEFAULTS))
-        self._save()
+        with self._shared.lock:
+            self._data = _deep_copy(self.DEFAULTS)
+            self._shared.undecryptable = {}
+            self._save()
