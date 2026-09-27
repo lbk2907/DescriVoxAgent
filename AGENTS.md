@@ -409,8 +409,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.7.3 (tag `v1.7.3`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 42 suite dalam `run_gate.bat`.
+- **Versi:** 1.7.4 (tag `v1.7.4`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 47 suite dalam `run_gate.bat`.
 - Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
   full-video mode tersedia
 - 33 test suite, semua PASS (test_fixes19 = audit fix regression suite;

@@ -15,6 +15,29 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.4
+
+**A full audit, checked on a 15-minute film.** A real run of the shipped
+build on Sintel (14:48, Gemini full-video) produced 83 timed
+descriptions. It also exposed the worst bug fixed here:
+
+- **No more console windows.** The windowed exe opened a console for
+  every ffmpeg and yt-dlp call; NVDA announced "terminal" and read out
+  the ffmpeg path in the middle of a job.
+- **Safer keys.** The Gemini key is sent in a header, never in the URL
+  (an HTML error page used to put it in the log). A half-written
+  settings file no longer wipes every key; a key that cannot be
+  decrypted is kept; the player no longer overwrites Settings.
+- **Transient errors are retried** (429/5xx) for Gemini, OpenAI,
+  MiniMax and custom, instead of losing a whole video on one 503.
+- **Long videos:** frames past number 9,999 are in the right order
+  (10 fps, over 16:40); each part is described with its real length.
+- **Editor and player:** edits survive moving between descriptions and
+  closing the player; the first description waits for its moment;
+  Stop really stops speech; Ask More sends the question once.
+- **Subtitles:** blank lines no longer cut a cue; UTF-16 and ANSI files
+  import; placeholder text such as "(empty response)" is never spoken.
+
 ## What's new in v1.7.3
 
 **Gemini now defaults to `gemini-3.8-flash`.** Google limits the 2.5
