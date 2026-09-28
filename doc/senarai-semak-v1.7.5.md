@@ -56,3 +56,8 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       berpunca daripada NVDA membaca app lain; ujian kini ukur semula sehingga senyap
 - [x] 6.6 Build 1.7.6 BUILD_ALL_OK; E2E beku 14/14 (folder `Sintel dialog clip (49)`);
       dialog Open Project didengar NVDA; gate 49 suite x2 GATE_ALL_PASS semasa NVDA senyap
+- [x] 6.8 Pembersihan kedua (disahkan pemilik): 25 projek ujian dipadam (sintel ×4, zoo ×17,
+      video ×2, percubaan gagal 11 & 26). Tinggal 27 dan 31 (Ocong). 1.1 GB → 361 MB
+- [x] 6.9 Alat NVDA bridge disemak: sejarah ucapan (100 item: masa/teks/keutamaan) dan acara
+      `speech`/`foreground` — TIADA acara "ucapan tamat", jadi meter audio kekal satu-satunya
+      cara mengukur akhir ucapan; ujian menapis ucapan sendiri ikut teks
