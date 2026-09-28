@@ -126,4 +126,6 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 11.4 Audio per model: salinan termampat kekal audio untuk model yang mendengar (ffprobe);
       amaran preset foreign ikut model; Qwen + MiMo dalam senarai lalai
 - [x] 11.5 test_fixes44 7/7; kod lama gagal 3 (termasuk "sent a silent video")
-- [ ] 11.6 Gate x2, build 1.8.1, E2E sebenar exe dengan Qwen, tag v1.8.1
+- [x] 11.6 Gate 54 x2; build 1.8.1 BUILD_ALL_OK; E2E exe + Qwen via OpenRouter 14/14 (klip dialog
+      Sintel 30 s: 1 cue — Qwen dan GLM sama-sama tulis 1 baris; parser ambil semua; preset
+      tidak bercakap atas dialog); Uji model didengar NVDA; tag v1.8.1
