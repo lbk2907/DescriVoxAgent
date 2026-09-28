@@ -64,6 +64,10 @@ class _Store:
         self.saved = None
         self._next = 100
 
+    def project_dir(self, project_id):
+        # v1.7.6: the player asks the store where a project lives.
+        return Path(self.projects_dir) / f"Project ({project_id})"
+
     def save_descriptions(self, d):
         self.saved = [(x.start_time, x.text) for x in d]
 

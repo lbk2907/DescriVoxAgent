@@ -92,10 +92,17 @@ async def _t3() -> bool:
 
 check("3 probe cancel raises cancelled", asyncio.run(_t3()))
 
+def _real_project_27():
+    """The owner's long Ocong project (442 cues), in either layout:
+    project_27/ before v1.7.6, "<title> (27)/" after it."""
+    from omni_describer_custom.core.project_store import ProjectStore
+    return ProjectStore(os.path.expanduser(
+        r"~\Documents\OmniDescriber\projects")).project_dir(27)
+
+
 # ── 4. cancel during ffmpeg extraction kills promptly ───────────────
 async def _t4() -> tuple[bool, float]:
-    src = os.path.expanduser(
-        r"~\Documents\OmniDescriber\projects\project_27\media\video.mp4")
+    src = str(_real_project_27() / "media" / "video.mp4")
     if not os.path.exists(src):
         return True, -1.0  # skipped: no local long video available
     out = tempfile.mkdtemp(prefix="odc_t16_ff_")
@@ -161,12 +168,10 @@ def _t_gui() -> None:
           and frame.btn_youtube.Enabled)
 
     # 7: player slider over REAL duration (use project_27 if present)
-    src27 = os.path.expanduser(
-        r"~\Documents\OmniDescriber\projects\project_27\media\video.mp4")
-    db27 = os.path.expanduser(
-        r"~\Documents\OmniDescriber\projects\project_27.db")
-    if os.path.exists(src27) and os.path.exists(db27):
-        real_store = ProjectStore()  # real Documents projects dir
+    real_dir = os.path.expanduser(r"~\Documents\OmniDescriber\projects")
+    real_store = ProjectStore(real_dir)  # real projects, not the gate's
+    src27 = str(real_store.project_dir(27) / "media" / "video.mp4")
+    if os.path.exists(src27) and real_store._db_path(27).exists():
         real_store.open_project(27)
         win = PlayerWindow(frame, real_store, frame.tts_engine, frame.ai_engine)
         dur = win._slider_dur

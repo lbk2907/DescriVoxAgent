@@ -75,14 +75,14 @@ def main() -> int:
     fake_video.write_bytes(b"FAKEVIDEO" * 1000)
     proj = store.create_project("Test Project", "https://youtu.be/abc")
     out = store.persist_video_file(str(fake_video))
-    expect = store.projects_dir / "project_1" / "media" / "video.mp4"
+    expect = store.project_dir(1) / "media" / "video.mp4"
     check("copied into media dir", Path(out) == expect, out)
     check("file exists", expect.exists())
     check("same content", expect.stat().st_size == fake_video.stat().st_size)
     check("video_path updated in memory", proj.video_path == str(expect), proj.video_path)
 
     # DB row really updated
-    conn = sqlite3.connect(str(tmp / "projects" / "project_1.db"))
+    conn = sqlite3.connect(str(store._db_path(1)))
     row = conn.execute("SELECT video_path FROM projects WHERE id=1").fetchone()
     conn.close()
     check("video_path updated in DB", row and row[0] == str(expect), str(row))
@@ -97,7 +97,7 @@ def main() -> int:
 
     # set_video_path direct
     store.set_video_path("C:/some/other.mp4")
-    conn = sqlite3.connect(str(tmp / "projects" / "project_1.db"))
+    conn = sqlite3.connect(str(store._db_path(1)))
     row = conn.execute("SELECT video_path FROM projects WHERE id=1").fetchone()
     conn.close()
     check("set_video_path DB", row and row[0] == "C:/some/other.mp4", str(row))

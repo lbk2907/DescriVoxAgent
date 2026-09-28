@@ -178,11 +178,9 @@ def test_gui_play_narrates():
     finally:
         pump(200)
         frame.Destroy()
-        # Clean up the acceptance project from the real projects dir
+        # Clean up the acceptance project (folder and .db, any layout)
         try:
-            db = Path(store.projects_dir) / f"project_{proj.id}.db"
-            if db.exists():
-                db.unlink()
+            store.delete_project(proj.id)
         except Exception:
             pass
 check("Playback narrates descriptions aloud through real windows", test_gui_play_narrates)
