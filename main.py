@@ -72,18 +72,18 @@ def main():
         log_tool_status()
         absent = missing_tools()
         if absent:
-            detail = "\n".join(f"• {name} — needed for {why}"
-                               for name, why in absent)
-            logger.error("Missing external tools:\n%s", detail)
-            wx.MessageBox(
-                "Some programs this app needs are missing:\n\n"
-                f"{detail}\n\n"
-                "They normally ship inside the app's own bin folder. If "
-                "that folder is empty, the download or unzip did not "
-                "finish, or antivirus removed the files. Re-extract the "
-                "app, or install ffmpeg and yt-dlp yourself.\n\n"
-                "The app will still start, but these features will fail.",
-                "Omni Describer Custom", wx.OK | wx.ICON_WARNING)
+            # v1.8.0: in the user's language. This runs before MainFrame
+            # sets the language, so set it here from the saved settings.
+            from omni_describer_custom.core.settings_store import SettingsStore
+            from omni_describer_custom.i18n.strings import I18n, t
+            I18n.set_language(SettingsStore().get("general.language", "en"))
+            logger.error("Missing external tools: %s",
+                         ", ".join(name for name, _ in absent))
+            detail = "\n".join(
+                t("startup.tool_line", name=name, why=t(f"tools.need_{name}"))
+                for name, _ in absent)
+            wx.MessageBox(t("startup.missing_tools", detail=detail),
+                          t("main.title"), wx.OK | wx.ICON_WARNING)
 
         # v1.6.7: a crashed or killed run leaves its temp folders
         # behind and nothing ever came back for them — 806 MB of
@@ -107,8 +107,12 @@ def main():
         app.MainLoop()
     except Exception as e:
         logger.error("Application error: %s", e)
-        wx.MessageBox(f"Error starting application:\n{e}", "Omni Describer Custom",
-                      wx.OK | wx.ICON_ERROR)
+        try:
+            from omni_describer_custom.i18n.strings import t
+            text, title = t("startup.error", error=e), t("main.title")
+        except Exception:
+            text, title = f"Error starting application:\n{e}", "Omni Describer Custom"
+        wx.MessageBox(text, title, wx.OK | wx.ICON_ERROR)
         return 1
 
     return 0

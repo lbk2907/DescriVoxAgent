@@ -283,6 +283,8 @@ class MainFrame(wx.Frame):
         help_menu = wx.Menu()
         self._id_check_updates = wx.NewIdRef()
         help_menu.Append(self._id_check_updates, t("menu.check_updates"))
+        self._id_language_report = wx.NewIdRef()
+        help_menu.Append(self._id_language_report, t("menu.language_report"))
         help_menu.Append(wx.ID_ABOUT, t("menu.about"))
         menubar.Append(help_menu, t("menu.help"))
 
@@ -359,6 +361,7 @@ class MainFrame(wx.Frame):
             (self._id_export_audio, "menu.export_audio"),
             (wx.ID_EXIT, "menu.exit"),
             (self._id_check_updates, "menu.check_updates"),
+            (self._id_language_report, "menu.language_report"),
             (wx.ID_ABOUT, "menu.about"),
         ):
             item = menubar.FindItemById(item_id)
@@ -404,6 +407,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
         self.Bind(wx.EVT_MENU, self._on_check_updates,
                   id=self._id_check_updates)
+        self.Bind(wx.EVT_MENU, self._on_language_report,
+                  id=self._id_language_report)
         self.Bind(wx.EVT_CLOSE, self._on_close_window)
 
     # ── Import / export descriptions ────────────────────────────
@@ -413,7 +418,8 @@ class MainFrame(wx.Frame):
         from ..core import timeline_io
         dlg = wx.FileDialog(
             self, t("impexp.dlg_import"),
-            wildcard="Timed text (*.srt;*.vtt;*.txt)|*.srt;*.vtt;*.txt|All files (*.*)|*.*",
+            wildcard=(f"{t('filter.timed_text')}|*.srt;*.vtt;*.txt"
+                      f"|{t('filter.all_files')}|*.*"),
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         if dlg.ShowModal() != wx.ID_OK:
@@ -524,7 +530,8 @@ class MainFrame(wx.Frame):
         dlg = wx.FileDialog(
             self, t("menu.export_audio"),
             defaultFile=f"{cur.name or 'descriptions'}.mp3",
-            wildcard="MP3 audio (*.mp3)|*.mp3|WAV audio (*.wav)|*.wav",
+            wildcard=(f"{t('filter.mp3')}|*.mp3"
+                      f"|{t('filter.wav')}|*.wav"),
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         )
         if dlg.ShowModal() != wx.ID_OK:
@@ -648,8 +655,8 @@ class MainFrame(wx.Frame):
             sub_dlg = wx.FileDialog(
                 self, t("main.play_existing_pick_subs"),
                 defaultDir=str(video.parent),
-                wildcard=("Timed text (*.srt;*.vtt;*.txt)|*.srt;*.vtt;*.txt"
-                          "|All files|*.*"),
+                wildcard=(f"{t('filter.timed_text')}|*.srt;*.vtt;*.txt"
+                          f"|{t('filter.all_files')}|*.*"),
                 style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
             if sub_dlg.ShowModal() != wx.ID_OK:
                 sub_dlg.Destroy()
@@ -1021,6 +1028,45 @@ class MainFrame(wx.Frame):
         finally:
             dlg.Destroy()
 
+    def _on_language_report(self, event):
+        """Help > Translation Report (v1.8.0).
+
+        For the language in use, writes <code>.missing.json into the
+        user's own locales folder with every line still to translate and
+        its English text, says how many, and offers to open the folder.
+        A translator never has to diff files by hand after an update.
+        """
+        import os as _os
+        from ..i18n.strings import (I18n, user_locales_dir,
+                                    write_missing_report)
+        lang = I18n.current_language()
+        language = I18n.language_name(lang)
+        folder = user_locales_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        if lang == "en":
+            message = t("i18n.report_english", folder=folder)
+        else:
+            path, count = write_missing_report(lang)
+            self._log(t("i18n.report_log", language=language, count=count,
+                        path=path))
+            if count:
+                message = t("i18n.report_todo", language=language,
+                            count=count, path=path, code=lang)
+            else:
+                try:
+                    path.unlink()  # nothing to translate: no empty file
+                except OSError:
+                    pass
+                message = t("i18n.report_complete", language=language,
+                            folder=folder)
+        answer = wx.MessageBox(message, t("i18n.report_title"),
+                               wx.YES_NO | wx.ICON_INFORMATION, self)
+        if answer == wx.YES:
+            try:
+                _os.startfile(str(folder))
+            except OSError as e:
+                logger.warning("Could not open %s: %s", folder, e)
+
     def check_updates_in_background(self) -> None:
         """Once a week, at start-up: say if a newer yt-dlp exists.
 
@@ -1062,11 +1108,7 @@ class MainFrame(wx.Frame):
         info.SetName("Omni Describer Custom")
         from omni_describer_custom import __version__
         info.SetVersion(__version__)
-        info.SetDescription(
-            "Accessible audio description tool for blind and visually "
-            "impaired users. Describes video frames using AI and narrates "
-            "them via text-to-speech."
-        )
+        info.SetDescription(t("about.description"))
         info.SetCopyright("(C) 2026 Omni Describer Custom")
         wx.adv.AboutBox(info)
 
@@ -1740,7 +1782,8 @@ class MainFrame(wx.Frame):
                     ff = _subprocess.run(cmd, capture_output=True,
                                          timeout=900)
                 except Exception as e:
-                    wx.CallAfter(self._log, f"ERROR: ffmpeg failed: {e}")
+                    wx.CallAfter(self._log, t("status.error", error=t(
+                        "log.ffmpeg_failed", error=e)))
                     wx.CallAfter(self._close_download_progress)
                     wx.CallAfter(self._processing_done)
                     self._cleanup_dir(frame_dir)
@@ -1749,8 +1792,8 @@ class MainFrame(wx.Frame):
                     return
                 if ff.returncode != 0:
                     tail = ff.stderr.decode("utf-8", "replace")[-500:]
-                    wx.CallAfter(self._log,
-                                 f"ERROR: ffmpeg failed: {tail}")
+                    wx.CallAfter(self._log, t("status.error", error=t(
+                        "log.ffmpeg_failed", error=tail)))
                     wx.CallAfter(self._close_download_progress)
                     wx.CallAfter(self._processing_done)
                     self._cleanup_dir(frame_dir)
@@ -1772,7 +1815,7 @@ class MainFrame(wx.Frame):
                         r"(\d+)\.jpg$", p.name).group(1))
                     if _re.search(r"(\d+)\.jpg$", p.name) else 0)
                 if not fast_frames:
-                    wx.CallAfter(self._log, "ERROR: " + t("error.no_frames"))
+                    wx.CallAfter(self._log, t("status.error", error=t("error.no_frames")))
                     wx.CallAfter(self._close_download_progress)
                     wx.CallAfter(self._processing_done)
                     self._cleanup_dir(frame_dir)
@@ -1983,7 +2026,7 @@ class MainFrame(wx.Frame):
             # explanation. Now surface a clear failure notice instead of
             # an empty project, and clean up like the error paths do.
             if not desc_objects:
-                wx.CallAfter(self._log, "ERROR: " + t("error.ai_empty"))
+                wx.CallAfter(self._log, t("status.error", error=t("error.ai_empty")))
                 wx.CallAfter(self.SetStatusText,
                              t("status.error", error=t("error.ai_empty")))
                 wx.CallAfter(self._close_download_progress)
@@ -2031,7 +2074,7 @@ class MainFrame(wx.Frame):
 
             wx.CallAfter(_notify_done, len(desc_objects), video_path)
             if getattr(self, "_ai_cancelled", False):
-                wx.CallAfter(self._log, "AI analysis cancelled; partial descriptions saved")
+                wx.CallAfter(self._log, t("log.ai_cancelled_partial"))
             wx.CallAfter(self._close_download_progress)
             wx.CallAfter(self.SetStatusText, t("status.complete"))
 
@@ -2043,7 +2086,7 @@ class MainFrame(wx.Frame):
         except SourceError as e:
             logger.error("Source resolution failed: %s", e)
             msg = str(e)
-            wx.CallAfter(self._log, f"ERROR: {msg}")
+            wx.CallAfter(self._log, t("status.error", error=msg))
             # v1.7.7: the usual cause of a YouTube download that used to
             # work is an outdated yt-dlp, so say where the fix is.
             if "youtu" in str(getattr(self, "_current_source", "") or msg):
@@ -2062,7 +2105,7 @@ class MainFrame(wx.Frame):
             return
         except Exception as e:
             logger.error("Processing error: %s", e)
-            wx.CallAfter(self._log, f"ERROR: {e}")
+            wx.CallAfter(self._log, t("status.error", error=str(e)))
             wx.CallAfter(self.SetStatusText, t("status.error", error=str(e)))
             wx.CallAfter(self._close_download_progress)
             if frame_dir:
@@ -2335,7 +2378,7 @@ class MainFrame(wx.Frame):
         never hang.
         """
         if not desc_objects:
-            wx.CallAfter(self._log, "ERROR: " + t("error.ai_empty"))
+            wx.CallAfter(self._log, t("status.error", error=t("error.ai_empty")))
             wx.CallAfter(self.SetStatusText,
                          t("status.error", error=t("error.ai_empty")))
             wx.CallAfter(self._close_download_progress)
@@ -2506,7 +2549,7 @@ class MainFrame(wx.Frame):
             win.Show()
         except Exception as e:
             logger.error("Failed to open PlayerWindow: %s", e)
-            self._log("ERROR opening player: " + str(e))
+            self._log(t("log.player_failed", error=str(e)))
 
     def _log(self, message: str):
         """Append a line to the status log.

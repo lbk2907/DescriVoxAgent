@@ -260,7 +260,8 @@ class PlayerWindow(wx.Frame):
         dlg = wx.FileDialog(
             self,
             message=t("player.load_srt"),
-            wildcard="Subtitle files (*.srt;*.vtt)|*.srt;*.vtt|All files (*.*)|*.*",
+            wildcard=(f"{t('filter.subtitles')}|*.srt;*.vtt"
+                      f"|{t('filter.all_files')}|*.*"),
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         if dlg.ShowModal() == wx.ID_OK:
