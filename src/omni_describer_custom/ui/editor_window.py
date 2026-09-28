@@ -100,6 +100,8 @@ class EditorWindow(wx.Frame):
         self.delete_btn.Bind(wx.EVT_BUTTON, self._on_delete)
         self.close_btn.Bind(wx.EVT_BUTTON, self._on_close)
         self.tts_btn.Bind(wx.EVT_BUTTON, self._on_tts)
+        for ctrl in (self.start_time_ctrl, self.end_time_ctrl, self.text_ctrl):
+            ctrl.Bind(wx.EVT_TEXT, self._on_field_text)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
         panel.Layout()
@@ -146,6 +148,21 @@ class EditorWindow(wx.Frame):
             desc.start_time = start
             desc.end_time = end
             desc.edited = True
+
+    def _on_field_text(self, event):
+        """Keep the selected row in step with the fields while typing.
+
+        v1.7.5: the row kept the OLD text until the user moved to another
+        description, so tabbing back to the list, NVDA read out what had
+        just been replaced (heard in tools/nvda_window_check.py's flow).
+        """
+        event.Skip()
+        row = self.desc_list.GetFirstSelected()
+        if row < 0 or self._loaded_desc is None:
+            return
+        self.desc_list.SetItem(row, 0, self.start_time_ctrl.GetValue() + "s")
+        self.desc_list.SetItem(row, 1, self.end_time_ctrl.GetValue() + "s")
+        self.desc_list.SetItem(row, 2, self.text_ctrl.GetValue()[:100])
 
     def _sort_descriptions(self) -> None:
         """Keep the list in time order: the player's cue lookup assumes
