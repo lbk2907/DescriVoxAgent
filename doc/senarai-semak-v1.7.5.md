@@ -3,8 +3,9 @@
 Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 
 ## Fasa 1 — pemilik (bukan agent)
-- [ ] Padam `%APPDATA%\OmniDescriber\settings.json.v1.5.2.bak` (4 kunci XOR)
-- [ ] Tukar kunci Gemini, OpenRouter, custom, Opus jika masih hidup
+- [x] Padam `%APPDATA%\OmniDescriber\settings.json.v1.5.2.bak` (4 kunci XOR) — dipadam kekal atas
+  arahan pemilik 28 Sep; kunci Gemini/GLM dalam settings.json (DPAPI) disahkan masih dibaca
+- [ ] Tukar kunci Gemini, OpenRouter, custom, Opus jika masih hidup (PEMILIK — di papan pemuka provider)
 
 ## Fasa 2 — sahkan 1.7.4
 - [x] 2.1 `tools/nvda_accessibility_check.py` — tetingkap utama (build 1.7.4: 20/20 OK)
@@ -61,3 +62,5 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 6.9 Alat NVDA bridge disemak: sejarah ucapan (100 item: masa/teks/keutamaan) dan acara
       `speech`/`foreground` — TIADA acara "ucapan tamat", jadi meter audio kekal satu-satunya
       cara mengukur akhir ucapan; ujian menapis ucapan sendiri ikut teks
+- [x] 6.10 Projek 27 dan 31 (Ocong) dihantar ke Recycle Bin atas arahan pemilik — folder projek kini
+      kosong. test_fixes16 melangkau semakan video panjang (SKIP, bukan FAIL): 16/16 lulus
