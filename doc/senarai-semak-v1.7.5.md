@@ -146,4 +146,9 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       (test_fixes46); 503 kini tunggu 5 s/15 s dengan mesej jelas
 - [x] 12.5 F: custom provider sebenar: format OpenAI, auto, Anthropic (Claude Haiku), ask_text lulus
 - [x] 12.6 G: Yes/No ikut bahasa app (ui/dialogs.ask_yes_no); pemain retranslate()
-- [ ] 12.7 Dengar semula pembaikan (perlu PC lapang), gate x2, build 1.8.2, tag
+- [x] 12.7 Didengar semula (EN + BM): anak panah/L/D/Tab Scene Explorer, 10s, Esc, slider 'Kelajuan',
+      'Tidak button Alt+T'; gate 56 x2; build 1.8.2; exe: provider OpenRouter, slider Kelajuan; tag.
+      DITEMUI semasa mendengar: Tab terperangkap dalam kotak Description (dibaiki); huruf dari
+      pywinauto dihantar sebagai VK_PACKET (artifak ujian; guna vk_packet=False untuk huruf)
+- [ ] 12.8 (cadangan) Esc dalam kotak Ya/Tidak tidak menutupnya — tingkah laku standard Windows
+      tanpa butang Batal; Alt+T memilih Tidak
