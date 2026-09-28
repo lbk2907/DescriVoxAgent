@@ -41,7 +41,7 @@ a = Analysis(
     hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['google.generativeai', 'accessible_output2', 'pytest'],
+    excludes=['google.generativeai', 'accessible_output2', 'pytest', 'torch', 'coverage'],
     noarchive=False,
     optimize=0,
 )

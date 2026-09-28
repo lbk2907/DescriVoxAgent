@@ -122,6 +122,16 @@ def main() -> None:
              "buried in _internal where nobody opens it")
     print("PACKAGING_NOTICE_OK", flush=True)
 
+    # v1.7.5: --collect-all ctranslate2 dragged in its model CONVERTERS,
+    # which import torch: 365 MB the app never loads (Whisper runs
+    # without it — transcribed Sintel with torch blocked). coverage came
+    # along the same way.
+    for unwanted in ("torch", "coverage"):
+        if (EXE.parent / "_internal" / unwanted).exists():
+            fail(f"the build ships {unwanted}, which the app never uses "
+                 f"— check the --exclude-module flags in build.bat")
+    print("PACKAGING_NO_TORCH_OK", flush=True)
+
     print("PACKAGING_ALL_OK", flush=True)
 
 

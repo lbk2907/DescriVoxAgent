@@ -52,6 +52,8 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
   --exclude-module google.generativeai ^
   --exclude-module accessible_output2 ^
   --exclude-module pytest ^
+  --exclude-module torch ^
+  --exclude-module coverage ^
   main.py > "%TEMP%\pyinstaller_odc.log" 2>&1
 if errorlevel 1 (echo PYINSTALLER_FAIL & type "%TEMP%\pyinstaller_odc.log" & exit /b 1)
 echo PYINSTALLER_OK
