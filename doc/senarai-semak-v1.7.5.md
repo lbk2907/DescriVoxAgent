@@ -129,3 +129,15 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 11.6 Gate 54 x2; build 1.8.1 BUILD_ALL_OK; E2E exe + Qwen via OpenRouter 14/14 (klip dialog
       Sintel 30 s: 1 cue — Qwen dan GLM sama-sama tulis 1 baris; parser ambil semua; preset
       tidak bercakap atas dialog); Uji model didengar NVDA; tag v1.8.1
+
+## Fasa 12 — D/E/F/G (dipersetujui pemilik 29 Sep 2026)
+- [x] 12.0 INSIDEN: ujian Scene Explorer gagal ambil fokus; kekunci (anak panah, d, l, Enter)
+      pergi ke TeamTalk pemilik ("borak bersama") — mungkin terhantar mesej pendek. Dibaiki:
+      `tools/safe_keys.py` enggan menaip kecuali tetingkap hadapan milik proses ujian (disahkan:
+      menolak bila TeamTalk di hadapan). Semua alat automasi guna pengawal ini.
+- [x] 12.1 Tambah mod `explorer` dan `settings` pada tools/nvda_window_check.py
+- [x] 12.2 Settings tab General: 13/13 kawalan dibaca NVDA
+- [ ] 12.3 Sapuan papan kekunci + NVDA semua tetingkap (perlu komputer pemilik lapang ~20 min)
+- [ ] 12.4 E: bandingkan Qwen / GLM / Gemini
+- [ ] 12.5 F: provider custom sebenar melalui OpenRouter
+- [ ] 12.6 G: Yes/No ikut bahasa app; pemain ikut tukar bahasa

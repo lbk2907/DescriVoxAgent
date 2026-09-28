@@ -30,6 +30,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safe_keys  # noqa: E402  (guards every keystroke; import first)
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from e2e_projects import ProjectsGuard, all_dbs  # noqa: E402
@@ -105,6 +108,7 @@ def launch(config_dir: Path):
     env = dict(os.environ)
     env["ODC_CONFIG_DIR"] = str(config_dir)
     proc = subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env)
+    safe_keys.allow(proc.pid)
     desktop = Desktop(backend="uia")
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:

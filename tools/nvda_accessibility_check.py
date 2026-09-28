@@ -28,6 +28,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safe_keys  # noqa: E402  (guards every keystroke; import first)
+
 REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable
 BRIDGE = "http://127.0.0.1:19281"
@@ -85,6 +88,7 @@ def launch(frozen: bool):
         log_file = open(REPO / "_a11y_app_log.txt", "w", encoding="utf-8")
         proc = subprocess.Popen([PY, "main.py"], cwd=str(REPO),
                                 stdout=log_file, stderr=log_file)
+    safe_keys.allow(proc.pid)
     desktop = Desktop(backend="uia")
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:

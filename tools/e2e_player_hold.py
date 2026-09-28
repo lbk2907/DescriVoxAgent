@@ -28,6 +28,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safe_keys  # noqa: E402  (guards every keystroke; import first)
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 
@@ -55,6 +58,7 @@ def main() -> int:
     log_start = LOG.stat().st_size if LOG.exists() else 0
     env = dict(os.environ, ODC_CONFIG_DIR=str(config))
     proc = subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env)
+    safe_keys.allow(proc.pid)
 
     from pywinauto import Desktop
     desktop = Desktop(backend="uia")

@@ -13,6 +13,7 @@ REPO = Path(r"C:\Users\USER\Documents\omni-describer-custom")
 sys.path.insert(0, str(REPO / "tools"))
 import win32gui, win32con
 from pywinauto import Desktop
+import safe_keys  # noqa: E402  (guards every keystroke; import first)
 from pywinauto.keyboard import send_keys
 import nvda_accessibility_check as a11y
 
@@ -20,6 +21,7 @@ work = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
 env = dict(os.environ, ODC_CONFIG_DIR=str(work / "config"))
 proc = subprocess.Popen([sys.executable, str(REPO / "tools" / "nvda_window_check.py"),
                          "--window", "editor", "--serve", str(work)], env=env)
+safe_keys.allow(proc.pid)
 t0 = time.monotonic()
 while not (work / "title.txt").exists() and time.monotonic() - t0 < 90:
     time.sleep(0.5)
