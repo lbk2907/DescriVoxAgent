@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 52 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 53 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 52 suite; run_gate.bat = semua
+tests/                           — 53 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -443,6 +443,16 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    sahaja** (`test_fixes42`). Nota automasi: `send_keys(" ")` pywinauto
    MEMBUANG ruang — guna `{SPACE}`.
 
+58. **Bahasa pengguna tinggal di `%APPDATA%\OmniDescriber\locales`**
+   (v1.8.0), kerana folder `locales/` dalam app diganti setiap kali
+   dikemas kini. Fail kod baharu = bahasa baharu; fail kod sedia ada =
+   pembetulan baris demi baris (baris kosong diabaikan). `*.missing.json`
+   ialah laporan, BUKAN bahasa. `ODC_LOCALES_DIR` mengasingkan test.
+   **Setiap teks yang dilihat/didengar pengguna melalui `t()`** —
+   `test_fixes43` gagal pada teks Inggeris dalam UI atau kunci yang tak
+   digunakan (46 kunci mati dibuang v1.8.0). Tambah kunci = tambah ke
+   `en.json` DAN `ms.json`.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -488,12 +498,12 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.7.9 (tag `v1.7.9`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 52 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.0 (tag `v1.8.0`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 53 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Hanya Gemini MENDENGAR audio video.
-- Gate 52 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- Gate 53 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
 - E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
   Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
   perangai model, pitfall 14).

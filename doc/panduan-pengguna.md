@@ -298,6 +298,16 @@ contohnya "Sintel — 79 penerangan — 28/09/2026 11:30". Butang:
   kali seterusnya app dibuka.
 - **Buang** (Alt+A) — padam projek sepenuhnya, selepas pengesahan.
 
+## Bahasa anda sendiri (Help > Laporan Terjemahan)
+
+Fail bahasa yang anda buat atau betulkan disimpan dalam
+`%APPDATA%\OmniDescriber\locales\` dan tidak hilang semasa app
+dikemas kini. Selepas kemas kini, **Help > Laporan Terjemahan**
+memberitahu berapa baris bahasa anda yang belum diterjemah dan
+menyimpan baris-baris itu sahaja, bersama teks Inggerisnya, sebagai
+`<kod>.missing.json` dalam folder itu. Panduan penuh:
+`doc/menambah-bahasa.md`.
+
 ## Semak Kemas Kini (menu Help)
 
 YouTube kerap berubah, dan yt-dlp (program yang memuat turun video)

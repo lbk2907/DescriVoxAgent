@@ -7,15 +7,54 @@ Sejak v1.6.2, menambah bahasa bermakna **meletakkan satu fail**. Tiada
 perubahan kod, tiada langkah kompil, dan tiada prompt baharu untuk
 ditulis.
 
-## Ringkasnya
+## Ringkasnya (pengguna app .exe — sejak v1.8.0)
 
-1. Salin `src/omni_describer_custom/i18n/locales/en.json` kepada nama
-   kod bahasa anda, contohnya `id.json` untuk Bahasa Indonesia
+Fail bahasa anda sendiri disimpan dalam folder ini, yang **tidak
+disentuh semasa app dikemas kini**:
+
+```
+%APPDATA%\OmniDescriber\locales\
+```
+
+Cara paling mudah ke sana: **Help > Laporan Terjemahan...**, kemudian
+jawab **Yes** untuk membuka folder itu.
+
+1. Salin `en.json` ke folder itu dan tukar namanya kepada kod bahasa
+   anda, contohnya `id.json` untuk Bahasa Indonesia. (`en.json` ada
+   dalam app di `_internal\omni_describer_custom\i18n\locales\`.)
 2. Tukar blok `_meta` di bahagian atas
 3. Terjemah nilai (bahagian kanan), **jangan sentuh kunci**
-4. Jalankan `run_gate.bat` — ia akan beritahu apa yang tertinggal
+4. Buka semula app, kemudian pilih bahasa itu dalam Tetapan
 
-Bahasa itu kemudian muncul sendiri dalam Tetapan.
+Fail dengan kod bahasa yang SUDAH ada (contohnya `ms.json`) dalam folder
+ini **membetulkan** bahasa itu baris demi baris — anda hanya perlu
+menulis baris yang mahu diubah. Baris kosong diabaikan.
+
+## Selepas app dikemas kini: apa yang baharu untuk diterjemah?
+
+Versi baharu kadang-kadang menambah teks (contohnya menu baharu). Anda
+tidak perlu membandingkan fail sendiri:
+
+1. Pilih bahasa anda dalam Tetapan
+2. **Help > Laporan Terjemahan...** — app memberitahu berapa baris
+   yang belum diterjemah, dan menyimpannya dalam
+   `<kod>.missing.json` dalam folder yang sama, **setiap baris bersama
+   teks Inggerisnya**
+3. Terjemah baris-baris itu, salin ke dalam `<kod>.json` anda, dan buka
+   semula app
+
+Laporan itu juga menyenaraikan kunci lama yang app tidak guna lagi
+(`_obsolete_keys_you_can_delete`) — boleh dipadam dari fail anda.
+Sehingga anda menterjemah, baris yang tiada dibaca dalam Bahasa
+Inggeris, bukan sebagai nama kunci.
+
+## Untuk pembangun (kod sumber)
+
+Bahasa yang dibekalkan bersama app tinggal dalam
+`src/omni_describer_custom/i18n/locales/`. Setiap teks yang pengguna
+lihat atau dengar MESTI melalui `t("kunci")` dengan kunci dalam
+`en.json` DAN `ms.json` — `test_fixes43` gagal jika ada teks Inggeris
+ditulis terus dalam UI, atau kunci yang tiada kod menggunakannya.
 
 ## Kod bahasa
 
@@ -109,7 +148,7 @@ dapat "mengimbas" skrin untuk meneka maksudnya seperti pengguna celik.
 Jadi: terjemah dengan mesin kalau perlu, tetapi **minta penutur asli
 dengar dan semak** sebelum ia dianggap siap.
 
-## Contoh lengkap
+## Contoh lengkap (pembangun)
 
 ```bash
 cd src/omni_describer_custom/i18n/locales
@@ -120,4 +159,5 @@ run_gate.bat
 ```
 
 Selesai. Buka app, pergi ke Tetapan, dan "Bahasa Indonesia" sudah ada
-dalam senarai.
+dalam senarai. (Pengguna .exe: letak `id.json` dalam
+`%APPDATA%\OmniDescriber\locales\` — lihat bahagian atas.)

@@ -100,3 +100,18 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       test_fixes42 gagal pada kod lama; gate 52 suite x2 GATE_ALL_PASS
 - [x] 9.2 Build 1.7.9 BUILD_ALL_OK; aliran sama didengar dalam exe beku — sama seperti
       dari source; tag v1.7.9
+
+## Fasa 10 — pelbagai bahasa (v1.8.0, dipersetujui pemilik 28 Sep 2026)
+- [x] 10.0 Semakan: EN=MS 366 kunci; tukar bahasa semasa berjalan 33/33 kawalan betul
+- [x] 10.1 ~15 teks Inggeris tetap kini melalui t() (amaran permulaan, log ralat, About,
+      penapis jenis fail yang dibaca NVDA)
+- [x] 10.2 46 kunci mati dibuang (388 → 342); ujian gagal jika kunci tidak digunakan
+- [x] 10.3 Folder bahasa pengguna `%APPDATA%\OmniDescriber\locales` (kekal selepas kemas kini;
+      pembetulan baris demi baris)
+- [x] 10.4 Help > Laporan Terjemahan: `<kod>.missing.json` dengan teks Inggeris; didengar NVDA
+      dalam BM: "Bahasa Melayu: semua baris sudah diterjemah"
+- [x] 10.5 Panduan `menambah-bahasa.md` untuk pengguna exe; user-guide + panduan-pengguna
+- [x] 10.6 test_fixes43 7/7; pada kod lama 5/7 gagal
+- [x] 10.7 Gate 53 suite x2 GATE_ALL_PASS (NVDA senyap); build 1.8.0 BUILD_ALL_OK; Laporan
+      Terjemahan didengar dalam exe dalam BM; tag v1.8.0
+- [ ] 10.8 (nota) Butang Yes/No dalam kotak mesej ikut bahasa Windows, bukan bahasa app

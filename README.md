@@ -15,6 +15,26 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.0
+
+**Languages you can keep up to date yourself.**
+
+- **Everything is translatable.** About 15 texts were written straight
+  into the code in English: the start-up warnings, several log errors,
+  the About box and the file-type lists NVDA reads in Open and Save
+  dialogs. They now follow the chosen language.
+- **Your own language files survive updates.** Put them in
+  `%APPDATA%\OmniDescriber\locales\`. A new language code adds a
+  language; a file for an existing one (ms.json) corrects it line by line.
+- **Help > Translation Report** says how many lines of your language
+  are still untranslated after an update, and saves exactly those lines,
+  with the English text, ready to translate.
+- **46 unused strings removed**, so no one translates text the app never
+  shows. A test now fails if English is written into the UI again or a
+  string stops being used.
+
+Guide: `doc/menambah-bahasa.md`.
+
 ## What's new in v1.7.9
 
 **The API key box no longer disappears.** In Settings > AI, pressing

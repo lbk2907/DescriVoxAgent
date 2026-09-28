@@ -273,6 +273,15 @@ gives the name, how many descriptions it has and the date, for example
   the app starts.
 - **Remove** (Alt+R): delete the project completely, after confirming.
 
+## Your own language (Help > Translation Report)
+
+Language files you make or correct live in
+`%APPDATA%\OmniDescriber\locales\` and survive updates. After an
+update, **Help > Translation Report** says how many lines of your
+language are still untranslated and saves exactly those, with the
+English text, as `<code>.missing.json` in that folder. Full guide (in
+Malay): `doc/menambah-bahasa.md`.
+
 ## Check for Updates (Help menu)
 
 YouTube changes often, and an older yt-dlp (the program that downloads
