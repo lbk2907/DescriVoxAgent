@@ -8,6 +8,8 @@ Supports custom AI providers (user-supplied base_url + model).
 from __future__ import annotations
 
 import logging
+import sys
+
 import wx
 from typing import Any
 
@@ -193,11 +195,15 @@ class SettingsDialog(wx.Dialog):
         self._hide_custom_fields()
 
         # API Key
-        sizer.Add(wx.StaticText(panel, label=t("settings.api_key"), name="api_key_label"), 0, wx.ALL, 5)
+        self._api_key_label = wx.StaticText(
+            panel, label=t("settings.api_key"), name="api_key_label")
+        sizer.Add(self._api_key_label, 0, wx.ALL, 5)
+        # No SetLabel on a TextCtrl (pitfall 12): NVDA names it from the
+        # static text created just before it.
         self.api_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD,
                                         name="api_key_input")
         self.api_key_text.SetHint(t("settings.api_key_placeholder"))
-        self.api_key_text.SetLabel(t("settings.api_key"))
+        self._key_hidden = True
         sizer.Add(self.api_key_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Show/hide key button
@@ -449,9 +455,26 @@ class SettingsDialog(wx.Dialog):
     def _on_toggle_key(self, event):
         """Toggle API key visibility.
 
-        wx.TE_PASSWORD cannot be removed at runtime on MSW, so we recreate
-        the TextCtrl with the opposite style, preserving the value.
+        v1.7.9: on Windows the SAME control is switched with
+        EM_SETPASSWORDCHAR. Recreating it (the old way, kept below for
+        other platforms) put the new box at the panel's top-left corner
+        with a default size, LAST in the Tab order, and without the
+        label NVDA takes from the static text created just before it —
+        to the owner, the key field simply vanished after Show/Hide.
         """
+        is_hidden = getattr(self, "_key_hidden", True)
+        if sys.platform == "win32":
+            import ctypes
+            EM_SETPASSWORDCHAR = 0x00CC
+            # 0 removes ES_PASSWORD; U+25CF is the bullet Windows uses.
+            ctypes.windll.user32.SendMessageW(
+                self.api_key_text.GetHandle(), EM_SETPASSWORDCHAR,
+                0 if is_hidden else 0x25CF, 0)
+            self.api_key_text.Refresh()
+            self._key_hidden = not is_hidden
+            self.show_key_btn.SetLabel(t("settings.hide") if is_hidden
+                                      else t("settings.show"))
+            return
         is_hidden = (self.api_key_text.GetWindowStyleFlag() & wx.TE_PASSWORD) != 0
         value = self.api_key_text.GetValue()
         # Preserve sizer placement
@@ -473,14 +496,18 @@ class SettingsDialog(wx.Dialog):
                                name="api_key_input")
         # SetHint clears the value on some platforms, so re-apply afterwards
         new_ctrl.SetHint(t("settings.api_key_placeholder"))
-        new_ctrl.SetLabel(t("settings.api_key"))
         new_ctrl.ChangeValue(value)
         sizer.Insert(index, new_ctrl, proportion, flags, border)
         sizer.Detach(self.api_key_text)
         self.api_key_text.Destroy()
         self.api_key_text = new_ctrl
+        # Back to its place in the Tab order (pitfall 34) and in the
+        # layout: the PANEL's sizer, not only the dialog's.
+        new_ctrl.MoveAfterInTabOrder(self._api_key_label)
+        self._key_hidden = not is_hidden
         self.show_key_btn.SetLabel(t("settings.hide") if is_hidden
                                   else t("settings.show"))
+        parent.Layout()
         self.Layout()
 
     def _on_provider_changed(self, event):

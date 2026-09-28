@@ -118,11 +118,19 @@ def test_settings_voice_list():
         class _Ev:
             def IsChecked(self):
                 return True
+        def masked(ctrl):
+            # v1.7.9: the SAME control is switched natively on Windows,
+            # so ask Windows, not wx's creation-time style flag.
+            if sys.platform == "win32":
+                import ctypes
+                return bool(ctypes.windll.user32.GetWindowLongW(
+                    ctrl.GetHandle(), -16) & 0x20)  # GWL_STYLE, ES_PASSWORD
+            return bool(ctrl.GetWindowStyleFlag() & wx.TE_PASSWORD)
         dlg._on_toggle_key(_Ev())
-        assert (dlg.api_key_text.GetWindowStyleFlag() & wx.TE_PASSWORD) == 0, "still masked"
+        assert not masked(dlg.api_key_text), "still masked"
         assert dlg.api_key_text.GetValue() == "secret-123", "value lost on toggle"
         dlg._on_toggle_key(_Ev())
-        assert (dlg.api_key_text.GetWindowStyleFlag() & wx.TE_PASSWORD) != 0, "not re-masked"
+        assert masked(dlg.api_key_text), "not re-masked"
         assert dlg.api_key_text.GetValue() == "secret-123", "value lost on re-toggle"
         dlg.Destroy()
 check("SettingsDialog voice list + API key toggle", test_settings_voice_list)
