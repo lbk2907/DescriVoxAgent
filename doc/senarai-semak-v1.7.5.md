@@ -137,7 +137,13 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       menolak bila TeamTalk di hadapan). Semua alat automasi guna pengawal ini.
 - [x] 12.1 Tambah mod `explorer` dan `settings` pada tools/nvda_window_check.py
 - [x] 12.2 Settings tab General: 13/13 kawalan dibaca NVDA
-- [ ] 12.3 Sapuan papan kekunci + NVDA semua tetingkap (perlu komputer pemilik lapang ~20 min)
-- [ ] 12.4 E: bandingkan Qwen / GLM / Gemini
-- [ ] 12.5 F: provider custom sebenar melalui OpenRouter
-- [ ] 12.6 G: Yes/No ikut bahasa app; pemain ikut tukar bahasa
+- [x] 12.3 Sapuan papan kekunci + NVDA: 7 masalah (Esc editor/Ask More, 10s senyap, Scene Explorer
+      senyap/tiada label, slider kelajuan dibaca '10', provider kosong pengguna baharu), semua dibaiki;
+      test_fixes45 lulus 0/4 pada kod lama
+- [x] 12.4 E: Sintel + Ocong melalui enjin app: GLM+transkrip satu-satunya yang sampaikan dialog
+      (foreign); Gemini 3.8 paling terperinci tetapi 503; Qwen terlalu sedikit. Lalai: OpenRouter/GLM.
+      DITEMUI: panjang video ikut audio pendek (22/23 cue hilang) + bin/ salah aras, dibaiki
+      (test_fixes46); 503 kini tunggu 5 s/15 s dengan mesej jelas
+- [x] 12.5 F: custom provider sebenar: format OpenAI, auto, Anthropic (Claude Haiku), ask_text lulus
+- [x] 12.6 G: Yes/No ikut bahasa app (ui/dialogs.ask_yes_no); pemain retranslate()
+- [ ] 12.7 Dengar semula pembaikan (perlu PC lapang), gate x2, build 1.8.2, tag

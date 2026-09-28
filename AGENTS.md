@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 54 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 56 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 54 suite; run_gate.bat = semua
+tests/                           — 56 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -464,6 +464,25 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    "black, black". Katalog ialah dakwaan, probe ialah bukti. Salinan
    termampat untuk model pekak dan yang mendengar ada nama cache berbeza.
 
+60. **Automasi papan kekunci HANYA melalui `tools/safe_keys.py`.**
+   29 Sep 2026 ujian Scene Explorer gagal ambil fokus dan kekunci
+   (d, l, Enter) masuk ke TeamTalk pemilik. `safe_keys` enggan menaip
+   kecuali tetingkap hadapan milik proses ujian (`allow(pid)`). Import
+   SEBELUM `from pywinauto.keyboard import send_keys`. Dan: MINTA pemilik
+   tidak menyentuh PC dahulu (memori ask-before-gui-automation).
+61. **Panjang video = metadata ffprobe, BUKAN `time=` daripada nyahkod.**
+   Nilai `time=` bergantung pada binaan ffmpeg: klip 60 s dengan audio
+   9.25 s diukur 60 s oleh ffmpeg terbundel dan 9.25 s oleh ffmpeg PATH,
+   lalu klamp v1.7.4 membuang 22/23 cue. `tools.py` juga mencari `bin/`
+   satu aras terlalu rendah (src/bin), jadi skrip di luar akar repo
+   diam-diam guna ffmpeg PATH. `test_fixes46`.
+62. **"Mendengar audio" bukan "menyampaikan dialog".** Perbandingan 29 Sep
+   2026 (Sintel + Ocong, enjin app sebenar): dengan preset `foreign`
+   hanya GLM + transkrip menyampaikan apa yang DIKATAKAN; Qwen dan Gemini
+   (mendengar) hanya menghurai visual. Gemini 3.8 Flash paling terperinci
+   tetapi kerap 503. Lalai pengguna baharu = OpenRouter/GLM. Jangan
+   cadangkan model "kerana ia mendengar" tanpa ukur hasil sebenar.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -509,13 +528,13 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.1 (tag `v1.8.1`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 54 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.2 (tag `v1.8.2`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 56 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter
   Qwen3.8-Omni-Flash / MiMo / Gemini (diuji 28 Sep 2026; per MODEL, v1.8.1).
-- Gate 54 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- Gate 56 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
 - E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
   Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
   perangai model, pitfall 14).

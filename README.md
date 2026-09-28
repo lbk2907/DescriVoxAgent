@@ -15,6 +15,30 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.2
+
+**Found by pressing every button with the keyboard and listening.**
+
+- **Esc** now closes the Description Editor (saving your edits) and the
+  Ask More window.
+- **<< 10s / 10s >>** in the player say where you landed ("Position 0:20
+  of 1:30") and keep focus on the button, so you can press again.
+- **Scene Explorer** says every frame as you arrow through it, answers
+  L even without an AI, and names its objects box.
+- **Settings:** the speech speed slider is read as "Speed" (it was "10"),
+  with the value shown as 1.0x; a new user starts on OpenRouter instead
+  of an empty provider.
+- **Yes/No buttons** follow the app's language, and an open player
+  switches language with the rest of the app.
+- **A video whose sound ends early** keeps all its descriptions. Its
+  length was sometimes measured from the audio track, and every
+  description after the sound stopped was dropped.
+- **When the AI service is busy** (HTTP 503/429) the app waits longer
+  between attempts and then says so in plain words, suggesting another
+  model, instead of showing raw JSON.
+- The "custom" provider was tested for real in both OpenAI and
+  Anthropic formats (through OpenRouter).
+
 ## What's new in v1.8.1
 
 **More models that watch AND hear the video, and a list you can trust.**
