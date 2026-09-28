@@ -45,6 +45,28 @@ logger = logging.getLogger(__name__)
 AUDIO_CAPABLE_PROVIDERS = frozenset({"gemini"})
 
 
+async def _run_cancellable(coro, is_cancelled, poll: float = 0.5):
+    """Await `coro`, abandoning it within `poll` seconds of a Cancel.
+
+    Raises RuntimeError("cancelled") — the same signal the pipeline
+    already uses between requests.
+    """
+    if is_cancelled is None:
+        return await coro
+    task = asyncio.ensure_future(coro)
+    while True:
+        done, _ = await asyncio.wait({task}, timeout=poll)
+        if done:
+            return task.result()
+        if is_cancelled():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+            raise RuntimeError("cancelled")
+
+
 def provider_hears_audio(provider: str) -> bool:
     """True when this provider's video mode ingests the audio track."""
     return (provider or "").strip().lower() in AUDIO_CAPABLE_PROVIDERS
@@ -1647,7 +1669,11 @@ class GLMProvider(AIProvider):
             raise RuntimeError("cancelled")
         if on_status:
             on_status("uploading")
-        text = await self._chat(payload, timeout=1800.0)
+        # v1.7.5: Cancel is honoured DURING the request, not only
+        # between requests — one part may take 30 minutes (and GLM
+        # retries a timeout), so Cancel used to wait up to ~90 minutes.
+        text = await _run_cancellable(
+            self._chat(payload, timeout=1800.0), is_cancelled)
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
@@ -1956,11 +1982,20 @@ class GLMProvider(AIProvider):
         keep_resolution: bool,
     ) -> tuple[list[float], list[Path]]:
         import subprocess as _sp
-        n_parts = max(1, int(duration / chunk_seconds + 0.999))
-        target = min(self.COMPRESS_TARGET_BYTES,
-                     max(4 * 1024 * 1024,
-                         int(self.MAX_VIDEO_BYTES * 0.8 / n_parts)))
-        kbps = max(80, int(target * 8 * 0.95 / duration / 1000))
+        # v1.7.5: each PART is uploaded on its own, so its budget is the
+        # per-upload target spread over the PART's length. This used to
+        # divide the budget by the part count AND spread it over the whole
+        # video, leaving each part ~1/n of what it could carry (Sintel,
+        # 2 parts: 171 kbps). Never above the source's own bitrate, and
+        # 360p needs no more than ~1 Mbps.
+        part_seconds = max(1.0, min(float(chunk_seconds), duration))
+        budget_kbps = int(self.COMPRESS_TARGET_BYTES * 8 * 0.95
+                          / part_seconds / 1000)
+        try:
+            source_kbps = int(path.stat().st_size * 8 / duration / 1000)
+        except OSError:
+            source_kbps = budget_kbps
+        kbps = max(80, min(budget_kbps, source_kbps, 1000))
         scale: list[str] = ["-vf", "scale=-2:360"]
         if keep_resolution:
             scale = []
@@ -2132,18 +2167,26 @@ class GLMProvider(AIProvider):
                 "the beginning. Read the burned-in timestamps and "
                 "describe only what happens at each moment.\n")
 
-        async with aiohttp.ClientSession() as session:
-            texts = await asyncio.gather(*[
-                self._chat({
+        # v1.7.5: the batches run together; when one fails (or the user
+        # cancels) the rest are cancelled too. A bare gather() left them
+        # running — and billing — after the job had already failed.
+        tasks = [asyncio.ensure_future(self._chat({
                     "model": model,
                     "temperature": 0.3,
                     "messages": [{"role": "user",
                                   "content": _fast_batch_content(
                                       [Path(f) for f in batch], prompt,
                                       batch_note=_batch_note(bi))}],
-                }, timeout=900)
-                for bi, batch in enumerate(batches)
-            ])
+                }, timeout=900))
+                 for bi, batch in enumerate(batches)]
+        try:
+            texts = await _run_cancellable(asyncio.gather(*tasks),
+                                           is_cancelled)
+        except BaseException:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
         merged: list[tuple[float, str]] = []
         for text in texts:
             merged.extend(parse_gemini_timestamp_lines(_strip_think(text)))
