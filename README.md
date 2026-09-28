@@ -15,6 +15,26 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.1
+
+**More models that watch AND hear the video, and a list you can trust.**
+
+- Through your OpenRouter key, **Qwen3.8-Omni-Flash** and **MiMo-v2.6-
+  Flash** now receive the video's own sound, like Gemini — tested on 28
+  Sep 2026 with a clip whose voice says a secret word. Qwen costs about
+  a fifth of Gemini 3.8 Flash per input token. Both are in the list by
+  default.
+- **Fetch models** keeps only models that can work: the 13 ":batch"
+  variants (always refused), routers that pick a model for you, and
+  aliases are gone. Models that hear come first, then cheapest, and
+  NVDA reads each as "name — watches and hears the video — $0.15 per
+  million tokens". The list is saved for next time.
+- **Test this model** (Alt+T) sends the chosen model a 6-second clip
+  and says whether it really watches the video and hears its sound —
+  for under a tenth of a cent. It caught a model listed for video that
+  answered "black, black" for red then blue. A test result overrides
+  the catalog's claim.
+
 ## What's new in v1.8.0
 
 **Languages you can keep up to date yourself.**

@@ -115,3 +115,15 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 10.7 Gate 53 suite x2 GATE_ALL_PASS (NVDA senyap); build 1.8.0 BUILD_ALL_OK; Laporan
       Terjemahan didengar dalam exe dalam BM; tag v1.8.0
 - [ ] 10.8 (nota) Butang Yes/No dalam kotak mesej ikut bahasa Windows, bukan bahasa app
+
+## Fasa 11 — model OpenRouter yang boleh dipercayai + audio per model (v1.8.1)
+- [x] 11.1 Kajian: 4 model OpenRouter mendengar audio video (Qwen3.8-Omni-Flash, MiMo-v2.6-Flash,
+      MiMo-v2.5, Nemotron free) — probe "pineapple"
+- [x] 11.2 Fetch models: 85 → 65 (buang 13 :batch, 3 penghala, 4 alias); audio dahulu, harga;
+      label NVDA; disimpan
+- [x] 11.3 Uji model ini: klip 6 s warna + perkataan; didengar NVDA "watches the video and hears
+      its sound"; menangkap Nova ("black, black"); keputusan mengatasi katalog (Seed-2.0-mini)
+- [x] 11.4 Audio per model: salinan termampat kekal audio untuk model yang mendengar (ffprobe);
+      amaran preset foreign ikut model; Qwen + MiMo dalam senarai lalai
+- [x] 11.5 test_fixes44 7/7; kod lama gagal 3 (termasuk "sent a silent video")
+- [ ] 11.6 Gate x2, build 1.8.1, E2E sebenar exe dengan Qwen, tag v1.8.1

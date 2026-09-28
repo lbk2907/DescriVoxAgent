@@ -273,6 +273,16 @@ gives the name, how many descriptions it has and the date, for example
   the app starts.
 - **Remove** (Alt+R): delete the project completely, after confirming.
 
+## Choosing an OpenRouter model (Settings > AI)
+
+With OpenRouter selected, **Fetch models** lists the models that can
+watch video, saved for next time. Models that also hear the video's
+sound come first; NVDA reads each as "name — watches and hears the
+video — price". **Test this model** (Alt+T) sends a 6-second clip and
+tells you whether the model really sees and hears it (costs under a
+tenth of a cent). A model that only watches is given a transcript of
+the speech instead.
+
 ## Your own language (Help > Translation Report)
 
 Language files you make or correct live in

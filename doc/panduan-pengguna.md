@@ -298,6 +298,16 @@ contohnya "Sintel — 79 penerangan — 28/09/2026 11:30". Butang:
   kali seterusnya app dibuka.
 - **Buang** (Alt+A) — padam projek sepenuhnya, selepas pengesahan.
 
+## Memilih model OpenRouter (Tetapan > AI)
+
+Bila OpenRouter dipilih, **Dapatkan model** menyenaraikan model yang
+boleh menonton video, dan senarai itu disimpan. Model yang juga
+mendengar bunyi video disenarai dahulu; NVDA membacanya sebagai "nama —
+menonton dan mendengar video — harga". **Uji model ini** (Alt+U)
+menghantar klip 6 saat dan memberitahu sama ada model itu benar-benar
+nampak dan dengar (kos kurang sepersepuluh sen). Model yang hanya
+menonton diberi transkrip pertuturan sebagai ganti.
+
 ## Bahasa anda sendiri (Help > Laporan Terjemahan)
 
 Fail bahasa yang anda buat atau betulkan disimpan dalam
