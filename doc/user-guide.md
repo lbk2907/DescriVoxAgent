@@ -254,10 +254,24 @@ because no frames are involved.
 
 ## Projects
 
-Projects are stored in `Documents\OmniDescriber\projects` (one folder
-per project with a SQLite database and a permanent copy of every frame
-used, so the player keeps working after cleanup). Use the **File**
-menu to create, open, or save projects.
+Every video you process is saved as a **project**: the video, the AI's
+descriptions and the SRT file. Opening a project again does NOT call
+the AI again, which saves time and cost.
+
+Projects live in `Documents\OmniDescriber\projects`, one folder per
+project, named after it, for example `Sintel (48)`. The number tells
+apart two videos with the same title. Inside: `project.db` (the
+descriptions) and a `media` folder (the video, `descriptions.srt`).
+
+**File > Open Project...** lists every project, newest first. Each line
+gives the name, how many descriptions it has and the date, for example
+"Sintel — 79 descriptions — 28/09/2026 11:30". Buttons:
+
+- **Open** (Alt+O): load it to play, edit or export.
+- **Rename** (Alt+N): give it a new name; its folder is renamed too. If
+  its video is playing at that moment, the folder follows the next time
+  the app starts.
+- **Remove** (Alt+R): delete the project completely, after confirming.
 
 ## The described-video player
 

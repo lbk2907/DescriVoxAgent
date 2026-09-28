@@ -15,6 +15,26 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.6
+
+**Projects you can recognise.** In File Explorer a project was only
+`project_24` beside `project_24.db`. Each project is now one folder
+named after it, such as `Sintel (48)`, with `project.db` and `media`
+inside. Existing projects move by themselves the first time 1.7.6
+starts, and the video and frame paths stored inside them are updated
+so the player still finds everything.
+
+- **Open Project** now reads "Sintel — 79 descriptions — 28/09/2026
+  11:30", newest first, and has a **Rename** button (Alt+N) that
+  renames the folder too.
+- Old projects named after a link ("https://www.youtube.com/...") can
+  be given their real titles with `tools/fix_project_names.py`.
+- The test gate no longer writes into your projects folder; 14 test
+  projects it had left there were removed.
+- With a Windows (SAPI/OneCore) voice, the narration pause sometimes
+  let the video run on at once, because it checked for speech before
+  the voice had started. It now waits for the voice to begin.
+
 ## What's new in v1.7.5
 
 **Checked by listening, and ~365 MB smaller.**

@@ -277,10 +277,26 @@ tiada frasa frame diumumkan kerana tiada frame terlibat.
 
 ## Projek
 
-Projek disimpan dalam `Documents\OmniDescriber\projects` (satu folder
-setiap projek dengan pangkalan data SQLite dan salinan kekal setiap
-frame yang digunakan, jadi pemain kekal berfungsi selepas pembersihan).
-Gunakan menu **File** untuk mencipta, membuka, atau menyimpan projek.
+Setiap video yang diproses disimpan sebagai **projek**: video itu,
+penerangan AI, dan fail SRT. Membuka projek semula TIDAK memanggil AI
+lagi — jimat masa dan kos.
+
+Projek disimpan dalam `Documents\OmniDescriber\projects`, satu folder
+setiap projek yang dinamakan ikut projek itu, contohnya
+`Sintel (48)`. Nombor dalam kurungan membezakan dua video yang sama
+tajuk. Di dalamnya: `project.db` (penerangan) dan folder `media`
+(video, `descriptions.srt`).
+
+**File > Open Project...** membuka senarai semua projek, terbaru
+dahulu. Setiap baris menyebut nama, bilangan penerangan dan tarikh,
+contohnya "Sintel — 79 penerangan — 28/09/2026 11:30". Butang:
+
+- **Buka** (Alt+B) — muatkan projek itu untuk dimain, disunting atau
+  dieksport.
+- **Namakan semula** (Alt+N) — beri nama baharu; foldernya juga
+  ditukar. Kalau video projek itu sedang dimain, folder ditukar pada
+  kali seterusnya app dibuka.
+- **Buang** (Alt+A) — padam projek sepenuhnya, selepas pengesahan.
 
 ## Pemain video berpenerangan
 

@@ -40,4 +40,19 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 4.7 Cue >20 patah — keputusan pemilik: BIARKAN (jeda naratif menanganinya)
 
 ## Fasa 5 — ciri baharu (tanya pemilik dahulu)
-- [ ] 5.1 Profil suara (enjin + suara + kelajuan) — pemilik minta penerangan dahulu
+- [ ] 5.1 Profil suara — DITANGGUHKAN oleh pemilik (28 Sep 2026)
+
+## Fasa 6 — nama projek mesra (v1.7.6, diminta pemilik 28 Sep 2026)
+- [x] 6.0 Padam 14 projek ujian (disahkan pemilik): 1–10, 32–35 — 27 projek tinggal
+- [x] 6.1 Gate guna `ODC_PROJECTS_DIR` sementara; disahkan: folder sebenar tidak berubah semasa gate
+- [x] 6.2 Folder bernama `Nama (id)/project.db`; diuji pada salinan dahulu, kemudian projek
+      sebenar: 27/27 dipindah, 0 laluan video rosak (sandaran DB di %TEMP%)
+- [x] 6.3 Senarai Open Project: "sintel — 79 descriptions — 28/09/2026 11:30" (didengar melalui NVDA)
+- [x] 6.4 Butang Rename (Alt+N, BM/EN, NVDA sebut "Rename button Alt+ n"); handler diuji
+      dalam test_fixes39; Alt+B bertembung Buka/Buang dalam BM dibaiki (Buang = Alt+A)
+- [x] 6.5 17 projek bernama URL → tajuk sebenar (`tools/fix_project_names.py`)
+- [x] 6.7 DITEMUI semasa gate: SAPI `speak_and_wait` kalah perlumbaan permulaan (~1/10)
+      — video boleh sambung atas penerangan; dibaiki. Kegagalan NVDA test_fixes26 dibuktikan
+      berpunca daripada NVDA membaca app lain; ujian kini ukur semula sehingga senyap
+- [x] 6.6 Build 1.7.6 BUILD_ALL_OK; E2E beku 14/14 (folder `Sintel dialog clip (49)`);
+      dialog Open Project didengar NVDA; gate 49 suite x2 GATE_ALL_PASS semasa NVDA senyap
