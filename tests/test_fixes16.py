@@ -92,19 +92,40 @@ async def _t3() -> bool:
 
 check("3 probe cancel raises cancelled", asyncio.run(_t3()))
 
-def _real_project_27():
-    """The owner's long Ocong project (442 cues), in either layout:
-    project_27/ before v1.7.6, "<title> (27)/" after it."""
-    from omni_describer_custom.core.project_store import ProjectStore
-    return ProjectStore(os.path.expanduser(
-        r"~\Documents\OmniDescriber\projects")).project_dir(27)
+LONG_SECONDS = 600
+
+
+def _long_video() -> str:
+    """A 10-minute video made here, so these checks never depend on
+    what happens to be in the owner's projects folder.
+
+    They used the owner's Ocong project (project 27) until v1.7.7; once
+    that was deleted, 4a/4b and 7a/7b were silently skipped on every
+    run. A synthetic clip is made once and reused (low resolution, so
+    it takes seconds). Returns "" only if ffmpeg itself is missing.
+    """
+    import subprocess
+    from omni_describer_custom.core.tools import find_tool
+    path = os.path.join(tempfile.gettempdir(), "odc_t16_long_600s.mp4")
+    if os.path.exists(path) and os.path.getsize(path) > 100_000:
+        return path
+    try:
+        subprocess.run(
+            [find_tool("ffmpeg"), "-y", "-loglevel", "error",
+             "-f", "lavfi", "-i", f"testsrc=size=320x240:rate=25:duration={LONG_SECONDS}",
+             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+             path], check=True, timeout=300)
+    except Exception as e:
+        print(f"could not make the long test video: {e}")
+        return ""
+    return path
 
 
 # ── 4. cancel during ffmpeg extraction kills promptly ───────────────
 async def _t4() -> tuple[bool, float]:
-    src = str(_real_project_27() / "media" / "video.mp4")
-    if not os.path.exists(src):
-        return True, -1.0  # skipped: no local long video available
+    src = _long_video()
+    if not src:
+        return True, -1.0  # skipped: ffmpeg missing
     out = tempfile.mkdtemp(prefix="odc_t16_ff_")
     state = {"t0": 0.0, "elapsed": 0.0}
 
@@ -131,7 +152,7 @@ if elapsed >= 0:
     check("4b extraction cancel fast (<15s)", elapsed < 15.0,
           f"elapsed={elapsed:.1f}s")
 else:
-    print("SKIP 4a/4b (no project_27 video on this machine)")
+    print("SKIP 4a/4b (ffmpeg missing, no long test video)")
 
 # ── 5+6. GUI: guards, heartbeat, player slider (REAL wx app) ────────
 def _t_gui() -> None:
@@ -167,13 +188,13 @@ def _t_gui() -> None:
     check("5d buttons enabled after cancel", frame.btn_local.Enabled
           and frame.btn_youtube.Enabled)
 
-    # 7: player slider over REAL duration (use project_27 if present)
-    real_dir = os.path.expanduser(r"~\Documents\OmniDescriber\projects")
-    real_store = ProjectStore(real_dir)  # real projects, not the gate's
-    src27 = str(real_store.project_dir(27) / "media" / "video.mp4")
-    if os.path.exists(src27) and real_store._db_path(27).exists():
-        real_store.open_project(27)
-        win = PlayerWindow(frame, real_store, frame.tts_engine, frame.ai_engine)
+    # 7: player slider over the REAL duration of a long video
+    long_src = _long_video()
+    if long_src:
+        long_store = ProjectStore(tempfile.mkdtemp(prefix="odc_t16_prj_"))
+        long_store.create_project("Long test video", long_src)
+        long_store.set_video_duration(float(LONG_SECONDS))
+        win = PlayerWindow(frame, long_store, frame.tts_engine, frame.ai_engine)
         dur = win._slider_dur
         check("7a player slider duration real (>=500s)", dur >= 500.0,
               f"dur={dur:.1f}")
@@ -185,7 +206,7 @@ def _t_gui() -> None:
               f"pos={win._position:.1f}")
         win.Destroy()
     else:
-        print("SKIP 7a/7b (no project_27 video)")
+        print("SKIP 7a/7b (ffmpeg missing, no long test video)")
 
     # 8: SRT regression (format standard)
     from omni_describer_custom.core.timeline_io import to_srt, parse_any, Description
