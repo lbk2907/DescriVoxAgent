@@ -8,6 +8,7 @@ those windows on a throwaway project and tabs through it the same way.
     python tools/nvda_window_check.py --window player
     python tools/nvda_window_check.py --window editor
     python tools/nvda_window_check.py --window ask
+    python tools/nvda_window_check.py --window updates
 
 Runs from source with an isolated ODC_CONFIG_DIR and a temp projects
 folder; the user's settings and projects are never touched. Exit 2
@@ -56,6 +57,10 @@ def serve(window: str, work: Path) -> None:
         from omni_describer_custom.ui.editor_window import EditorWindow
         top = EditorWindow(player, store, player.tts)
         top.Show()
+    elif window == "updates":
+        from omni_describer_custom.ui.update_dialog import UpdateDialog
+        top = UpdateDialog(player, None)
+        top.Show()
     elif window == "ask":
         from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
         top = AskMoreDialog(player, None, store.current.descriptions, 0.0)
@@ -67,7 +72,7 @@ def serve(window: str, work: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--window", choices=["player", "editor", "ask"],
+    parser.add_argument("--window", choices=["player", "editor", "ask", "updates"],
                         required=True)
     parser.add_argument("--steps", type=int, default=16)
     parser.add_argument("--serve", default="", help=argparse.SUPPRESS)

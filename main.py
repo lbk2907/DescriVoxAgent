@@ -101,6 +101,9 @@ def main():
         frame.Show(True)
         frame.Maximize(True)
         logger.info("Application started")
+        # v1.7.7: once a week, say if a newer yt-dlp exists. Late, so it
+        # never competes with the window's own start-up announcements.
+        wx.CallLater(8000, frame.check_updates_in_background)
         app.MainLoop()
     except Exception as e:
         logger.error("Application error: %s", e)

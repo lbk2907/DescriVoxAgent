@@ -58,13 +58,87 @@ def _bundle_dirs() -> list[Path]:
     return dirs
 
 
+# ── Updates the user chose to install (v1.7.7) ──────────────────
+#
+# Help > Check for Updates can fetch a newer yt-dlp, because YouTube
+# changes often enough to break an old one. The update lives OUTSIDE
+# the bundle, so the shipped copy is never touched, works from a
+# read-only install folder, and "Use bundled version" is just a delete.
+# It is used only while its SHA-256 still matches the one recorded when
+# it was verified against the publisher's own checksum list.
+
+UPDATES_MANIFEST = "updates.json"
+# The one tool Help > Check for Updates can update (core/updater.py).
+UPDATABLE_TOOL = "yt-dlp"
+
+
+def user_tools_dir() -> Path:
+    override = os.environ.get("ODC_TOOLS_DIR", "").strip()
+    if override:
+        return Path(override)
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+    return Path(base) / "OmniDescriber" / "tools"
+
+
+def read_updates_manifest() -> dict:
+    import json
+    try:
+        return json.loads((user_tools_dir() / UPDATES_MANIFEST)
+                          .read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+_verified_cache: dict[str, tuple[tuple[int, int], bool]] = {}
+
+
+def _user_copy(name: str) -> str:
+    """The user-installed update of `name`, if present and intact."""
+    entry = read_updates_manifest().get(name) or {}
+    path = user_tools_dir() / f"{name}{_EXE}"
+    expected = entry.get("sha256", "")
+    if not expected or not path.is_file():
+        return ""
+    stat = path.stat()
+    key = (stat.st_size, int(stat.st_mtime))
+    cached = _verified_cache.get(str(path))
+    if cached and cached[0] == key:
+        return str(path) if cached[1] else ""
+    import hashlib
+    ok = hashlib.sha256(path.read_bytes()).hexdigest() == expected
+    if not ok:
+        logger.error("Updated %s at %s no longer matches its verified "
+                     "SHA-256; using the bundled copy", name, path)
+    _verified_cache[str(path)] = (key, ok)
+    return str(path) if ok else ""
+
+
+def forget_verification() -> None:
+    """Drop cached checks after an update is installed or removed."""
+    _verified_cache.clear()
+
+
+def bundled_tool(name: str) -> str:
+    """The copy shipped with the app only (no update, no PATH), or ""."""
+    filename = f"{name}{_EXE}"
+    for directory in _bundle_dirs():
+        candidate = directory / filename
+        if candidate.exists():
+            return str(candidate)
+    return ""
+
+
 def find_tool(name: str) -> str:
-    """Absolute path to a bundled tool, else its bare name for PATH.
+    """Absolute path to a tool: a verified user update first, then the
+    bundled copy, else its bare name for PATH.
 
     Returning the bare name rather than "" keeps the old behaviour for
     anyone running from source with ffmpeg on PATH: the subprocess call
     still works, and the failure (if any) surfaces where it always did.
     """
+    updated = _user_copy(name)
+    if updated:
+        return updated
     filename = f"{name}{_EXE}"
     for directory in _bundle_dirs():
         candidate = directory / filename
@@ -95,8 +169,9 @@ def log_tool_status() -> None:
     for name in REQUIRED_TOOLS:
         path = find_tool(name)
         if os.path.isabs(path):
-            source = "bundled" if any(
-                str(d) in path for d in _bundle_dirs()) else "system"
+            source = ("updated by user" if path == _user_copy(name) else
+                      "bundled" if any(str(d) in path for d in _bundle_dirs())
+                      else "system")
             logger.info("Tool %s: %s (%s)", name, path, source)
         elif shutil.which(path):
             logger.info("Tool %s: %s (PATH)", name, shutil.which(path))

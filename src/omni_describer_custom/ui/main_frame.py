@@ -281,6 +281,8 @@ class MainFrame(wx.Frame):
 
         # Help — dropdown
         help_menu = wx.Menu()
+        self._id_check_updates = wx.NewIdRef()
+        help_menu.Append(self._id_check_updates, t("menu.check_updates"))
         help_menu.Append(wx.ID_ABOUT, t("menu.about"))
         menubar.Append(help_menu, t("menu.help"))
 
@@ -356,6 +358,7 @@ class MainFrame(wx.Frame):
             (self._id_export_vtt, "menu.export_vtt"),
             (self._id_export_audio, "menu.export_audio"),
             (wx.ID_EXIT, "menu.exit"),
+            (self._id_check_updates, "menu.check_updates"),
             (wx.ID_ABOUT, "menu.about"),
         ):
             item = menubar.FindItemById(item_id)
@@ -396,6 +399,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_export_vtt, id=self._id_export_vtt)
         self.Bind(wx.EVT_MENU, self._on_export_audio, id=self._id_export_audio)
         self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
+        self.Bind(wx.EVT_MENU, self._on_check_updates,
+                  id=self._id_check_updates)
         self.Bind(wx.EVT_CLOSE, self._on_close_window)
 
     # ── Import / export descriptions ────────────────────────────
@@ -1003,6 +1008,51 @@ class MainFrame(wx.Frame):
             return
         self.project_store.save_descriptions(self.project_store.current.descriptions)
         self._log(t("main.log_project_saved"))
+
+    def _on_check_updates(self, event):
+        """Help > Check for Updates (v1.7.7): a newer yt-dlp, verified."""
+        from .update_dialog import UpdateDialog
+        dlg = UpdateDialog(self, self.settings)
+        try:
+            dlg.ShowModal()
+        finally:
+            dlg.Destroy()
+
+    def check_updates_in_background(self) -> None:
+        """Once a week, at start-up: say if a newer yt-dlp exists.
+
+        Only announces. Nothing is downloaded without the user choosing
+        Update in Help > Check for Updates. Silent on any failure — an
+        offline start must not greet the user with an error.
+        """
+        from ..core import updater
+        if not updater.weekly_check_due(self.settings):
+            return
+
+        def work():
+            try:
+                newer = updater.available_update()
+                updater.record_check(self.settings)
+            except Exception as e:
+                logger.info("Weekly update check skipped: %s", e)
+                return
+            if newer:
+                wx.CallAfter(self._announce_update, newer)
+
+        import threading as _threading
+        _threading.Thread(target=work, daemon=True).start()
+
+    def _announce_update(self, version: str) -> None:
+        if not self:
+            return
+        msg = t("update.weekly_notice", version=version)
+        self._log(msg)
+        self.SetStatusText(msg)
+        try:
+            from ..core.speech import announce
+            announce(msg)
+        except Exception:
+            pass
 
     def _on_about(self, event):
         info = wx.adv.AboutDialogInfo()
@@ -1991,6 +2041,10 @@ class MainFrame(wx.Frame):
             logger.error("Source resolution failed: %s", e)
             msg = str(e)
             wx.CallAfter(self._log, f"ERROR: {msg}")
+            # v1.7.7: the usual cause of a YouTube download that used to
+            # work is an outdated yt-dlp, so say where the fix is.
+            if "youtu" in str(getattr(self, "_current_source", "") or msg):
+                wx.CallAfter(self._log, t("update.download_hint"))
             wx.CallAfter(self.SetStatusText, t("status.error", error=msg))
             wx.CallAfter(self._close_download_progress)
             wx.CallAfter(self._processing_done)
