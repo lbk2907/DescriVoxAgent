@@ -97,7 +97,7 @@ def _report(label: str, cues: list[tuple[float, str]]) -> None:
 
 
 def _newest_video() -> Path | None:
-    vids = sorted(PROJECTS.glob("project_*/media/video.mp4"),
+    vids = sorted(PROJECTS.glob("*/media/video.mp4"),  # either layout
                   key=lambda p: p.stat().st_mtime, reverse=True)
     return vids[0] if vids else None
 

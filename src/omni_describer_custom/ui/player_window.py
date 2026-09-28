@@ -215,7 +215,7 @@ class PlayerWindow(wx.Frame):
     def _project_srt_path(self) -> Path:
         """Path of this project's auto-generated descriptions.srt."""
         vid = self.project.id if self.project else 0
-        return Path(self.store.projects_dir) / f"project_{vid}" / "media" / "descriptions.srt"
+        return self.store.project_dir(vid) / "media" / "descriptions.srt"
 
     def _load_srt_file(self, path: str, add_to_vlc: bool = False,
                        silent: bool = False):

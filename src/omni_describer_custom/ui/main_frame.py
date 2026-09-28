@@ -53,6 +53,12 @@ class MainFrame(wx.Frame):
         self.tts_engine = TTSEngine(self.settings.get("tts", {}))
         self.prompt_mgr = PromptManager(self.settings)
         self.project_store = ProjectStore()
+        # v1.7.6: old "project_48" folders become "Sintel (48)". Never
+        # blocks start-up; a project that cannot move is tried next time.
+        try:
+            self.project_store.migrate_layout()
+        except Exception:
+            logger.warning("Project layout migration failed", exc_info=True)
         self._processing = False
         self._dl_dialog = None
         self._dl_cancelled = False
@@ -813,6 +819,47 @@ class MainFrame(wx.Frame):
                 self.SetStatusText(t("main.log_project", name=name))
         name_dlg.Destroy()
 
+    @staticmethod
+    def _project_list_label(p: dict) -> str:
+        """One Open Project entry: name, how many descriptions, when.
+
+        v1.7.6: was "<name> (updated: 2026-09-28 11:30:05)". Fourteen
+        projects were called "Me at the zoo"; the count and a readable
+        date are what tell them apart when NVDA reads the list.
+        """
+        stamp = (p.get("updated_at") or p.get("created_at") or "").strip()
+        when = stamp
+        try:
+            import datetime as _dt
+            when = _dt.datetime.strptime(
+                stamp, "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y %H:%M")
+        except ValueError:
+            pass
+        return t("project.list_item", name=p.get("name") or "",
+                 count=p.get("count", 0), date=when)
+
+    def _rename_project_row(self, proj: dict, parent=None) -> bool:
+        """Ask for a new name and apply it (name AND folder).
+
+        A method rather than a closure inside the dialog so the handler
+        is reachable from tests (pitfall 18).
+        """
+        old = proj.get("name") or ""
+        dlg = wx.TextEntryDialog(parent or self, t("project.rename_prompt"),
+                                 t("project.rename_title"), old)
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return False
+            new = dlg.GetValue().strip()
+        finally:
+            dlg.Destroy()
+        if not new or new == old:
+            return False
+        if not self.project_store.rename_project(proj["id"], new):
+            return False
+        self._log(t("project.renamed_log", old=old, name=new))
+        return True
+
     def _on_open_project(self, event):
         """v1.5.1: custom dialog with Open AND Remove buttons.
 
@@ -835,15 +882,17 @@ class MainFrame(wx.Frame):
         top.Add(wx.StaticText(dlg, label=t("project.select_hint")),
                 0, wx.ALL, pad)
         lb = wx.ListBox(dlg, choices=[
-            f"{p['name']} (updated: {p['updated_at']})" for p in projects],
+            self._project_list_label(p) for p in projects],
             style=wx.LB_SINGLE)
         top.Add(lb, 1, wx.ALL | wx.EXPAND, pad)
         btns = wx.BoxSizer(wx.HORIZONTAL)
         open_btn = wx.Button(dlg, wx.ID_OK, t("project.open_btn"))
         open_btn.SetDefault()
+        rename_btn = wx.Button(dlg, wx.ID_ANY, t("project.rename_btn"))
         remove_btn = wx.Button(dlg, wx.ID_ANY, t("project.remove_btn"))
         cancel_btn = wx.Button(dlg, wx.ID_CANCEL, t("close"))
         btns.Add(open_btn, 0, wx.ALL, pad)
+        btns.Add(rename_btn, 0, wx.ALL, pad)
         btns.Add(remove_btn, 0, wx.ALL, pad)
         btns.AddStretchSpacer()
         btns.Add(cancel_btn, 0, wx.ALL, pad)
@@ -881,14 +930,27 @@ class MainFrame(wx.Frame):
             # Refresh the list in place
             projects[:] = self.project_store.list_projects()
             if projects:
-                lb.Set([
-                    f"{p['name']} (updated: {p['updated_at']})"
-                    for p in projects])
+                lb.Set([self._project_list_label(p) for p in projects])
                 lb.SetSelection(0)
             else:
                 dlg.EndModal(wx.ID_CANCEL)
 
+        def _on_rename(evt):
+            proj = _selected()
+            if not proj or not self._rename_project_row(proj, dlg):
+                return
+            projects[:] = self.project_store.list_projects()
+            lb.Set([self._project_list_label(p) for p in projects])
+            # Keep the renamed project selected, so NVDA reads its new
+            # name straight away instead of jumping to the top.
+            for i, p in enumerate(projects):
+                if p["id"] == proj["id"]:
+                    lb.SetSelection(i)
+                    break
+            lb.SetFocus()
+
         remove_btn.Bind(wx.EVT_BUTTON, _on_remove)
+        rename_btn.Bind(wx.EVT_BUTTON, _on_rename)
         lb.Bind(wx.EVT_DOUBLECLICK, lambda evt: dlg.EndModal(wx.ID_OK))
 
         # Preselect the newest project
@@ -912,10 +974,11 @@ class MainFrame(wx.Frame):
     def _remove_project_files(self, project_id: int):
         """Delete a project's DB file + media folder. Returns (ok, error)."""
         import shutil as _shutil
-        base = Path(self.project_store.projects_dir)
         errors = []
-        db_path = base / f"project_{project_id}.db"
-        media_root = base / f"project_{project_id}"
+        # Either layout: the old one keeps the .db beside the folder, the
+        # v1.7.6 one inside it (removed with the folder).
+        db_path = self.project_store._db_path(project_id)
+        media_root = self.project_store.project_dir(project_id)
         try:
             if media_root.exists():
                 _shutil.rmtree(media_root, ignore_errors=False)
@@ -1836,7 +1899,7 @@ class MainFrame(wx.Frame):
             # FIX (30 Aug): copy each used frame from the temp dir into the
             # project folder BEFORE saving, so the player survives the temp
             # cleanup below and frames are never deleted before use.
-            frames_dir = Path(self.project_store.projects_dir) / f"project_{self.project_store.current.id}" / "frames"
+            frames_dir = self.project_store.project_dir(self.project_store.current.id) / "frames"
             frames_dir.mkdir(parents=True, exist_ok=True)
             desc_objects = []
             for i, (frame, text) in enumerate(zip(frames, descriptions)):

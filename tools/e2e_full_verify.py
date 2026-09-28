@@ -240,7 +240,9 @@ def answer_file_dialog(path: Path, app_pid: int,
 
 def read_project(projects_dir: Path) -> dict:
     """Newest project: its row plus its descriptions."""
-    dbs = sorted(projects_dir.glob("project_*.db"),
+    # Both layouts: "project_N.db" (before v1.7.6) and "<name> (N)/project.db".
+    dbs = sorted(list(projects_dir.glob("project_*.db"))
+                 + list(projects_dir.glob("*/project.db")),
                  key=lambda p: p.stat().st_mtime)
     if not dbs:
         return {}
@@ -387,7 +389,9 @@ def main() -> int:
 
         print("\n== ARTEFACTS ON DISK ==", flush=True)
         if project.get("_db"):
-            media = Path(project["_db"]).with_suffix("") / "media"
+            db_file = Path(project["_db"])
+            media = (db_file.parent if db_file.name == "project.db"
+                     else db_file.with_suffix("")) / "media"
             if media.is_dir():
                 for item in sorted(media.iterdir()):
                     print(f"    {item.name}: {item.stat().st_size} bytes",

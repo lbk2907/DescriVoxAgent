@@ -48,7 +48,19 @@ class Project:
 class ProjectStore:
     """
     SQLite-backed project storage.
-    Each project = one .db file in the projects/ directory.
+
+    v1.7.6 layout -- one readable folder per project:
+
+        projects/
+          Sintel (48)/
+            project.db
+            media/      video, subtitles, upload cache
+            frames/
+
+    The owner browses this in File Explorer, where the old layout showed
+    only "project_48" and "project_48.db". The id stays in the folder
+    name: two videos may share a title, and every lookup is by id.
+    Projects in the old layout are moved on start (migrate_layout).
     """
 
     def __init__(self, projects_dir: str = ""):
@@ -58,12 +70,59 @@ class ProjectStore:
 
     @staticmethod
     def _default_dir() -> Path:
-        base = Path.home() / "Documents" / "OmniDescriber" / "projects"
+        # ODC_PROJECTS_DIR isolates tests, as ODC_CONFIG_DIR does for
+        # settings (pitfall 19). Without it every gate run created and
+        # deleted projects in the user's real Documents folder — 14 test
+        # projects ("V1", "hold_test", ...) were found there in v1.7.5.
+        import os
+        override = os.environ.get("ODC_PROJECTS_DIR", "").strip()
+        base = (Path(override) if override else
+                Path.home() / "Documents" / "OmniDescriber" / "projects")
         base.mkdir(parents=True, exist_ok=True)
         return base
 
-    def _db_path(self, project_id: int) -> Path:
+    DB_NAME = "project.db"
+
+    @staticmethod
+    def folder_label(name: str, project_id: int) -> str:
+        """Folder name for a project: "<name> (<id>)", Windows-safe.
+
+        The " (id)" suffix also defuses reserved device names: "CON" is
+        refused by Windows, "CON (5)" is not.
+        """
+        import re
+        import unicodedata
+        clean = "".join(
+            ch for ch in (name or "")
+            if unicodedata.category(ch) not in ("Cc", "Cf"))
+        clean = re.sub(r'[<>:"/\\|?*]+', " ", clean)
+        clean = re.sub(r"\s+", " ", clean).strip(" .")
+        if len(clean) > 60:
+            clean = clean[:60].rstrip(" .")
+        return f"{clean or 'Video'} ({project_id})"
+
+    def _legacy_db(self, project_id: int) -> Path:
         return self.projects_dir / f"project_{project_id}.db"
+
+    def project_dir(self, project_id: int) -> Path:
+        """The folder that holds this project, in either layout.
+
+        For an id not on disk in the new layout this is where the OLD
+        layout keeps it; create_project makes the named folder itself.
+        """
+        suffix = f" ({project_id})"
+        if self.projects_dir.exists():
+            for d in self.projects_dir.iterdir():
+                if d.is_dir() and d.name.endswith(suffix) and \
+                        (d / self.DB_NAME).exists():
+                    return d
+        return self.projects_dir / f"project_{project_id}"
+
+    def _db_path(self, project_id: int) -> Path:
+        folder_db = self.project_dir(project_id) / self.DB_NAME
+        if folder_db.exists():
+            return folder_db
+        return self._legacy_db(project_id)
 
     def _connect(self, db_path) -> "closing[sqlite3.Connection]":
         """A connection that is CLOSED when the with-block ends, error
@@ -77,9 +136,14 @@ class ProjectStore:
     # left in project_<id>/media, and a finished video.mp4 there was
     # taken as ITS download -- the wrong video got described.
     _LAST_ID_FILE = "last_project_id.txt"
+    _ID_SUFFIX = __import__("re").compile(r" \((\d+)\)$")
 
     def _next_project_id(self) -> int:
         highest = 0
+        for d in self.projects_dir.iterdir():
+            m = self._ID_SUFFIX.search(d.name)
+            if d.is_dir() and m and (d / self.DB_NAME).exists():
+                highest = max(highest, int(m.group(1)))
         for p in self.projects_dir.glob("project_*"):
             tail = p.name.split(".", 1)[0].split("_", 1)[-1]
             if not tail.isdigit():
@@ -119,7 +183,9 @@ class ProjectStore:
             updated_at=now,
         )
 
-        db_path = self._db_path(next_id)
+        folder = self.projects_dir / self.folder_label(name, next_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        db_path = folder / self.DB_NAME
         with self._connect(db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
@@ -221,7 +287,7 @@ class ProjectStore:
 
     def media_dir(self, project_id: int) -> Path:
         """Permanent media folder for a project (video, subtitles)."""
-        d = self.projects_dir / f"project_{project_id}" / "media"
+        d = self.project_dir(project_id) / "media"
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -351,19 +417,170 @@ class ProjectStore:
             # projects whose source was a URL (video saved as video.mp4).
         return None
 
+    def _all_db_paths(self) -> list[Path]:
+        paths = [d / self.DB_NAME for d in self.projects_dir.iterdir()
+                 if d.is_dir() and self._ID_SUFFIX.search(d.name)
+                 and (d / self.DB_NAME).exists()]
+        paths += sorted(self.projects_dir.glob("project_*.db"))
+        return paths
+
     def list_projects(self) -> list[dict]:
-        """List all projects."""
+        """All projects, most recently updated first.
+
+        Each row also carries `count` (descriptions) and `created_at`, so
+        the Open Project list can say more than a bare name.
+        """
         projects = []
-        for db_path in sorted(self.projects_dir.glob("project_*.db")):
+        for db_path in self._all_db_paths():
             try:
                 with self._connect(db_path) as conn:
                     conn.row_factory = sqlite3.Row
-                    row = conn.execute("SELECT id, name, video_path, provider, updated_at FROM projects ORDER BY updated_at DESC").fetchone()
+                    row = conn.execute(
+                        "SELECT id, name, video_path, provider, created_at, "
+                        "updated_at FROM projects "
+                        "ORDER BY updated_at DESC").fetchone()
+                    count = conn.execute(
+                        "SELECT COUNT(*) FROM descriptions").fetchone()[0]
                 if row:
-                    projects.append(dict(row))
+                    item = dict(row)
+                    item["count"] = count
+                    projects.append(item)
             except Exception as e:
                 logger.warning("Error reading project %s: %s", db_path, e)
+        projects.sort(key=lambda p: p.get("updated_at") or "", reverse=True)
         return projects
+
+    # -- Readable folders (v1.7.6) --------------------------------
+
+    def _move_folder(self, project_id: int, old: Path, new: Path) -> bool:
+        """Rename a project folder and rewrite the paths stored inside.
+
+        The DB keeps ABSOLUTE paths to the video and to each frame; a
+        renamed folder without this rewrite leaves the player unable to
+        find the video. Returns False (nothing changed) if Windows
+        refuses the rename -- a file inside is open, e.g. in the player.
+        """
+        if old == new:
+            return True
+        if new.exists():
+            logger.warning("Cannot rename %s: %s already exists", old, new)
+            return False
+        try:
+            old.rename(new)
+        except OSError as e:
+            logger.warning("Project folder %s kept its name (%s)", old, e)
+            return False
+        db = new / self.DB_NAME
+        if db.exists():
+            self._rewrite_paths(db, str(old), str(new))
+        if self._current and self._current.id == project_id:
+            self._current.video_path = self._swap_prefix(
+                self._current.video_path, str(old), str(new))
+            for desc in self._current.descriptions:
+                desc.frame_path = self._swap_prefix(
+                    desc.frame_path, str(old), str(new))
+        logger.info("Project folder renamed: %s -> %s", old.name, new.name)
+        return True
+
+    @staticmethod
+    def _swap_prefix(path: str, old: str, new: str) -> str:
+        if path and path.lower().startswith(old.lower()):
+            return new + path[len(old):]
+        return path
+
+    def _rewrite_paths(self, db_path: Path, old: str, new: str) -> None:
+        with self._connect(db_path) as conn:
+            for pid, video in conn.execute(
+                    "SELECT id, video_path FROM projects").fetchall():
+                fixed = self._swap_prefix(video or "", old, new)
+                if fixed != (video or ""):
+                    conn.execute("UPDATE projects SET video_path = ? "
+                                 "WHERE id = ?", (fixed, pid))
+            for did, frame in conn.execute(
+                    "SELECT id, frame_path FROM descriptions").fetchall():
+                fixed = self._swap_prefix(frame or "", old, new)
+                if fixed != (frame or ""):
+                    conn.execute("UPDATE descriptions SET frame_path = ? "
+                                 "WHERE id = ?", (fixed, did))
+            conn.commit()
+
+    def migrate_layout(self) -> int:
+        """Move old-layout projects into readable folders, and bring any
+        folder whose name no longer matches its project up to date (a
+        rename made while the video was open). Returns how many moved.
+
+        Never raises: a project that cannot move now keeps its old place
+        and is tried again on the next start.
+        """
+        moved = 0
+        for legacy in sorted(self.projects_dir.glob("project_*.db")):
+            tail = legacy.stem.split("_", 1)[-1]
+            if not tail.isdigit():
+                continue
+            pid = int(tail)
+            try:
+                with self._connect(legacy) as conn:
+                    row = conn.execute(
+                        "SELECT name FROM projects WHERE id = ?",
+                        (pid,)).fetchone()
+                target = self.projects_dir / self.folder_label(
+                    row[0] if row else "", pid)
+                old_folder = self.projects_dir / f"project_{pid}"
+                if old_folder.is_dir():
+                    if not self._move_folder(pid, old_folder, target):
+                        continue
+                else:
+                    target.mkdir(parents=True, exist_ok=True)
+                legacy.rename(target / self.DB_NAME)
+                self._rewrite_paths(target / self.DB_NAME,
+                                    str(old_folder), str(target))
+                moved += 1
+            except Exception as e:
+                logger.warning("Could not migrate project %s: %s", legacy, e)
+        for db_path in self._all_db_paths():
+            folder = db_path.parent
+            m = self._ID_SUFFIX.search(folder.name)
+            if folder == self.projects_dir or not m:
+                continue
+            try:
+                with self._connect(db_path) as conn:
+                    row = conn.execute("SELECT name FROM projects").fetchone()
+                want = self.projects_dir / self.folder_label(
+                    row[0] if row else "", int(m.group(1)))
+                if want != folder and self._move_folder(
+                        int(m.group(1)), folder, want):
+                    moved += 1
+            except Exception as e:
+                logger.warning("Could not tidy project %s: %s", folder, e)
+        if moved:
+            logger.info("Project layout: %d project(s) moved", moved)
+        return moved
+
+    def rename_project(self, project_id: int, new_name: str) -> bool:
+        """Rename a project: its stored name AND its folder.
+
+        The name always changes. The folder follows when Windows allows
+        it; if a file inside is open it follows on the next start.
+        """
+        new_name = (new_name or "").strip()
+        db_path = self._db_path(project_id)
+        if not new_name or not db_path.exists():
+            return False
+        # updated_at is left alone: it orders the Open Project list by
+        # when the WORK changed, and a rename (or the bulk fix of old
+        # URL names) must not reshuffle that list.
+        with self._connect(db_path) as conn:
+            conn.execute("UPDATE projects SET name = ? WHERE id = ?",
+                         (new_name, project_id))
+            conn.commit()
+        if self._current and self._current.id == project_id:
+            self._current.name = new_name
+        folder = db_path.parent
+        if folder != self.projects_dir:
+            self._move_folder(project_id, folder, self.projects_dir /
+                              self.folder_label(new_name, project_id))
+        logger.info("Project %d renamed to %s", project_id, new_name)
+        return True
 
     def delete_project(self, project_id: int) -> bool:
         """Delete a project entirely: its .db AND its project_<id>/ folder.
@@ -376,7 +593,7 @@ class ProjectStore:
         nothing is left half-deleted and invisible.
         """
         db_path = self._db_path(project_id)
-        folder = self.projects_dir / f"project_{project_id}"
+        folder = self.project_dir(project_id)
         if not db_path.exists() and not folder.exists():
             return False
         if folder.exists():

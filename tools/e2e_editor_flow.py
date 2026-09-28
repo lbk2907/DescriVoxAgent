@@ -58,7 +58,8 @@ print("player windows:", len(titles))
 win32gui.PostMessage(titles[0], win32con.WM_CLOSE, 0, 0)
 time.sleep(3)
 proc.terminate(); time.sleep(1)
-db = glob.glob(str(work / "projects" / "project_*.db"))[0]
+db = (glob.glob(str(work / "projects" / "*" / "project.db"))
+      + glob.glob(str(work / "projects" / "project_*.db")))[0]
 rows = sqlite3.connect(db).execute("select start_time, text from descriptions order by start_time").fetchall()
 print("DB:", rows)
 ok = any(t == "EDITED ONE BY KEYBOARD" for _, t in rows)
