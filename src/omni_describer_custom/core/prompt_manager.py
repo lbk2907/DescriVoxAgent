@@ -11,6 +11,17 @@ from typing import Any
 
 from .settings_store import SettingsStore
 
+
+def _language_prefixes() -> tuple[str, ...]:
+    """"<code>_" for every locale in i18n/locales, plus en/ms always."""
+    codes = {"en", "ms"}
+    try:
+        from ..i18n.strings import I18n
+        codes.update(I18n.available_languages())
+    except Exception:
+        pass  # the prefixes above still cover the shipped presets
+    return tuple(f"{code}_" for code in sorted(codes))
+
 logger = logging.getLogger(__name__)
 
 # ── Prompt presets (v1.6.0) ──────────────────────────────────────
@@ -341,7 +352,10 @@ class PromptManager:
         # Any other underscore (e.g. "text_ocr") belongs to a universal
         # preset name and must stay visible (v1.5.4 fix: text_ocr was
         # unreachable because "_" in the name filtered it out).
-        lang_prefixes = ("en_", "ms_")
+        # v1.7.7: every language the app has a locale file for, not a
+        # hard-coded ("en_", "ms_") — a third locale's presets
+        # ("id_default") would otherwise have shown in the English list.
+        lang_prefixes = _language_prefixes()
         for name, text in all_prompts.items():
             # Include language-specific or universal prompts
             if name.startswith(lang_prefix) or not name.startswith(lang_prefixes):

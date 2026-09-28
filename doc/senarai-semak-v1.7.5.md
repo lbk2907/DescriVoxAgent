@@ -78,3 +78,15 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       Dibaiki dengan `SetMenuLabel`; ujian menu native gagal tanpa pembaikan, lulus dengannya
 - [x] 7.7 Gate 50 suite x2 GATE_ALL_PASS; build 1.7.7 BUILD_ALL_OK; exe didengar melalui NVDA:
       File → "Settings... s", Help → "Check for Updates... u" → dialog dibuka dan dibaca
+
+## Fasa 8 — penambahbaikan kecil (diminta pemilik 28 Sep 2026)
+- [x] 8.1 test_fixes16: semakan video panjang guna video ujian 10 minit yang dijana sendiri,
+      bukan projek pemilik — 4 semakan yang dilangkau kini lulus (20/20)
+- [x] 8.2 Alat E2E buang HANYA projek yang dicipta oleh larian itu (`tools/e2e_projects.py`);
+      larian sebenar exe 1.7.7 + Gemini: 14/14, projek 50 dibuang, folder pemilik tidak berubah
+- [x] 8.3 DITEMUI: `e2e_gui_phase` dan `e2e_gui_v130` masih cari `*.db` (rosak sejak susun
+      atur 1.7.6) — dibaiki; `e2e_gui_v130` juga menyemak "project_" dalam laluan
+- [x] 8.4 Nama preset: awalan bahasa diambil daripada fail locale, bukan ("en_", "ms_");
+      test_fixes41 gagal pada kod lama (preset `id_` dalam senarai English), lulus sekarang
+- [x] 8.5 Gate 51 suite x2 GATE_ALL_PASS
+- [ ] 8.6 (tidak dibuat — pilihan pemilik) ffmpeg dalam menu Semak Kemas Kini
