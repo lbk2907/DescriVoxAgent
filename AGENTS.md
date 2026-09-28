@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 51 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 52 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 51 suite; run_gate.bat = semua
+tests/                           — 52 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -432,6 +432,17 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    Guna `menubar.SetMenuLabel(i, label)`. `test_fixes40` baca menu
    NATIVE (GetMenuItemCount / GetMenuStringW), bukan senarai wx.
 
+57. **JANGAN cipta semula kawalan untuk menukar gayanya.** Show/Hide kunci
+   API dahulu membina TextCtrl baharu untuk membalik `TE_PASSWORD`:
+   kotak baharu jatuh ke sudut kiri atas panel (hanya dialog di-layout,
+   bukan halaman notebook), jadi TERAKHIR dalam susunan Tab, dan hilang
+   label NVDA — pemilik melaporkan "input api key terus hilang"
+   (28 Sep 2026). Test lama semak NILAI sahaja, jadi lulus. Di Windows
+   tukar gaya pada kawalan yang SAMA (`EM_SETPASSWORDCHAR`). **Test UI
+   mesti semak kedudukan, susunan Tab dan objek yang sama, bukan nilai
+   sahaja** (`test_fixes42`). Nota automasi: `send_keys(" ")` pywinauto
+   MEMBUANG ruang — guna `{SPACE}`.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -477,12 +488,12 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.7.8 (tag `v1.7.8`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 51 suite dalam `run_gate.bat`.
+- **Versi:** 1.7.9 (tag `v1.7.9`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 52 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Hanya Gemini MENDENGAR audio video.
-- Gate 51 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- Gate 52 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
 - E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
   Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
   perangai model, pitfall 14).

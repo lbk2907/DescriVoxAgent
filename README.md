@@ -15,6 +15,15 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.9
+
+**The API key box no longer disappears.** In Settings > AI, pressing
+Show or Hide next to the API key made the key box vanish: it was
+rebuilt in the wrong place, last in the Tab order and without its
+label, so NVDA could not find it again. The same box now simply shows
+or hides its text. Heard through NVDA: after Show it reads the key,
+after Hide it reads "protected".
+
 ## What's new in v1.7.8
 
 Housekeeping behind the scenes, found while checking 1.7.7:

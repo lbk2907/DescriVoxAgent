@@ -92,3 +92,11 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 8.7 Build 1.7.8 BUILD_ALL_OK; exe didengar NVDA 10/10; E2E sebenar 14/14, projek
       ujian 51 dibuang sendiri; tag v1.7.8
 - [ ] 8.6 (tidak dibuat — pilihan pemilik) ffmpeg dalam menu Semak Kemas Kini
+
+## Fasa 9 — bug dilaporkan pemilik (v1.7.9)
+- [x] 9.1 Kotak API key hilang selepas Show/Hide: dibina semula di (0,0), terakhir dalam Tab,
+      tanpa label NVDA. Dibaiki dengan EM_SETPASSWORDCHAR pada kawalan yang sama.
+      Didengar NVDA: Show → "API Key: edit selected TESTKEY 123", Hide → "edit protected".
+      test_fixes42 gagal pada kod lama; gate 52 suite x2 GATE_ALL_PASS
+- [x] 9.2 Build 1.7.9 BUILD_ALL_OK; aliran sama didengar dalam exe beku — sama seperti
+      dari source; tag v1.7.9
