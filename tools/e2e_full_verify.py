@@ -31,6 +31,8 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from e2e_projects import ProjectsGuard, all_dbs  # noqa: E402
 BRIDGE = "http://127.0.0.1:19281"
 APP_TITLE = "Omni Describer"
 
@@ -241,9 +243,7 @@ def answer_file_dialog(path: Path, app_pid: int,
 def read_project(projects_dir: Path) -> dict:
     """Newest project: its row plus its descriptions."""
     # Both layouts: "project_N.db" (before v1.7.6) and "<name> (N)/project.db".
-    dbs = sorted(list(projects_dir.glob("project_*.db"))
-                 + list(projects_dir.glob("*/project.db")),
-                 key=lambda p: p.stat().st_mtime)
+    dbs = all_dbs(projects_dir)   # either project layout
     if not dbs:
         return {}
     conn = sqlite3.connect(str(dbs[-1]))
@@ -292,6 +292,7 @@ def main() -> int:
 
     print("== LAUNCH ==", flush=True)
     mark = speech_mark()
+    guard = ProjectsGuard(projects_dir)
     proc, win = launch(config_dir)
     record("frozen app started", True, win.window_text()[:50])
     startup_speech = spoken_since(mark)
@@ -419,8 +420,10 @@ def main() -> int:
     finally:
         try:
             proc.terminate()
+            proc.wait(timeout=15)   # its files must be closed first
         except Exception:
             pass
+        guard.cleanup()
 
     print("\n" + "=" * 60)
     failed = [s for s, ok, _ in results if not ok]

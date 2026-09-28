@@ -153,9 +153,9 @@ def step_verify_persistence() -> tuple[Path, list[str]]:
     """DB video_path must now be a REAL file inside the project folder.
     Also returns the sidecar cue texts (used as the t5 overlay oracle)."""
     phase.log("== VERIFY v1.3.0 PERSISTENCE ==")
-    dbs = sorted(PROJECTS_DIR.glob("*.db"), key=lambda p: p.stat().st_mtime)
-    assert dbs, "no project db found"
-    db = dbs[-1]
+    from e2e_projects import media_dir_of, newest_db
+    db = newest_db(PROJECTS_DIR)   # either project layout
+    assert db, "no project db found"
     import sqlite3
     conn = sqlite3.connect(str(db))
     name, vp = conn.execute(
@@ -168,8 +168,8 @@ def step_verify_persistence() -> tuple[Path, list[str]]:
     assert vp, "video_path empty"
     p = Path(vp)
     assert p.exists(), f"persisted video missing: {vp}"
-    assert any(s.startswith("project_") for s in p.parts), \
-        f"not in project dir: {vp}"
+    assert p.parent == media_dir_of(db), \
+        f"not in this project's media folder: {vp}"
     assert "media" in {seg.lower() for seg in p.parts}, \
         f"not in media dir: {vp}"
     assert p.stat().st_size > 0, "persisted video is empty"
@@ -331,6 +331,15 @@ def step_close_player() -> None:
 
 
 def main() -> int:
+    from e2e_projects import ProjectsGuard
+    guard = ProjectsGuard(PROJECTS_DIR)
+    try:
+        return _run()
+    finally:
+        guard.cleanup()   # only the project this run created
+
+
+def _run() -> int:
     top = phase.step_launch()
     time.sleep(3.0)  # let startup TTS init / list refresh settle
 

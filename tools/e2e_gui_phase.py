@@ -41,6 +41,8 @@ URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # "Me at the zoo" 19s
 SETTINGS_JSON = (Path.home() / "AppData" / "Roaming" / "OmniDescriber" /
                  "settings.json")
 PROJECTS_DIR = Path.home() / "Documents" / "OmniDescriber" / "projects"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from e2e_projects import ProjectsGuard, newest_db  # noqa: E402
 SRT_OUT = Path.home() / "Documents" / "OmniDescriber" / "e2e_gui_test.srt"
 # v1.5.5: was 10 s (to split the 19 s zoo video into 2 parts), but since
 # v1.5.3 the Settings spin control enforces min=60, so Apply clamps any
@@ -666,9 +668,8 @@ def step_process() -> None:
 
 def step_verify() -> None:
     log("== VERIFY DB ==")
-    dbs = sorted(PROJECTS_DIR.glob("*.db"), key=lambda p: p.stat().st_mtime)
-    assert dbs, "no project db found"
-    db = dbs[-1]
+    db = newest_db(PROJECTS_DIR)   # either project layout
+    assert db, "no project db found"
     conn = sqlite3.connect(str(db))
     rows = conn.execute(
         "SELECT COUNT(*), MIN(start_time), MAX(end_time) FROM descriptions"
@@ -723,9 +724,9 @@ def step_coverage() -> None:
         f"dialog bar fill never reached ~55%: {GREEN_PCTS}")
     log("progress percentages captured OK (title + bar pixels)")
 
-    dbs = sorted(PROJECTS_DIR.glob("*.db"), key=lambda p: p.stat().st_mtime)
-    assert dbs, "no project db"
-    conn = sqlite3.connect(str(dbs[-1]))
+    db = newest_db(PROJECTS_DIR)
+    assert db, "no project db"
+    conn = sqlite3.connect(str(db))
     starts = [r[0] for r in conn.execute(
         "SELECT start_time FROM descriptions ORDER BY start_time")]
     maxend = conn.execute(
@@ -812,16 +813,21 @@ def step_exit() -> None:
 
 
 def main() -> int:
-    top = step_launch()
-    step_settings(top)
-    step_youtube()
-    step_process()
-    step_verify()
-    step_coverage()
-    step_export()
-    step_exit()
-    log("E2E_GUI_PASS")
-    return 0
+    guard = ProjectsGuard(PROJECTS_DIR)
+    try:
+        top = step_launch()
+        step_settings(top)
+        step_youtube()
+        step_process()
+        step_verify()
+        step_coverage()
+        step_export()
+        step_exit()
+        log("E2E_GUI_PASS")
+        return 0
+    finally:
+        # The app must be closed first, or its files are still open.
+        guard.cleanup()
 
 
 if __name__ == "__main__":
