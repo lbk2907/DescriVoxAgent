@@ -103,6 +103,10 @@ class EditorWindow(wx.Frame):
         for ctrl in (self.start_time_ctrl, self.end_time_ctrl, self.text_ctrl):
             ctrl.Bind(wx.EVT_TEXT, self._on_field_text)
         self.Bind(wx.EVT_CLOSE, self._on_close)
+        # v1.8.2: Esc closes, as in every other window. Heard in a
+        # keyboard sweep: Esc did nothing, leaving a blind user to hunt
+        # for the Close button. Closing saves the edits (_on_close).
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         panel.Layout()
 
@@ -122,6 +126,12 @@ class EditorWindow(wx.Frame):
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
+
+    def _on_char_hook(self, event):
+        if event.GetKeyCode() == wx.WXK_ESCAPE:
+            self.Close()
+            return
+        event.Skip()
 
     def _commit_fields(self) -> None:
         """Write the edit fields back into the description they show.
@@ -231,11 +241,9 @@ class EditorWindow(wx.Frame):
         idx = self.desc_list.GetFirstSelected()
         if idx == wx.NOT_FOUND:
             return
-        if wx.MessageBox(
-            t("editor.confirm_delete"),
-            t("editor.confirm_title"),
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
-        ) != wx.YES:
+        from .dialogs import ask_yes_no
+        if not ask_yes_no(self, t("editor.confirm_delete"),
+                          t("editor.confirm_title"), default_no=True):
             return
         self._commit_fields()
         desc = self.store.current.descriptions[idx]

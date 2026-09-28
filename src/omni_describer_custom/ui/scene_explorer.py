@@ -86,14 +86,22 @@ class SceneExplorer(wx.Frame):
         desc_sizer.Add(self.desc_text, 1, wx.ALL | wx.EXPAND, 5)
         sizer.Add(desc_sizer, 0, wx.ALL | wx.EXPAND, 10)
 
-        # Objects list
+        # Objects list — v1.8.2: labelled; NVDA read nothing here.
+        sizer.Add(wx.StaticText(panel, label=t("explorer.objects_label"),
+                                name="objects_label"), 0, wx.LEFT, 10)
         self.objects_text = wx.TextCtrl(panel, style=wx.TE_READONLY, size=(-1, 60),
                                         name="objects_list")
         sizer.Add(self.objects_text, 0, wx.ALL | wx.EXPAND, 10)
 
-        # Status
+        # Status — TWO labels taking turns (v1.8.2). NVDA speaks when
+        # focus MOVES; arrowing through frames announced into the label
+        # that already had focus, so after the first frame it said
+        # nothing. Each announcement now focuses the other label.
         self.status_text = wx.StaticText(panel, label=t("status.ready"), name="explorer_status")
         sizer.Add(self.status_text, 0, wx.ALL, 5)
+        self._status_alt = wx.StaticText(panel, label="", name="explorer_status_alt")
+        sizer.Add(self._status_alt, 0, wx.ALL, 5)
+        self._status_alt.Hide()
 
         # Key bindings (EVT_CHAR_HOOK so arrows/D/L/Enter/Esc still work
         # while focus sits inside the readonly text controls)
@@ -112,8 +120,14 @@ class SceneExplorer(wx.Frame):
         message through Prism in exactly that case, and stays quiet
         when a reader is running so nothing is said twice.
         """
-        self.status_text.SetLabel(msg)
-        self.status_text.SetFocus()
+        shown, hidden = self.status_text, self._status_alt
+        if wx.Window.FindFocus() is shown:
+            shown, hidden = hidden, shown
+        hidden.Hide()
+        shown.SetLabel(msg)
+        shown.Show()
+        shown.GetParent().Layout()
+        shown.SetFocus()
         try:
             from ..core.speech import announce as _speak_status
             _speak_status(msg)
@@ -213,7 +227,8 @@ class SceneExplorer(wx.Frame):
         )
         self.desc_text.SetValue("")
         self.objects_text.SetValue("")
-        self.status_text.SetLabel(t("status.ready"))
+        # v1.8.2: arrows were silent — say which frame this is.
+        self._announce(self.frame_info.GetLabel())
 
     def _on_key(self, event):
         """Handle keyboard shortcuts."""
@@ -231,6 +246,16 @@ class SceneExplorer(wx.Frame):
             self._describe_nearest()
         elif key == wx.WXK_ESCAPE:
             self.Close()
+        elif key == wx.WXK_TAB:
+            # v1.8.2: the read-only multi-line Description box kept Tab
+            # to itself, so the objects box could never be reached by
+            # keyboard; Navigate() from here moved nothing either. The
+            # window has two boxes to read, so Tab cycles between them.
+            boxes = [self.desc_text, self.objects_text]
+            focused = wx.Window.FindFocus()
+            step = -1 if event.ShiftDown() else 1
+            index = boxes.index(focused) + step if focused in boxes else 0
+            boxes[index % len(boxes)].SetFocus()
         else:
             event.Skip()
 
@@ -273,6 +298,7 @@ class SceneExplorer(wx.Frame):
     def _list_objects(self):
         """List objects in current frame."""
         if not self.frames or not self.ai:
+            self._announce(t("scene.no_ai"))  # v1.8.2: was silent
             return
         frame = self.frames[self._current_idx]
         self._announce(t("scene.detecting"))

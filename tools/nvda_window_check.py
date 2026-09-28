@@ -46,6 +46,10 @@ def serve(window: str, work: Path) -> None:
                     "lavfi", "-i", "color=c=blue:s=320x240:d=30", "-c:v",
                     "libx264", str(clip)], check=True)
     app = wx.App(False)
+    # The window speaks the language the (isolated) settings choose.
+    from omni_describer_custom.core.settings_store import SettingsStore
+    from omni_describer_custom.i18n.strings import I18n
+    I18n.set_language(SettingsStore().get("general.language", "en") or "en")
     store = ProjectStore(str(work / "projects"))
     store.create_project("A11y check", str(clip))
     store.save_descriptions([

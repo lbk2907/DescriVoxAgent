@@ -288,12 +288,19 @@ class SettingsDialog(wx.Dialog):
 
         # Speed
         sizer.Add(wx.StaticText(panel, label=t("settings.speed"), name="speed_label"), 0, wx.ALL, 5)
+        # v1.8.2: no wx.SL_LABELS. Its little "5", "20", "10" labels are
+        # static texts created right before the trackbar, so NVDA named
+        # the slider "10" (heard: "10 slider 33"). The value is shown
+        # after it instead, where it cannot take the name.
         self.speed_slider = wx.Slider(panel, value=10, minValue=5, maxValue=20,
-                                      style=wx.SL_HORIZONTAL | wx.SL_LABELS,
+                                      style=wx.SL_HORIZONTAL,
                                       name="tts_speed")
-        # NVDA announces this name when the slider gets focus.
-        self.speed_slider.SetLabel(t("settings.speed"))
         sizer.Add(self.speed_slider, 0, wx.ALL | wx.EXPAND, 5)
+        self.speed_value = wx.StaticText(panel, label="1.0x", name="speed_value")
+        sizer.Add(self.speed_value, 0, wx.LEFT, 10)
+        self.speed_slider.Bind(
+            wx.EVT_SLIDER, lambda e: self.speed_value.SetLabel(
+                f"{self.speed_slider.GetValue() / 10:.1f}x"))
 
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
@@ -965,7 +972,12 @@ class SettingsDialog(wx.Dialog):
 
     def _load_values(self):
         """Load current settings into UI."""
-        default_provider = self.settings.get("ai.default_provider", "gemini")
+        # v1.8.2: "or": a new user's file holds "" — the key exists, so
+        # the default never applied and Provider was read as empty.
+        # Phase E (29 Sep 2026): OpenRouter/GLM, not Gemini, for a new
+        # user -- cheapest, did not fail under load, and the only model
+        # that conveyed foreign dialogue (via the transcript).
+        default_provider = self.settings.get("ai.default_provider", "") or "glm"
         # The dropdown shows friendly labels; map the stored machine id.
         self.provider_choice.SetStringSelection(
             self._provider_labels.get(default_provider, default_provider))
@@ -990,6 +1002,7 @@ class SettingsDialog(wx.Dialog):
                 pass
         saved_speed = self.settings.get(f"tts.engines.{default_tts}.speed", 1.0)
         self.speed_slider.SetValue(int(float(saved_speed) * 10))
+        self.speed_value.SetLabel(f"{self.speed_slider.GetValue() / 10:.1f}x")
         # Applied on load too, not only on change: opening the dialog
         # with the screen reader already saved must show the voice and
         # speed controls as the dead ends they are.

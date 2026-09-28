@@ -752,11 +752,10 @@ class MainFrame(wx.Frame):
             model = (self.settings.get_ai_provider(provider) or {}).get(
                 "model", "")
             if not provider_hears_audio(provider, model):
-                answer = wx.MessageBox(
-                    t("preset.needs_audio", provider=provider),
-                    t("settings.title"),
-                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING)
-                if answer != wx.YES:
+                from .dialogs import ask_yes_no
+                if not ask_yes_no(self, t("preset.needs_audio", provider=provider),
+                                  t("settings.title"), wx.ICON_WARNING,
+                                  default_no=True):
                     self.SetStatusText(t("status.ready"))
                     return
 
@@ -815,6 +814,12 @@ class MainFrame(wx.Frame):
         I18n.set_language(lang)
         self.prompt_mgr.language = lang
         self._retranslate_ui()
+        # v1.8.2: an open player follows too (it used to keep the old
+        # language until reopened).
+        from .player_window import PlayerWindow
+        for child in self.GetChildren():
+            if isinstance(child, PlayerWindow):
+                child.retranslate()
         self._load_settings()
         # Re-apply TTS engine/voice/speed from settings
         self.tts_engine.settings = self.settings.get("tts", {})
@@ -928,12 +933,10 @@ class MainFrame(wx.Frame):
                               wx.OK | wx.ICON_INFORMATION)
                 return
             name = proj.get("name", "")
-            confirm = wx.MessageDialog(
-                dlg, t("project.remove_confirm", name=name),
-                t("project.remove_title"),
-                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING)
-            confirmed = confirm.ShowModal() == wx.ID_YES
-            confirm.Destroy()
+            from .dialogs import ask_yes_no
+            confirmed = ask_yes_no(dlg, t("project.remove_confirm", name=name),
+                                   t("project.remove_title"), wx.ICON_WARNING,
+                                   default_no=True)
             if not confirmed:
                 return
             ok, err = self._remove_project_files(proj["id"])
@@ -1061,9 +1064,9 @@ class MainFrame(wx.Frame):
                     pass
                 message = t("i18n.report_complete", language=language,
                             folder=folder)
-        answer = wx.MessageBox(message, t("i18n.report_title"),
-                               wx.YES_NO | wx.ICON_INFORMATION, self)
-        if answer == wx.YES:
+        from .dialogs import ask_yes_no
+        if ask_yes_no(self, message, t("i18n.report_title"),
+                      wx.ICON_INFORMATION):
             try:
                 _os.startfile(str(folder))
             except OSError as e:
@@ -2107,8 +2110,12 @@ class MainFrame(wx.Frame):
             return
         except Exception as e:
             logger.error("Processing error: %s", e)
-            wx.CallAfter(self._log, t("status.error", error=str(e)))
-            wx.CallAfter(self.SetStatusText, t("status.error", error=str(e)))
+            from ..core.ai_engine import is_busy_error
+            # v1.8.2: a busy service ("HTTP 503: {...json...}") is told
+            # in words, with what to do -- not as raw JSON.
+            shown = (t("error.ai_busy") if is_busy_error(str(e)) else str(e))
+            wx.CallAfter(self._log, t("status.error", error=shown))
+            wx.CallAfter(self.SetStatusText, t("status.error", error=shown))
             wx.CallAfter(self._close_download_progress)
             if frame_dir:
                 self._cleanup_dir(frame_dir)

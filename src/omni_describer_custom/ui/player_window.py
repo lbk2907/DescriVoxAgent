@@ -348,6 +348,7 @@ class PlayerWindow(wx.Frame):
         # static text created just before it, so that label must exist
         # and must be created first.
         timeline_label = wx.StaticText(panel, label=t("player.timeline") + ":")
+        self._timeline_label = timeline_label
         timeline_row.Add(timeline_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.position_slider = wx.Slider(panel, value=0, minValue=0, maxValue=1000,
                                          style=wx.SL_HORIZONTAL, name="timeline")
@@ -361,6 +362,7 @@ class PlayerWindow(wx.Frame):
 
         # ── Description Display ────────────────────────────────
         desc_box = wx.StaticBox(panel, label=t("player.current_desc"))
+        self._desc_box = desc_box
         desc_sizer = wx.StaticBoxSizer(desc_box, wx.VERTICAL)
 
         self.current_desc_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
@@ -371,6 +373,7 @@ class PlayerWindow(wx.Frame):
         # Upcoming
         upcoming_row = wx.BoxSizer(wx.HORIZONTAL)
         upcoming_label = wx.StaticText(panel, label=t("player.upcoming"), name="upcoming_label")
+        self._upcoming_label = upcoming_label
         self.upcoming_text = wx.TextCtrl(panel, style=wx.TE_READONLY, size=(-1, -1),
                                          name="upcoming_description")
         upcoming_row.Add(upcoming_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
@@ -798,6 +801,7 @@ class PlayerWindow(wx.Frame):
         elif self._audio_backend == "ffplay":
             self._start_ffplay(self._position)  # restart ffplay at new pos
         self._update_desc_display()
+        self._announce_jump(self.rewind_btn)
 
     def _on_forward(self, event):
         self._position += 10
@@ -806,6 +810,40 @@ class PlayerWindow(wx.Frame):
         elif self._audio_backend == "ffplay":
             self._start_ffplay(self._position)  # restart ffplay at new pos
         self._update_desc_display()
+        self._announce_jump(self.forward_btn)
+
+    def retranslate(self) -> None:
+        """Re-apply every label after a language switch (v1.8.2)."""
+        name = self.project.name if self.project else ""
+        self.SetTitle(f"{t('player.title')} — {name}")
+        self._set_play_label(self._playing if hasattr(self, "_playing") else False)
+        self.stop_btn.SetLabel(t("player.stop"))
+        self.load_srt_btn.SetLabel(t("player.load_srt"))
+        self.pause_narration_check.SetLabel(t("player.pause_for_narration"))
+        self.pause_narration_check.SetToolTip(
+            t("player.pause_for_narration_hint") if self._hold_supported()
+            else t("player.pause_unavailable"))
+        self._timeline_label.SetLabel(t("player.timeline") + ":")
+        self._desc_box.SetLabel(t("player.current_desc"))
+        self._upcoming_label.SetLabel(t("player.upcoming"))
+        self.edit_btn.SetLabel(t("editor.title"))
+        self.ask_btn.SetLabel(t("player.ask_more"))
+        self.explore_btn.SetLabel(t("player.explore"))
+        self.speak_btn.SetLabel(chr(0x1F50A) + " " + t("player.read_description"))
+        self.video_panel.SetName(t("player.video_area"))
+        self.Layout()
+
+    def _announce_jump(self, button) -> None:
+        """v1.8.2: the 10-second buttons were silent — heard in a
+        keyboard sweep. Say where the jump landed, then give focus back
+        to the button so pressing it again jumps again."""
+        total = float(getattr(self, "_slider_dur", 0) or 0)
+        position = self._format_time(self._position)
+        # "of 00:00" when the length is unknown would only confuse.
+        self._announce(t("player.position", position=position,
+                         total=self._format_time(total)) if total >= 1
+                       else position)
+        wx.CallLater(700, lambda: button and button.SetFocus())
 
     def _on_seek(self, event):
         # v1.5.1: slider is 0..1000 mapped over the real duration.

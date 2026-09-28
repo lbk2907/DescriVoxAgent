@@ -197,8 +197,9 @@ def test_menu_handler_and_filters():
     assert "Semua fail" in t("filter.all_files")
     frame = MainFrame()
     shown = []
-    real = wx.MessageBox
-    wx.MessageBox = lambda msg, *a, **k: shown.append(msg) or wx.NO
+    from omni_describer_custom.ui import dialogs
+    real = dialogs.ask_yes_no
+    dialogs.ask_yes_no = lambda parent, msg, *a, **k: shown.append(msg) or False
     try:
         assert frame.GetMenuBar().FindItemById(frame._id_language_report)
         I18n.set_language("ms")
@@ -211,7 +212,7 @@ def test_menu_handler_and_filters():
         frame._on_language_report(None)
         assert (user_locales_dir() / "id.missing.json").exists()
     finally:
-        wx.MessageBox = real
+        dialogs.ask_yes_no = real
         I18n._translations.pop("id", None)
         I18n.set_language("en")
         for _ in range(20):

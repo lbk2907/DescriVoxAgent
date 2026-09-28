@@ -358,5 +358,10 @@
   "settings.probe_sees_only": "{model} watches the video but does not hear it. Descriptions will use a transcript of the speech instead.",
   "settings.probe_sees_untested": "{model} watches the video. Its hearing could not be tested (no Windows voice to record).",
   "settings.probe_blind": "{model} did not describe the test video correctly (it answered: {answer}). Choose another model.",
-  "settings.probe_error": "{model} could not be tested: {error}"
+  "settings.probe_error": "{model} could not be tested: {error}",
+  "player.position": "Position {position} of {total}",
+  "explorer.objects_label": "Objects in this frame:",
+  "common.yes": "&Yes",
+  "common.no": "&No",
+  "error.ai_busy": "The AI service is busy right now (too many requests). Wait a few minutes and try again, or choose another model in Settings > AI."
 }

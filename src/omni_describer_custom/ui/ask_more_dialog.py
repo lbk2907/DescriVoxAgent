@@ -66,6 +66,8 @@ class AskMoreDialog(wx.Dialog):
         btn_row = wx.BoxSizer(wx.HORIZONTAL)
         self.submit_btn = wx.Button(panel, label=t("askmore.submit"), name="submit_question")
         self.cancel_btn = wx.Button(panel, label=t("askmore.cancel"), name="cancel_question")
+        # v1.8.2: Esc did nothing here (the button is not wx.ID_CANCEL).
+        self.SetEscapeId(self.cancel_btn.GetId())
         btn_row.Add(self.submit_btn, 0, wx.ALL, 5)
         btn_row.AddStretchSpacer()
         btn_row.Add(self.cancel_btn, 0, wx.ALL, 5)

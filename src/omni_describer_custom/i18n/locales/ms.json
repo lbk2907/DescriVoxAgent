@@ -358,5 +358,10 @@
   "settings.probe_sees_only": "{model} menonton video tetapi tidak mendengarnya. Penerangan akan menggunakan transkrip pertuturan.",
   "settings.probe_sees_untested": "{model} menonton video. Pendengarannya tidak dapat diuji (tiada suara Windows untuk dirakam).",
   "settings.probe_blind": "{model} tidak menghuraikan video ujian dengan betul (jawapannya: {answer}). Pilih model lain.",
-  "settings.probe_error": "{model} tidak dapat diuji: {error}"
+  "settings.probe_error": "{model} tidak dapat diuji: {error}",
+  "player.position": "Kedudukan {position} daripada {total}",
+  "explorer.objects_label": "Objek dalam bingkai ini:",
+  "common.yes": "&Ya",
+  "common.no": "&Tidak",
+  "error.ai_busy": "Perkhidmatan AI sedang sibuk (terlalu banyak permintaan). Tunggu beberapa minit dan cuba lagi, atau pilih model lain dalam Tetapan > AI."
 }

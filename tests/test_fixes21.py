@@ -405,11 +405,22 @@ def _messagebox_answer(answer):
         seen.append(str(message))
         return answer
 
+    # v1.8.2: Yes/No questions go through ui.dialogs.ask_yes_no, whose
+    # buttons follow the app language; answer it the same way.
+    from omni_describer_custom.ui import dialogs
+    real_ask = dialogs.ask_yes_no
+
+    def fake_ask(parent, message, *a, **k):
+        seen.append(str(message))
+        return answer == wx.YES
+
     wx.MessageBox = fake
+    dialogs.ask_yes_no = fake_ask
     try:
         yield seen
     finally:
         wx.MessageBox = real
+        dialogs.ask_yes_no = real_ask
 
 
 def _editor(f):
