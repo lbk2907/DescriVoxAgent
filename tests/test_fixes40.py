@@ -207,6 +207,42 @@ def test_menu_dialog_and_weekly_notice():
         del app
 
 
+def test_native_menus_open_on_their_real_first_item():
+    """wx.Menu.SetTitle wrote the menu's title INTO the Windows dropdown
+    over its first item: File opened on "File" (Settings unreachable by
+    keyboard) and Help on "Help" (Check for Updates unreachable). wx's
+    own item list still looked right, which is how it hid — so this
+    reads the NATIVE menu, as NVDA does."""
+    import win32gui
+    import wx
+    app = wx.GetApp() or wx.App(False)
+    from omni_describer_custom.ui.main_frame import MainFrame
+    frame = MainFrame()
+    try:
+        frame.Show()
+        for _ in range(10):
+            wx.Yield()
+        bar = win32gui.GetMenu(frame.GetHandle())
+        expect = {0: "Settings", 1: "Check for Updates"}
+        for pos, first in expect.items():
+            sub = win32gui.GetSubMenu(bar, pos)
+            wx_items = frame.GetMenuBar().GetMenu(pos).GetMenuItemCount()
+            native = win32gui.GetMenuItemCount(sub)
+            import ctypes
+            buf = ctypes.create_unicode_buffer(256)
+            ctypes.windll.user32.GetMenuStringW(sub, 0, buf, 256, 0x400)
+            label = buf.value.replace("&", "")
+            assert native == wx_items, (
+                f"menu {pos}: Windows shows {native} items, wx has {wx_items}")
+            assert label.startswith(first), (
+                f"menu {pos} opens on {label!r}, not {first!r}")
+    finally:
+        frame.Destroy()
+        for _ in range(10):
+            wx.Yield()
+        del app
+
+
 def main() -> int:
     if not REAL or not REAL_VERSION:
         print("FAIL: no runnable bundled yt-dlp to test against")
@@ -218,6 +254,8 @@ def main() -> int:
     check("Use bundled version goes back", test_revert_goes_back_to_bundled)
     check("version compare and the weekly rhythm", test_version_compare_and_weekly_rhythm)
     check("menu, dialog and weekly notice", test_menu_dialog_and_weekly_notice)
+    check("menus open on their real first item",
+          test_native_menus_open_on_their_real_first_item)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

@@ -73,4 +73,7 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 7.5 Petunjuk dalam log bila muat turun YouTube gagal
 - [x] 7.6 test_fixes40 7/7 (fail yt-dlp sebenar, tanpa rangkaian); ujian sebenar GitHub: semak,
       muat turun, cap jari, uji, guna, kembali — semua berjaya (dalam folder sementara)
+- [x] 7.8 DITEMUI dengan mendengar exe: menu File dibuka pada "File" (Settings tidak boleh dicapai
+      dengan papan kekunci) dan Help pada "Help" — `Menu.SetTitle` menimpa item pertama di Windows.
+      Dibaiki dengan `SetMenuLabel`; ujian menu native gagal tanpa pembaikan, lulus dengannya
 - [ ] 7.7 Gate x2 (NVDA senyap), build, E2E, tag v1.7.7

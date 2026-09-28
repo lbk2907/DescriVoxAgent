@@ -364,12 +364,15 @@ class MainFrame(wx.Frame):
             item = menubar.FindItemById(item_id)
             if item is not None:
                 item.SetItemLabel(t(key))
-        # wxPython Phoenix has no MenuBar.SetLabelTop; a top-level
-        # title is the wx.Menu's title.
+        # Top-level labels: MenuBar.SetMenuLabel. NOT wx.Menu.SetTitle —
+        # on Windows that writes a title INTO the dropdown over its first
+        # item. Heard through NVDA in v1.7.7: File opened on "File"
+        # instead of "Settings...", and Help on "Help" instead of "Check
+        # for Updates...", so neither could be reached from the keyboard.
+        # (Phoenix has no SetLabelTop; SetMenuLabel is its name.)
         for idx, key in ((0, "menu.file"), (1, "menu.help")):
-            menu = menubar.GetMenu(idx)
-            if menu is not None:
-                menu.SetTitle(t(key))
+            if idx < menubar.GetMenuCount():
+                menubar.SetMenuLabel(idx, t(key))
 
     # ── Events ────────────────────────────────────────────────────
 

@@ -423,6 +423,15 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `updater.status()` menjalankan yt-dlp (1-3 s) — jangan panggil
    pada benang UI.
 
+57. **`wx.Menu.SetTitle` pada menu dalam menubar ROSAKKAN menu itu di
+   Windows** — ia menulis tajuk KE DALAM dropdown, menimpa item
+   pertama. Sejak `_retranslate_menu` menggunakannya, File dibuka pada
+   "File" (Settings tidak boleh dicapai dengan papan kekunci) dan Help
+   pada "Help". Senarai item wx TETAP nampak betul, jadi hanya NVDA /
+   menu Win32 sebenar yang menunjukkannya (ditemui 28 Sep 2026, v1.7.7).
+   Guna `menubar.SetMenuLabel(i, label)`. `test_fixes40` baca menu
+   NATIVE (GetMenuItemCount / GetMenuStringW), bukan senarai wx.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -482,4 +491,4 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 - Senarai kerja terbuka: `doc/senarai-semak-v1.7.5.md` (JANGAN tulis
   "tiada bug terbuka" di sini — senarai itu sumbernya).
 - wxPython Phoenix: `MenuBar.SetLabelTop` TIDAK wujud — guna
-  `menubar.GetMenu(i).SetTitle(...)`
+  `menubar.SetMenuLabel(i, ...)`. JANGAN `GetMenu(i).SetTitle` (pitfall 57).
