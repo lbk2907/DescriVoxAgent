@@ -11,12 +11,17 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 2.2 Semakan NVDA — editor, player, Ask More (alat baharu `tools/nvda_window_check.py`;
   DIBAIKI: slider player disebut "slider 0" tanpa nama, panel video disebut "video_area";
   kini 16/16 OK setiap tetingkap; gate GATE_ALL_PASS)
-- [ ] 2.3 E2E sebenar video panjang dengan GLM (mampatan + pecahan)
-- [ ] 2.4 Editor/player: sunting → pindah → tutup player → buka semula → suntingan kekal
+- [x] 2.3 E2E sebenar video panjang dengan GLM (Sintel 14:48, 2 bahagian): 121 cue,
+  selesai diumumkan, SRT ditulis, log sahkan klamp cue lepas hujung bahagian.
+  Semakan "upload copy" dalam alat E2E dibetulkan (hanya untuk fail >50 MB).
+  DITEMUI: 5/121 cue >20 patah (model GLM, pitfall 14) — lihat 4.7.
+- [x] 2.4 Editor/player dengan papan kekunci: sunting → pindah (Down) → tutup player →
+  DB: `(5.0, 'EDITED ONE BY KEYBOARD')` — PASS. Nota kecil: senarai masih sebut teks
+  lama sehingga pengguna berpindah (lihat 4.8).
 
 ## Fasa 3 — kemas
-- [ ] 3.1 AGENTS.md: kiraan suite, Status Semasa, pitfall baharu
-- [ ] 3.2 Padam zip 1.7.2 dan 1.7.3
+- [x] 3.1 AGENTS.md: 42→47 suite, Status Semasa ditulis semula, pitfall 49–53
+- [x] 3.2 Padam zip 1.7.2 dan 1.7.3 (~890 MB; boleh dibina semula dari tag)
 - [ ] 3.3 `.audit_scan.sh` — commit atau padam
 
 ## Fasa 4 — bug + build → 1.7.5
@@ -26,6 +31,9 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [ ] 4.4 Buang `torch` daripada build (Whisper masih berfungsi)
 - [ ] 4.5 Pin versi + SHA-256 ffmpeg/yt-dlp
 - [ ] 4.6 Gate x2, build, E2E, tag v1.7.5
+- [ ] 4.8 Editor: kemas kini label senarai semasa menaip
+- [ ] 4.7 (keputusan pemilik) Cue >20 patah: pecah jadi dua cue berturut, atau biar
+  dan harap pada jeda naratif?
 
 ## Fasa 5 — ciri baharu (tanya pemilik dahulu)
 - [ ] 5.1 Profil suara (enjin + suara + kelajuan)

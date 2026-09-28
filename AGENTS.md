@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 42 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 47 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 42 suite; run_gate.bat = semua
+tests/                           — 47 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -364,6 +364,36 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    ditandatangani NV Access Limited melalui GlobalSign. Ia tidak
    digunakan oleh mana-mana kod; pemilik meletakkannya 23 Sep 2026.
 
+49. **Tetingkap konsol HANYA muncul dalam build beku.** Exe `--windowed`
+   tiada konsol, jadi Windows beri SETIAP anak (ffmpeg, ffprobe, yt-dlp)
+   tetingkap konsol baharu yang merampas fokus — NVDA sebut "terminal"
+   dan baca laluan ffmpeg di tengah kerja (larian sebenar, 28 Sep 2026,
+   video 15 minit). Dari source anak berkongsi konsol python.exe, jadi
+   TIADA test pernah nampak. `core/no_console.install()` (dipanggil awal
+   dalam `main.py`) jadikan `CREATE_NO_WINDOW` lalai; `test_no_console`
+   buktikan dengan induk `pythonw`. **Uji exe dalam `dist/`, bukan src.**
+50. **SEMUA `SettingsStore` dalam satu proses KONGSI satu keadaan**
+   (ikut laluan fail) sejak v1.7.4. Sebelum itu player cipta store
+   sendiri lalu tulis snapshot lama — kunci yang baru disimpan dalam
+   Settings hilang. Simpanan kini atomik (tmp + `os.replace`); fail
+   rosak diasingkan jadi `settings.json.corrupt-<masa>`, BUKAN ditimpa;
+   blob kunci yang DPAPI tak dapat buka DISIMPAN, bukan dibuang.
+   Jangan kembalikan fallback XOR di Windows.
+51. **Kunci API TIDAK BOLEH dalam URL.** Gemini dahulu guna `?key=`;
+   halaman ralat HTML 503 buat `resp.json()` lempar ralat yang memuatkan
+   URL penuh — kunci masuk log DAN disimpan sebagai "penerangan".
+   Guna pengepala `x-goog-api-key`; `_http_json` semak status sebelum
+   decode dan ulang cuba 429/5xx.
+52. **Susun bingkai ikut NOMBOR, bukan teks.** `frame_%04d.jpg` melepasi
+   9999 jadi `frame_10000.jpg`, yang tersusun antara 1000 dan 1001 —
+   setiap bingkai selepasnya dapat masa salah (10 fps, video >16:40).
+53. **`SetLabel()` pada `wx.Slider` TIDAK sampai ke NVDA** — didengar
+   "slider 0". Windows namakan trackbar ikut StaticText yang DICIPTA
+   SEJURUS sebelumnya. `tools/nvda_window_check.py --window
+   player|editor|ask` semak tetingkap selain tetingkap utama; dialog wx
+   berada DI BAWAH pemiliknya dalam pepohon UIA, jadi ia dicari ikut
+   handle Win32.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -411,13 +441,16 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 - **Versi:** 1.7.4 (tag `v1.7.4`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`). Gate: 47 suite dalam `run_gate.bat`.
-- Provider aktif: GLM/OpenRouter sahaja untuk GUI; GLM + Gemini + MiniMax
-  full-video mode tersedia
-- 33 test suite, semua PASS (test_fixes19 = audit fix regression suite;
-  test_fixes20 = ghost progress dialog, dedupe label API, isolasi settings;
-  test_fixes21 = SETIAP handler tetingkap utama + editor ditekan sungguh)
-- E2E GUI sebenar (`tools/e2e_gui_phase.py`) PASS dengan GLM sebenar:
-  12 cue, progress live, export SRT, exit bersih
-- Tiada bug terbuka
+- Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
+  `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
+  MiniMax, custom. Hanya Gemini MENDENGAR audio video.
+- Gate 47 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
+  Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
+  perangai model, pitfall 14).
+- NVDA disemak dengan mendengar: tetingkap utama, player, editor,
+  Ask More (`tools/nvda_window_check.py`).
+- Senarai kerja terbuka: `doc/senarai-semak-v1.7.5.md` (JANGAN tulis
+  "tiada bug terbuka" di sini — senarai itu sumbernya).
 - wxPython Phoenix: `MenuBar.SetLabelTop` TIDAK wujud — guna
   `menubar.GetMenu(i).SetTitle(...)`

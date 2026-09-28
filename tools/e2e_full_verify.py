@@ -394,12 +394,14 @@ def main() -> int:
                 # still be here. A second cleanup used to delete it at
                 # the end of every job in full-video mode.
                 cached = list(media.glob("upload_*.mp4"))
-                # Only GLM compresses before upload; Gemini sends the
-                # original file, so there is no copy to survive.
+                # Only GLM compresses before upload, and only a file over
+                # its 50 MB limit (smaller ones are sent or split as they
+                # are); Gemini sends the original. Otherwise there is no
+                # copy to survive.
                 settings = json.loads((config_dir / "settings.json")
                                       .read_text(encoding="utf-8"))
                 provider = settings.get("ai", {}).get("default_provider")
-                if provider == "glm":
+                if provider == "glm" and clip.stat().st_size > 50 * 1024 * 1024:
                     record("the compressed upload copy survived the job",
                            bool(cached),
                            f"{cached[0].name} "
