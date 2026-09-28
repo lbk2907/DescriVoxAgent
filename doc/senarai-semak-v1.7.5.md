@@ -76,4 +76,5 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 7.8 DITEMUI dengan mendengar exe: menu File dibuka pada "File" (Settings tidak boleh dicapai
       dengan papan kekunci) dan Help pada "Help" — `Menu.SetTitle` menimpa item pertama di Windows.
       Dibaiki dengan `SetMenuLabel`; ujian menu native gagal tanpa pembaikan, lulus dengannya
-- [ ] 7.7 Gate x2 (NVDA senyap), build, E2E, tag v1.7.7
+- [x] 7.7 Gate 50 suite x2 GATE_ALL_PASS; build 1.7.7 BUILD_ALL_OK; exe didengar melalui NVDA:
+      File → "Settings... s", Help → "Check for Updates... u" → dialog dibuka dan dibaca
