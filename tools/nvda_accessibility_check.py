@@ -119,7 +119,7 @@ def walk_controls(win, steps: int) -> list[dict]:
         spoken = speech_since(marker)
         seen.append({
             "step": index + 1,
-            "name": obj.get("name", ""),
+            "name": obj.get("name") or "",
             "role": (obj.get("role") or {}).get("display", ""),
             "spoken": spoken,
         })

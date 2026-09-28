@@ -275,7 +275,8 @@ class PlayerWindow(wx.Frame):
         panel.SetSizer(sizer)
 
         # ── Video Area ─────────────────────────────────────────
-        self.video_panel = wx.Panel(panel, size=(854, 480), name="video_area")
+        self.video_panel = wx.Panel(panel, size=(854, 480),
+                                    name=t("player.video_area"))
         self.video_panel.SetBackgroundColour(wx.Colour(0, 0, 0))
         # v1.3.0: subtitle overlay for simulated playback (no VLC).
         self._sub_overlay = wx.StaticText(
@@ -341,6 +342,12 @@ class PlayerWindow(wx.Frame):
         # duration. The old position*10 scale only covered the first 100
         # seconds, so a 9-minute video could not be seeked beyond 1:40.
         self._slider_dur = max(0.1, float(self.project.video_duration or 0.0))
+        # v1.7.5: SetLabel below never reached NVDA — heard as "slider 0"
+        # (tools/nvda_window_check.py). Windows names a trackbar after the
+        # static text created just before it, so that label must exist
+        # and must be created first.
+        timeline_label = wx.StaticText(panel, label=t("player.timeline") + ":")
+        timeline_row.Add(timeline_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.position_slider = wx.Slider(panel, value=0, minValue=0, maxValue=1000,
                                          style=wx.SL_HORIZONTAL, name="timeline")
         # Accessible name for screen readers: without it NVDA/JAWS announce

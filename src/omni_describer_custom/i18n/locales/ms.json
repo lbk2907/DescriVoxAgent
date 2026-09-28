@@ -196,6 +196,7 @@
   "player.subtitle_failed": "Gagal memuatkan sari kata",
   "player.subtitle_no_entries": "Tiada entri sari kata dalam fail itu.",
   "player.subtitles_loaded": "Sari kata dimuatkan: {count}",
+  "player.video_area": "Gambar video",
   "player.timeline": "Kedudukan main balik",
   "player.title": "Pemain Video Berpenerangan",
   "player.tokens_used": "Token digunakan:",

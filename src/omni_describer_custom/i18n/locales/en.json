@@ -196,6 +196,7 @@
   "player.subtitle_failed": "Subtitle load failed",
   "player.subtitle_no_entries": "No subtitle entries found in that file.",
   "player.subtitles_loaded": "Subtitles loaded: {count}",
+  "player.video_area": "Video picture",
   "player.timeline": "Playback position",
   "player.title": "Described Video Player",
   "player.tokens_used": "Tokens used:",
