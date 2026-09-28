@@ -15,6 +15,18 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.8
+
+Housekeeping behind the scenes, found while checking 1.7.7:
+
+- Preset names now follow the app's language files, so a third language
+  added later keeps its presets out of the English and Malay lists.
+- The long-video tests make their own 10-minute clip instead of using a
+  project from your Documents folder.
+- The real-app test tools remove the project each run creates, so test
+  videos no longer pile up in your Open Project list; two of them had
+  been unable to read the project folders since 1.7.6 and are fixed.
+
 ## What's new in v1.7.7
 
 **Help > Check for Updates** keeps yt-dlp working when YouTube changes.

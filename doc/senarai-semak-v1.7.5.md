@@ -89,4 +89,6 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 8.4 Nama preset: awalan bahasa diambil daripada fail locale, bukan ("en_", "ms_");
       test_fixes41 gagal pada kod lama (preset `id_` dalam senarai English), lulus sekarang
 - [x] 8.5 Gate 51 suite x2 GATE_ALL_PASS
+- [x] 8.7 Build 1.7.8 BUILD_ALL_OK; exe didengar NVDA 10/10; E2E sebenar 14/14, projek
+      ujian 51 dibuang sendiri; tag v1.7.8
 - [ ] 8.6 (tidak dibuat — pilihan pemilik) ffmpeg dalam menu Semak Kemas Kini
