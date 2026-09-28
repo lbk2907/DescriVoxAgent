@@ -357,8 +357,13 @@ def main() -> int:
                    f'{first["start_time"]:.1f}s: {first["text"][:50]}')
             words = [len(d["text"].split()) for d in descriptions]
             longest = max(words)
-            record("cues stay within the spoken ceiling", longest <= 20,
-                   f"longest {longest} words (AD limit is 12, hard fail >20)")
+            # Owner's decision (28 Sep 2026): long cues are left as the
+            # model writes them; the narration hold covers them. Reported,
+            # not failed — models do not obey length requests (pitfall 14).
+            over = sum(1 for w in words if w > 20)
+            print(f"  [NOTE] cue length: longest {longest} words, "
+                  f"{over} of {len(words)} over 20 (AD guideline is 12)",
+                  flush=True)
         record("the project stored the video", bool(project.get("video_path")),
                Path(project.get("video_path", "")).name)
 

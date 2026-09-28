@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 47 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 48 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 47 suite; run_gate.bat = semua
+tests/                           — 48 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -439,12 +439,12 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.7.4 (tag `v1.7.4`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 47 suite dalam `run_gate.bat`.
+- **Versi:** 1.7.5 (tag `v1.7.5`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 48 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Hanya Gemini MENDENGAR audio video.
-- Gate 47 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- Gate 48 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
 - E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
   Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
   perangai model, pitfall 14).

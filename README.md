@@ -15,6 +15,25 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.5
+
+**Checked by listening, and ~365 MB smaller.**
+
+- **Every window heard through NVDA**, not just the main one. The
+  player's position slider said only "slider 0" and the video area read
+  out an internal name; both now say what they are. In the editor, the
+  list now speaks your edit as you type, not the old text.
+- **Cancel works during a long GLM request.** It used to wait for the
+  request to finish, which could take many minutes. In fast batch mode,
+  one failed batch now stops the others instead of leaving them running
+  and billing.
+- **Better picture for long videos split into parts.** Each part now
+  gets its full upload budget (Sintel: 171 → ~350 kbps).
+- **Smaller download.** The build no longer carries `torch` (365 MB),
+  which the app never used; local Whisper transcription still works.
+- **Verified tools.** ffmpeg and yt-dlp are pinned to exact releases and
+  checked against their published SHA-256 on every build.
+
 ## What's new in v1.7.4
 
 **A full audit, checked on a 15-minute film.** A real run of the shipped
