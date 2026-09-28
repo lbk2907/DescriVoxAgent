@@ -15,6 +15,17 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.7.7
+
+**Help > Check for Updates** keeps yt-dlp working when YouTube changes.
+It says which version is in use and whether a newer one exists, and
+installs it only if its SHA-256 matches the publisher's own checksum
+list and the program reports that version. The update is kept apart
+from the app (`%LOCALAPPDATA%\OmniDescriber\tools`), so **Use bundled
+version** always goes back. Once a week the app checks at start-up and
+only announces what it found. Verified against the real GitHub release:
+check, download, checksum, test, use and revert.
+
 ## What's new in v1.7.6
 
 **Projects you can recognise.** In File Explorer a project was only

@@ -298,6 +298,26 @@ contohnya "Sintel — 79 penerangan — 28/09/2026 11:30". Butang:
   kali seterusnya app dibuka.
 - **Buang** (Alt+A) — padam projek sepenuhnya, selepas pengesahan.
 
+## Semak Kemas Kini (menu Help)
+
+YouTube kerap berubah, dan yt-dlp (program yang memuat turun video)
+versi lama boleh berhenti berfungsi. **Help > Semak Kemas Kini...**
+memberitahu versi yt-dlp yang digunakan dan sama ada versi lebih
+baharu tersedia; hasilnya dibacakan terus.
+
+- **Kemas kini** (Alt+K) — muat turun versi baharu terus dari GitHub
+  rasmi yt-dlp. Ia dipasang HANYA jika cap jari (SHA-256) sepadan
+  dengan senarai rasmi penerbit dan program itu melaporkan versi yang
+  betul; jika tidak, tiada apa yang berubah.
+- **Guna versi asal** (Alt+A) — kembali ke yt-dlp yang dibekalkan
+  bersama app.
+
+Versi baharu disimpan dalam `%LOCALAPPDATA%\OmniDescriber\tools`;
+salinan asal app tidak pernah ditimpa. Sekali seminggu, semasa app
+dibuka, app menyemak secara senyap dan hanya **mengumumkan** jika ada
+kemas kini — tiada apa dimuat turun tanpa pilihan anda. Jika muat
+turun YouTube gagal, log akan mencadangkan menu ini.
+
 ## Pemain video berpenerangan
 
 - Pemain memaparkan tempoh sebenar video pada garis masa.

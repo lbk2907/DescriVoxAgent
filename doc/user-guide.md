@@ -273,6 +273,26 @@ gives the name, how many descriptions it has and the date, for example
   the app starts.
 - **Remove** (Alt+R): delete the project completely, after confirming.
 
+## Check for Updates (Help menu)
+
+YouTube changes often, and an older yt-dlp (the program that downloads
+videos) can stop working. **Help > Check for Updates...** says which
+yt-dlp is in use and whether a newer one exists; the result is read out
+at once.
+
+- **Update** (Alt+U): download the new version straight from yt-dlp's
+  official GitHub. It is installed ONLY if its fingerprint (SHA-256)
+  matches the publisher's official list and the program reports the
+  right version; otherwise nothing changes.
+- **Use bundled version** (Alt+B): go back to the yt-dlp shipped with
+  the app.
+
+The new version is kept in `%LOCALAPPDATA%\OmniDescriber\tools`; the
+app's own copy is never overwritten. Once a week, when the app opens,
+it checks quietly and only **announces** an update; nothing is
+downloaded unless you choose to. If a YouTube download fails, the log
+points to this menu.
+
 ## The described-video player
 
 - The player shows the real video duration on the timeline.

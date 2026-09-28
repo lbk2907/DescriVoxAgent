@@ -64,3 +64,13 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       cara mengukur akhir ucapan; ujian menapis ucapan sendiri ikut teks
 - [x] 6.10 Projek 27 dan 31 (Ocong) dihantar ke Recycle Bin atas arahan pemilik — folder projek kini
       kosong. test_fixes16 melangkau semakan video panjang (SKIP, bukan FAIL): 16/16 lulus
+
+## Fasa 7 — Semak Kemas Kini dalam app (v1.7.7, dipersetujui pemilik 28 Sep 2026)
+- [x] 7.1 `core/updater.py`: semak GitHub, muat turun, sahkan SHA-256 rasmi + versi, pasang di luar bundle
+- [x] 7.2 `find_tool` guna kemas kini hanya selagi hash sepadan; "Guna versi asal" kembali
+- [x] 7.3 Help > Semak Kemas Kini (BM/EN, NVDA: "Check again button Alt+c", hasil dibaca automatik)
+- [x] 7.4 Semakan mingguan semasa app dibuka — hanya mengumumkan
+- [x] 7.5 Petunjuk dalam log bila muat turun YouTube gagal
+- [x] 7.6 test_fixes40 7/7 (fail yt-dlp sebenar, tanpa rangkaian); ujian sebenar GitHub: semak,
+      muat turun, cap jari, uji, guna, kembali — semua berjaya (dalam folder sementara)
+- [ ] 7.7 Gate x2 (NVDA senyap), build, E2E, tag v1.7.7
