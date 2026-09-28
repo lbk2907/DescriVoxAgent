@@ -457,7 +457,7 @@ def is_placeholder_text(text: str) -> bool:
 # upload and processing had already been paid for.
 _TRANSIENT_STATUSES = (429, 500, 502, 503, 504)
 HTTP_RETRIES = 3
-HTTP_RETRY_BACKOFF_SECONDS = 3.0
+HTTP_RETRY_BACKOFF_SECONDS = 5.0
 
 
 class _TransientHTTPError(Exception):
@@ -522,7 +522,10 @@ async def _http_json(
             last = e
             if attempt >= HTTP_RETRIES:
                 break
-            wait = HTTP_RETRY_BACKOFF_SECONDS * attempt
+            # v1.8.2: 5 s then 15 s (was 3 s, 6 s). Gemini's "high demand"
+            # 503 outlasted the old waits on 29 Sep 2026 and whole jobs
+            # failed; the longer gap gives a busy service time to recover.
+            wait = HTTP_RETRY_BACKOFF_SECONDS * (3 ** (attempt - 1))
             logger.warning("%s: %s on attempt %d/%d; retrying in %.0fs",
                            label, str(e) or type(e).__name__,
                            attempt, HTTP_RETRIES, wait)
@@ -530,6 +533,16 @@ async def _http_json(
     raise RuntimeError(
         f"{label} request failed after {HTTP_RETRIES} attempts: "
         f"{str(last) or type(last).__name__}")
+
+
+def is_busy_error(message: str) -> bool:
+    """True for "the service is overloaded, try later" failures (429 /
+    503 / "high demand"), which the user can act on by waiting or by
+    picking another model -- unlike a bad key or a broken file."""
+    text = (message or "").lower()
+    return ("http 503" in text or "http 429" in text
+            or "high demand" in text or "overloaded" in text
+            or "rate limit" in text)
 
 
 def _gemini_text(data: dict) -> str:
@@ -1936,15 +1949,26 @@ class GLMProvider(AIProvider):
         self, path: Path,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> float:
-        """Return the video duration in seconds via ffmpeg decode.
+        """Return the video duration in seconds.
+
+        v1.8.2: container metadata first (ffprobe), longest of the file
+        and its streams. Decoding and reading ffmpeg's last "time=" was
+        the only method, and it depends on the ffmpeg build: for a clip
+        whose AUDIO ends early (60 s of video, 9.25 s of sound) one build
+        reported 60 s, another 9.25 s — and every cue after 9.2 s was
+        then dropped as "past the end". Decoding stays as the fallback,
+        limited to the video stream, for files without a duration.
 
         Cancellable via is_cancelled (v1.5.4): the decode pass can run
         for minutes on long videos.
         """
+        probed = self._ffprobe_duration(path)
+        if probed > 0:
+            return probed
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(
                 [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
-                 str(path), "-f", "null", "-"],
+                 str(path), "-map", "0:v:0?", "-f", "null", "-"],
                 is_cancelled, 900)
             best = 0.0
             for m in re.finditer(
@@ -1960,6 +1984,31 @@ class GLMProvider(AIProvider):
             raise
         except Exception as e:
             raise RuntimeError(f"ffmpeg duration probe failed: {e}") from e
+
+    @staticmethod
+    def _ffprobe_duration(path: Path) -> float:
+        """Longest of the container's and the streams' declared
+        durations, or 0.0 when none is declared (or ffprobe is absent)."""
+        import subprocess as _sp
+        from .tools import find_tool
+        try:
+            out = _sp.run(
+                [find_tool("ffprobe"), "-v", "error", "-show_entries",
+                 "format=duration:stream=codec_type,duration", "-of", "json",
+                 str(path)], capture_output=True, text=True, timeout=60)
+            data = json.loads(out.stdout or "{}")
+        except Exception:
+            return 0.0
+        values = [(data.get("format") or {}).get("duration")]
+        values += [s.get("duration") for s in data.get("streams") or []
+                   if s.get("codec_type") == "video"]
+        best = 0.0
+        for v in values:
+            try:
+                best = max(best, float(v))
+            except (TypeError, ValueError):
+                continue
+        return best
 
     def split_video_for_upload(
         self, path: Path, chunk_seconds: int,

@@ -50,7 +50,11 @@ def _bundle_dirs() -> list[Path]:
     if meipass:
         dirs.append(Path(meipass) / "bin")
     dirs += [
-        here.parent.parent.parent / "bin",   # repo layout: src/../bin
+        # v1.8.2: tools.py is src/omni_describer_custom/core/, so the
+        # repo's bin/ is FOUR levels up. This said three (src/bin), and
+        # a script run from any other folder silently used whatever
+        # ffmpeg was on PATH instead of the pinned one.
+        here.parent.parent.parent.parent / "bin",   # repo: <root>/bin
         here.parent.parent / "bin",
         Path(sys.executable).parent / "bin",  # next to the .exe
         Path.cwd() / "bin",
