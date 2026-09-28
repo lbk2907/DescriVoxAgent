@@ -67,9 +67,20 @@ async def _run_cancellable(coro, is_cancelled, poll: float = 0.5):
             raise RuntimeError("cancelled")
 
 
-def provider_hears_audio(provider: str) -> bool:
-    """True when this provider's video mode ingests the audio track."""
-    return (provider or "").strip().lower() in AUDIO_CAPABLE_PROVIDERS
+def provider_hears_audio(provider: str, model: str = "") -> bool:
+    """True when this provider's video mode ingests the audio track.
+
+    v1.8.1: per MODEL for OpenRouter ("glm"). GLM itself is deaf, but
+    Qwen3.8-Omni-Flash, MiMo and Gemini behind the same key hear the
+    soundtrack (probed 28 Sep 2026), so the provider alone cannot say.
+    """
+    provider = (provider or "").strip().lower()
+    if provider in AUDIO_CAPABLE_PROVIDERS:
+        return True
+    if provider == "glm" and model:
+        from .model_catalog import openrouter_model_hears_audio
+        return openrouter_model_hears_audio(model)
+    return False
 
 
 # Measured against OpenRouter + z-ai/glm-5.3-flash (probe, 2026-09): a
@@ -1405,6 +1416,9 @@ class GLMProvider(AIProvider):
         rejected.
         """
         path = Path(video_path)
+        # v1.8.1: a model that hears (Qwen/MiMo/Gemini via OpenRouter)
+        # keeps the soundtrack when the upload has to be compressed.
+        self._keep_audio = provider_hears_audio("glm", model or self.models[0])
         try:
             duration = self._probe_duration(path, is_cancelled=is_cancelled)
         except RuntimeError:
@@ -1771,6 +1785,10 @@ class GLMProvider(AIProvider):
             identity = path.name
         recipe = (f"{identity}:{target_bytes}:{self._UPLOAD_HEIGHT}"
                   f":{self._UPLOAD_FPS}")
+        if getattr(self, "_keep_audio", False):
+            # v1.8.1: a copy made for a deaf model has no soundtrack, so
+            # it must never be served to a model that hears.
+            recipe += ":audio"
         digest = hashlib.sha256(recipe.encode("utf-8")).hexdigest()[:16]
         return f"upload_{digest}.mp4"
 
@@ -1896,7 +1914,10 @@ class GLMProvider(AIProvider):
             # that is the difference between a 5-minute upload and a
             # 90-second one.
             "-vf", f"scale=-2:{self._UPLOAD_HEIGHT},fps={self._UPLOAD_FPS}",
-            "-an",
+            # v1.8.1: only a model that cannot hear loses the soundtrack;
+            # Qwen/MiMo/Gemini through OpenRouter are given it.
+            *(["-c:a", "aac", "-b:a", "48k", "-ac", "1"]
+              if getattr(self, "_keep_audio", False) else ["-an"]),
             "-c:v", "libx264", "-preset", "veryfast",
             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
             "-bufsize", f"{int(kbps * 2)}k",
@@ -2317,13 +2338,10 @@ async def fetch_openrouter_video_models(
             if resp.status != 200:
                 raise RuntimeError(f"catalog HTTP {resp.status}")
             data = await resp.json()
-    models: list[str] = []
-    for entry in data.get("data", []):
-        arch = entry.get("architecture") or {}
-        mods = arch.get("input_modalities") or []
-        if "video" in mods and entry.get("id"):
-            models.append(entry["id"])
-    return sorted(models)
+    # v1.8.1: filtered — no ":batch", routers or aliases (see
+    # core/model_catalog.py for what each of those did when tested).
+    from .model_catalog import parse_catalog
+    return sorted(row["id"] for row in parse_catalog(data))
 
 
 # Custom provider API format constants

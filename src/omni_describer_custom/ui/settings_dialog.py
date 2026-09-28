@@ -37,6 +37,9 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
     "glm": [
         "z-ai/glm-5.3-flash",
+        # v1.8.1: these also HEAR the video (probed 28 Sep 2026).
+        "qwen/qwen3.8-omni-flash",
+        "xiaomi/mimo-v2.6-flash",
     ],
     "custom": [],  # user provides their own
 }
@@ -159,6 +162,13 @@ class SettingsDialog(wx.Dialog):
             name="fetch_models")
         self.fetch_models_btn.Bind(wx.EVT_BUTTON, self._on_fetch_models)
         model_sizer.Add(self.fetch_models_btn, 0, wx.ALL, 5)
+
+        # v1.8.1: send the chosen model a 6-second clip and hear whether
+        # it really watches the video and hears its sound.
+        self.probe_model_btn = wx.Button(
+            panel, label=t("settings.probe_model"), name="probe_model")
+        self.probe_model_btn.Bind(wx.EVT_BUTTON, self._on_probe_model)
+        model_sizer.Add(self.probe_model_btn, 0, wx.ALL, 5)
 
         # Custom model text input (hidden by default)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
@@ -535,26 +545,23 @@ class SettingsDialog(wx.Dialog):
             self.custom_model_text.Hide()
             self.model_choice.Show()
             self.fetch_models_btn.Show()
+            self.probe_model_btn.Show()
             self.video_only_hint.Show()
             # Populate model list from presets (glm later swaps in the
             # video-capable catalog list when the user fetches).
-            self._model_catalog = list(PROVIDER_MODELS.get(provider, []))
-            self.model_choice.SetItems(self._model_catalog)
-            # Load existing config
+            rows = []
+            if provider == "glm":
+                # v1.8.1: the list fetched last time, kept between visits.
+                from ..core.model_catalog import load_cache
+                rows = load_cache()[0]
             prov_config = self.settings.get_ai_provider(provider)
-            if prov_config.get("model"):
-                if prov_config["model"] in self._model_catalog:
-                    self.model_choice.SetStringSelection(prov_config["model"])
-                else:
-                    # Keep a saved model reachable even if the preset
-                    # list no longer includes it.
-                    self.model_choice.Append(prov_config["model"])
-                    self.model_choice.SetStringSelection(prov_config["model"])
-            elif self._model_catalog:
-                self.model_choice.SetSelection(0)
+            self._fill_models(
+                rows or [{"id": m} for m in PROVIDER_MODELS.get(provider, [])],
+                prov_config.get("model", ""))
             # Video-only catalog filter + fetch button: OpenRouter only.
             is_openrouter = provider == "glm"
             self.fetch_models_btn.Enable(is_openrouter)
+            self.probe_model_btn.Enable(is_openrouter)
             self.video_only_hint.Show(is_openrouter)
             if prov_config.get("api_key"):
                 self.api_key_text.SetValue(prov_config["api_key"])
@@ -618,20 +625,15 @@ class SettingsDialog(wx.Dialog):
 
         def fetch():
             try:
-                from ..core.ai_engine import fetch_openrouter_video_models
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    models = loop.run_until_complete(
-                        fetch_openrouter_video_models())
-                finally:
-                    loop.close()
+                from ..core.model_catalog import fetch_catalog, save_cache
+                models = fetch_catalog()
                 if models:
+                    save_cache(models)
                     wx.CallAfter(self._apply_fetched_models, models)
                     wx.CallAfter(self._show_test_result,
                                  t("settings.fetch_models_ok",
-                                   count=len(models)))
+                                   count=len(models),
+                                   audio=sum(1 for m in models if m["audio"])))
                 else:
                     wx.CallAfter(self._show_test_result,
                                  t("settings.fetch_models_none"))
@@ -646,15 +648,82 @@ class SettingsDialog(wx.Dialog):
         threading.Thread(target=fetch, daemon=True).start()
 
     def _apply_fetched_models(self, models):
-        """Replace the dropdown content with fetched video models,
-        keeping the current selection reachable."""
-        self._model_catalog = list(models)
-        current = self.model_choice.GetStringSelection()
-        self.model_choice.SetItems(models)
-        if current in models:
-            self.model_choice.SetStringSelection(current)
+        """Replace the dropdown with fetched video models (rows from
+        core.model_catalog), keeping the current selection reachable."""
+        current = self._choice_value(self.model_choice)
+        self._fill_models(models, current)
+
+    def _model_label(self, row: dict) -> str:
+        """What NVDA reads for a model: name, whether it hears the
+        soundtrack, and its input price — not a bare id."""
+        if "name" not in row:
+            return row["id"]
+        if row.get("tested"):
+            hears = row.get("hears")
         else:
+            hears = row.get("audio")
+        return t("settings.model_label", name=row["name"],
+                 audio=t("settings.model_hears") if hears
+                 else t("settings.model_video_only"),
+                 price=f"{row.get('price_in', 0):.2f}")
+
+    def _fill_models(self, rows, selected: str) -> None:
+        ids = [r["id"] for r in rows]
+        if selected and selected not in ids:
+            # Keep a saved model reachable even if the list lacks it.
+            rows = list(rows) + [{"id": selected}]
+            ids.append(selected)
+        self._model_catalog = ids
+        self._set_choice_labels(self.model_choice,
+                                [(r["id"], self._model_label(r)) for r in rows])
+        if selected:
+            self.model_choice.SetSelection(ids.index(selected))
+        elif ids:
             self.model_choice.SetSelection(0)
+
+    def _on_probe_model(self, event):
+        """Send the chosen model a 6-second clip: does it see and hear?"""
+        provider = self._selected_provider()
+        model = self._choice_value(self.model_choice)
+        api_key = self.api_key_text.GetValue().strip()
+        if provider != "glm" or not model:
+            return
+        if not api_key:
+            self._show_test_result(t("settings.probe_needs_key"))
+            return
+        self.probe_model_btn.Disable()
+        self._show_test_result(t("settings.probing_model", model=model))
+
+        def work():
+            from ..core.model_catalog import probe_model, record_probe
+            result = probe_model(api_key, model)
+            record_probe(model, result)
+            wx.CallAfter(self._probe_done, model, result)
+
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+
+    def _probe_done(self, model, result) -> None:
+        if not self:
+            return
+        self.probe_model_btn.Enable()
+        if result["error"]:
+            text = t("settings.probe_error", model=model, error=result["error"])
+        elif not result["sees"]:
+            text = t("settings.probe_blind", model=model,
+                     answer=result["answer"][:80])
+        elif result["hears"]:
+            text = t("settings.probe_sees_hears", model=model)
+        elif result["hears"] is None:
+            text = t("settings.probe_sees_untested", model=model)
+        else:
+            text = t("settings.probe_sees_only", model=model)
+        self._show_test_result(text)
+        # The label now reflects what was measured, not the catalog.
+        from ..core.model_catalog import load_cache
+        rows = load_cache()[0]
+        if rows:
+            self._fill_models(rows, model)
 
     def _screen_reader_label(self) -> str:
         """Name the reader we actually found, not a generic label.
@@ -807,7 +876,7 @@ class SettingsDialog(wx.Dialog):
             self.settings.set_ai_provider("custom", config)
             self.settings.set("ai.default_provider", "custom")
         else:
-            model = self.model_choice.GetStringSelection()
+            model = self._choice_value(self.model_choice)
             api_key = self.api_key_text.GetValue().strip()
             config = self.settings.get_ai_provider(provider)
             config["api_key"] = api_key

@@ -749,7 +749,9 @@ class MainFrame(wx.Frame):
             from ..core.ai_engine import provider_hears_audio
 
             provider = self.settings.get("ai.default_provider", "gemini")
-            if not provider_hears_audio(provider):
+            model = (self.settings.get_ai_provider(provider) or {}).get(
+                "model", "")
+            if not provider_hears_audio(provider, model):
                 answer = wx.MessageBox(
                     t("preset.needs_audio", provider=provider),
                     t("settings.title"),

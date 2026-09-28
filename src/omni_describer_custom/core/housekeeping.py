@@ -40,6 +40,7 @@ _OUR_PREFIXES = (
     "odc_sub_",         # subtitle fetches from yt-dlp
     "odc_esub_",        # subtitles pulled out of a local file
     "odc_explorer_",    # frames written for the scene explorer
+    "odc_probe_",       # Settings > Test this model (v1.8.1)
 )
 
 # A day: long enough that a paused job, a slow download or a user who

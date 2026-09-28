@@ -228,7 +228,7 @@
   "settings.fetch_models": "Fetch models",
   "settings.fetch_models_error": "Error: {error}",
   "settings.fetch_models_none": "No video-capable models found.",
-  "settings.fetch_models_ok": "OK: {count} video models found.",
+  "settings.fetch_models_ok": "OK: {count} video models, {audio} of them also hear audio. Saved for next time.",
   "settings.fetching_models": "Fetching models...",
   "settings.format_anthropic": "Anthropic Messages",
   "settings.format_auto": "Auto-detect",
@@ -347,5 +347,16 @@
   "i18n.report_todo": "{language}: {count} lines still to translate.\n\nThey are saved, with the English text, in:\n{path}\n\nTranslate them, copy them into {code}.json in the same folder, then restart the app.\n\nOpen the folder now?",
   "i18n.report_complete": "{language}: every line is translated.\n\nYour own language files live in:\n{folder}\n\nOpen the folder now?",
   "i18n.report_english": "English is the language every other one is translated from.\n\nTo add a language, copy en.json from the app into this folder, rename it (for example id.json), translate the text on the right and restart the app:\n{folder}\n\nOpen the folder now?",
-  "i18n.report_log": "Translation report for {language}: {count} lines to translate ({path})"
+  "i18n.report_log": "Translation report for {language}: {count} lines to translate ({path})",
+  "settings.model_label": "{name} — {audio} — ${price} per million tokens",
+  "settings.model_hears": "watches and hears the video",
+  "settings.model_video_only": "watches only, uses a transcript",
+  "settings.probe_model": "&Test this model",
+  "settings.probe_needs_key": "Enter the OpenRouter API key first.",
+  "settings.probing_model": "Sending {model} a 6-second test video...",
+  "settings.probe_sees_hears": "{model} watches the video and hears its sound. Good for every preset.",
+  "settings.probe_sees_only": "{model} watches the video but does not hear it. Descriptions will use a transcript of the speech instead.",
+  "settings.probe_sees_untested": "{model} watches the video. Its hearing could not be tested (no Windows voice to record).",
+  "settings.probe_blind": "{model} did not describe the test video correctly (it answered: {answer}). Choose another model.",
+  "settings.probe_error": "{model} could not be tested: {error}"
 }

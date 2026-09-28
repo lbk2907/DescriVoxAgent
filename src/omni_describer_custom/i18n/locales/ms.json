@@ -228,7 +228,7 @@
   "settings.fetch_models": "Dapatkan model",
   "settings.fetch_models_error": "Ralat: {error}",
   "settings.fetch_models_none": "Tiada model yang menyokong video.",
-  "settings.fetch_models_ok": "OK: {count} model video dijumpai.",
+  "settings.fetch_models_ok": "OK: {count} model video, {audio} daripadanya juga mendengar audio. Disimpan untuk kali seterusnya.",
   "settings.fetching_models": "Mendapatkan model...",
   "settings.format_anthropic": "Pesanan Anthropic",
   "settings.format_auto": "Auto-kesan",
@@ -347,5 +347,16 @@
   "i18n.report_todo": "{language}: {count} baris masih perlu diterjemah.\n\nIa disimpan, bersama teks Inggeris, dalam:\n{path}\n\nTerjemahkannya, salin ke dalam {code}.json dalam folder yang sama, kemudian buka semula app.\n\nBuka folder itu sekarang?",
   "i18n.report_complete": "{language}: semua baris sudah diterjemah.\n\nFail bahasa anda sendiri disimpan dalam:\n{folder}\n\nBuka folder itu sekarang?",
   "i18n.report_english": "Bahasa Inggeris ialah bahasa sumber untuk semua terjemahan.\n\nUntuk menambah bahasa, salin en.json daripada app ke folder ini, tukar namanya (contohnya id.json), terjemah teks di sebelah kanan dan buka semula app:\n{folder}\n\nBuka folder itu sekarang?",
-  "i18n.report_log": "Laporan terjemahan untuk {language}: {count} baris perlu diterjemah ({path})"
+  "i18n.report_log": "Laporan terjemahan untuk {language}: {count} baris perlu diterjemah ({path})",
+  "settings.model_label": "{name} — {audio} — ${price} sejuta token",
+  "settings.model_hears": "menonton dan mendengar video",
+  "settings.model_video_only": "menonton sahaja, guna transkrip",
+  "settings.probe_model": "&Uji model ini",
+  "settings.probe_needs_key": "Masukkan kunci API OpenRouter dahulu.",
+  "settings.probing_model": "Menghantar video ujian 6 saat kepada {model}...",
+  "settings.probe_sees_hears": "{model} menonton video dan mendengar bunyinya. Sesuai untuk semua preset.",
+  "settings.probe_sees_only": "{model} menonton video tetapi tidak mendengarnya. Penerangan akan menggunakan transkrip pertuturan.",
+  "settings.probe_sees_untested": "{model} menonton video. Pendengarannya tidak dapat diuji (tiada suara Windows untuk dirakam).",
+  "settings.probe_blind": "{model} tidak menghuraikan video ujian dengan betul (jawapannya: {answer}). Pilih model lain.",
+  "settings.probe_error": "{model} tidak dapat diuji: {error}"
 }

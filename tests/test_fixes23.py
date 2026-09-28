@@ -633,7 +633,10 @@ def test_upload_encoding_drops_what_the_model_cannot_use():
     # are what matter, not which function holds them.
     start = src.index("def compress_video_for_upload")
     body = src[start:start + 8000]
-    assert '"-an",' in body, \
+    # v1.8.1: "-an" is now conditional: a model that hears (Qwen via
+    # OpenRouter) keeps the sound, and test_fixes44 checks both outputs
+    # with ffprobe. For a deaf model the audio must still be dropped.
+    assert '["-an"]' in body and "_keep_audio" in body, \
         "audio is being uploaded to a provider that cannot hear it"
     assert f"fps={GLMProvider._UPLOAD_FPS}" in body.replace(
         "self._UPLOAD_FPS", str(GLMProvider._UPLOAD_FPS)) or \
