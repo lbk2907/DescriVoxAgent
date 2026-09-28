@@ -58,6 +58,11 @@ _READER_PROCESSES: dict[str, tuple[str, ...]] = {
 }
 
 
+# How long a synthesiser may take to START speaking before a wait gives
+# up on it. Matches audio_meter.START_GRACE.
+START_GRACE_SECONDS = 1.5
+
+
 def _estimate_seconds(text: str) -> float:
     """How long to wait when nothing can say the sentence is over.
 
@@ -248,9 +253,14 @@ class PrismSpeech:
 
         if self._natively_reports:
             deadline = t0 + timeout
-            # Give the backend a moment to raise the flag before polling
-            # it, or a fast start looks like an instant finish.
-            time.sleep(0.05)
+            # Wait for the flag to go UP before waiting for it to go
+            # down, or a slow start looks like an instant finish. A fixed
+            # 0.05 s head start lost that race about 1 run in 10 (v1.7.6,
+            # test_fixes26: returned after 0.08 s) — the player would
+            # resume the video over the description.
+            start_by = min(deadline, time.monotonic() + START_GRACE_SECONDS)
+            while not self.speaking and time.monotonic() < start_by:
+                time.sleep(0.02)
             while self.speaking and time.monotonic() < deadline:
                 time.sleep(0.05)
             return True

@@ -61,6 +61,28 @@ def check(name, fn):
         fail_count += 1
 
 
+def _nvda_speech() -> list[dict]:
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:19281/v1/speech",
+                                    timeout=5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return data.get("items", data.get("data", {}).get("items", []))
+    except Exception:
+        return []   # no bridge: cannot tell, so treat every run as quiet
+
+
+def _nvda_mark() -> str:
+    items = _nvda_speech()
+    return items[-1].get("time", "") if items else ""
+
+
+def _nvda_other_speech(mark: str, own: str) -> list[str]:
+    """What NVDA said since `mark` that was not the test's own text."""
+    return [i.get("text", "") for i in _nvda_speech()
+            if i.get("time", "") > mark and own not in i.get("text", "")]
+
+
 def _in_subprocess(code: str, backend: str = "") -> dict:
     """Run a probe in a fresh interpreter.
 
@@ -178,7 +200,7 @@ def test_the_hold_waits_as_long_as_nvda_speaks():
     speech is really being detected. Measured when written: 3 words
     1.46 s, 32 words 5.14 s.
     """
-    result = _in_subprocess("""
+    probe = """
 import json, time
 from omni_describer_custom.core.speech import get_speech
 s = get_speech()
@@ -190,7 +212,23 @@ short = timed("Gate check. Short.")
 long_ = timed("Gate check. This is a much longer sentence that should keep "
               "the screen reader talking for several seconds before it stops.")
 print(json.dumps({"short": short, "long": long_}))
-""", backend="NVDA")
+"""
+    # The meter hears EVERYTHING NVDA says. Measured 28 Sep 2026: each
+    # failure of this check came while NVDA was also reading a game the
+    # owner was playing (up to 100 other utterances in one run); every
+    # quiet run passed. So measure until a run is quiet, and name the
+    # interference if none is.
+    noise: list[str] = []
+    for _attempt in range(5):
+        mark = _nvda_mark()
+        result = _in_subprocess(probe, backend="NVDA")
+        noise = _nvda_other_speech(mark, own="Gate check")
+        if not noise:
+            break
+    else:
+        raise AssertionError(
+            "could not measure: NVDA kept reading other things during all "
+            f"5 attempts (e.g. {noise[:3]}). Quiet the machine and rerun.")
     assert result["long"] > result["short"] + 1.0, (
         f"the wait did not grow with the text (short {result['short']:.2f}s, "
         f"long {result['long']:.2f}s) — the end of speech is not being "
