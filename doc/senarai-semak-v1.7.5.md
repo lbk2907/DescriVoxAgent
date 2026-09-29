@@ -114,7 +114,7 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 10.6 test_fixes43 7/7; pada kod lama 5/7 gagal
 - [x] 10.7 Gate 53 suite x2 GATE_ALL_PASS (NVDA senyap); build 1.8.0 BUILD_ALL_OK; Laporan
       Terjemahan didengar dalam exe dalam BM; tag v1.8.0
-- [ ] 10.8 (nota) Butang Yes/No dalam kotak mesej ikut bahasa Windows, bukan bahasa app
+- [x] 10.8 (nota) Butang Yes/No dalam kotak mesej ikut bahasa Windows, bukan bahasa app — selesai v1.8.2 (12.6)
 
 ## Fasa 11 — model OpenRouter yang boleh dipercayai + audio per model (v1.8.1)
 - [x] 11.1 Kajian: 4 model OpenRouter mendengar audio video (Qwen3.8-Omni-Flash, MiMo-v2.6-Flash,
