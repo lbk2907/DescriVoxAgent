@@ -2306,6 +2306,7 @@ class MainFrame(wx.Frame):
         self._set_dialog_phase_title(line)
         if dlg is not None:
             dlg.Pulse(line)
+            self._eta_last_line = line
         self.SetStatusText(line)
         if phase != "waiting":
             # A wait is announced by the first time-left tick, with
@@ -2392,7 +2393,14 @@ class MainFrame(wx.Frame):
         self._set_dialog_phase_title(phase, pct_i)
         if dlg is not None:
             try:
-                dlg.Update(pct_i, line)
+                # The text is set only when it CHANGES. Heard in the
+                # 1.8.4 run: with focus on the dialog itself, NVDA read
+                # the same two lines again every second for 20 seconds.
+                if line != getattr(self, "_eta_last_line", None):
+                    self._eta_last_line = line
+                    dlg.Update(pct_i, line)
+                else:
+                    dlg.Update(pct_i)
             except Exception:
                 logger.debug("eta tick dialog update failed", exc_info=True)
         self.SetStatusText(line.replace("\n", " "))

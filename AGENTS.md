@@ -504,6 +504,10 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `interrupt=False`, fasa berturut dalam 0.8 s digabung. **Fasa
    baharu = tambah ke `phase_keys`**; fasa tanpa kunci jatuh ke "AI
    sedang menonton" (dulu `encoding`/`parsing` begitu).
+   **Tulis teks dialog HANYA bila ia berubah.** Didengar dalam larian
+   1.8.4: bila fokus berada pada dialog itu sendiri, NVDA membaca teks
+   yang SAMA setiap saat selama 20 saat kerana `Update(pct, line)`
+   dipanggil setiap detik. `Update(pct)` tanpa teks bila tiada ubahan.
 66. **Muat naik GLM = satu badan JSON ~40 MB; `json=payload` tiada
    kemajuan.** `_chat(on_sent=...)` menstrim badan dalam cebisan 256 KB
    dengan `Content-Length` jelas (tanpanya aiohttp guna chunked).

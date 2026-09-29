@@ -211,8 +211,15 @@ def test_window_bar_and_speech():
         frame._video_status_tick("waiting")
         pump(1.2)
         assert len(spoken) == 1, f"the wait was said before its estimate: {spoken}"
+        dlg = frame._dl_dialog
+        real_update, updates = dlg.Update, []
+        dlg.Update = lambda *a: updates.append(a) or real_update(*a)
         frame._video_eta_tick(30.0, 200.0)
         frame._video_eta_tick(31.0, 199.0)
+        # Same words a second later: the bar moves, the text is left
+        # alone (NVDA re-read unchanged text every second, 1.8.4 run).
+        assert [len(a) for a in updates] == [2, 1], updates
+        dlg.Update = real_update
         pump(1.2)
         assert len(spoken) == 2 and spoken[1].startswith(t("video.phase_waiting")) \
             and t("video.eta_minutes", minutes=3) in spoken[1], spoken

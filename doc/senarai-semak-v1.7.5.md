@@ -160,3 +160,15 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 13.2 YouTube 403 tidak dicuba semula, ralat mentah Inggeris — dibaiki v1.8.3 (test_fixes47, pitfall 63)
 - [x] 13.3 Gate 57 x2 GATE_ALL_PASS; build 1.8.3 BUILD_ALL_OK; E2E exe 1.8.3 15/15: 81 cue, cue terakhir
       846 s / 888 s, jurang terluas 82 s, NVDA sebut "Processing complete! 81 descriptions generated."
+
+## Fasa 14 — kemajuan muat naik + NVDA (dilaporkan pemilik 29 Sep 2026, v1.8.4)
+- [x] 14.1 Bar 0% semasa muat naik GLM: badan distrim dengan kiraan bait; menunggu model dianggar
+      (core/timing_store: 60 s + nisbah dipelajari); masa tinggal dipaparkan
+- [x] 14.2 Peralihan fasa tidak dibaca NVDA: disebut melalui Prism, tidak memotong
+- [x] 14.3 "bahagian 1 daripada 2, 55%" sebelum apa-apa dihantar — kini 10%
+- [x] 14.4 Gate 58 x2; build 1.8.4; E2E exe 16/16: NVDA sebut "About 8 min left" pada 15:29,
+      kerja siap 15:37 (anggaran tepat); 98 cue, liputan 882/888 s
+- [x] 14.5 DITEMUI semasa mendengar: fokus pada dialog -> NVDA ulang teks sama setiap saat 20 s.
+      Dibaiki (teks hanya bila berubah); test_fixes48 menangkapnya
+- [ ] 14.6 Gate x2 + build + dengar semula selepas 14.5 (perlu PC dibiarkan)
+
