@@ -548,7 +548,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter
   Qwen3.8-Omni-Flash / MiMo / Gemini (diuji 28 Sep 2026; per MODEL, v1.8.1).
-- Gate 56 suite, GATE_ALL_PASS (28 Sep 2026, dua kali berturut).
+- Gate 57 suite, GATE_ALL_PASS (29 Sep 2026, dua kali berturut).
+- E2E build beku 1.8.3, Sintel 15 minit, GLM: 15/15 (81 cue, liputan hingga 846/888 s).
 - E2E build beku dengan video 15 minit (Sintel) PASS pada 1.7.4:
   Gemini 15/15 (73 cue); GLM 2 bahagian 121 cue (5 cue >20 patah —
   perangai model, pitfall 14).

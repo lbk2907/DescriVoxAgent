@@ -23,7 +23,10 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
   what to do in your language, including updating yt-dlp from
   Help > Check for Updates, instead of showing the raw error.
 - A full 15-minute video was described end to end by the released app
-  (Sintel, 2 parts, 169 descriptions).
+  (Sintel, 2 parts): descriptions to 14:06 of 14:48 (the rest is
+  credits), and NVDA announced the finish. The same model gave 169
+  descriptions on one run and 81 on the next; the count is the
+  model's, not the app's.
 
 ## What's new in v1.8.2
 

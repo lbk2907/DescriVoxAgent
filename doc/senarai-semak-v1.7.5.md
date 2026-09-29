@@ -152,3 +152,11 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       pywinauto dihantar sebagai VK_PACKET (artifak ujian; guna vk_packet=False untuk huruf)
 - [ ] 12.8 (cadangan) Esc dalam kotak Ya/Tidak tidak menutupnya — tingkah laku standard Windows
       tanpa butang Batal; Alt+T memilih Tidak
+
+## Fasa 13 — ujian video panjang pada exe (dipersetujui pemilik 29 Sep 2026)
+- [x] 13.1 Sintel 888 s pada exe 1.8.2: 169 cue, 2 bahagian. Alat E2E: crash emoji (log cp1252),
+      "siap diumumkan" LULUS PALSU ("Indonesian" TeamTalk mengandungi "done"), tiada semakan liputan,
+      jangkaan salinan mampat salah untuk video yang dipecah — semua dibaiki (pitfall 64)
+- [x] 13.2 YouTube 403 tidak dicuba semula, ralat mentah Inggeris — dibaiki v1.8.3 (test_fixes47, pitfall 63)
+- [x] 13.3 Gate 57 x2 GATE_ALL_PASS; build 1.8.3 BUILD_ALL_OK; E2E exe 1.8.3 15/15: 81 cue, cue terakhir
+      846 s / 888 s, jurang terluas 82 s, NVDA sebut "Processing complete! 81 descriptions generated."
