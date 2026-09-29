@@ -170,5 +170,5 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       kerja siap 15:37 (anggaran tepat); 98 cue, liputan 882/888 s
 - [x] 14.5 DITEMUI semasa mendengar: fokus pada dialog -> NVDA ulang teks sama setiap saat 20 s.
       Dibaiki (teks hanya bila berubah); test_fixes48 menangkapnya
-- [ ] 14.6 Gate x2 + build + dengar semula selepas 14.5 (perlu PC dibiarkan)
+- [x] 14.6 Gate 58 x2; build 1.8.4; E2E klip 50 s 17/17: setiap fasa disebut SEKALI (transkrip, mampat, muat naik, "About 1 min left", membaca jawapan, siap)
 
