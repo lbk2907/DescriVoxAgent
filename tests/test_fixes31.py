@@ -120,13 +120,25 @@ def test_the_settings_actually_reach_whisper():
 def test_a_repeat_loop_is_dropped():
     """27 seconds of "Mememememe" scored 29.7 on a real run."""
     assert VideoProcessor._looks_hallucinated(
-        Seg("Mememememememememe", compression_ratio=29.7)) is True
+        Seg("Me" * 150, compression_ratio=29.7)) is True
 
 
 def test_real_speech_is_kept():
     for ratio in (1.7, 2.0, 2.3):
         assert VideoProcessor._looks_hallucinated(
             Seg("Kabar kamu gimana, Ocong?", compression_ratio=ratio)) is False, ratio
+
+
+def test_a_real_line_survives_its_windows_ratio():
+    """v1.8.5: faster-whisper gives every segment its 30 s WINDOW's
+    ratio. On Ocong the whole first window scored 2.79 because one
+    character says "Bra, bra, bra, bra", and all eight real lines in it
+    were dropped. The ratio is judged per line now."""
+    window = 2.79
+    for line in ("Kabar kamu gimana, Ocong?", "Aku kangen sama kamu, Ocong.",
+                 "Bra, bra, bra, bra, tolong, berhenti, talinya putus berhenti."):
+        assert VideoProcessor._looks_hallucinated(
+            Seg(line, compression_ratio=window)) is False, line
 
 
 def test_the_limit_is_whispers_own():
@@ -179,6 +191,7 @@ if __name__ == "__main__":
           test_the_settings_actually_reach_whisper)
     check("a repeat loop is dropped", test_a_repeat_loop_is_dropped)
     check("real speech is kept", test_real_speech_is_kept)
+    check("a real line survives its window's ratio", test_a_real_line_survives_its_windows_ratio)
     check("the limit is whisper's own", test_the_limit_is_whispers_own)
     check("a segment with no ratio is kept",
           test_a_segment_with_no_ratio_is_kept)

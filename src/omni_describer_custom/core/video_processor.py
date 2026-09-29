@@ -473,6 +473,12 @@ class VideoProcessor:
         args = [
             self.ytdlp,
             "-f", f"bv*[height<={max_height}]+ba/b",  # merge-capable; height cap keeps it fast
+            # v1.8.5: prefer H.264 + AAC. yt-dlp's own ranking picks AV1
+            # + Opus first (Big Buck Bunny: av01 1080p), and MiMo and
+            # Nemotron could not open it ("Failed to load video") while
+            # GLM, Qwen and Gemini could. H.264 is offered at the same
+            # height, so nothing is lost; other codecs stay the fallback.
+            "-S", "vcodec:h264,res,acodec:m4a",
             "--merge-output-format", "mp4",
             "-o", out_tmpl,
             "--no-playlist",
@@ -997,11 +1003,22 @@ class VideoProcessor:
         text on an English cooking video scored 1.8-1.9, well inside
         the normal range. The VAD filter is what handles that case, by
         never sending music to the model at all.
+
+        v1.8.5: the ratio is computed HERE, from this segment's own
+        text, with Whisper's formula. faster-whisper reports one ratio
+        per 30-second WINDOW and copies it onto every segment in it: on
+        the Ocong cartoon a character saying "Bra, bra, bra, bra" put the
+        whole first window at 2.79, and eight real lines ("Kabar kamu
+        gimana, Ocong?") were dropped with it — the transcript came out
+        empty, so a deaf model got no dialogue at all (found by the
+        model benchmark, 29 Sep 2026).
         """
-        try:
-            ratio = float(getattr(segment, "compression_ratio", 0.0) or 0.0)
-        except (TypeError, ValueError):
+        import zlib
+        text = str(getattr(segment, "text", "") or "").strip()
+        if not text:
             return False
+        data = text.encode("utf-8")
+        ratio = len(data) / len(zlib.compress(data))
         return ratio > WHISPER_COMPRESSION_LIMIT
 
     async def _whisper_transcribe(self, video_path: str) -> list[TranscriptSegment]:

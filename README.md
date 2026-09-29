@@ -15,6 +15,26 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.5
+
+**Found by comparing seven video models on five different clips**
+(`doc/perbandingan-model.md`).
+
+- **Speech in cartoons and dialogue was sometimes thrown away.** A
+  character repeating a sound ("Bra, bra, bra") made the transcriber's
+  hallucination check reject every real line around it — the Ocong
+  transcript came out empty, so GLM got no dialogue. Each line is now
+  judged on its own.
+- **YouTube downloads prefer H.264.** YouTube's default was AV1, which
+  some models (MiMo, Nemotron) cannot open. Same resolution.
+- Measured answer to "do models that hear describe better?": not in this
+  app. GLM (deaf, but given the transcript) was as accurate as any model
+  that hears; Gemini 3.1 Flash-Lite is the best of those that hear.
+- **Settings > AI (OpenRouter): the two measured best models come first
+  and are read as "Recommended: ..."** — GLM 5.3 Flash (still the
+  default) and Gemini 3.1 Flash-Lite. The old order put the two worst of
+  the seven at the top.
+
 ## What's new in v1.8.4
 
 **Reported by the owner after the long-video test.**

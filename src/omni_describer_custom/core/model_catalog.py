@@ -34,6 +34,21 @@ CATALOG_URL = "https://openrouter.ai/api/v1/models"
 CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 CACHE_NAME = "openrouter_models.json"
 
+# Measured best on the app's own engine: 7 models x 5 different clips,
+# every description checked against the frame at its time (29 Sep 2026,
+# doc/perbandingan-model.md). GLM is the default; Gemini 3.1 Flash-Lite
+# is the best of the models that hear. Listed first and marked in
+# Settings, because the plain "hears first, then cheapest" order put the
+# two WORST at the top: Nemotron (free; 3 of 8 runs failed) and Gemini
+# 2.5 Flash-Lite (heard nothing, invented actions).
+RECOMMENDED = ("z-ai/glm-5.3-flash", "google/gemini-3.1-flash-lite")
+
+
+def recommended_rank(model: str) -> int:
+    """Position among the recommended models; len(RECOMMENDED) if not one."""
+    return RECOMMENDED.index(model) if model in RECOMMENDED else len(RECOMMENDED)
+
+
 # Models known to hear a video's audio track, checked with the probe
 # (28 Sep 2026: all answered the spoken word). Used when no fetched
 # catalog is cached yet.
@@ -79,9 +94,11 @@ def _row(entry: dict) -> dict:
 
 
 def parse_catalog(data: dict) -> list[dict]:
-    """Usable video models, those that hear audio first, then cheapest."""
+    """Usable video models: recommended first, then those that hear
+    audio, then cheapest."""
     rows = [_row(e) for e in data.get("data", []) if _usable(e)]
-    rows.sort(key=lambda r: (not r["audio"], r["price_in"], r["id"]))
+    rows.sort(key=lambda r: (recommended_rank(r["id"]), not r["audio"],
+                             r["price_in"], r["id"]))
     return rows
 
 

@@ -172,3 +172,13 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       Dibaiki (teks hanya bila berubah); test_fixes48 menangkapnya
 - [x] 14.6 Gate 58 x2; build 1.8.4; E2E klip 50 s 17/17: setiap fasa disebut SEKALI (transkrip, mampat, muat naik, "About 1 min left", membaca jawapan, siap)
 
+## Fasa 15 — perbandingan model (diminta pemilik 29 Sep 2026, v1.8.5)
+- [x] 15.1 tools/model_bench.py: 5 klip berbeza + klip kebenaran; 7 model x 2 larian; $0.26
+- [x] 15.2 Keputusan: doc/perbandingan-model.md — mendengar tidak lebih tepat; GLM & Gemini 3.1 Flash-Lite terbaik
+- [x] 15.3 Transkrip Ocong kosong (nisbah per tetingkap) — dibaiki, test_fixes31
+- [x] 15.4 YouTube AV1 tidak boleh dibuka MiMo/Nemotron — utamakan H.264, test_fixes47
+- [x] 15.5 Gate 58 x2 GATE_ALL_PASS; build 1.8.5 (test_fixes14 dikemas kini untuk label "Recommended:")
+- [ ] 15.6 (cadangan) Fail tempatan AV1/HEVC ditukar ke H.264 sebelum dihantar
+- [ ] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings
+- [x] 15.8 Pemilik: GLM kekal lalai; GLM + Gemini 3.1 Flash-Lite disusun dahulu, dibaca "Disyorkan: ..." (test_fixes44)
+

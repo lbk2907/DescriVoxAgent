@@ -184,6 +184,35 @@ def test_compressed_upload_keeps_sound_only_for_a_model_that_hears():
     assert heard.name != deaf.name, "one cached copy served both models"
 
 
+def test_recommended_models_come_first_and_say_so():
+    """v1.8.5: measured (doc/perbandingan-model.md). The old order put
+    the two worst models of seven at the top of the list."""
+    from omni_describer_custom.i18n.strings import t
+    from omni_describer_custom.ui.settings_dialog import SettingsDialog
+    extra = {"data": CATALOG["data"] + [
+        {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+         "name": "Nemotron", "architecture": {"input_modalities":
+                                              ["text", "image", "video", "audio"]},
+         "pricing": {"prompt": "0", "completion": "0"}},
+        {"id": "google/gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite",
+         "architecture": {"input_modalities": ["text", "image", "video", "audio"]},
+         "pricing": {"prompt": "0.00000025", "completion": "0.0000015"}},
+        {"id": "z-ai/glm-5.3-flash", "name": "GLM 5.3 Flash",
+         "architecture": {"input_modalities": ["text", "image", "video"]},
+         "pricing": {"prompt": "0.00000015", "completion": "0.0000005"}},
+    ]}
+    ids = [r["id"] for r in mc.parse_catalog(extra)]
+    assert ids[:2] == ["z-ai/glm-5.3-flash", "google/gemini-3.1-flash-lite"], ids
+    label = SettingsDialog._model_label(None, {"id": "google/gemini-3.1-flash-lite",
+                                               "name": "Gemini 3.1 Flash Lite",
+                                               "audio": True, "price_in": 0.25})
+    assert label.startswith(t("settings.model_recommended", label="").strip()), label
+    assert "Gemini 3.1 Flash Lite" in label
+    plain = SettingsDialog._model_label(None, {"id": "x/y", "name": "Y",
+                                               "audio": False, "price_in": 1})
+    assert not plain.startswith(t("settings.model_recommended", label="").strip())
+
+
 def test_settings_labels_save_ids_and_offer_a_test():
     import wx
     app = wx.GetApp() or wx.App(False)
@@ -213,6 +242,8 @@ def main() -> int:
     check("the list drops what never works; hearing models first",
           test_list_drops_what_never_works_and_sorts_hearing_first)
     check("the list is kept between visits", test_list_is_kept_between_visits)
+    check("recommended models come first and say so",
+          test_recommended_models_come_first_and_say_so)
     check("hearing is per model; a test beats the catalog",
           test_hearing_is_per_model_and_a_test_beats_the_catalog)
     check("the probe judges seeing and hearing", test_probe_judges_seeing_and_hearing)

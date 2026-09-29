@@ -356,6 +356,7 @@
   "i18n.report_english": "Bahasa Inggeris ialah bahasa sumber untuk semua terjemahan.\n\nUntuk menambah bahasa, salin en.json daripada app ke folder ini, tukar namanya (contohnya id.json), terjemah teks di sebelah kanan dan buka semula app:\n{folder}\n\nBuka folder itu sekarang?",
   "i18n.report_log": "Laporan terjemahan untuk {language}: {count} baris perlu diterjemah ({path})",
   "settings.model_label": "{name} — {audio} — ${price} sejuta token",
+  "settings.model_recommended": "Disyorkan: {label}",
   "settings.model_hears": "menonton dan mendengar video",
   "settings.model_video_only": "menonton sahaja, guna transkrip",
   "settings.probe_model": "&Uji model ini",

@@ -200,11 +200,14 @@ def test_settings_glm_ui():
             assert dlg.provider_choice.GetItems(), "items must be non-empty"
             # model list contains the OpenRouter-prefixed id
             dlg.select_provider("glm")
-            assert "z-ai/glm-5.3-flash" in dlg.model_choice.GetItems(), \
+            # v1.8.5: the label may say "Recommended: ..." first; the
+            # id is still in it, and the VALUE saved is the bare id.
+            assert any("z-ai/glm-5.3-flash" in i
+                       for i in dlg.model_choice.GetItems()), \
                 dlg.model_choice.GetItems()
             # default selection comes from the store preset
-            assert dlg.model_choice.GetStringSelection() == \
-                "z-ai/glm-5.3-flash", dlg.model_choice.GetStringSelection()
+            assert dlg._choice_value(dlg.model_choice) == \
+                "z-ai/glm-5.3-flash", dlg._choice_value(dlg.model_choice)
             # persist selection + key
             store.set("ai.default_provider", "glm")
             store.set_ai_provider("glm", {
@@ -219,7 +222,7 @@ def test_settings_glm_ui():
             dlg.Destroy()
             dlg2 = SettingsDialog(frame, store)
             assert dlg2._selected_provider() == "glm"
-            assert dlg2.model_choice.GetStringSelection() == \
+            assert dlg2._choice_value(dlg2.model_choice) == \
                 "z-ai/glm-5.3-flash"
             dlg2.Destroy()
         finally:

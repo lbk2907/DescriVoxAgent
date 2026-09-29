@@ -516,6 +516,24 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    model dalam `timing.json`); bar tidak pernah melepasi 95% sesuatu
    bahagian atas tekaan. Nisbah "saat per saat" sahaja salah untuk klip
    pendek (50 s video = 80 s menunggu). `test_fixes48`.
+67. **faster-whisper memberi `compression_ratio` per TETINGKAP 30 s, bukan
+   per segmen.** Satu baris berulang ("Bra, bra, bra, bra") menaikkan
+   seluruh tetingkap ke 2.79 dan penapis membuang 8 ayat sebenar —
+   transkrip Ocong KOSONG, jadi GLM tiada dialog langsung (29 Sep 2026).
+   `_looks_hallucinated` kini mengira nisbah daripada teks segmen itu
+   sendiri (formula Whisper). `test_fixes31`.
+68. **Muat turun YouTube memilih AV1 + Opus secara lalai.** MiMo dan
+   Nemotron gagal ("Failed to load video"); GLM/Qwen/Gemini boleh.
+   `-S vcodec:h264,res,acodec:m4a` — H.264 pada ketinggian sama.
+   Fail TEMPATAN AV1/HEVC masih dihantar seadanya (belum ditukar).
+69. **Model yang mendengar TIDAK lebih tepat dalam app ini** — diukur
+   pada 7 model × 5 klip berbeza (`doc/perbandingan-model.md`,
+   `tools/model_bench.py`). App memberi transkrip kepada semua; AD
+   melarang menghurai audio; ketepatan = penglihatan. Katalog juga
+   salah: Gemini 2.5 Flash-Lite "mendengar" tetapi tidak dengar apa-apa.
+   `model_catalog.RECOMMENDED` (GLM 5.3 Flash, Gemini 3.1 Flash-Lite)
+   disusun dahulu dan dibaca "Disyorkan: ..." — tukar HANYA dengan
+   ukuran baharu daripada `model_bench.py`, bukan kerana katalog.
 
 ## Prosedur Biasa
 
@@ -562,7 +580,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.4 (tag `v1.8.4`; rumusan v1.5.4:
+- **Versi:** 1.8.5 (tag `v1.8.5`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`). Gate: 58 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),

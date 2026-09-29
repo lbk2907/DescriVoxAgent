@@ -37,6 +37,8 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
     "glm": [
         "z-ai/glm-5.3-flash",
+        # v1.8.5: the best of those that hear (doc/perbandingan-model.md).
+        "google/gemini-3.1-flash-lite",
         # v1.8.1: these also HEAR the video (probed 28 Sep 2026).
         "qwen/qwen3.8-omni-flash",
         "xiaomi/mimo-v2.6-flash",
@@ -663,18 +665,27 @@ class SettingsDialog(wx.Dialog):
     def _model_label(self, row: dict) -> str:
         """What NVDA reads for a model: name, whether it hears the
         soundtrack, and its input price — not a bare id."""
+        from ..core.model_catalog import RECOMMENDED
         if "name" not in row:
-            return row["id"]
-        if row.get("tested"):
-            hears = row.get("hears")
+            label = row["id"]
         else:
-            hears = row.get("audio")
-        return t("settings.model_label", name=row["name"],
-                 audio=t("settings.model_hears") if hears
-                 else t("settings.model_video_only"),
-                 price=f"{row.get('price_in', 0):.2f}")
+            if row.get("tested"):
+                hears = row.get("hears")
+            else:
+                hears = row.get("audio")
+            label = t("settings.model_label", name=row["name"],
+                      audio=t("settings.model_hears") if hears
+                      else t("settings.model_video_only"),
+                      price=f"{row.get('price_in', 0):.2f}")
+        # v1.8.5: said FIRST, so it is heard before the details.
+        if row["id"] in RECOMMENDED:
+            label = t("settings.model_recommended", label=label)
+        return label
 
     def _fill_models(self, rows, selected: str) -> None:
+        from ..core.model_catalog import recommended_rank
+        # A list cached by an older version is in the old order.
+        rows = sorted(rows, key=lambda r: recommended_rank(r["id"]))
         ids = [r["id"] for r in rows]
         if selected and selected not in ids:
             # Keep a saved model reachable even if the list lacks it.

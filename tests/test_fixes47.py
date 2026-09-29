@@ -103,6 +103,32 @@ def test_other_errors_are_not_retried():
     assert not vpm.is_forbidden_error(error)
 
 
+def test_downloads_prefer_h264():
+    """v1.8.5: yt-dlp's own ranking chose AV1 + Opus for Big Buck Bunny,
+    and two of seven models could not open it. The fake yt-dlp records
+    the arguments it was given."""
+    seen = {}
+    real_exec = asyncio.create_subprocess_exec
+
+    async def spy(*args, **kwargs):
+        seen["args"] = list(args)
+        tmpl = args[args.index("-o") + 1]
+        return await real_exec(sys.executable, "-c", _FAKE, tmpl, "0", "",
+                               **kwargs)
+    vpm.asyncio.create_subprocess_exec = spy
+    try:
+        vp = vpm.VideoProcessor(ffmpeg_path="ffmpeg", ytdlp_path="yt-dlp")
+        asyncio.run(vp.download_video("https://example.com/v",
+                                      tempfile.mkdtemp(prefix="odc_t47_")))
+    finally:
+        vpm.asyncio.create_subprocess_exec = real_exec
+    args = seen["args"]
+    assert "-S" in args, args
+    order = args[args.index("-S") + 1]
+    assert order.startswith("vcodec:h264"), order
+    assert args.index("-S") < args.index("--"), "the sort must come before the URL"
+
+
 def test_the_user_hears_what_to_do():
     from omni_describer_custom.i18n.strings import I18n, t
     source = (ROOT / "src" / "omni_describer_custom" / "ui" /
@@ -124,6 +150,8 @@ def main() -> int:
           test_a_lasting_403_gives_up_and_is_named)
     check("other download errors are not retried",
           test_other_errors_are_not_retried)
+    check("downloads prefer H.264 every model can open",
+          test_downloads_prefer_h264)
     check("the user hears what to do, in the app language",
           test_the_user_hears_what_to_do)
     failed = [n for n, ok in results if not ok]
