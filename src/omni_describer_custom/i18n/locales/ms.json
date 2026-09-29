@@ -363,5 +363,6 @@
   "explorer.objects_label": "Objek dalam bingkai ini:",
   "common.yes": "&Ya",
   "common.no": "&Tidak",
-  "error.ai_busy": "Perkhidmatan AI sedang sibuk (terlalu banyak permintaan). Tunggu beberapa minit dan cuba lagi, atau pilih model lain dalam Tetapan > AI."
+  "error.ai_busy": "Perkhidmatan AI sedang sibuk (terlalu banyak permintaan). Tunggu beberapa minit dan cuba lagi, atau pilih model lain dalam Tetapan > AI.",
+  "error.download_forbidden": "Laman video menolak muat turun (HTTP 403), walaupun selepas mencuba semula. Tunggu seminit dan cuba lagi. Jika berulang, guna Bantuan > Semak Kemas Kini untuk mengemas kini yt-dlp."
 }

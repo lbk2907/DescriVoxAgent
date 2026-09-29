@@ -60,6 +60,13 @@ WHISPER_DECODE: dict = {
 # Whisper's own threshold for "this text is a repeat loop".
 WHISPER_COMPRESSION_LIMIT = 2.4
 
+DOWNLOAD_ATTEMPTS = 3
+
+
+def is_forbidden_error(message: str) -> bool:
+    """True for yt-dlp's "HTTP Error 403" — worth a retry, then an update."""
+    return "HTTP Error 403" in str(message)
+
 
 class SourceError(RuntimeError):
     """Raised when a video source (URL or file) cannot be resolved/downloaded.
@@ -479,83 +486,95 @@ class VideoProcessor:
         if Path(self.ffmpeg).is_absolute():
             args += ["--ffmpeg-location", str(Path(self.ffmpeg).parent)]
         args += ["--", url]
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            err_lines: list[str] = []
-            phase = ["preparing"]
-            cancel_flag = [False]
-            timed_out = [False]
-
-            def _on_line(text: str, is_err: bool) -> None:
-                if is_err:
-                    err_lines.append(text)
-                    return
-                if text.startswith("[download] Destination:"):
-                    # First destination = video stream, second = audio stream
-                    phase[0] = "audio" if phase[0] == "video" else "video"
-                    return
-                if text.startswith("[Merger]"):
-                    phase[0] = "merge"
-                    return
-                p = self._parse_ytdlp_progress(text)
-                if p:
-                    p.phase = phase[0]
-                    try:
-                        if on_progress:
-                            on_progress(p)
-                    except Exception:
-                        logger.debug("on_progress callback raised", exc_info=True)
-
-            async def pump(stream, is_err: bool = False) -> None:
-                while True:
-                    line = await stream.readline()
-                    if not line:
-                        break
-                    text = line.decode("utf-8", errors="replace").strip()
-                    if text:
-                        _on_line(text, is_err)
-
-            def _kill() -> None:
-                try:
-                    proc.kill()
-                except ProcessLookupError:
-                    pass
-
-            task = asyncio.ensure_future(asyncio.gather(
-                pump(proc.stdout), pump(proc.stderr, True), proc.wait()))
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + 1800
+        # v1.8.3: YouTube answers 403 now and then for a stream URL that
+        # works on the next request (seen 29 Sep 2026: the first attempt
+        # failed, an immediate retry downloaded all 888 s). Retry that
+        # error only; the partial file in out_dir is resumed.
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
             try:
-                while not task.done():
-                    if is_cancelled is not None and is_cancelled():
-                        cancel_flag[0] = True
-                        _kill()
-                    if loop.time() > deadline:
-                        timed_out[0] = True
-                        _kill()
+                proc = await asyncio.create_subprocess_exec(
+                    *args,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                err_lines: list[str] = []
+                phase = ["preparing"]
+                cancel_flag = [False]
+                timed_out = [False]
+
+                def _on_line(text: str, is_err: bool) -> None:
+                    if is_err:
+                        err_lines.append(text)
+                        return
+                    if text.startswith("[download] Destination:"):
+                        # First destination = video stream, second = audio stream
+                        phase[0] = "audio" if phase[0] == "video" else "video"
+                        return
+                    if text.startswith("[Merger]"):
+                        phase[0] = "merge"
+                        return
+                    p = self._parse_ytdlp_progress(text)
+                    if p:
+                        p.phase = phase[0]
+                        try:
+                            if on_progress:
+                                on_progress(p)
+                        except Exception:
+                            logger.debug("on_progress callback raised", exc_info=True)
+
+                async def pump(stream, is_err: bool = False) -> None:
+                    while True:
+                        line = await stream.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace").strip()
+                        if text:
+                            _on_line(text, is_err)
+
+                def _kill() -> None:
                     try:
-                        await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
-                    except asyncio.TimeoutError:
+                        proc.kill()
+                    except ProcessLookupError:
                         pass
-                await task
+
+                task = asyncio.ensure_future(asyncio.gather(
+                    pump(proc.stdout), pump(proc.stderr, True), proc.wait()))
+                loop = asyncio.get_running_loop()
+                deadline = loop.time() + 1800
+                try:
+                    while not task.done():
+                        if is_cancelled is not None and is_cancelled():
+                            cancel_flag[0] = True
+                            _kill()
+                        if loop.time() > deadline:
+                            timed_out[0] = True
+                            _kill()
+                        try:
+                            await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+                        except asyncio.TimeoutError:
+                            pass
+                    await task
+                except Exception as e:
+                    raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
+                if cancel_flag[0]:
+                    raise SourceError(f"Download cancelled ({url})")
+                if timed_out[0]:
+                    raise SourceError(f"Download timed out after 30 minutes ({url})")
+                if proc.returncode != 0:
+                    msg = self._ytdlp_error_text(
+                        url, "\n".join(err_lines).encode("utf-8", "replace"))
+                    if is_forbidden_error(msg) and attempt < DOWNLOAD_ATTEMPTS:
+                        logger.warning("YouTube refused the download (attempt "
+                                       "%d of %d); trying again: %s",
+                                       attempt, DOWNLOAD_ATTEMPTS, msg)
+                        await asyncio.sleep(2.0 * attempt)
+                        continue
+                    raise SourceError(msg)
+                break
+            except SourceError:
+                raise
             except Exception as e:
                 raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
-            if cancel_flag[0]:
-                raise SourceError(f"Download cancelled ({url})")
-            if timed_out[0]:
-                raise SourceError(f"Download timed out after 30 minutes ({url})")
-            if proc.returncode != 0:
-                msg = self._ytdlp_error_text(
-                    url, "\n".join(err_lines).encode("utf-8", "replace"))
-                raise SourceError(msg)
-        except SourceError:
-            raise
-        except Exception as e:
-            raise SourceError(f"yt-dlp download failed ({url}): {e}") from e
         # v1.6.7: this used to be sorted(glob("video.*"))[0], which sorts
         # video.f616.mp4 BEFORE video.mp4 and so returned the video-only
         # stream — a silent video — whenever an intermediate survived.

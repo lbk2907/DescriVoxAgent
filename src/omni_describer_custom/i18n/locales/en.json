@@ -363,5 +363,6 @@
   "explorer.objects_label": "Objects in this frame:",
   "common.yes": "&Yes",
   "common.no": "&No",
-  "error.ai_busy": "The AI service is busy right now (too many requests). Wait a few minutes and try again, or choose another model in Settings > AI."
+  "error.ai_busy": "The AI service is busy right now (too many requests). Wait a few minutes and try again, or choose another model in Settings > AI.",
+  "error.download_forbidden": "The video site refused the download (HTTP 403), even after trying again. Wait a minute and try again. If it keeps happening, use Help > Check for Updates to update yt-dlp."
 }

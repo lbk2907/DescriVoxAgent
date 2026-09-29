@@ -2111,9 +2111,16 @@ class MainFrame(wx.Frame):
         except Exception as e:
             logger.error("Processing error: %s", e)
             from ..core.ai_engine import is_busy_error
+            from ..core.video_processor import is_forbidden_error
             # v1.8.2: a busy service ("HTTP 503: {...json...}") is told
             # in words, with what to do -- not as raw JSON.
-            shown = (t("error.ai_busy") if is_busy_error(str(e)) else str(e))
+            if is_busy_error(str(e)):
+                shown = t("error.ai_busy")
+            elif is_forbidden_error(str(e)):
+                # v1.8.3: YouTube still refused after the retries.
+                shown = t("error.download_forbidden")
+            else:
+                shown = str(e)
             wx.CallAfter(self._log, t("status.error", error=shown))
             wx.CallAfter(self.SetStatusText, t("status.error", error=shown))
             wx.CallAfter(self._close_download_progress)

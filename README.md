@@ -15,6 +15,16 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.3
+
+- **YouTube downloads** that are refused with "HTTP Error 403" are tried
+  again (up to three times, continuing the partial file). This error
+  often clears on the next attempt. If it doesn't, the app explains
+  what to do in your language, including updating yt-dlp from
+  Help > Check for Updates, instead of showing the raw error.
+- A full 15-minute video was described end to end by the released app
+  (Sintel, 2 parts, 169 descriptions).
+
 ## What's new in v1.8.2
 
 **Found by pressing every button with the keyboard and listening.**

@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 56 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 57 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 56 suite; run_gate.bat = semua
+tests/                           — 57 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -482,6 +482,20 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    (mendengar) hanya menghurai visual. Gemini 3.8 Flash paling terperinci
    tetapi kerap 503. Lalai pengguna baharu = OpenRouter/GLM. Jangan
    cadangkan model "kerana ia mendengar" tanpa ukur hasil sebenar.
+63. **YouTube kadang-kadang beri 403 yang hilang pada cubaan kedua.**
+   29 Sep 2026: yt-dlp gagal "HTTP Error 403: Forbidden", arahan sama
+   sesaat kemudian muat turun kesemua 888 s. `download_video` kini cuba
+   semula 403 SAHAJA (3 kali, fail separa disambung), kemudian
+   `error.download_forbidden` menyuruh tunggu / kemas kini yt-dlp.
+   Ralat lain (video peribadi, dsb.) TIDAK diulang. `test_fixes47`.
+64. **Semakan pertuturan E2E mesti padankan TEKS APP, bukan kata kunci.**
+   NVDA membaca semua program; bridge tidak memberitahu siapa yang
+   bercakap. "Indonesian" (notifikasi TeamTalk) mengandungi "done", lalu
+   "completion was announced" LULUS atas ucapan program lain.
+   `e2e_full_verify` kini padankan awalan `status.processing_complete`
+   setiap bahasa, dan menyemak liputan cue sepanjang video (pitfall 61).
+   Video lebih panjang daripada satu bahagian DIPECAH, bukan dimampat —
+   tiada salinan `upload_*.mp4` untuk dikekalkan dalam kes itu.
 
 ## Prosedur Biasa
 
@@ -528,8 +542,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.2 (tag `v1.8.2`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 56 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.3 (tag `v1.8.3`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 57 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

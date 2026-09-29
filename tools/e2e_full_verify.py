@@ -30,6 +30,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# NVDA can speak anything (emoji included); a log redirected to a file
+# is cp1252 on Windows and the first emoji killed a 15-minute run.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safe_keys  # noqa: E402  (guards every keystroke; import first)
 
@@ -65,6 +69,30 @@ def bridge_ready() -> tuple[bool, str]:
         return True, f"NVDA {nvda}"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+
+
+def _completion_prefixes() -> list[str]:
+    """The fixed start of the app's "processing complete" line, per language."""
+    prefixes = []
+    for f in (REPO / "src" / "omni_describer_custom" / "i18n" / "locales").glob("*.json"):
+        text = json.loads(f.read_text(encoding="utf-8")).get(
+            "status.processing_complete", "")
+        head = text.split("{")[0].strip()
+        if head:
+            prefixes.append(head)
+    return prefixes
+
+
+def _clip_seconds(clip: Path) -> float:
+    ffprobe = REPO / "bin" / "ffprobe.exe"
+    try:
+        out = subprocess.run(
+            [str(ffprobe), "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(clip)],
+            capture_output=True, text=True, timeout=60).stdout
+        return float(out.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0.0
 
 
 def speech_items() -> list[dict]:
@@ -364,6 +392,17 @@ def main() -> int:
                    f'{first["start_time"]:.1f}s: {first["text"][:50]}')
             words = [len(d["text"].split()) for d in descriptions]
             longest = max(words)
+            # The whole video must be described, not its first part.
+            # v1.8.2 changed how a part's length is measured; a wrong
+            # length silently drops every cue past it (pitfall 61).
+            length = _clip_seconds(clip)
+            starts = sorted(float(d["start_time"]) for d in descriptions)
+            edges = [0.0] + starts + [length]
+            gap = max(b - a for a, b in zip(edges, edges[1:]))
+            record("descriptions cover the whole video",
+                   length > 0 and starts[-1] >= length - 90 and gap <= 120,
+                   f"last cue {starts[-1]:.0f}s of {length:.0f}s, "
+                   f"widest gap {gap:.0f}s")
             # Owner's decision (28 Sep 2026): long cues are left as the
             # model writes them; the narration hold covers them. Reported,
             # not failed — models do not obey length requests (pitfall 14).
@@ -385,10 +424,12 @@ def main() -> int:
                f"{len(unique)} distinct announcements")
 
         # A blind user must hear that it finished, not discover it.
+        # Matched against the app's OWN completion text, in every
+        # language it ships. Keywords matched other programs: on 29 Sep
+        # 2026 "Indonesian" (TeamTalk, read by NVDA meanwhile) contains
+        # "done", and the check passed on speech that was not the app's.
         finished = [line for line in unique
-                    if any(word in line.lower()
-                           for word in ("complete", "done", "ready", "saved",
-                                        "descriptions", "siap", "selesai"))]
+                    if any(p in line for p in _completion_prefixes())]
         record("completion was announced, not silent", bool(finished),
                finished[-1][:60] if finished else "nothing said about the end")
 
@@ -415,7 +456,11 @@ def main() -> int:
                 settings = json.loads((config_dir / "settings.json")
                                       .read_text(encoding="utf-8"))
                 provider = settings.get("ai", {}).get("default_provider")
-                if provider == "glm" and clip.stat().st_size > 50 * 1024 * 1024:
+                # A video longer than one part is SPLIT, not compressed;
+                # split parts are temporary and there is no copy to keep.
+                chunk = float(settings.get("general", {}).get(
+                    "chunk_seconds", 600) or 600)
+                if provider == "glm" and clip.stat().st_size > 50 * 1024 * 1024                         and _clip_seconds(clip) <= chunk + 1.0:
                     record("the compressed upload copy survived the job",
                            bool(cached),
                            f"{cached[0].name} "
