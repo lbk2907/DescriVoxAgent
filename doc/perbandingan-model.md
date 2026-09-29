@@ -72,3 +72,38 @@ python tools/model_bench.py run --runs 2
 python tools/model_bench.py score
 python tools/model_bench.py frames --run 1
 ```
+
+## Pembaris ketepatan (Fasa 16.1, 29 Sep 2026)
+
+`python tools/model_bench.py measure` — model LAIN menilai setiap
+penerangan lawan 4 bingkai pada masanya (-0.5 s hingga +4 s): betul /
+separa / salah.
+
+**Dikalibrasi dahulu, dua kali:**
+
+| Set label | GLM sebagai penilai | Gemini 3.8 sebagai penilai |
+|---|---|---|
+| 99 label tangan (`tools/bench_labels.json`, disemak semula selepas penilai menunjukkan 10 label saya silap) | 12/13 salah dikesan, 0/63 tuduhan palsu | 13/13, 1/63 |
+| 30 label **buta** (`tools/bench_labels_blind.json`, dilabel SEBELUM penilai melihatnya) | 1/1, 0/20 tuduhan palsu | 0/1, 1/20 |
+
+Gemini 3.1 Flash-Lite ditolak sebagai penilai (12/67 tuduhan palsu).
+"Betul" lwn "separa" kabur walaupun antara manusia (~70% setuju) —
+**ukuran yang dipercayai ialah kadar SALAH.**
+
+**Keputusan pada semua 488 penerangan (2 larian × 5 klip), penilai GLM, kos $0.025:**
+
+| Model | Salah | Salah (penilai Gemini 3.8) |
+|---|---|---|
+| Qwen3.8-Omni | 7.2% | 24.6% |
+| **GLM 5.3 Flash** | 8.0% | **13.8%** |
+| Gemini 2.5 Flash-Lite | 11.0% | – |
+| Gemini 3.8 Flash | 11.7% | – |
+| Gemini 3.1 Flash-Lite | 14.5% | – |
+| Nemotron | 20.7% | – |
+| MiMo | 22.2% | – |
+
+Penilai berbeza ketegasan (Gemini lebih keras), jadi bandingkan model
+dengan penilai YANG SAMA. GLM tidak memihak dirinya: Gemini menilai GLM
+lebih baik daripada Qwen. **Asas untuk Fasa 3: kira-kira 1 dalam 10
+penerangan GLM salah atau tersasar masa.** Kos penilai GLM ~$0.00005
+setiap penerangan — cukup murah untuk pas semakan dalam app.

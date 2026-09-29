@@ -187,8 +187,9 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 Pemilik: dialog kurang penting; yang penting video dihurai TEPAT dan boleh dipercayai.
 Genre yang pemilik huraikan: drama/filem, kartun/animasi, berita/dokumentari, tutorial/ceramah (semua empat).
 Ukuran: betul (padan bingkai), masa, rekaan, tertinggal, konsisten antara larian (169 lwn 81).
-- [ ] 16.1 Fasa 1 — pemeriksa automatik: model LAIN menilai setiap penerangan lawan bingkai pada
-      masanya (ya/separa/tidak); dikalibrasi dengan ~100 label tangan 29 Sep dahulu
+- [x] 16.1 Fasa 1 — pembaris siap (`model_bench.py judge|measure`): penilai GLM dikalibrasi pada 99 label
+      tangan + 30 label buta (0/83 tuduhan palsu, 13/14 salah dikesan); GLM 8% salah (Gemini-judge 13.8%).
+      Keputusan dalam doc/perbandingan-model.md. Kos keseluruhan fasa ~$0.40
 - [ ] 16.2 Fasa 2 — asas lebih luas: 4 genre di atas + video panjang (sempadan bahagian);
       mod bingkai lwn mod video penuh
 - [ ] 16.3 Fasa 3 — baiki, simpan hanya yang menaikkan angka: pas semakan kedua (betulkan/buang/
