@@ -182,3 +182,17 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [ ] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings
 - [x] 15.8 Pemilik: GLM kekal lalai; GLM + Gemini 3.1 Flash-Lite disusun dahulu, dibaca "Disyorkan: ..." (test_fixes44)
 
+
+## Fasa 16 — ketepatan & kebolehpercayaan penerangan (DISIMPAN, tunggu pemilik — 29 Sep 2026)
+Pemilik: dialog kurang penting; yang penting video dihurai TEPAT dan boleh dipercayai.
+Genre yang pemilik huraikan: drama/filem, kartun/animasi, berita/dokumentari, tutorial/ceramah (semua empat).
+Ukuran: betul (padan bingkai), masa, rekaan, tertinggal, konsisten antara larian (169 lwn 81).
+- [ ] 16.1 Fasa 1 — pemeriksa automatik: model LAIN menilai setiap penerangan lawan bingkai pada
+      masanya (ya/separa/tidak); dikalibrasi dengan ~100 label tangan 29 Sep dahulu
+- [ ] 16.2 Fasa 2 — asas lebih luas: 4 genre di atas + video panjang (sempadan bahagian);
+      mod bingkai lwn mod video penuh
+- [ ] 16.3 Fasa 3 — baiki, simpan hanya yang menaikkan angka: pas semakan kedua (betulkan/buang/
+      alih masa), snap ke perubahan adegan (ffmpeg scene), suhu tetap untuk konsistensi,
+      semak jurang panjang untuk peristiwa tertinggal
+- [ ] 16.4 Fasa 4 — tetapan "Semak penerangan", NVDA, dokumen, gate
+Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diukur).
