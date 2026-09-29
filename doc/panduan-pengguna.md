@@ -245,6 +245,17 @@ Dalam mod video penuh, fasa ekstraksi/analisis frame diganti dengan
 video (pemprosesan)...", dan "AI sedang menulis penerangan..." —
 tiada frasa frame diumumkan kerana tiada frame terlibat.
 
+Sejak v1.8.4 (OpenRouter/GLM): bar kemajuan bergerak semasa video
+dihantar (ikut bait sebenar), kemudian semasa AI menonton, dengan
+anggaran masa ("Lebih kurang 4 minit lagi"). Anggaran itu dipelajari
+daripada kerja anda sebelum ini untuk model yang sama, jadi ia makin
+tepat selepas beberapa video. Jika AI mengambil masa lebih lama, app
+berkata "Lebih lama daripada biasa; masih berjalan" dan bukan mengira
+di bawah sifar. **Setiap peralihan fasa dan bahagian dibaca secara
+automatik oleh pembaca skrin** (contoh: "Bahagian 2 daripada 2. Memuat
+naik video..."), tanpa memotong apa yang sedang dibaca — anda tidak
+perlu menyemak dialog sendiri.
+
 ## Bagaimana pemprosesan berfungsi (dan kenapa)
 
 - **Video dimuat turun sekali sahaja.** Aplikasi tidak pernah "muat

@@ -15,6 +15,22 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.4
+
+**Reported by the owner after the long-video test.**
+
+- **The progress bar moves while a video is sent to the AI** (it sat at
+  0% with only a seconds counter). The upload is counted in bytes; the
+  AI's wait that follows is estimated from how long the same model took
+  on your earlier videos, with the time left: "About 4 min left".
+- **Every change of phase is spoken by your screen reader** ("Part 2 of
+  2. Uploading video...", "The AI is watching the video... About 3 min
+  left"). Before, the text changed in the dialog but NVDA said nothing,
+  because focus stays on Cancel.
+- Fixed: at the start of part 1 of 2 the app said "overall 55%".
+- "Preparing the video" and "Reading the AI's answer" are now named as
+  such; both used to say "The AI is watching the video".
+
 ## What's new in v1.8.3
 
 - **YouTube downloads** that are refused with "HTTP Error 403" are tried

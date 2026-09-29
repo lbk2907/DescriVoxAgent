@@ -348,14 +348,19 @@ def test_video_ticks_on_main_frame():
             assert visible(), "progress dialog never became visible"
             frame._video_part_tick(1, 2)
             assert visible(), "dialog auto-hidden before completion"
-            # part 1 of 2 -> overall 10 + 90*1/2 = 55 (the 99 cap only
-            # clamps values above 99, e.g. the 100% final tick).
+            # v1.8.4: part N STARTS here, so part 1 of 2 is overall
+            # 10 + 90*0/2 = 10 (it used to say 55 before sending
+            # anything), and part 2 of 2 is 55.
+            assert dlg.GetValue() == 10, dlg.GetValue()
+            assert "10%" in dlg.GetMessage(), dlg.GetMessage()
+            frame._video_part_tick(2, 2)
             assert dlg.GetValue() == 55, dlg.GetValue()
             assert "55%" in dlg.GetMessage(), dlg.GetMessage()
-            frame._video_part_tick(2, 2)
+            # The end of the job (overall 100) is capped at 99: Update(100)
+            # auto-hides the dialog while saving still runs.
+            frame._video_eta_tick(100.0, 0.0)
             assert visible(), "dialog auto-hidden at 100"
             assert dlg.GetValue() == 99, dlg.GetValue()
-            assert "100%" in dlg.GetMessage(), dlg.GetMessage()
             frame._video_split_tick(9.9)
             assert dlg.GetValue() == 9, dlg.GetValue()
             assert visible(), "dialog vanished after split tick"

@@ -217,6 +217,16 @@ AI provider: percent", "AI is watching the video (processing)...", and
 "AI is writing descriptions..." — no frame phrases are announced
 because no frames are involved.
 
+Since v1.8.4 (OpenRouter/GLM): the progress bar moves while the video
+is sent (by the actual bytes), then while the AI watches, with a time
+estimate ("About 4 min left"). The estimate is learned from your
+earlier jobs on the same model, so it improves after a few videos. If
+the AI takes longer, the app says "Taking longer than usual; still
+working" instead of counting below zero. **Every change of phase and
+part is read automatically by your screen reader** (for example "Part
+2 of 2. Uploading video..."), without interrupting what it is reading,
+so you do not need to check the dialog yourself.
+
 ## How processing works (and why)
 
 - **The video is downloaded only once.** The app never "downloads per

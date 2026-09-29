@@ -1637,6 +1637,9 @@ class MainFrame(wx.Frame):
                 def vsplit(pct: float) -> None:
                     wx.CallAfter(self._video_split_tick, pct)
 
+                def veta(pct: float, eta: float | None) -> None:
+                    wx.CallAfter(self._video_eta_tick, pct, eta)
+
                 # v1.6.1: say what this will cost BEFORE spending it. A
                 # run died mid-way with "HTTP 402: requires at least
                 # $1.00 in balance for video" — and the price was never
@@ -1696,6 +1699,7 @@ class MainFrame(wx.Frame):
                                 "general.preserve_resolution", False)),
                             on_status=vstatus, on_upload_progress=vprogress,
                             on_part=vpart, on_split_progress=vsplit,
+                            on_eta=veta,
                             chunk_seconds=int(self.settings.get(
                                 "general.chunk_seconds", 600) or 600),
                             is_cancelled=lambda: bool(
@@ -2281,6 +2285,12 @@ class MainFrame(wx.Frame):
             "splitting": "video.phase_splitting",
             "processing": "video.phase_processing",
             "describing": "video.phase_describing",
+            # v1.8.4: GLM's own steps. "encoding" and "parsing" used to
+            # fall through to "The AI is watching the video" while the
+            # app was still preparing the upload, or already done.
+            "encoding": "video.phase_encoding",
+            "waiting": "video.phase_waiting",
+            "parsing": "video.phase_parsing",
         }
         line = t(phase_keys.get(phase, "video.phase_processing"))
         # v1.6.4: three things had to change together here.
@@ -2297,6 +2307,95 @@ class MainFrame(wx.Frame):
         if dlg is not None:
             dlg.Pulse(line)
         self.SetStatusText(line)
+        if phase != "waiting":
+            # A wait is announced by the first time-left tick, with
+            # its estimate (see _video_eta_tick).
+            self._announce_progress(line)
+
+    def _announce_progress(self, text: str, part: bool = False) -> None:
+        """Say a change of phase through the user's screen reader.
+
+        v1.8.4: the progress dialog keeps focus on Cancel, and a screen
+        reader does not read text that changes away from the focus - the
+        owner had to go and look to learn that "uploading" had become
+        "the AI is watching". Prism speaks through NVDA (or SAPI when
+        there is no screen reader) without interrupting what is being
+        read. Phases that follow each other within 0.8 s collapse into
+        the last one; a "Part 2 of 3" line is kept in front of it.
+        """
+        if not text:
+            return
+        if part:
+            self._announce_part = text
+        else:
+            self._announce_pending = text
+        timer = getattr(self, "_announce_timer", None)
+        if timer is not None and timer.IsRunning():
+            timer.Stop()
+        self._announce_timer = wx.CallLater(800, self._announce_flush)
+
+    def _announce_flush(self) -> None:
+        text = " ".join(x for x in (getattr(self, "_announce_part", ""),
+                                    getattr(self, "_announce_pending", ""))
+                        if x)
+        self._announce_part = self._announce_pending = ""
+        if (not text or getattr(self, "_dl_done", False)
+                or text == getattr(self, "_announced_text", "")):
+            return
+        self._announced_text = text
+        self._speak_progress(text)
+
+    @staticmethod
+    def _speak_progress(text: str) -> None:
+        def speak() -> None:
+            try:
+                from ..core.speech import get_speech
+                get_speech().speak(text, interrupt=False)
+            except Exception:
+                logger.debug("progress announcement failed", exc_info=True)
+
+        threading.Thread(target=speak, daemon=True).start()
+
+    @staticmethod
+    def _eta_text(eta: float | None) -> str:
+        """Time left in words. None = past the estimate; <0 = unknown."""
+        if eta is None:
+            return t("video.eta_over")
+        if eta < 0:
+            return ""
+        if eta < 60:
+            return t("video.eta_under_minute")
+        return t("video.eta_minutes", minutes=max(1, int(round(eta / 60.0))))
+
+    def _video_eta_tick(self, pct: float, eta: float | None):
+        """v1.8.4: overall bar + time left while a part uploads and waits.
+
+        The bar used to sit at 0% for the whole upload and the model's
+        wait, with only a seconds counter moving.
+        """
+        if getattr(self, "_dl_done", False):
+            return
+        dlg = self._dl_dialog
+        self._last_progress_at = time.monotonic()
+        pct_i = min(99, max(1, int(pct)))
+        phase = getattr(self, "_hb_phase", "") or t("video.phase_processing")
+        line = phase
+        if phase == t("video.phase_waiting"):
+            left = self._eta_text(eta)
+            if left:
+                line = f"{phase}\n{left}"
+            # The wait is announced once, with its estimate, from here
+            # rather than from the phase change a second earlier.
+            if getattr(self, "_wait_said_for", None) != self._hb_start:
+                self._wait_said_for = self._hb_start
+                self._announce_progress(f"{phase} {left}".strip())
+        self._set_dialog_phase_title(phase, pct_i)
+        if dlg is not None:
+            try:
+                dlg.Update(pct_i, line)
+            except Exception:
+                logger.debug("eta tick dialog update failed", exc_info=True)
+        self.SetStatusText(line.replace("\n", " "))
 
     def _video_upload_tick(self, pct: float):
         """Full-video mode: upload progress percentage (UI thread).
@@ -2338,7 +2437,10 @@ class MainFrame(wx.Frame):
         percent; the dialog bar MOVES here instead of pulsing, and the
         same line is written to the status log for E2E verification.
         """
-        pct = 10.0 + 90.0 * part / max(1, total)
+        # v1.8.4: part N STARTS here, so the parts already finished are
+        # N-1. "part / total" announced "part 1 of 2, overall 55%" before
+        # the first part had even been sent.
+        pct = 10.0 + 90.0 * (part - 1) / max(1, total)
         dlg = self._dl_dialog
         line = t("video.part_progress", part=part, total=total, pct=int(pct))
         if dlg is not None:
@@ -2354,6 +2456,9 @@ class MainFrame(wx.Frame):
                 logger.debug("part tick dialog update failed", exc_info=True)
         self.SetStatusText(line)
         self._log(line)
+        if total > 1:
+            self._announce_progress(t("video.part_start", part=part,
+                                      total=total), part=True)
 
     def _write_project_srt(self) -> None:
         """v1.3.0: write descriptions.srt into the project media folder

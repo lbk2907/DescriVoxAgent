@@ -83,6 +83,16 @@ def _completion_prefixes() -> list[str]:
     return prefixes
 
 
+def _locale_texts(key: str) -> list[str]:
+    """One app text in every shipped language, without trailing dots."""
+    out = []
+    for f in (REPO / "src" / "omni_describer_custom" / "i18n" / "locales").glob("*.json"):
+        text = json.loads(f.read_text(encoding="utf-8")).get(key, "")
+        if text:
+            out.append(text.rstrip(". "))
+    return out
+
+
 def _clip_seconds(clip: Path) -> float:
     ffprobe = REPO / "bin" / "ffprobe.exe"
     try:
@@ -422,6 +432,13 @@ def main() -> int:
             print(f"    {line[:88]}", flush=True)
         record("NVDA narrated the work", len(unique) >= 3,
                f"{len(unique)} distinct announcements")
+        # v1.8.4: a change of phase must be SAID, not only shown in a
+        # dialog whose focus stays on Cancel (pitfall 65). The app's own
+        # "watching" line, in whichever language it runs.
+        watching = [line for line in unique
+                    if any(w in line for w in _locale_texts("video.phase_waiting"))]
+        record("NVDA announced the AI's wait by itself", bool(watching),
+               watching[0][:70] if watching else "never said")
 
         # A blind user must hear that it finished, not discover it.
         # Matched against the app's OWN completion text, in every

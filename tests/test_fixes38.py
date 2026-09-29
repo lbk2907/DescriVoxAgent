@@ -84,8 +84,11 @@ def test_uncancelled_request_returns_its_result():
 
 def test_glm_part_request_is_cancellable():
     src = Path(ai_engine.__file__).read_text(encoding="utf-8")
-    assert "_run_cancellable(\n            self._chat(payload, timeout=1800.0)" \
-        in src, "the long GLM part request is not wrapped for Cancel"
+    # Whitespace-free, so re-wrapping the call (v1.8.4 added on_sent)
+    # does not read as "unwrapped".
+    flat = "".join(src.split())
+    assert "_run_cancellable(self._chat(payload,timeout=1800.0" in flat, \
+        "the long GLM part request is not wrapped for Cancel"
 
 
 def test_failed_batch_cancels_its_siblings():

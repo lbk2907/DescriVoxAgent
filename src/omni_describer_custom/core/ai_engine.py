@@ -1294,20 +1294,52 @@ class GLMProvider(AIProvider):
     # point where description quality stopped improving.
     _UPLOAD_HEIGHT = 360
     _UPLOAD_FPS = 5
+    # Share of a part's progress bar given to the upload; the rest is
+    # the model's wait. Measured on Sintel: the upload was well under a
+    # tenth of each part's time.
+    UPLOAD_SHARE = 0.1
 
-    async def _chat(self, payload: dict, timeout: float) -> str:
+    # Bytes handed to the socket per step while streaming a request.
+    _SEND_CHUNK = 256 * 1024
+
+    async def _chat(self, payload: dict, timeout: float,
+                    on_sent: Callable[[float], None] | None = None) -> str:
+        """POST a chat request; with on_sent, report the share uploaded.
+
+        v1.8.4: a video part is ~40 MB of base64 in one JSON body, and
+        json=payload sends it with no way to tell how far it got - the
+        bar sat at 0% for the whole upload. The body is now streamed in
+        chunks with an explicit Content-Length (without it aiohttp falls
+        back to chunked transfer-encoding; see MiniMax _upload_video).
+        """
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        body = json.dumps(payload).encode("utf-8") if on_sent else None
+        if body is not None:
+            headers["Content-Length"] = str(len(body))
+        chunk = self._SEND_CHUNK
+
+        async def stream():
+            for start in range(0, len(body), chunk):
+                yield body[start:start + chunk]
+                try:
+                    on_sent(min(1.0, (start + chunk) / len(body)))
+                except Exception:
+                    logger.debug("on_sent raised", exc_info=True)
+
         last_error: Exception | None = None
         for attempt in range(1, self._NETWORK_RETRIES + 1):
             try:
                 async with aiohttp.ClientSession() as session:
+                    send = ({"data": stream()} if body is not None
+                            else {"json": payload})
                     async with session.post(
-                        url, json=payload, headers=headers,
+                        url, headers=headers,
                         timeout=aiohttp.ClientTimeout(total=timeout),
+                        **send,
                     ) as resp:
                         if resp.status in (429, 500, 502, 503, 504):
                             # Provider-side wobble: worth another go.
@@ -1417,6 +1449,7 @@ class GLMProvider(AIProvider):
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,
         preserve_resolution: bool = False,
+        on_eta: Callable[[float, float | None], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Upload a video file as base64 via OpenRouter video_url.
 
@@ -1498,6 +1531,28 @@ class GLMProvider(AIProvider):
             merged: list[tuple[float, str]] = []
             done_parts = 0
             prev_summary = ""
+            # v1.8.4: one bar for the whole job. Splitting is the first
+            # 10%, each part's share of the rest follows its length.
+            from . import timing_store
+            weights = ([max(1.0, x) for x in part_lens]
+                       if part_lens and all(x > 0 for x in part_lens)
+                       else [1.0] * total)
+            ratio = timing_store.ratio(f"{self.name}:{model or self.models[0]}")
+
+            def part_progress(i: int):
+                def cb(fraction: float, eta: float | None) -> None:
+                    done = sum(weights[:i]) + weights[i] * fraction
+                    overall = 10.0 + 90.0 * done / sum(weights)
+                    later = sum(timing_store.OVERHEAD_SECONDS + x * ratio
+                                for x in part_lens[i + 1:])
+                    if eta is not None and eta >= 0:
+                        eta += later
+                    try:
+                        on_eta(overall, eta)
+                    except Exception:
+                        logger.debug("on_eta raised", exc_info=True)
+                return cb
+
             for i, (part, offset) in enumerate(zip(parts, starts)):
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
@@ -1512,7 +1567,8 @@ class GLMProvider(AIProvider):
                     is_cancelled=is_cancelled, offset=offset,
                     part_index=i + 1, part_total=total,
                     prev_summary=prev_summary, transcript=transcript,
-                    part_seconds=part_len)
+                    part_seconds=part_len,
+                    on_part_progress=part_progress(i) if on_eta else None)
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -1580,6 +1636,7 @@ class GLMProvider(AIProvider):
         prev_summary: str = "",
         transcript: list | None = None,
         part_seconds: float = 0.0,
+        on_part_progress: Callable[[float, float | None], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Describe one video part and shift timestamps by offset.
 
@@ -1696,11 +1753,63 @@ class GLMProvider(AIProvider):
             raise RuntimeError("cancelled")
         if on_status:
             on_status("uploading")
-        # v1.7.5: Cancel is honoured DURING the request, not only
-        # between requests — one part may take 30 minutes (and GLM
-        # retries a timeout), so Cancel used to wait up to ~90 minutes.
-        text = await _run_cancellable(
-            self._chat(payload, timeout=1800.0), is_cancelled)
+        # v1.8.4: the part's progress is its upload (the first
+        # UPLOAD_SHARE, measured in bytes) and then the model's silent
+        # wait, estimated from what this model took before
+        # (core/timing_store). Never reported as finished on a guess.
+        import time as _time
+        from . import timing_store
+        timing_key = f"{self.name}:{model or self.models[0]}"
+        media = part_seconds or 0.0
+        expected = timing_store.expected_seconds(timing_key, media)
+        sent_at: list[float] = []
+
+        def report(fraction: float, eta: float | None) -> None:
+            if on_part_progress:
+                try:
+                    on_part_progress(fraction, eta)
+                except Exception:
+                    logger.debug("on_part_progress raised", exc_info=True)
+
+        def on_sent(share: float) -> None:
+            report(self.UPLOAD_SHARE * share, None)
+            if share >= 1.0 and not sent_at:
+                sent_at.append(_time.monotonic())
+                if on_status:
+                    on_status("waiting")
+
+        async def tick_wait() -> None:
+            while True:
+                await asyncio.sleep(1.0)
+                if not sent_at:
+                    continue
+                waited = _time.monotonic() - sent_at[0]
+                # eta: seconds left; None = past the estimate ("taking
+                # longer than usual"); -1 = no estimate (length unknown).
+                if expected > 0:
+                    share = min(0.95, waited / expected)
+                    eta = expected - waited if waited < expected else None
+                else:
+                    share, eta = 0.0, -1.0
+                report(self.UPLOAD_SHARE + (1 - self.UPLOAD_SHARE) * share,
+                       eta)
+
+        ticker = asyncio.ensure_future(tick_wait()) if on_part_progress else None
+        try:
+            # v1.7.5: Cancel is honoured DURING the request, not only
+            # between requests — one part may take 30 minutes (and GLM
+            # retries a timeout), so Cancel used to wait up to ~90 minutes.
+            text = await _run_cancellable(
+                self._chat(payload, timeout=1800.0,
+                           **({"on_sent": on_sent} if on_part_progress
+                              else {})),
+                is_cancelled)
+        finally:
+            if ticker is not None:
+                ticker.cancel()
+        if sent_at:
+            timing_store.record(timing_key, media,
+                                _time.monotonic() - sent_at[0])
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
@@ -2734,6 +2843,7 @@ class AIEngine:
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,
         preserve_resolution: bool = False,
+        on_eta: Callable[[float, float | None], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -2763,6 +2873,11 @@ class AIEngine:
                inspect.signature(fn).parameters else {}),
             **({"preserve_resolution": True}
                if preserve_resolution and "preserve_resolution" in
+               inspect.signature(fn).parameters else {}),
+            # v1.8.4: overall percentage + time left, where the provider
+            # can measure it (GLM/OpenRouter).
+            **({"on_eta": on_eta}
+               if on_eta and "on_eta" in
                inspect.signature(fn).parameters else {}),
         )
 

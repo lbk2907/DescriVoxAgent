@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 57 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 58 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 57 suite; run_gate.bat = semua
+tests/                           — 58 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -496,6 +496,22 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    setiap bahasa, dan menyemak liputan cue sepanjang video (pitfall 61).
    Video lebih panjang daripada satu bahagian DIPECAH, bukan dimampat —
    tiada salinan `upload_*.mp4` untuk dikekalkan dalam kes itu.
+65. **Teks yang berubah dalam dialog kemajuan TIDAK dibaca NVDA.** Fokus
+   kekal pada Cancel; pembaca skrin tidak membaca perubahan di luar
+   fokus. Pemilik terpaksa menyemak sendiri (29 Sep 2026). Peralihan
+   fasa kini disebut melalui Prism (`_announce_progress`, bukan
+   `speech.announce()` yang sengaja diam bila pembaca skrin ada),
+   `interrupt=False`, fasa berturut dalam 0.8 s digabung. **Fasa
+   baharu = tambah ke `phase_keys`**; fasa tanpa kunci jatuh ke "AI
+   sedang menonton" (dulu `encoding`/`parsing` begitu).
+66. **Muat naik GLM = satu badan JSON ~40 MB; `json=payload` tiada
+   kemajuan.** `_chat(on_sent=...)` menstrim badan dalam cebisan 256 KB
+   dengan `Content-Length` jelas (tanpanya aiohttp guna chunked).
+   Disahkan dengan OpenRouter sebenar. Menunggu model = anggaran
+   `core/timing_store` (overhead 60 s + nisbah per saat, dipelajari per
+   model dalam `timing.json`); bar tidak pernah melepasi 95% sesuatu
+   bahagian atas tekaan. Nisbah "saat per saat" sahaja salah untuk klip
+   pendek (50 s video = 80 s menunggu). `test_fixes48`.
 
 ## Prosedur Biasa
 
@@ -542,8 +558,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.3 (tag `v1.8.3`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 57 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.4 (tag `v1.8.4`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 58 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter
