@@ -247,6 +247,45 @@ def test_temp_folders_are_swept():
     assert "odc_agent_" in housekeeping._OUR_PREFIXES
 
 
+def test_check_all_gathers_one_list():
+    turns = [
+        # stretch 0-60: looks, proposes an edit, answers
+        turn(call("look_between", start=0, end=20)),
+        turn(call("propose_change", action="edit", index=0,
+                  text="Colour bars and a clock.", reason="bars")),
+        turn(content="One fix."),
+        # stretch 60-120: an edit with the SAME text is refused
+        turn(call("look_at", seconds=70)),
+        turn(call("propose_change", action="edit", index=2,
+                  text="A late line!", reason="same")),
+        turn(content="Nothing to change."),
+    ]
+    agent, script, _s, _st = make(turns)
+    agent.ctx.descriptions = [(2.0, "A test pattern."), (10.0, "A dragon."),
+                              (70.0, "A late line.")]
+    agent.ctx.length = 120.0
+    agent.messages.append({"role": "user", "content": "earlier question"})
+    progress = []
+    reply = asyncio.run(agent.check_all(on_progress=lambda n, t: progress.append((n, t))))
+    assert progress == [(1, 2), (2, 2)], progress
+    assert [(p.action, p.index) for p in reply.proposals] == [("edit", 0)], reply.proposals
+    assert agent.messages[-1]["content"] == "earlier question",         "the person's own conversation was replaced"
+    # every stretch started fresh: system prompt + one question
+    firsts = [p["messages"] for p in script.payloads]
+    assert all(m[0]["role"] == "system" for m in firsts)
+    assert "earlier question" not in json.dumps(firsts)
+    agent.close()
+
+
+def test_check_all_can_be_stopped():
+    agent, _sc, _s, _st = make([])
+    agent.ctx.length = 300.0
+    agent.ctx.descriptions = [(t, f"line {t}") for t in (10.0, 70.0, 130.0)]
+    reply = asyncio.run(agent.check_all(is_cancelled=lambda: True))
+    assert reply.error == "cancelled" and not reply.proposals
+    agent.close()
+
+
 def main() -> int:
     check("no proposal before looking", test_no_proposal_before_looking)
     check("the turn limit forces an answer", test_turn_limit_forces_an_answer)
@@ -257,6 +296,8 @@ def main() -> int:
           test_memory_keeps_words_not_old_pictures)
     check("tools answer from the project", test_tools_answer_from_the_project)
     check("Test agent mode judges behaviour", test_probe_judges_behaviour)
+    check("check the whole video gathers one list", test_check_all_gathers_one_list)
+    check("check the whole video can be stopped", test_check_all_can_be_stopped)
     check("temp folders are swept", test_temp_folders_are_swept)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

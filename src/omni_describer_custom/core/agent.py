@@ -355,6 +355,66 @@ class Agent:
             reply.error = str(e)[:300]
         return reply
 
+    async def check_all(self, window: float = 60.0,
+                        on_progress: Callable[[int, int], None] | None = None,
+                        is_cancelled: Callable[[], bool] | None = None,
+                        batch_cap: float = 0.05) -> Reply:
+        """Go through every description, one stretch of video at a time,
+        and gather ONE list of proposals (v1.9.1, owner's request).
+
+        Each stretch starts a fresh conversation (the person's own
+        session memory is left as it was, and requests stay small); the
+        same guards apply: look before proposing, answer at the turn
+        limit. Nothing is changed — the list is for the person to review.
+        """
+        total_reply = Reply()
+        descs = self.ctx.descriptions
+        if not descs:
+            return total_reply
+        end = max(self.ctx.length, descs[-1][0] + 1)
+        stretches = []
+        start = 0.0
+        while start < end:
+            inside = [i for i, (t, _x) in enumerate(descs)
+                      if start <= t < start + window]
+            if inside:
+                stretches.append((start, min(end, start + window), inside))
+            start += window
+        saved = self.messages
+        try:
+            for n, (s, e, inside) in enumerate(stretches, 1):
+                if is_cancelled and is_cancelled():
+                    total_reply.error = "cancelled"
+                    break
+                if on_progress:
+                    on_progress(n, len(stretches))
+                self.messages = [saved[0]]           # the system prompt only
+                self._looked = False
+                lines = "\n".join(f"[{i}] {descs[i][0]:.1f}s: {descs[i][1]}"
+                                   for i in inside)
+                self.messages.append({"role": "user", "content": (
+                    f"Check these descriptions between {s:.0f}s and {e:.0f}s "
+                    f"against the video. Look first. Propose only what is "
+                    f"CLEARLY wrong or clearly placed at another moment; "
+                    f"leave the rest.\n{lines}")})
+                reply = await self._loop(Reply(), batch_cap)
+                total_reply.cost += reply.cost
+                total_reply.proposals.extend(reply.proposals)
+                if reply.error and not total_reply.error:
+                    total_reply.error = reply.error
+        finally:
+            self.messages = saved
+            self._pending = None
+        # one proposal per description: the first one found wins
+        seen, unique = set(), []
+        for p in total_reply.proposals:
+            key = (p.action, p.index) if p.index is not None else (p.action, p.time)
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
+        total_reply.proposals = unique
+        return total_reply
+
     def _forget_old_images(self) -> None:
         """Keep words from earlier questions, drop their pictures: the
         whole conversation is sent with every request."""
@@ -531,6 +591,14 @@ class Agent:
             if _words(text) > PROPOSAL_WORD_LIMIT:
                 return (f"Refused: {_words(text)} words; keep it to "
                         f"{MAX_WORDS} or fewer.")
+            # Heard in the first whole-video check: an "edit" carrying the
+            # SAME text, next to a move of that description — a change
+            # that changes nothing, put in front of the person anyway.
+            def _norm(value: str) -> str:
+                return re.sub(r"\W+", " ", value).strip().lower()
+            if action == "edit" and _norm(text) == _norm(
+                    self.ctx.descriptions[index][1]):
+                return "Refused: the text is unchanged; use move to change the time."
         proposal = Proposal(action=action, reason=str(args.get("reason", ""))[:300],
                             index=index if isinstance(index, int) else None,
                             time=float(time) if isinstance(time, (int, float)) else None,

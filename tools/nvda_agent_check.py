@@ -10,7 +10,8 @@ Needs NVDA with the HTTP bridge, an OpenRouter key in Settings, and the
 bench clip tears_drama.mp4 (tools/model_bench.py make-clips). Costs a
 fraction of a cent. The owner must leave the PC alone while it runs.
 
-    python tools/nvda_agent_check.py
+    python tools/nvda_agent_check.py              # one question
+    python tools/nvda_agent_check.py --check-all  # Check the whole video
 """
 
 from __future__ import annotations
@@ -107,8 +108,13 @@ def main() -> int:
         time.sleep(3)
         print("After F2:", a11y.speech_since(mark))
         mark = a11y.speech_now()
-        send_keys(QUESTION, with_spaces=True, vk_packet=False, pause=0.02)
-        send_keys("{ENTER}")
+        if "--check-all" in sys.argv:
+            send_keys("%w")            # Check the whole video
+            time.sleep(2)
+            send_keys("{ENTER}")       # yes, go ahead (time and cost said)
+        else:
+            send_keys(QUESTION, with_spaces=True, vk_packet=False, pause=0.02)
+            send_keys("{ENTER}")
         heard: list[str] = []
         deadline = time.monotonic() + 150
         summary_seen = False
@@ -121,7 +127,8 @@ def main() -> int:
                 for line in new:
                     print("NVDA:", line[:160])
             if any("proposed" in h or "No changes" in h or "Agent:" in h
-                   for h in heard) and any("button" in h for h in heard[-3:]):
+                   or "checked" in h for h in heard) and any(
+                       "button" in h or "checked" in h for h in heard[-3:]):
                 summary_seen = True
                 break
         time.sleep(1)

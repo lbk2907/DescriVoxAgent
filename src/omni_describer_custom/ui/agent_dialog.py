@@ -72,9 +72,11 @@ class AgentDialog(wx.Dialog):
         sizer.Add(self.question, 0, wx.ALL | wx.EXPAND, 5)
         row = wx.BoxSizer(wx.HORIZONTAL)
         self.ask_btn = wx.Button(panel, label=t("agent.ask_btn"))
+        self.check_all_btn = wx.Button(panel, label=t("agent.check_all_btn"))
         self.undo_btn = wx.Button(panel, label=t("agent.undo_btn"))
         self.close_btn = wx.Button(panel, wx.ID_CLOSE, t("close"))
         row.Add(self.ask_btn, 0, wx.ALL, 5)
+        row.Add(self.check_all_btn, 0, wx.ALL, 5)
         row.Add(self.undo_btn, 0, wx.ALL, 5)
         row.AddStretchSpacer()
         row.Add(self.close_btn, 0, wx.ALL, 5)
@@ -85,6 +87,9 @@ class AgentDialog(wx.Dialog):
         self.question.Bind(wx.EVT_TEXT_ENTER, lambda e: self.submit())
         self.ask_btn.Bind(wx.EVT_BUTTON, lambda e: self.submit())
         self.undo_btn.Bind(wx.EVT_BUTTON, lambda e: self.undo())
+        self.check_all_btn.Bind(wx.EVT_BUTTON, lambda e: self.check_all())
+        self._checking = False
+        self._stop_check = False
         self.close_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CLOSE))
         self.SetEscapeId(wx.ID_CLOSE)
         for line in getattr(player, "_agent_transcript", []):
@@ -102,9 +107,11 @@ class AgentDialog(wx.Dialog):
         wx.CallAfter(self._status, text, True)
 
     def _status(self, text: str, say: bool) -> None:
+        # Spoken only. It used to go into the window title too, and when
+        # focus came back to the dialog NVDA read the step a second time
+        # ("Checking part 1 of 1 dialog"), heard in the v1.9.1 check.
         if not self:
             return
-        self.SetTitle(f"{t('agent.title')} — {text}")
         if say:
             speak(text)
 
@@ -146,6 +153,25 @@ class AgentDialog(wx.Dialog):
     def _done(self, reply) -> None:
         if not self:
             return
+        if self._checking:
+            self._checking = False
+            self.check_all_btn.SetLabel(t("agent.check_all_btn"))
+            self._busy = False
+            self.ask_btn.Enable()
+            self.SetTitle(t("agent.title"))
+            stopped = reply.error == "cancelled"
+            text = (t("agent.check_all_stopped", count=len(reply.proposals))
+                    if stopped else
+                    t("agent.check_all_done", count=len(reply.proposals),
+                      cost=f"{reply.cost:.3f}"))
+            if reply.error and not stopped:
+                text += " " + t("agent.error", error=reply.error)
+            self._append(text)
+            speak(text)
+            if reply.proposals:
+                self.decide(reply.proposals)
+            self.question.SetFocus()
+            return
         if reply.needs_confirmation:
             from .dialogs import ask_yes_no
             if ask_yes_no(self, t("agent.over_budget", cost=f"{reply.cost:.3f}"),
@@ -166,6 +192,39 @@ class AgentDialog(wx.Dialog):
         if reply.proposals:
             self.decide(reply.proposals)
         self.question.SetFocus()
+
+    # ── the whole video (v1.9.1) ─────────────────────────────────
+    def check_all(self) -> None:
+        """Ask first (time and cost), then go through every description;
+        pressing the same button again stops it."""
+        if self._checking:
+            self._stop_check = True
+            speak(t("agent.check_all_stopping"))
+            return
+        if self._busy:
+            return
+        count = len(self.agent.ctx.descriptions)
+        if not count:
+            speak(t("agent.check_all_nothing"))
+            return
+        stretches = max(1, int(self.agent.ctx.length // 60) + 1)
+        from .dialogs import ask_yes_no
+        if not ask_yes_no(self, t("agent.check_all_confirm", count=count,
+                                  minutes=max(1, round(stretches * 20 / 60)),
+                                  cost=f"{stretches * 0.004:.2f}"),
+                          t("agent.title")):
+            return
+        self._busy = self._checking = True
+        self._stop_check = False
+        self.ask_btn.Disable()
+        self.check_all_btn.SetLabel(t("agent.check_all_stop"))
+        self._append(t("agent.check_all_started", count=count))
+
+        def progress(n, total):
+            wx.CallAfter(self._status, t("agent.check_all_progress",
+                                         n=n, total=total), True)
+        self._run(lambda: self.agent.check_all(
+            on_progress=progress, is_cancelled=lambda: self._stop_check))
 
     # ── approving ────────────────────────────────────────────────
     def decide(self, proposals) -> int:

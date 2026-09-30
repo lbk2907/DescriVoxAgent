@@ -436,5 +436,14 @@
   "settings.agent_pass": "{model} lulus: ejen Player (F2) boleh digunakan dengannya.",
   "settings.agent_fail": "{model} tidak lulus: ia tidak menggunakan alat atau melihat video dengan betul. Player menawarkan Tanya Lagi sebagai ganti.",
   "settings.agent_error": "Tidak dapat menguji {model}: {error}",
-  "settings.agent_openrouter_only": "Ejen berfungsi dengan model OpenRouter."
+  "settings.agent_openrouter_only": "Ejen berfungsi dengan model OpenRouter.",
+  "agent.check_all_btn": "Semak &seluruh video",
+  "agent.check_all_stop": "&Henti semakan",
+  "agent.check_all_confirm": "Semak kesemua {count} penerangan dengan video? Kira-kira {minutes} minit dan kira-kira ${cost}. Anda menyemak setiap perubahan yang dicadangkan selepas itu.",
+  "agent.check_all_started": "Menyemak kesemua {count} penerangan...",
+  "agent.check_all_progress": "Menyemak bahagian {n} daripada {total}",
+  "agent.check_all_stopping": "Berhenti selepas bahagian ini...",
+  "agent.check_all_done": "Seluruh video disemak: {count} perubahan dicadangkan (kos ${cost}).",
+  "agent.check_all_stopped": "Dihentikan: {count} perubahan dicadangkan setakat ini.",
+  "agent.check_all_nothing": "Tiada penerangan untuk disemak."
 }

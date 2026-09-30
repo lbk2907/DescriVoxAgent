@@ -436,5 +436,14 @@
   "settings.agent_pass": "{model} passed: the Player agent (F2) is available with it.",
   "settings.agent_fail": "{model} did not pass: it did not use the tools or look at the video properly. The Player offers Ask More instead.",
   "settings.agent_error": "Could not test {model}: {error}",
-  "settings.agent_openrouter_only": "The agent works with OpenRouter models."
+  "settings.agent_openrouter_only": "The agent works with OpenRouter models.",
+  "agent.check_all_btn": "Check the &whole video",
+  "agent.check_all_stop": "&Stop checking",
+  "agent.check_all_confirm": "Check all {count} descriptions against the video? About {minutes} min and about ${cost}. You review every proposed change afterwards.",
+  "agent.check_all_started": "Checking all {count} descriptions...",
+  "agent.check_all_progress": "Checking part {n} of {total}",
+  "agent.check_all_stopping": "Stopping after this part...",
+  "agent.check_all_done": "Whole video checked: {count} changes proposed (cost ${cost}).",
+  "agent.check_all_stopped": "Stopped: {count} changes proposed so far.",
+  "agent.check_all_nothing": "There are no descriptions to check."
 }
