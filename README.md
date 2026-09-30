@@ -32,6 +32,23 @@ Gemini, MiniMax, OpenAI (frame mode) and any OpenAI-compatible endpoint.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.2
+
+- **Settings > AI is clearer.** The Custom provider's model box now has
+  a name ("Model name") for screen readers; the full-video checkbox is
+  now **Send the whole video to the AI (recommended)** and its hint says
+  what unticking does. Buttons that did nothing for Custom are greyed out.
+- **Test this model works for every provider**, replacing Test
+  Connection (which only asked the AI to say "OK"). Gemini and MiniMax
+  get a 6-second clip through the real upload path (does it see and
+  hear?); OpenAI and Custom get one picture.
+- **The Player agent (F2) works with your own Gemini key**, not only
+  OpenRouter. Pass **Test agent mode** once with the Gemini model.
+- **Gemini gives steadier results**: whole-video requests use
+  temperature 0. Measured: the same accuracy (14.7% → 14.2% wrong) and
+  half the difference between runs of the same video.
+- Gemini 3.1 Flash-Lite (recommended) added to the Gemini model list.
+
 ## What's new in v1.9.1
 
 - **More accurate and steadier descriptions** (OpenRouter models).
@@ -72,23 +89,6 @@ Player, and remembers character names for the project.
   ("No AI provider configured") unless a video had been processed in
   the same session. The AI is now set up when the app starts and after
   Settings.
-
-## What's new in v1.8.8
-
-- **The model you choose is the model that runs.** The model picked in
-  Settings was saved but never used for OpenRouter, Gemini or MiniMax:
-  every request asked for no model in particular, and the provider's
-  first built-in one answered. Choosing "Recommended: Gemini 3.1
-  Flash-Lite" still ran GLM. It now reaches every request.
-- **New: check descriptions against the video** (Settings, full-video
-  mode, **off** unless you turn it on). After the AI writes the
-  descriptions, each one is compared with the frames 20 seconds either
-  side: moved to where it really happens, or removed if it is nowhere
-  to be seen. Measured on two long films by an independent model:
-  wrong descriptions roughly halved (Tears of Steel 15 → 7). Adds a
-  few minutes per film and a very small cost. Choose Most accurate,
-  Most descriptions, Keep all (only fix timing), or Auto (Most accurate
-  for long videos, Keep all for short ones).
 
 ## Installing
 

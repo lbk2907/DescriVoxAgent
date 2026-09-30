@@ -1,3 +1,3 @@
 """Omni Describer Custom — accessible audio description tool."""
 
-__version__ = "1.9.1"
+__version__ = "1.9.2"

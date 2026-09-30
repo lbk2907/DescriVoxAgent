@@ -46,4 +46,5 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 20.6 Ejen Gemini terus: probe 3.1 Flash-Lite lulus (3 tool, betulkan BLUE→RED, $0.002);
       semak seluruh video 3 min Tears: 19 penerangan, 5 cadangan, ~$0.013. 3.8 Flash: 503 lalu 429 kuota
 - [x] 20.7 Suhu 0 Gemini: salah 14.7% → 14.2% (sama), beza larian 23 → 12 — DIGUNAKAN (pilihan pemilik)
-- [ ] 20.8 Gate x2, NVDA, build, tag v1.9.2
+- [x] 20.8a Gate 66 suite x2 GATE_ALL_PASS; NVDA Tab AI: Custom 9/9, OpenRouter 12/12, Gemini 10/10
+- [ ] 20.8b Build 1.9.2, exe NVDA, tag v1.9.2

@@ -2,6 +2,23 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.2
+
+- **Settings > AI is clearer.** The Custom provider's model box now has
+  a name ("Model name") for screen readers; the full-video checkbox is
+  now **Send the whole video to the AI (recommended)** and its hint says
+  what unticking does. Buttons that did nothing for Custom are greyed out.
+- **Test this model works for every provider**, replacing Test
+  Connection (which only asked the AI to say "OK"). Gemini and MiniMax
+  get a 6-second clip through the real upload path (does it see and
+  hear?); OpenAI and Custom get one picture.
+- **The Player agent (F2) works with your own Gemini key**, not only
+  OpenRouter. Pass **Test agent mode** once with the Gemini model.
+- **Gemini gives steadier results**: whole-video requests use
+  temperature 0. Measured: the same accuracy (14.7% → 14.2% wrong) and
+  half the difference between runs of the same video.
+- Gemini 3.1 Flash-Lite (recommended) added to the Gemini model list.
+
 ## What's new in v1.9.1
 
 - **More accurate and steadier descriptions** (OpenRouter models).

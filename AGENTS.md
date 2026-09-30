@@ -684,7 +684,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.9.1 (tag `v1.9.1`; rumusan v1.5.4:
+- **Versi:** 1.9.2 (tag `v1.9.2`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`). Gate: 66 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
