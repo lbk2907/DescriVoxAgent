@@ -15,6 +15,39 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.6
+
+**Found by measuring accuracy across genres and long videos**
+(`doc/perbandingan-model.md`, phase 16.2).
+
+- **Long videos are described twice as accurately.** Full-video mode now
+  sends 5-minute parts instead of 10-minute ones. Measured on two films:
+  descriptions at the wrong moment fell from 24.5% to 12.9% and from
+  27.5% to 11.8%, and jobs finished sooner. A saved setting of 600 s
+  (the old default) moves to 300 s once; a value you choose later is
+  kept.
+- **Scenes with dialogue get described.** The transcript used to stretch
+  every sentence up to the next one, so the app believed a scene had no
+  pauses and the AI wrote one description for a whole minute of action.
+  Sentence times now come from the words: 12 → 30 descriptions on the
+  test clips, none judged wrong.
+- **Gemini through OpenRouter works on long videos.** Google refuses
+  requests over 20 MB, and one of GLM's servers over 8 MiB; the app now
+  knows these limits, learns others from the refusal, and resends the
+  part compressed instead of failing.
+- **A server timeout no longer throws the whole job away.** An upstream
+  "504" hidden inside a normal reply is now retried like other busy
+  errors.
+- **New users start in whole-video mode.** Frame mode, the old
+  default, described every frame on its own: on films that was 147-204
+  descriptions a minute, two or three a second. If you already chose a
+  mode, it is kept.
+- **Frame mode no longer describes frame by frame.** It keeps at most
+  one frame every 4 seconds (the time a short description takes to say)
+  and cleans each reply into one spoken line — no markdown headings,
+  no made-up timestamps, no line repeated twice in a row. Measured on a
+  one-minute film clip: 204 → 15 descriptions.
+
 ## What's new in v1.8.5
 
 **Found by comparing seven video models on five different clips**

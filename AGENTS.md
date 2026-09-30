@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 58 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 60 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 58 suite; run_gate.bat = semua
+tests/                           — 60 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -534,6 +534,40 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    `model_catalog.RECOMMENDED` (GLM 5.3 Flash, Gemini 3.1 Flash-Lite)
    disusun dahulu dan dibaca "Disyorkan: ..." — tukar HANYA dengan
    ukuran baharu daripada `model_bench.py`, bukan kerana katalog.
+70. **Segmen Whisper diregang hingga segmen seterusnya** — jurang lesap.
+   Tears of Steel: 58.5 s "pertuturan" dalam 60 s (29.0 s ikut perkataan);
+   model diberitahu tiada ruang lalu menulis SATU penerangan seminit.
+   `WHISPER_DECODE["word_timestamps"] = True` (teks sama, masa betul):
+   GLM 12 → 30 penerangan, 0 salah. `test_fixes49`.
+71. **OpenRouter menghala satu model ke BEBERAPA pelayan hulu, setiap satu
+   ada had badan sendiri.** Google AI Studio 20 MB (setiap `google/*`);
+   satu hulu GLM 8 MiB walaupun bahagian 29 MB diterima hulu lain — kerja
+   gagal secara RAWAK. `GLMProvider.BODY_LIMITS` + `body_limit_from_error()`
+   belajar had daripada 413 lalu mampat & hantar semula bahagian itu.
+   Had hanya DITURUNKAN, dan kembali ke asas untuk kerja seterusnya
+   (had yang ditetapkan pada instance oleh test dihormati).
+72. **Ralat hulu datang DALAM jawapan 200** (`{"error": {"code": 504}}`).
+   Ia dahulu RuntimeError terus — 504 selepas 15 minit membuang semua
+   bahagian siap. Kod 429/5xx dalam badan kini dicuba semula.
+73. **Panjang bahagian = ketepatan.** Pembaris (`model_bench.py measure`)
+   pada DUA filem panjang: bahagian 10 minit 24.5% / 27.5% penerangan
+   salah (peristiwa betul, masa salah; + lubang 85 s di hujung bahagian),
+   5 minit 12.9% / 11.8%, dan lebih pantas. Lalai kini 300 s; migrasi
+   sekali (`settings_store._migrate`, penanda `migrated`) menukar 600
+   tersimpan kepada 300 — pilihan pengguna selepas itu tidak disentuh.
+74. **Mod bingkai (LALAI pengguna baharu) tidak sesuai untuk filem.**
+   Setiap bingkai yang lolos dedup disimpan sebagai penerangan 1 s:
+   147–204 penerangan SEMINIT untuk Sintel/berita/Tears, dengan sampah
+   markdown ("**Audio description**", "[0:00]") yang dibaca TTS; GLM
+   ~20 s setiap bingkai (klip 60 s > 10 minit). Hanya kandungan statik
+   (slaid, Excel: 31) munasabah. **Diputuskan pemilik 30 Sep 2026:**
+   lalai pengguna baharu = video penuh (`ai.video_mode: "full"`; mod
+   tersimpan tidak disentuh), dan mod bingkai kini dijarakkan
+   (`general.min_description_gap` 4 s, `VideoProcessor.space_frames`)
+   serta dibersihkan (`finalize_frame_descriptions`): Tears 60 s
+   204 → 15 penerangan, 0 markdown. Tajuk markdown (`## Scene`) dibuang
+   SEBARIS, bukan hanya `#` — jika tidak TTS baca "Scene A girl...".
+   `test_fixes50`. Ujian saluran bingkai lama (9, 11) set jarak 0.
 
 ## Prosedur Biasa
 
@@ -580,8 +614,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.5 (tag `v1.8.5`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 58 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.6 (tag `v1.8.6`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 60 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

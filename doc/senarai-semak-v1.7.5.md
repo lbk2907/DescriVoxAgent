@@ -190,8 +190,12 @@ Ukuran: betul (padan bingkai), masa, rekaan, tertinggal, konsisten antara larian
 - [x] 16.1 Fasa 1 — pembaris siap (`model_bench.py judge|measure`): penilai GLM dikalibrasi pada 99 label
       tangan + 30 label buta (0/83 tuduhan palsu, 13/14 salah dikesan); GLM 8% salah (Gemini-judge 13.8%).
       Keputusan dalam doc/perbandingan-model.md. Kos keseluruhan fasa ~$0.40
-- [ ] 16.2 Fasa 2 — asas lebih luas: 4 genre di atas + video panjang (sempadan bahagian);
-      mod bingkai lwn mod video penuh
+- [x] 16.2 Fasa 2 — asas lebih luas (doc/perbandingan-model.md): genre pendek GLM 0 salah; video
+      panjang 24.5%/27.5% salah dengan bahagian 10 min → 12.9%/11.8% dengan 5 min (lalai kini 300 s,
+      v1.8.6). DITEMUI & DIBAIKI: jurang Whisper lesap (word_timestamps), had badan hulu OpenRouter
+      (Google 20 MB, GLM 8 MiB), 504 dalam jawapan 200. Mod bingkai: 147-204 penerangan/min
+- [x] 16.2b Pemilik (30 Sep): lalai video penuh; mod bingkai dijarakkan 4 s + dibersihkan.
+      Larian sebenar GLM, Tears 60 s: 204 → 15 penerangan, 0 markdown (test_fixes50)
 - [ ] 16.3 Fasa 3 — baiki, simpan hanya yang menaikkan angka: pas semakan kedua (betulkan/buang/
       alih masa), snap ke perubahan adegan (ffmpeg scene), suhu tetap untuk konsistensi,
       semak jurang panjang untuk peristiwa tertinggal
