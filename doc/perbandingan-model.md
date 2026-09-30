@@ -197,3 +197,30 @@ Dapatan:
   semakan, dengan kos kecil.
 - Kredit OpenRouter hampir habis ($0.80) — ujian suhu tetap dan snap
   perubahan adegan belum dibuat.
+
+## Mod agentic — Fasa A: bolehkah model memandu ejen? (30 Sep 2026)
+
+`tools/agent_bench.py`: tugas sebenar ejen Player pada Tears of Steel,
+melalui tool call gaya OpenAI (current_position, read_descriptions,
+look_at, look_between, propose_change). Dua tugas: penerangan yang dinilai
+SALAH (mesti dibaiki) dan yang dinilai BETUL (mesti dibiarkan). 2 larian
+setiap satu. Kos keseluruhan $0.063.
+
+**Protokol:** kesemua 4 model — 32/32 larian guna tool call sebenar, lihat
+bingkai SEBELUM mencadang, argumen sah. Katalog betul kali ini.
+
+**Tingkah laku (arahan v2: "hanya jika JELAS salah; lihat beberapa saat"):**
+
+| Model | Baiki yang salah | Biar yang betul | Nota |
+|---|---|---|---|
+| Gemini 3.1 Flash-Lite | 2/2 | 2/2 | pantas (~7 s) |
+| Qwen3.8-Omni | 2/2 | 2/2 | ~13 s |
+| GLM 5.3 Flash | 2/2 | 0/2 | "betul" diubah secara munasabah (alih 2.6 s ke nyalaan sebenar / buang "blinding") — terlalu teliti, bukan salah |
+| Gemini 3.8 Flash | 0/2 | 2/2 | pada tugas "salah" TIDAK menjawab langsung (had 8 giliran) |
+
+Arahan v1 (tanpa syarat ketat): GLM, Gemini 3.1 FL dan Qwen menyunting
+penerangan betul 6/6 kali — syarat "jelas salah" itu penting.
+
+Untuk Fasa B: (1) bila had giliran dicapai, ejen MESTI dipaksa memberi
+jawapan akhir; (2) "Uji mod agentic" lulus jika protokol + lihat dahulu +
+argumen sah + ada jawapan akhir — bukan pada pendapat model.
