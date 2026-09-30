@@ -34,7 +34,7 @@ dikekalkan dalam setiap perubahan UI.
 5. **Bahasa UI dwi (EN + BM).** Semua string user-facing melalui i18n (`src/omni_describer_custom/i18n/strings.py`).
    Tambah kedua-dua versi. Bahasa penerangan mesti konsisten merentas semua AI paths (v1.5.2).
 6. **Commit konvensyen:** mesej ringkas, jenis dulu (`feat:`, `fix:`, `test:`, `docs:`, `release:`).
-   Version bump + README changelog bila release (`__version__` dalam `src/omni_describer_custom/__init__.py`
+   Version bump + "What's new" dalam README (simpan 3 terkini) DAN CHANGELOG.md bila release (`__version__` dalam `src/omni_describer_custom/__init__.py`
    = sumber tunggal versi).
    **Penomboran (arahan pemilik, 23 Sep 2026):** digit terakhir berhenti pada 9.
    Selepas 1.6.9 ialah **1.7.0**, bukan 1.6.10; selepas 1.7.9 ialah 1.8.0.
@@ -82,6 +82,8 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
 (id, start_time, end_time, text, edited, created_at, frame_path) → Player/SRT/TTS/export.
 
 ## Pitfall (perangkap yang selalu tersandung)
+
+_Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di hujung. (57b ialah nombor berganda yang dibetulkan 30 Sep 2026.)_
 
 1. **Mod video penuh ≠ timestamp tepat.** Frame mode = timestamp kita tentukan (tepat);
    full-video = AI agak sendiri. Jangan campur EXPECTATION antara dua mod ni dalam test.
@@ -432,7 +434,7 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    Guna `menubar.SetMenuLabel(i, label)`. `test_fixes40` baca menu
    NATIVE (GetMenuItemCount / GetMenuStringW), bukan senarai wx.
 
-57. **JANGAN cipta semula kawalan untuk menukar gayanya.** Show/Hide kunci
+57b. **JANGAN cipta semula kawalan untuk menukar gayanya.** Show/Hide kunci
    API dahulu membina TextCtrl baharu untuk membalik `TE_PASSWORD`:
    kotak baharu jatuh ke sudut kiri atas panel (hanya dialog di-layout,
    bukan halaman notebook), jadi TERAKHIR dalam susunan Tab, dan hilang
