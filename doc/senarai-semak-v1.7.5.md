@@ -31,4 +31,4 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 19.R Didengar NVDA: pengesahan masa/kos dibaca penuh, "Checking part 1 of 1", langkah,
       "Whole video checked: 2 changes proposed", Esc → "No changes made". DITEMUI & DIBAIKI:
       kemajuan disebut dua kali (tajuk dialog), "About 1 minutes". Gate 65 suite x2 GATE_ALL_PASS
-- [ ] 19.S Build 1.9.1, exe NVDA, tag
+- [x] 19.S Build 1.9.1 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.1, zip 1.9.0 dibuang
