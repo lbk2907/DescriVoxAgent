@@ -209,4 +209,9 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
 - [x] 17.2 test_fixes50 (mod bingkai) 5/5; larian sebenar GLM Tears 60 s: 204 → 15 penerangan
 - [x] 17.3 Gate 60 suite x2 GATE_ALL_PASS; build bersih 1.8.6 (kerja 1.8.7 di-stash semasa build);
       exe didengar NVDA 12/12; tag v1.8.6
-- [ ] 17.4 Gate x2, build, NVDA (termasuk kotak Ya/Tidak baharu), tag v1.8.7
+- [x] 17.4 Gate 61 suite x2 GATE_ALL_PASS; build 1.8.7; exe NVDA 10/10; kotak Ya/Tidak (BM) didengar:
+      "Sahkan dialog Padam penerangan ini?" → "Tidak button Alt+T", Batal, Ya; Esc → Tidak; tag v1.8.7
+
+## Fasa 18 — seterusnya (susunan pemilik 30 Sep 2026)
+- [ ] 18.1 Pelan ketepatan fasa 3 & 4 (16.3–16.4)
+- [ ] 18.2 Mod agentic dalam Player (reka bentuk: memori agent-coeditor-design)
