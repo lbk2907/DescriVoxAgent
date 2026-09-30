@@ -27,7 +27,7 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 19.B2 Snap ke perubahan adegan: tiada kemajuan jelas (salah 39 → 44 Gemini) — TIDAK digunakan
 - [x] 19.C1 "Semak seluruh video": sebenar pada 3 min Tears — 22 penerangan, 6 cadangan, $0.005;
       DITEMUI: edit dengan teks sama — kini ditolak
-- [ ] 19.C2 Ejen untuk Gemini terus (perlu kunci Gemini yang sah untuk ujian sebenar)
+- [x] 19.C2 Ejen untuk Gemini terus — dibuat dalam 20.6
 - [x] 19.R Didengar NVDA: pengesahan masa/kos dibaca penuh, "Checking part 1 of 1", langkah,
       "Whole video checked: 2 changes proposed", Esc → "No changes made". DITEMUI & DIBAIKI:
       kemajuan disebut dua kali (tajuk dialog), "About 1 minutes". Gate 65 suite x2 GATE_ALL_PASS
@@ -40,7 +40,10 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 20.3 "Full-video mode (GLM, Gemini or MiniMax)" → "Send the whole video to the AI (recommended)",
       petunjuk terangkan maksud tidak ditanda (didengar NVDA)
 - [x] 20.4 DITEMUI semasa mendengar: Fetch/Test this model/Test agent aktif tetapi mati untuk Custom → dilumpuhkan
-- [ ] 20.5 "Uji model ini" untuk semua pembekal (Gemini, MiniMax, Custom)
-- [ ] 20.6 Ejen untuk Gemini terus (= 19.C2), diuji dengan kunci baharu
-- [ ] 20.7 Ukur suhu 0 untuk Gemini terus; guna hanya jika lebih tepat
+- [x] 20.5 "Uji model ini" untuk semua pembekal: sebenar Gemini 3.8/3.1 (lihat + dengar), Custom→OpenRouter
+      (gambar "Red"), kunci salah → HTTP 401 jelas. MiniMax/OpenAI: tiada kunci, diuji dengan enjin palsu.
+      DITEMUI: Gemini 3.1 Flash-Lite (disyorkan) tiada dalam senarai Gemini terus → ditambah
+- [x] 20.6 Ejen Gemini terus: probe 3.1 Flash-Lite lulus (3 tool, betulkan BLUE→RED, $0.002);
+      semak seluruh video 3 min Tears: 19 penerangan, 5 cadangan, ~$0.013. 3.8 Flash: 503 lalu 429 kuota
+- [x] 20.7 Suhu 0 Gemini: salah 14.7% → 14.2% (sama), beza larian 23 → 12 — DIGUNAKAN (pilihan pemilik)
 - [ ] 20.8 Gate x2, NVDA, build, tag v1.9.2

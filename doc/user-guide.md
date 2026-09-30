@@ -111,10 +111,12 @@ descriptions in sync during playback.
   `glm` provider, model `z-ai/glm-5.3-flash`, and paste your
   OpenRouter key (starting with `sk-or-v1-`); a direct Zhipu key also
   works through the Custom provider with base URL
-  `https://open.bigmodel.cn/api/paas/v4`. For OpenRouter,
-  **Test this model** and **Test agent mode** check the key and model
-  with a real clip; the result is read by the screen reader straight
-  away. (The old Test Connection button was removed in 1.9.2.) For the
+  `https://open.bigmodel.cn/api/paas/v4`. **Test this model**
+  checks the key and model with a real clip for EVERY provider:
+  OpenRouter, Gemini and MiniMax get a 6-second clip (does it see and
+  hear?), OpenAI and Custom get one picture. **Test agent mode** is for
+  OpenRouter and Gemini. The result is read by the screen reader
+  straight away. (The old Test Connection button was removed in 1.9.2.) For the
   **Custom** provider, the **Model name** box sits below the Model list.
   - **Send the whole video to the AI (recommended)** — formerly
     "Full-video mode". Unticked = still pictures one at a time. This checkbox is only enabled when the
@@ -357,8 +359,8 @@ are remembered for the project.
 
 **Check the whole video** (a button in the agent window) goes through every description, a minute of video at a time, and gives ONE list of proposals to accept, review or reject. It says the time and cost first; the same button stops it.
 
-The agent works with OpenRouter models that pass **Settings > Test agent
-mode**. For other models F2 opens **Ask More**, which now sends the
+The agent works with OpenRouter or Gemini models (your own Gemini key,
+since 1.9.2) that pass **Settings > Test agent mode**. For other models F2 opens **Ask More**, which now sends the
 frame at the Player's position with your question.
 
 ## Scene Explorer

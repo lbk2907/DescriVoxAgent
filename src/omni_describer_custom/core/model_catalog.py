@@ -293,3 +293,53 @@ def probe_model(api_key: str, model: str, url: str = CHAT_URL,
                 "seconds": time.monotonic() - started}
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+
+
+PICTURE_QUESTION = ("What is the one colour that fills this picture? "
+                    "Answer with the colour name only.")
+
+
+def probe_engine(engine, provider: str, model: str = "") -> dict:
+    """"Test this model" for Gemini, MiniMax, OpenAI and Custom (v1.9.2).
+
+    Goes through the app's own engine, so the key, base URL, model and
+    upload path are the ones a real job uses. Video providers get the
+    same clip and question as the OpenRouter probe; picture providers
+    get one red frame. Adds "picture": True for those. Blocking: call
+    it from a worker thread.
+    """
+    import asyncio
+    folder = Path(tempfile.mkdtemp(prefix="odc_probe_"))
+    started = time.monotonic()
+    loop = asyncio.new_event_loop()
+    try:
+        clip, has_voice = make_probe_clip(folder)
+        if engine.watches_video(provider):
+            answer = loop.run_until_complete(engine.ask_about_video(
+                str(clip), PROBE_QUESTION, provider, model))
+            verdict = judge(answer, has_voice)
+            picture = False
+        else:
+            from .tools import find_tool
+            frame = folder / "frame.jpg"
+            subprocess.run([find_tool("ffmpeg"), "-y", "-loglevel", "error",
+                            "-ss", "1", "-i", str(clip), "-frames:v", "1",
+                            str(frame)], check=True, capture_output=True,
+                           timeout=60)
+            answer = loop.run_until_complete(engine.look(
+                str(frame), PICTURE_QUESTION, provider, model))
+            verdict = {"sees": "red" in (answer or "").lower(), "hears": None}
+            picture = True
+        if not (answer or "").strip():
+            return {"sees": False, "hears": None, "answer": "",
+                    "error": "empty reply", "picture": picture,
+                    "seconds": time.monotonic() - started}
+        return {**verdict, "answer": answer.strip(), "error": "",
+                "picture": picture, "seconds": time.monotonic() - started}
+    except Exception as e:
+        return {"sees": False, "hears": None, "answer": "",
+                "error": f"{type(e).__name__}: {str(e)[:160]}",
+                "seconds": time.monotonic() - started}
+    finally:
+        loop.close()
+        shutil.rmtree(folder, ignore_errors=True)

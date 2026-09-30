@@ -250,3 +250,24 @@ dan Tears penuh: penilai Gemini — betul 106 → 113 tetapi salah 39 → 44;
 penilai GLM — salah 26 → 24, betul 125 → 126. Tiada kemajuan yang jelas,
 jadi tidak dimasukkan (peraturan: simpan hanya yang menaikkan angka).
 `model_bench.py snap` kekal untuk ujian lain kemudian. Kos $0.13.
+
+## Fasa 20.7 — suhu 0 untuk Gemini terus (1 Okt 2026)
+
+Gemini 3.1 Flash-Lite dengan kunci Gemini pemilik, 4 klip yang sama
+(Tears, NASA, berita BM, Sintel dialog) x 3 larian, `@tdef` lwn
+`@temp0`, dinilai penilai GLM (Gemini tidak menilai dirinya sendiri;
+`model_bench.py measure --direct`):
+
+| | Suhu lalai Google | Suhu 0 |
+|---|---|---|
+| Penerangan (12 larian) | 245 | 267 |
+| Salah — penilai GLM | 36 (14.7%) | 38 (14.2%) |
+| Betul — penilai GLM | 160 | 172 |
+| Beza bilangan antara larian | 23 | **12** |
+
+Ketepatan TIDAK berubah; kestabilan bertambah (Tears 15, 8, 14 →
+17, 17, 16). Pemilik memilih suhu 0 kerana kestabilan
+(`GeminiProvider.TEMPERATURE = 0`). Gemini 3.8 Flash tidak dapat
+diukur: 503 "high demand" berulang, kemudian 429 kuota kunci percuma.
+Kos: penilaian $0.04 (OpenRouter); larian Gemini pada kunci pemilik.
+

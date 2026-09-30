@@ -286,6 +286,63 @@ def test_check_all_can_be_stopped():
     agent.close()
 
 
+def test_gemini_direct():
+    """v1.9.2: Gemini with the user's own key. Google's OpenAI-compatible
+    endpoint, no OpenRouter-only fields, and a cost worked out from tokens
+    (Google returns none) so the cost cap still works."""
+    context = ag.Context(video=str(video()), length=30.0,
+                         descriptions=[(2.0, "A test pattern.")],
+                         get_position=lambda: 2.0)
+    usage = {"prompt_tokens": 10_000, "completion_tokens": 1_000}
+    script = Script([{"choices": [{"message": {"role": "assistant",
+                                               "content": "Fine."}}],
+                      "usage": usage}])
+    agent = ag.Agent("k", "gemini-no-such-model", context, post=script,
+                     provider="gemini")
+    reply = asyncio.run(agent.ask("Is it right?"))
+    agent.close()
+    body = script.payloads[0]
+    assert "usage" not in body and "reasoning" not in body, body.keys()
+    assert body["tools"] and body["model"] == "gemini-no-such-model"
+    price_in, price_out = ag.FALLBACK_PRICE
+    want = (10_000 * price_in + 1_000 * price_out) / 1e6
+    assert abs(reply.cost - want) < 1e-9, (reply.cost, want)
+
+    # The real transport goes to Google, not OpenRouter.
+    from omni_describer_custom.core import ai_engine
+    seen = {}
+
+    async def fake_http(method, url, **kw):
+        seen["url"], seen["auth"] = url, kw["headers"]["Authorization"]
+        return {"choices": [{"message": {"role": "assistant", "content": "x"}}]}
+    real = ai_engine._http_json
+    ai_engine._http_json = fake_http
+    try:
+        gem = ag.Agent("key-g", "m", context, provider="gemini")
+        asyncio.run(gem.ask("q"))
+        gem.close()
+        assert seen["url"] == ag.GEMINI_URL and seen["auth"] == "Bearer key-g"
+        orr = ag.Agent("key-o", "m", context)
+        asyncio.run(orr.ask("q"))
+        orr.close()
+        assert seen["url"] == ag.URL, seen
+    finally:
+        ai_engine._http_json = real
+
+
+def test_gemini_price_from_catalog():
+    from omni_describer_custom.core import model_catalog
+    real = model_catalog.load_cache
+    model_catalog.load_cache = lambda: ([{"id": "google/gemini-z",
+                                          "price_in": 0.25,
+                                          "price_out": 1.5}], 0)
+    try:
+        assert ag.gemini_price("gemini-z") == (0.25, 1.5)
+        assert ag.gemini_price("gemini-unknown") == ag.FALLBACK_PRICE
+    finally:
+        model_catalog.load_cache = real
+
+
 def main() -> int:
     check("no proposal before looking", test_no_proposal_before_looking)
     check("the turn limit forces an answer", test_turn_limit_forces_an_answer)
@@ -299,6 +356,8 @@ def main() -> int:
     check("check the whole video gathers one list", test_check_all_gathers_one_list)
     check("check the whole video can be stopped", test_check_all_can_be_stopped)
     check("temp folders are swept", test_temp_folders_are_swept)
+    check("Gemini direct: Google endpoint, cost from tokens", test_gemini_direct)
+    check("Gemini price comes from the catalog", test_gemini_price_from_catalog)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

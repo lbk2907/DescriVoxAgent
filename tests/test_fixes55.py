@@ -63,9 +63,39 @@ def test_none_leaves_it_to_the_server():
     assert "temperature" not in payload_for(None)
 
 
+def gemini_config(temperature):
+    """What Gemini's whole-video request carries (phase 20.7)."""
+    from omni_describer_custom.core import ai_engine
+    from omni_describer_custom.core.ai_engine import GeminiProvider
+    prov = GeminiProvider(api_key="k")
+    prov.TEMPERATURE = temperature
+    seen = {}
+
+    async def fake_http(method, url, **kw):
+        seen.update(kw["payload"])
+        return {"candidates": [{"content": {"parts": [{"text": "x"}]}}]}
+    real = ai_engine._http_json
+    ai_engine._http_json = fake_http
+    try:
+        asyncio.run(prov._generate_with_video("files/u", "video/mp4",
+                                              "describe", "gemini-x"))
+    finally:
+        ai_engine._http_json = real
+    return seen["generationConfig"]
+
+
+def test_gemini_temperature_reaches_the_request():
+    from omni_describer_custom.core.ai_engine import GeminiProvider
+    assert GeminiProvider.TEMPERATURE == 0.0
+    assert gemini_config(0.0)["temperature"] == 0.0
+    assert "temperature" not in gemini_config(None)
+
+
 def main():
     check("whole-video requests use temperature 0", test_default_is_zero)
     check("None sends no temperature", test_none_leaves_it_to_the_server)
+    check("Gemini direct: the temperature reaches the request",
+          test_gemini_temperature_reaches_the_request)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

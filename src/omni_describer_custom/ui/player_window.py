@@ -891,15 +891,17 @@ class PlayerWindow(wx.Frame):
         event.Skip()
 
     def agent_available(self) -> tuple[bool, str]:
-        """(ok, why not): OpenRouter, a key, a model that passed
-        Settings > Test agent mode, and a video to look at."""
+        """(ok, why not): OpenRouter or Gemini (v1.9.2), a key, a model
+        that passed Settings > Test agent mode, and a video to look at."""
         import os
         st = self._settings
         if st is None:
             return False, "settings"
-        if (st.get("ai.default_provider", "") or "") != "glm":
+        from ..core.agent import AGENT_PROVIDERS
+        provider = st.get("ai.default_provider", "") or ""
+        if provider not in AGENT_PROVIDERS:
             return False, "provider"
-        cfg = st.get_ai_provider("glm") or {}
+        cfg = st.get_ai_provider(provider) or {}
         if not cfg.get("api_key"):
             return False, "key"
         passed = st.get("ai.agent_models", []) or []
@@ -913,7 +915,8 @@ class PlayerWindow(wx.Frame):
     def _make_agent(self):
         from ..core.agent import Agent, Context
         from ..i18n.strings import I18n
-        cfg = self._settings.get_ai_provider("glm")
+        provider = self._settings.get("ai.default_provider", "") or "glm"
+        cfg = self._settings.get_ai_provider(provider)
         proj = self.project
         folder = self.store.project_dir(proj.id)
         # Answers follow the app language (owner's choice).
@@ -927,7 +930,8 @@ class PlayerWindow(wx.Frame):
             get_transcript=lambda: self._transcript_for_agent(folder),
             characters_file=str(folder / "characters.json"),
             language=language)
-        return Agent(cfg["api_key"], cfg.get("model", ""), ctx)
+        return Agent(cfg["api_key"], cfg.get("model", ""), ctx,
+                     provider=provider)
 
     def _transcript_for_agent(self, folder):
         """Worker thread: the project's transcript, made once and kept in

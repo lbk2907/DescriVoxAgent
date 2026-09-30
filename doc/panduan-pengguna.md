@@ -133,9 +133,11 @@ membacakan penerangan itu segerak semasa main balik.
   lalai: pilih pembekal `glm`, model `z-ai/glm-5.3-flash`, dan tampal
   kunci OpenRouter anda (bermula dengan `sk-or-v1-`); kunci terus
   Zhipu juga boleh digunakan melalui pembekal Custom dengan URL asas
-  `https://open.bigmodel.cn/api/paas/v4`. Untuk OpenRouter, **Uji model ini** dan **Uji mod ejen**
-  menyemak kunci dan model dengan klip sebenar; keputusan dibaca
-  terus oleh pembaca skrin. (Butang Uji Sambungan lama dibuang
+  `https://open.bigmodel.cn/api/paas/v4`. **Uji model ini** menyemak kunci dan model dengan
+  klip sebenar untuk SEMUA pembekal: OpenRouter, Gemini dan MiniMax
+  menerima klip 6 saat (adakah ia melihat dan mendengar), OpenAI dan
+  Custom menerima satu gambar. **Uji mod ejen** untuk OpenRouter dan
+  Gemini. Keputusan dibaca terus oleh pembaca skrin. (Butang Uji Sambungan lama dibuang
   dalam 1.9.2.) Bagi pembekal **Custom**, kotak **Nama model**
   terletak di bawah senarai Model.
   - **Hantar seluruh video kepada AI (disyorkan)** — dahulu "Mod video
@@ -385,8 +387,8 @@ untuk projek itu.
 
 **Semak seluruh video** (butang dalam dialog ejen) menyemak setiap penerangan, seminit video pada satu masa, lalu memberi SATU senarai cadangan untuk anda terima, semak atau tolak. Masa dan kos disebut dahulu; butang yang sama menghentikannya.
 
-Ejen berfungsi dengan model OpenRouter yang lulus **Settings > Uji mod
-ejen**. Model yang belum lulus: F2 membuka **Tanya Lagi**, yang kini
+Ejen berfungsi dengan model OpenRouter atau Gemini (kunci Gemini anda
+sendiri, sejak 1.9.2) yang lulus **Settings > Uji mod ejen**. Model yang belum lulus: F2 membuka **Tanya Lagi**, yang kini
 menghantar bingkai pada kedudukan Player bersama soalan anda.
 
 ## Penjelajah scene

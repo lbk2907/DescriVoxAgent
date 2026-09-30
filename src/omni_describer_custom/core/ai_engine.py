@@ -666,6 +666,17 @@ class AIProvider(ABC):
         """Ask a specific question about a scene (default: reuse describe_image)."""
         return await self.describe_image(image_path, question, model)
 
+    # Providers that take a whole video file set this (and override
+    # ask_about_video); the others are sent still pictures.
+    watches_video: bool = False
+
+    async def ask_about_video(
+        self, video_path: str, question: str, model: str = ""
+    ) -> str:
+        """One plain question about a whole video, through the same upload
+        path the app uses for descriptions ("Test this model", v1.9.2)."""
+        raise NotImplementedError(f"{self.name} does not take a video")
+
     def _load_image_b64(self, image_path: str) -> tuple[str, str]:
         """Load image and return (base64_string, mime_type)."""
         path = Path(image_path)
@@ -680,6 +691,7 @@ class GeminiProvider(AIProvider):
     name = "gemini"
     models = [
         "gemini-3.8-flash",
+        "gemini-3.1-flash-lite",   # Recommended (pitfall 69)
         "gemini-3.5-flash-lite",
         # Google limits 2.5 to accounts that used it before; kept
         # last so an existing saved choice stays selectable.
@@ -887,12 +899,15 @@ class GeminiProvider(AIProvider):
         """One generateContent call carrying the whole video."""
         base = self.base_url.rstrip("/")
         url = f"{base}/models/{model}:generateContent"
+        config = {"maxOutputTokens": 8192}
+        if self.TEMPERATURE is not None:
+            config["temperature"] = self.TEMPERATURE
         payload = {
             "contents": [{"parts": [
                 {"text": prompt},
                 {"file_data": {"mime_type": mime, "file_uri": uri}},
             ]}],
-            "generationConfig": {"maxOutputTokens": 8192},
+            "generationConfig": config,
         }
         data = await _http_json("POST", url, label="Gemini",
                                 headers=self._auth_headers(),
@@ -943,6 +958,23 @@ class GeminiProvider(AIProvider):
             is_cancelled=is_cancelled,
         )
         return parse_gemini_timestamp_lines(text)
+
+    watches_video = True
+    # Whole-video temperature (v1.9.2, pitfall 83). Measured on Gemini
+    # 3.1 Flash-Lite, 4 clips x 3 runs, GLM judge: wrong 14.7% -> 14.2%
+    # (no accuracy change), run-to-run spread 23 -> 12. Owner's choice.
+    TEMPERATURE: float | None = 0.0
+
+    async def ask_about_video(
+        self, video_path: str, question: str, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("Gemini API key not configured")
+        uri = await self._upload_video(video_path)
+        await self._wait_video_ready(uri)
+        return await self._generate_with_video(
+            uri, self._video_mime(video_path), question,
+            model or self.models[0])
 
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
@@ -1223,6 +1255,24 @@ class MiniMaxProvider(AIProvider):
         text = await self._chat(payload, timeout=600,
                                 is_cancelled=is_cancelled)
         return parse_gemini_timestamp_lines(_strip_think(text))
+
+    watches_video = True
+
+    async def ask_about_video(
+        self, video_path: str, question: str, model: str = ""
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("MiniMax API key not configured")
+        file_id = await self._upload_video(video_path)
+        payload = {
+            "model": model or self.models[0],
+            "max_completion_tokens": 2048,
+            "messages": [{"role": "user", "content": [
+                {"type": "video_url",
+                 "video_url": {"url": f"mm_file://{file_id}"}},
+                {"type": "text", "text": question}]}],
+        }
+        return _strip_think(await self._chat(payload, timeout=300))
 
     async def _upload_video(
         self, video_path: str,
@@ -3016,6 +3066,17 @@ class AIEngine:
         model = self._model_for(provider, model)
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await prov.describe_image(image_path, prompt, model)
+
+    def watches_video(self, provider: str = "") -> bool:
+        """Does this provider take a whole video (else still pictures)?"""
+        prov = self._provider_or_raise(provider or self._default_provider)
+        return bool(getattr(prov, "watches_video", False))
+
+    async def ask_about_video(self, video_path: str, question: str,
+                              provider: str = "", model: str = "") -> str:
+        prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
+        return await prov.ask_about_video(video_path, question, model)
 
     async def look(self, image_path: str, prompt: str, provider: str = "",
                    model: str = "") -> str:

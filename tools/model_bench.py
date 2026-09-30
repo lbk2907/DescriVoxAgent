@@ -203,10 +203,17 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
     prompt = DEFAULT_PROMPTS["default"]
     started = time.monotonic()
     try:
-        if model == GEMINI_DIRECT:
+        if model == GEMINI_DIRECT or model.startswith("gemini-"):
+            # Gemini with the user's own key; "@temp0"/"@tdef" as below
+            # (phase 20.7).
+            base, _, variant = clip.partition("@")
             prov = GeminiProvider(api_key=keys["gemini"])
+            if variant.startswith("temp"):
+                prov.TEMPERATURE = float(variant[4:] or 0)
+            elif variant == "tdef":
+                prov.TEMPERATURE = None
             pairs = await prov.describe_video_full(
-                str(CLIPS / f"{clip}.mp4"), prompt, model)
+                str(CLIPS / f"{base}.mp4"), prompt, model)
         else:
             # "clip@chunk180" = the same video in 180-second parts.
             base, _, variant = clip.partition("@")
@@ -288,7 +295,7 @@ async def _run_model(model, jobs, keys, results, lock, stop):
             got = await _describe_frames(model, clip, keys)
         else:
             got = await _describe(model, clip, keys,
-                                  _transcript(clip) if model != GEMINI_DIRECT else None)
+                                  None if model.startswith("gemini-") else _transcript(clip))
         async with lock:
             results[key] = got
             _save_results(results)
@@ -665,7 +672,12 @@ def cmd_measure(args) -> int:
     items = []
     for rkey, got in results.items():
         model, kind, clip, run = rkey.split("|")
-        if kind not in ("desc", "frame") or not got.get("cues") or model == GEMINI_DIRECT:
+        if kind not in ("desc", "frame") or not got.get("cues"):
+            continue
+        # Gemini direct only on request (--direct, phase 20.7), and never
+        # judged by Gemini itself.
+        if model.startswith("gemini-") and not (
+                getattr(args, "direct", False) and "gemini" not in args.judge):
             continue
         if args.clips and clip not in args.clips.split(","):
             continue
@@ -982,6 +994,8 @@ def main() -> int:
     measure = sub.add_parser("measure")
     measure.add_argument("--judge", default="z-ai/glm-5.3-flash")
     measure.add_argument("--clips", default="", help="only these clips")
+    measure.add_argument("--direct", action="store_true",
+                         help="also judge Gemini-direct runs (not with a Gemini judge)")
     review = sub.add_parser("review")
     review.add_argument("--clips", required=True)
     review.add_argument("--model", default="z-ai/glm-5.3-flash",

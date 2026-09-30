@@ -36,6 +36,27 @@ from typing import Callable
 logger = logging.getLogger(__name__)
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
+# v1.9.2: Gemini with the user's own key, through Google's
+# OpenAI-compatible endpoint (same tool calls and image messages).
+GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/openai/"
+              "chat/completions")
+AGENT_PROVIDERS = ("glm", "gemini")
+# Per million tokens, when the catalog does not list the model. Set high
+# on purpose: the cost cap must stop too early rather than too late.
+FALLBACK_PRICE = (1.5, 9.0)
+
+
+def gemini_price(model: str) -> tuple[float, float]:
+    """(input, output) USD per million tokens for a Gemini model: Google
+    does not return a cost, so read OpenRouter's catalog price."""
+    try:
+        from .model_catalog import load_cache
+        for row in load_cache()[0]:
+            if row.get("id") == f"google/{model}" and row.get("price_in"):
+                return float(row["price_in"]), float(row.get("price_out") or 0)
+    except Exception:
+        pass
+    return FALLBACK_PRICE
 MAX_TURNS = 10
 COST_CAP = 0.02          # dollars per question before asking "continue?"
 MAX_WORDS = 12           # the app's audio-description rule
@@ -263,8 +284,12 @@ class Agent:
 
     def __init__(self, api_key: str, model: str, ctx: Context,
                  post: Callable | None = None,
-                 on_step: Callable[[str, dict], None] | None = None):
+                 on_step: Callable[[str, dict], None] | None = None,
+                 provider: str = "glm"):
         self.api_key, self.model, self.ctx = api_key, model, ctx
+        self.provider = provider if provider in AGENT_PROVIDERS else "glm"
+        self._price = (gemini_price(model) if self.provider == "gemini"
+                       else None)
         self.frames = Frames(ctx.video, ctx.length)
         self.on_step = on_step or (lambda code, args: None)
         self._post = post or self._http_post
@@ -277,20 +302,35 @@ class Agent:
     # ── transport ────────────────────────────────────────────────
     async def _http_post(self, payload: dict) -> dict:
         from .ai_engine import _http_json
+        gemini = self.provider == "gemini"
         return await _http_json(
-            "POST", URL, label="OpenRouter", payload=payload, timeout=180,
+            "POST", GEMINI_URL if gemini else URL,
+            label="Gemini" if gemini else "OpenRouter",
+            payload=payload, timeout=180,
             headers={"Authorization": f"Bearer {self.api_key}",
                      "Content-Type": "application/json"})
 
     def _payload(self, tools: bool) -> dict:
         payload = {"model": self.model, "messages": self.messages,
-                   "temperature": 0, "max_tokens": 3000,
-                   "reasoning": {"max_tokens": 1000},
-                   "usage": {"include": True}}
+                   "temperature": 0, "max_tokens": 3000}
+        if self.provider == "gemini":
+            payload["reasoning_effort"] = "low"
+        else:
+            payload["reasoning"] = {"max_tokens": 1000}
+            payload["usage"] = {"include": True}
         if tools:
             payload["tools"] = [{"type": "function", "function": f}
                                 for f in TOOLS]
         return payload
+
+    def _cost(self, data: dict) -> float:
+        """OpenRouter says what a call cost; Google only counts tokens."""
+        usage = data.get("usage") or {}
+        if self._price is None:
+            return float(usage.get("cost") or 0.0)
+        tokens_in = float(usage.get("prompt_tokens") or 0)
+        tokens_out = float(usage.get("completion_tokens") or 0)
+        return (tokens_in * self._price[0] + tokens_out * self._price[1]) / 1e6
 
     # ── the conversation ─────────────────────────────────────────
     async def ask(self, question: str, cost_cap: float = COST_CAP) -> Reply:
@@ -314,7 +354,7 @@ class Agent:
             except Exception as e:
                 reply.error = str(e)[:300]
                 return reply
-            reply.cost += float(((data.get("usage") or {}).get("cost")) or 0.0)
+            reply.cost += self._cost(data)
             if "error" in data:
                 reply.error = json.dumps(data["error"])[:300]
                 return reply
@@ -347,7 +387,7 @@ class Agent:
             "decide.")})
         try:
             data = await self._post(self._payload(tools=False))
-            reply.cost += float(((data.get("usage") or {}).get("cost")) or 0.0)
+            reply.cost += self._cost(data)
             msg = (data.get("choices") or [{}])[0].get("message") or {}
             reply.answer = (msg.get("content") or "").strip()
             self.messages.append({"role": "assistant", "content": reply.answer})
@@ -632,7 +672,8 @@ def make_test_clip(folder: Path) -> tuple[Path, float]:
     return out, 12.0
 
 
-async def probe(api_key: str, model: str, post: Callable | None = None) -> dict:
+async def probe(api_key: str, model: str, post: Callable | None = None,
+                provider: str = "glm") -> dict:
     """Can this model drive the agent? Judged on behaviour we can check,
     not on its opinion: real tool calls, looked before proposing, valid
     arguments, and a final answer (phase A findings)."""
@@ -642,7 +683,7 @@ async def probe(api_key: str, model: str, post: Callable | None = None) -> dict:
         ctx = Context(video=str(clip), length=length,
                       descriptions=[(1.0, "A blue screen shows the word BLUE.")],
                       get_position=lambda: 1.0)
-        agent = Agent(api_key, model, ctx, post=post)
+        agent = Agent(api_key, model, ctx, post=post, provider=provider)
         used_tools = {"n": 0}
         original = agent._run_tool
 

@@ -231,8 +231,10 @@ def test_settings_labels_save_ids_and_offer_a_test():
         dlg.model_choice.SetSelection(0)
         assert dlg._choice_value(dlg.model_choice) == "qwen/qwen3.8-omni-flash", \
             "the saved value must be the id, not the spoken label"
+        # v1.9.2: Test this model works for every provider (test_fixes56).
         dlg.select_provider("gemini")
-        assert not dlg.probe_model_btn.IsEnabled()
+        assert dlg.probe_model_btn.IsEnabled()
+        assert not dlg.fetch_models_btn.IsEnabled()
     finally:
         dlg.Destroy()
         del app

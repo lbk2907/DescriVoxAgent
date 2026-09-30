@@ -354,7 +354,7 @@
   "settings.model_hears": "watches and hears the video",
   "settings.model_video_only": "watches only, uses a transcript",
   "settings.probe_model": "&Test this model",
-  "settings.probe_needs_key": "Enter the OpenRouter API key first.",
+  "settings.probe_needs_key": "Enter the API key first.",
   "settings.probing_model": "Sending {model} a 6-second test video...",
   "settings.probe_sees_hears": "{model} watches the video and hears its sound. Good for every preset.",
   "settings.probe_sees_only": "{model} watches the video but does not hear it. Descriptions will use a transcript of the speech instead.",
@@ -421,8 +421,8 @@
   "agent.step_transcript": "Getting the dialogue (first time may take a minute)",
   "agent.step_proposing": "Preparing a change for you",
   "agent.unavailable_settings": "The agent needs the app settings.",
-  "agent.unavailable_provider": "The agent works with OpenRouter. Opening Ask More instead.",
-  "agent.unavailable_key": "The agent needs an OpenRouter API key in Settings.",
+  "agent.unavailable_provider": "The agent works with OpenRouter or Gemini. Opening Ask More instead.",
+  "agent.unavailable_key": "The agent needs an API key in Settings.",
   "agent.unavailable_untested": "This model has not passed Test agent mode in Settings. Opening Ask More instead.",
   "agent.unavailable_video": "The agent needs this project's video file.",
   "settings.test_agent": "Test &agent mode",
@@ -430,7 +430,7 @@
   "settings.agent_pass": "{model} passed: the Player agent (F2) is available with it.",
   "settings.agent_fail": "{model} did not pass: it did not use the tools or look at the video properly. The Player offers Ask More instead.",
   "settings.agent_error": "Could not test {model}: {error}",
-  "settings.agent_openrouter_only": "The agent works with OpenRouter models.",
+  "settings.agent_openrouter_only": "The agent works with OpenRouter and Gemini models.",
   "agent.check_all_btn": "Check the &whole video",
   "agent.check_all_stop": "&Stop checking",
   "agent.check_all_confirm": "Check all {count} descriptions against the video? About {minutes} min and about ${cost}. You review every proposed change afterwards.",
@@ -440,5 +440,8 @@
   "agent.check_all_done": "Whole video checked: {count} changes proposed (cost ${cost}).",
   "agent.check_all_stopped": "Stopped: {count} changes proposed so far.",
   "agent.check_all_nothing": "There are no descriptions to check.",
-  "settings.custom_model": "Model name:"
+  "settings.custom_model": "Model name:",
+  "settings.probe_needs_model": "Enter or choose a model first.",
+  "settings.probe_needs_url": "The Custom provider needs a Base URL first.",
+  "settings.probe_sees_picture": "{model} works and sees pictures. This provider is sent still pictures, not the video."
 }

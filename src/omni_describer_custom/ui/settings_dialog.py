@@ -24,6 +24,7 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
     "gemini": [
         "gemini-3.8-flash",
+        "gemini-3.1-flash-lite",   # Recommended (pitfall 69)
         "gemini-3.5-flash-lite",
         # Google limits 2.5 to accounts that used it before; kept
         # last so an existing saved choice stays selectable.
@@ -558,7 +559,7 @@ class SettingsDialog(wx.Dialog):
             # OpenRouter-only buttons: heard by NVDA as live buttons that
             # did nothing for Custom (v1.9.2).
             self.fetch_models_btn.Disable()
-            self.probe_model_btn.Disable()
+            self.probe_model_btn.Enable()
             self.test_agent_btn.Disable()
             self.video_only_hint.Hide()
             self.custom_model_text.Show()
@@ -596,8 +597,8 @@ class SettingsDialog(wx.Dialog):
             # Video-only catalog filter + fetch button: OpenRouter only.
             is_openrouter = provider == "glm"
             self.fetch_models_btn.Enable(is_openrouter)
-            self.probe_model_btn.Enable(is_openrouter)
-            self.test_agent_btn.Enable(is_openrouter)
+            self.probe_model_btn.Enable()
+            self.test_agent_btn.Enable(provider in ("glm", "gemini"))
             self.video_only_hint.Show(is_openrouter)
             if prov_config.get("api_key"):
                 self.api_key_text.SetValue(prov_config["api_key"])
@@ -727,11 +728,20 @@ class SettingsDialog(wx.Dialog):
             self.model_choice.SetSelection(0)
 
     def _on_probe_model(self, event):
-        """Send the chosen model a 6-second clip: does it see and hear?"""
+        """Send the chosen model a 6-second clip: does it see and hear?
+
+        v1.9.2: every provider, through the app's own engine and the form
+        values (the old Test Connection only asked for "OK")."""
         provider = self._selected_provider()
-        model = self._choice_value(self.model_choice)
+        custom = provider == "custom"
+        model = (self.custom_model_text.GetValue().strip() if custom
+                 else self._choice_value(self.model_choice))
         api_key = self.api_key_text.GetValue().strip()
-        if provider != "glm" or not model:
+        if not model:
+            self._show_test_result(t("settings.probe_needs_model"))
+            return
+        if custom and not self.base_url_text.GetValue().strip():
+            self._show_test_result(t("settings.probe_needs_url"))
             return
         if not api_key:
             self._show_test_result(t("settings.probe_needs_key"))
@@ -739,11 +749,28 @@ class SettingsDialog(wx.Dialog):
         self.probe_model_btn.Disable()
         self._show_test_result(t("settings.probing_model", model=model))
 
-        def work():
-            from ..core.model_catalog import probe_model, record_probe
-            result = probe_model(api_key, model)
-            record_probe(model, result)
-            wx.CallAfter(self._probe_done, model, result)
+        if provider == "glm":
+            def work():
+                from ..core.model_catalog import probe_model, record_probe
+                result = probe_model(api_key, model)
+                record_probe(model, result)
+                wx.CallAfter(self._probe_done, model, result)
+        else:
+            from ..core.ai_engine import AIEngine
+            engine = AIEngine()
+            if custom:
+                engine.set_provider(
+                    "custom", api_key=api_key,
+                    base_url=self.base_url_text.GetValue().strip(),
+                    model=model,
+                    api_format=API_FORMATS[self.format_choice.GetSelection()][0])
+            else:
+                engine.set_provider(provider, api_key=api_key, model=model)
+
+            def work():
+                from ..core.model_catalog import probe_engine
+                result = probe_engine(engine, provider, model)
+                wx.CallAfter(self._probe_done, model, result)
 
         import threading
         threading.Thread(target=work, daemon=True).start()
@@ -753,7 +780,8 @@ class SettingsDialog(wx.Dialog):
         provider = self._selected_provider()
         model = self._choice_value(self.model_choice)
         api_key = self.api_key_text.GetValue().strip()
-        if provider != "glm" or not model:
+        from ..core.agent import AGENT_PROVIDERS
+        if provider not in AGENT_PROVIDERS or not model:
             self._show_test_result(t("settings.agent_openrouter_only"))
             return
         if not api_key:
@@ -767,7 +795,8 @@ class SettingsDialog(wx.Dialog):
             from ..core.agent import probe
             loop = asyncio.new_event_loop()
             try:
-                result = loop.run_until_complete(probe(api_key, model))
+                result = loop.run_until_complete(
+                    probe(api_key, model, provider=provider))
             except Exception as e:
                 result = {"ok": False, "error": str(e)[:200]}
             finally:
@@ -799,6 +828,11 @@ class SettingsDialog(wx.Dialog):
         self.probe_model_btn.Enable()
         if result["error"]:
             text = t("settings.probe_error", model=model, error=result["error"])
+        elif result.get("picture"):
+            text = (t("settings.probe_sees_picture", model=model)
+                    if result["sees"] else
+                    t("settings.probe_blind", model=model,
+                      answer=result["answer"][:80]))
         elif not result["sees"]:
             text = t("settings.probe_blind", model=model,
                      answer=result["answer"][:80])
@@ -809,6 +843,8 @@ class SettingsDialog(wx.Dialog):
         else:
             text = t("settings.probe_sees_only", model=model)
         self._show_test_result(text)
+        if self._selected_provider() != "glm":
+            return
         # The label now reflects what was measured, not the catalog.
         from ..core.model_catalog import load_cache
         rows = load_cache()[0]

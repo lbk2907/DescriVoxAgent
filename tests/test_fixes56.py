@@ -64,10 +64,11 @@ def test_custom_boxes_follow_a_visible_label():
                 f"{box.GetName()} follows {type(before).__name__}; NVDA reads it unnamed"
             assert before.IsShown() and before.GetLabel().strip(), \
                 f"{box.GetName()}: its label is hidden or empty"
-        for btn in (dlg.fetch_models_btn, dlg.probe_model_btn,
-                    dlg.test_agent_btn):
+        for btn in (dlg.fetch_models_btn, dlg.test_agent_btn):
             assert not btn.IsEnabled(), \
                 f"{btn.GetLabel()} is live for Custom but does nothing"
+        assert dlg.probe_model_btn.IsEnabled(), \
+            "Test this model works for Custom since 1.9.2"
         assert dlg.base_url_text.GetValue() != dlg.base_url_text.GetParent() \
             .FindWindowByName("base_url_label").GetLabel(), \
             "the base URL label was written into the box (pitfall 12)"
@@ -103,6 +104,71 @@ def test_video_box_says_what_it_does():
     I18n.set_language("en")
 
 
+class _FakeEngine:
+    """Stands in for AIEngine: answers like a model that sees."""
+
+    def __init__(self, video: bool, answer: str):
+        self.video, self.answer, self.calls = video, answer, []
+
+    def watches_video(self, provider=""):
+        return self.video
+
+    async def ask_about_video(self, path, question, provider="", model=""):
+        self.calls.append(("video", os.path.exists(path), provider, model))
+        return self.answer
+
+    async def look(self, path, question, provider="", model=""):
+        from PIL import Image
+        colour = Image.open(path).convert("RGB").getpixel((10, 10))
+        self.calls.append(("picture", colour, provider, model))
+        return self.answer
+
+
+def test_probe_every_provider():
+    from omni_describer_custom.core.model_catalog import probe_engine
+    eng = _FakeEngine(True, "COLOURS: red, then blue\nWORD: pineapple")
+    r = probe_engine(eng, "gemini", "gemini-x")
+    assert r["sees"] and not r["error"] and not r.get("picture"), r
+    assert eng.calls[0][0] == "video" and eng.calls[0][1], eng.calls
+    assert eng.calls[0][2:] == ("gemini", "gemini-x"), eng.calls
+
+    eng = _FakeEngine(False, "Red.")
+    r = probe_engine(eng, "custom", "my-model")
+    assert r["sees"] and r["picture"] and r["hears"] is None, r
+    red = eng.calls[0][1]
+    assert red[0] > 200 and red[2] < 60, f"the frame sent is not the red one: {red}"
+
+    r = probe_engine(_FakeEngine(False, "Green"), "custom", "m")
+    assert not r["sees"] and not r["error"], r
+
+    class Broken(_FakeEngine):
+        async def look(self, *a, **k):
+            raise RuntimeError("HTTP 401: bad key")
+    r = probe_engine(Broken(False, ""), "openai", "m")
+    assert "401" in r["error"] and not r["sees"], r
+
+
+def test_probe_handler_reports_missing_fields():
+    from omni_describer_custom.i18n.strings import t
+    dlg = _dialog()
+    try:
+        dlg.select_provider("custom")
+        dlg.custom_model_text.SetValue("")
+        dlg._on_probe_model(None)
+        assert dlg.test_result.GetLabel() == t("settings.probe_needs_model")
+        dlg.custom_model_text.SetValue("m")
+        dlg.base_url_text.SetValue("")
+        dlg._on_probe_model(None)
+        assert dlg.test_result.GetLabel() == t("settings.probe_needs_url")
+        dlg.base_url_text.SetValue("http://127.0.0.1:9/v1")
+        dlg.api_key_text.SetValue("")
+        dlg._on_probe_model(None)
+        assert dlg.test_result.GetLabel() == t("settings.probe_needs_key")
+        assert dlg.probe_model_btn.IsEnabled()
+    finally:
+        dlg.Destroy()
+
+
 def main() -> int:
     app = wx.App(False)
     check("custom provider boxes each follow a visible label",
@@ -110,6 +176,10 @@ def main() -> int:
     check("Test Connection is gone", test_no_test_connection_button)
     check("the whole-video box says what it does",
           test_video_box_says_what_it_does)
+    check("Test this model works for every provider",
+          test_probe_every_provider)
+    check("Test this model says what is missing",
+          test_probe_handler_reports_missing_fields)
     del app
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

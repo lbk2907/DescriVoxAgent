@@ -624,6 +624,21 @@ _Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di huju
    senarai cadangan, satu cadangan setiap penerangan. `edit` dengan teks
    yang sama DITOLAK (didengar dalam larian sebenar pertama).
 
+83. **"Uji model ini" untuk semua pembekal (v1.9.2)** melalui enjin app
+   sendiri (`model_catalog.probe_engine`): pembekal video (Gemini,
+   MiniMax) dapat klip 6 s yang sama melalui laluan muat naik sebenar
+   (`ask_about_video`); pembekal gambar (OpenAI, Custom) dapat satu
+   bingkai merah. Butang Uji Sambungan DIBUANG (ia hanya minta "OK").
+   Suhu 0 juga untuk video penuh Gemini terus: diukur TIDAK lebih tepat
+   (salah 14.7% → 14.2%) tetapi lebih stabil (beza larian 23 → 12);
+   keputusan pemilik.
+84. **Ejen untuk Gemini terus** guna titik hujung OpenAI-compatible Google
+   (`agent.GEMINI_URL`), tanpa medan khusus OpenRouter (`usage`,
+   `reasoning`). Google TIDAK memulangkan kos: `_cost` kira daripada token
+   × harga katalog OpenRouter (`google/<model>`), atau `FALLBACK_PRICE`
+   yang sengaja tinggi supaya had $0.02 berhenti awal, bukan lewat.
+   Kunci Gemini percuma cepat kena 429 kuota — itu bukan pepijat.
+
 ## Prosedur Biasa
 
 ### Run app (dev)

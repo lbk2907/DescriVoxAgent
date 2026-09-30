@@ -282,8 +282,29 @@ def test_transcript_works_inside_the_agents_loop():
         pump()
 
 
+def test_gemini_agent():
+    """v1.9.2: the agent opens for Gemini with the user's own key."""
+    w, _s, _p = player(provider="gemini")
+    try:
+        w._settings.set_ai_provider("gemini", {"api_key": "g-test",
+                                               "model": "gemini-3.1-flash-lite"})
+        assert w.agent_available() == (False, "untested")
+        w._settings.set("ai.agent_models", ["gemini-3.1-flash-lite"])
+        assert w.agent_available() == (True, ""), w.agent_available()
+        agent = w._make_agent()
+        assert agent.provider == "gemini" and agent.api_key == "g-test"
+        assert agent.model == "gemini-3.1-flash-lite"
+        agent.close()
+        w._settings.set("ai.default_provider", "minimax")
+        assert w.agent_available() == (False, "provider")
+    finally:
+        w.Destroy()
+        pump()
+
+
 def main() -> int:
     check("F2 and the Ask More fallback", test_f2_and_the_fallback)
+    check("the agent works with Gemini direct", test_gemini_agent)
     check("the agent opens; the video pauses and resumes",
           test_agent_opens_and_video_resumes)
     check("changes are saved, backed up and undone",
