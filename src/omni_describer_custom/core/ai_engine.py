@@ -1637,6 +1637,31 @@ class GLMProvider(AIProvider):
                             cache_dir=self.upload_cache_dir)]
                 else:
                     parts = [path]
+                    codec = self._video_codec(path)
+                    if codec and codec not in self._SAFE_CODECS:
+                        # v1.8.6: a small local AV1/HEVC/VP9 file went up
+                        # as it was, and some models cannot open it
+                        # (MiMo, Nemotron: "Failed to load video").
+                        # Re-encode to H.264 the same way a big file is.
+                        logger.info("Video codec %s: re-encoding to H.264 "
+                                    "for upload", codec)
+                        parts = []
+                        if preserve_resolution and duration > 0:
+                            if on_status:
+                                on_status("splitting")
+                            starts, parts = self.split_video_for_upload(
+                                path, int(duration) + 2,
+                                is_cancelled=is_cancelled,
+                                on_status=on_status,
+                                on_split_progress=on_split_progress,
+                                keep_resolution=True)
+                        if not parts:
+                            if on_status:
+                                on_status("compressing")
+                            parts = [self.compress_video_for_upload(
+                                path, self.COMPRESS_TARGET_BYTES,
+                                is_cancelled=is_cancelled,
+                                cache_dir=self.upload_cache_dir)]
             total = len(parts)
             # v1.7.4: each part's REAL length. chunk_seconds was passed
             # instead, so a 60 s clip was described as if it ran to
@@ -2230,6 +2255,25 @@ class GLMProvider(AIProvider):
             raise
         except Exception as e:
             raise RuntimeError(f"ffmpeg duration probe failed: {e}") from e
+
+    @staticmethod
+    def _video_codec(path: Path) -> str:
+        """Codec of the first video stream ("h264", "av1", ...), or ""."""
+        import subprocess as _sp
+        from .tools import find_tool
+        try:
+            out = _sp.run(
+                [find_tool("ffprobe"), "-v", "error", "-select_streams",
+                 "v:0", "-show_entries", "stream=codec_name", "-of",
+                 "default=nw=1:nk=1", str(path)],
+                capture_output=True, text=True, timeout=60)
+            return (out.stdout or "").strip().lower()
+        except Exception:
+            return ""
+
+    # Codecs every OpenRouter video model has been seen to open. MiMo and
+    # Nemotron answer "Failed to load video" for AV1 (pitfall 68).
+    _SAFE_CODECS = ("h264",)
 
     @staticmethod
     def _ffprobe_duration(path: Path) -> float:
