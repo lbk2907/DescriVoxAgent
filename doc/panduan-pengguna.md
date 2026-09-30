@@ -133,15 +133,13 @@ membacakan penerangan itu segerak semasa main balik.
   lalai: pilih pembekal `glm`, model `z-ai/glm-5.3-flash`, dan tampal
   kunci OpenRouter anda (bermula dengan `sk-or-v1-`); kunci terus
   Zhipu juga boleh digunakan melalui pembekal Custom dengan URL asas
-  `https://open.bigmodel.cn/api/paas/v4`. Butang **Uji Sambungan** (Test Connection) menyemak sama
-  ada tetapan yang anda taip benar-benar berfungsi: ia menghantar satu
-  soalan kecil kepada servis AI guna kunci itu (tanpa perlu memproses
-  satu video). Keputusan muncul sebagai teks di bawah borang dan fokus
-  papan kekunci berpindah ke situ supaya pembaca skrin terus
-  membacanya. "OK: ..." bermakna kunci sah; "Error: ..." bermakna kunci
-  salah, tiada internet, atau URL asas salah. Butang ini menguji nilai
-  dalam borang semasa, jadi anda boleh menguji sebelum menekan Apply.
-  - **Mod video penuh (Full-video mode)**: kotak semak ini hanya aktif
+  `https://open.bigmodel.cn/api/paas/v4`. Untuk OpenRouter, **Uji model ini** dan **Uji mod ejen**
+  menyemak kunci dan model dengan klip sebenar; keputusan dibaca
+  terus oleh pembaca skrin. (Butang Uji Sambungan lama dibuang
+  dalam 1.9.2.) Bagi pembekal **Custom**, kotak **Nama model**
+  terletak di bawah senarai Model.
+  - **Hantar seluruh video kepada AI (disyorkan)** — dahulu "Mod video
+    penuh". Tidak ditanda = gambar pegun satu demi satu. Kotak ini hanya aktif
     apabila pembekal **GLM (OpenRouter), Gemini atau MiniMax** dipilih.
     Bila didayakan,
     AI menerima **keseluruhan fail video** (audio + visual) dan AI
@@ -230,7 +228,7 @@ disimpan, jadi percubaan semula tidak perlu mengekod semula video
 Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
 "Pemprosesan selesai! N penerangan dijana." Jika AI gagal atau tidak
 memulangkan teks yang boleh diguna, dialog ralat menjelaskan langkah
-susulan (semak kunci API melalui Uji Sambungan), projek kosong **tidak**
+susulan (semak kunci API dan model dalam Tetapan), projek kosong **tidak**
 disimpan senyap-senyap, dan membuka projek yang tiada penerangan
 memberi amaran dengan langkah susulan yang sama.
 
@@ -266,7 +264,7 @@ perlu menyemak dialog sendiri.
   sendiri, contohnya 0.0s, 0.2s, 0.4s pada 5 FPS. Hanya frame (imej),
   bukan fail video penuh, dihantar kepada AI; aplikasi melekatkan
   timestamp frame pada teks yang AI pulangkan.
-- **Mod video penuh (GLM, Gemini atau MiniMax, kotak semak dalam Tab
+- **Mod video penuh (kotak "Hantar seluruh video kepada AI" dalam Tab
   AI):** satu fail video penuh dihantar (dimuat naik ke Gemini atau
   MiniMax Files API, atau dimasukkan sebagai base64 untuk GLM melalui
   OpenRouter), AI menonton video (termasuk audio) sendiri, dan

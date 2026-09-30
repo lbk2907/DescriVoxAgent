@@ -180,7 +180,13 @@ class SettingsDialog(wx.Dialog):
         self.test_agent_btn.Bind(wx.EVT_BUTTON, self._on_test_agent)
         model_sizer.Add(self.test_agent_btn, 0, wx.ALL, 5)
 
-        # Custom model text input (hidden by default)
+        # Custom model text input (hidden by default). NVDA names the box
+        # from the static text created just before it; without this one it
+        # followed a button and was read as an unlabelled edit (v1.9.2).
+        self.custom_model_label = wx.StaticText(
+            panel, label=t("settings.custom_model"), name="custom_model_label")
+        self.custom_model_label.Hide()
+        model_sizer.Add(self.custom_model_label, 0, wx.ALL, 5)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
         self.custom_model_text.SetHint(t("settings.model_hint"))
         self.custom_model_text.Hide()
@@ -198,7 +204,6 @@ class SettingsDialog(wx.Dialog):
         )
         self.base_url_text = wx.TextCtrl(panel, name="custom_base_url")
         self.base_url_text.SetHint(t("settings.base_url_placeholder"))
-        self.base_url_text.SetLabel(t("settings.base_url"))
         self.custom_sizer.Add(self.base_url_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # API Format
@@ -232,20 +237,12 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(self.show_key_btn, 0, wx.ALL, 5)
         self.show_key_btn.Bind(wx.EVT_TOGGLEBUTTON, self._on_toggle_key)
 
-        # Test connection button: lives in the AI tab only because it
-        # tests the AI provider, not the TTS engine or general settings.
-        self.test_btn = wx.Button(panel, label=t("settings.test_connection"),
-                                  name="test_connection")
-        sizer.Add(self.test_btn, 0, wx.ALL, 5)
-        self.test_btn.Bind(wx.EVT_BUTTON, self._on_test)
-
-        # Test result
+        # Result of Fetch models / Test this model / Test agent mode
         self.test_result = wx.StaticText(panel, label="", name="test_result")
         sizer.Add(self.test_result, 0, wx.ALL, 5)
 
-        # Full-video mode: only meaningful for providers with native
-        # video understanding (Gemini, MiniMax). Shown/disabled by
-        # provider selection.
+        # Full-video mode: the provider watches the whole video (Gemini,
+        # MiniMax, OpenRouter). Unticked = still frames one at a time.
         self.video_mode_cb = wx.CheckBox(
             panel, label=t("settings.video_mode"), name="video_mode")
         self.video_mode_cb.SetValue(
@@ -477,6 +474,7 @@ class SettingsDialog(wx.Dialog):
             if win:
                 win.Hide()
         self._custom_visible = False
+        self.custom_model_label.Hide()
         self.custom_model_text.Hide()
 
     def _show_custom_fields(self):
@@ -485,6 +483,7 @@ class SettingsDialog(wx.Dialog):
             win = child_info.GetWindow()
             if win:
                 win.Show()
+        self.custom_model_label.Show()
         self.custom_model_text.Show()
         self._custom_visible = True
         self.Layout()
@@ -556,6 +555,12 @@ class SettingsDialog(wx.Dialog):
         if provider == "custom":
             self._show_custom_fields()
             self.model_choice.Hide()
+            # OpenRouter-only buttons: heard by NVDA as live buttons that
+            # did nothing for Custom (v1.9.2).
+            self.fetch_models_btn.Disable()
+            self.probe_model_btn.Disable()
+            self.test_agent_btn.Disable()
+            self.video_only_hint.Hide()
             self.custom_model_text.Show()
             self.custom_model_text.SetFocus()
             # Load custom config
@@ -882,63 +887,6 @@ class SettingsDialog(wx.Dialog):
         so screen readers announce it immediately."""
         self.test_result.SetLabel(text)
         self.test_result.SetFocus()
-
-    def _on_test(self, event):
-        """Test AI provider connection."""
-        # Reentrancy guard: a second click while the background test is
-        # running must not start a second engine. The button is
-        # re-enabled on every exit path below.
-        self.test_btn.Disable()
-        provider = self._selected_provider()
-        api_key = self.api_key_text.GetValue().strip()
-
-        if provider == "custom" and not self.base_url_text.GetValue().strip():
-            self._show_test_result(t("settings.test_no_url"))
-            self.test_btn.Enable()
-            return
-
-        if not api_key:
-            self._show_test_result(t("settings.test_no_key"))
-            self.test_btn.Enable()
-            return
-
-        self.test_result.SetLabel(t("settings.testing"))
-        wx.Yield()
-
-        def test():
-            try:
-                from ..core.ai_engine import AIEngine
-                engine = AIEngine()
-
-                if provider == "custom":
-                    engine.set_provider(
-                        "custom",
-                        api_key=api_key,
-                        base_url=self.base_url_text.GetValue().strip(),
-                        model=self.custom_model_text.GetValue().strip(),
-                        api_format=API_FORMATS[self.format_choice.GetSelection()][0],
-                    )
-                else:
-                    engine.set_provider(provider, api_key=api_key)
-
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Text-only call — describe_frame requires a real image file
-                    result = loop.run_until_complete(engine.ask("Say 'OK' in one word"))
-                finally:
-                    loop.close()
-                wx.CallAfter(self._show_test_result,
-                             t("settings.test_ok", result=result[:60]))
-            except Exception as e:
-                wx.CallAfter(self._show_test_result,
-                             t("settings.test_error", error=str(e)[:100]))
-            finally:
-                wx.CallAfter(self.test_btn.Enable)
-
-        import threading
-        threading.Thread(target=test, daemon=True).start()
 
     def _on_apply(self, event):
         """Apply settings."""

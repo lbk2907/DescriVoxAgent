@@ -111,16 +111,13 @@ descriptions in sync during playback.
   `glm` provider, model `z-ai/glm-5.3-flash`, and paste your
   OpenRouter key (starting with `sk-or-v1-`); a direct Zhipu key also
   works through the Custom provider with base URL
-  `https://open.bigmodel.cn/api/paas/v4`. The **Test Connection**
-  button checks whether the settings you typed actually work: it sends
-  one tiny question to the AI service using that key (no need to
-  process a video). The result appears as text below the form and
-  keyboard focus moves there so the screen reader keeps reading it.
-  "OK: ..." means the key is valid; "Error: ..." means the key is
-  wrong, there is no internet, or the base URL is wrong. The button
-  tests the current form values, so you can test before pressing
-  Apply.
-  - **Full-video mode**: this checkbox is only enabled when the
+  `https://open.bigmodel.cn/api/paas/v4`. For OpenRouter,
+  **Test this model** and **Test agent mode** check the key and model
+  with a real clip; the result is read by the screen reader straight
+  away. (The old Test Connection button was removed in 1.9.2.) For the
+  **Custom** provider, the **Model name** box sits below the Model list.
+  - **Send the whole video to the AI (recommended)** — formerly
+    "Full-video mode". Unticked = still pictures one at a time. This checkbox is only enabled when the
     **GLM (OpenRouter), Gemini or MiniMax** provider is selected. When
     enabled, the AI
     receives the **whole video file** (audio + visual), the AI watches
@@ -202,7 +199,7 @@ re-encode (about 2.7 minutes back on a ten-minute video).
 Processing notice: when processing finishes, a dialog shows
 "Processing finished! N descriptions generated." If the AI fails or
 returns no usable text, an error dialog explains the follow-up steps
-(check the API key via Test Connection), an empty project is **not**
+(check the API key and model in Settings), an empty project is **not**
 saved silently, and opening a project without descriptions warns with
 the same follow-up steps.
 

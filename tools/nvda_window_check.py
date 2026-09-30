@@ -11,6 +11,7 @@ those windows on a throwaway project and tabs through it the same way.
     python tools/nvda_window_check.py --window updates
     python tools/nvda_window_check.py --window explorer
     python tools/nvda_window_check.py --window settings
+    python tools/nvda_window_check.py --window settings --provider custom
 
 Runs from source with an isolated ODC_CONFIG_DIR and a temp projects
 folder; the user's settings and projects are never touched. Exit 2
@@ -76,6 +77,12 @@ def serve(window: str, work: Path) -> None:
         from omni_describer_custom.ui.settings_dialog import SettingsDialog
         top = SettingsDialog(player, SettingsStore())
         top.Show()
+        provider = os.environ.get("ODC_A11Y_PROVIDER", "")
+        if provider:
+            # --provider: start on the AI tab with that provider chosen.
+            top.notebook.SetSelection(1)
+            top.select_provider(provider)
+            top.provider_choice.SetFocus()
     elif window == "ask":
         from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
         top = AskMoreDialog(player, None, store.current.descriptions, 0.0)
@@ -91,6 +98,8 @@ def main() -> int:
                                  "settings"],
                         required=True)
     parser.add_argument("--steps", type=int, default=16)
+    parser.add_argument("--provider", default="",
+                        help="settings only: open the AI tab on this provider")
     parser.add_argument("--serve", default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -106,7 +115,8 @@ def main() -> int:
     print(f"Bridge up: {detail}")
 
     work = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
-    env = dict(os.environ, ODC_CONFIG_DIR=str(work / "config"))
+    env = dict(os.environ, ODC_CONFIG_DIR=str(work / "config"),
+               ODC_A11Y_PROVIDER=args.provider)
     log = open(work / "app_log.txt", "w", encoding="utf-8")
     proc = subprocess.Popen([sys.executable, __file__, "--window",
                              args.window, "--serve", str(work)],

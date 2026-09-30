@@ -277,11 +277,12 @@ def test_bilingual_strings():
         assert key in s.EN_STRINGS, key
         assert key in s.MS_STRINGS, key
 
-    # Full-video wording names both capable providers, in both languages
-    assert "Gemini" in s.EN_STRINGS["settings.video_mode"]
-    assert "MiniMax" in s.EN_STRINGS["settings.video_mode"]
-    assert "Gemini" in s.MS_STRINGS["settings.video_mode"]
-    assert "MiniMax" in s.MS_STRINGS["settings.video_mode"]
+    # Full-video wording names the capable providers, in both languages.
+    # v1.9.2: in the hint under the box; the box itself says what it does
+    # (test_fixes56).
+    for table in (s.EN_STRINGS, s.MS_STRINGS):
+        for name in ("Gemini", "MiniMax", "OpenRouter"):
+            assert name in table["settings.video_mode_hint"], name
 
     # Status phases remain distinct (screen-reader clarity) in both
     for table in (s.EN_STRINGS, s.MS_STRINGS):

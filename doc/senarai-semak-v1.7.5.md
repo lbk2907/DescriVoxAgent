@@ -32,3 +32,15 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
       "Whole video checked: 2 changes proposed", Esc → "No changes made". DITEMUI & DIBAIKI:
       kemajuan disebut dua kali (tajuk dialog), "About 1 minutes". Gate 65 suite x2 GATE_ALL_PASS
 - [x] 19.S Build 1.9.1 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.1, zip 1.9.0 dibuang
+
+## Fasa 20 — 1.9.2 (laporan pemilik 1 Okt 2026)
+
+- [x] 20.1 Custom: kotak model tanpa label → label "Model name:" (didengar NVDA); base URL tanpa SetLabel
+- [x] 20.2 Butang Test Connection dibuang (Uji model ini / Uji mod ejen buat semakan sebenar)
+- [x] 20.3 "Full-video mode (GLM, Gemini or MiniMax)" → "Send the whole video to the AI (recommended)",
+      petunjuk terangkan maksud tidak ditanda (didengar NVDA)
+- [x] 20.4 DITEMUI semasa mendengar: Fetch/Test this model/Test agent aktif tetapi mati untuk Custom → dilumpuhkan
+- [ ] 20.5 "Uji model ini" untuk semua pembekal (Gemini, MiniMax, Custom)
+- [ ] 20.6 Ejen untuk Gemini terus (= 19.C2), diuji dengan kunci baharu
+- [ ] 20.7 Ukur suhu 0 untuk Gemini terus; guna hanya jika lebih tepat
+- [ ] 20.8 Gate x2, NVDA, build, tag v1.9.2
