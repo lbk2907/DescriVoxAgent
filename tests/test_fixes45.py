@@ -202,11 +202,11 @@ def test_yes_no_buttons_speak_the_app_language():
         def __init__(self, parent, message, title, flags):
             labels["flags"] = flags
 
-        def SetYesNoLabels(self, yes, no):
-            labels["yes"], labels["no"] = yes, no
+        def SetYesNoCancelLabels(self, yes, no, cancel):
+            labels["yes"], labels["no"], labels["cancel"] = yes, no, cancel
 
         def ShowModal(self):
-            return wx.ID_YES
+            return labels.get("answer", wx.ID_YES)
 
         def Destroy(self):
             pass
@@ -219,6 +219,12 @@ def test_yes_no_buttons_speak_the_app_language():
         assert labels["yes"].replace("&", "") == "Ya", labels
         assert labels["no"].replace("&", "") == "Tidak", labels
         assert labels["flags"] & wx.NO_DEFAULT
+        # v1.8.6: a Cancel button, so Esc works (Windows disables Esc in
+        # a message box without one); Cancel/Esc mean "no".
+        assert labels["flags"] & wx.CANCEL, "no Cancel, so Esc does nothing"
+        assert labels["cancel"] == "Batal", labels
+        labels["answer"] = wx.ID_CANCEL
+        assert dialogs.ask_yes_no(None, "Padam?", "Tajuk") is False
     finally:
         wx.MessageDialog = real
         I18n.set_language("en")

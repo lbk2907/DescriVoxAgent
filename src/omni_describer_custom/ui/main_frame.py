@@ -644,11 +644,18 @@ class MainFrame(wx.Frame):
         if subtitles is not None:
             ask = wx.MessageDialog(
                 self, t("main.play_existing_found", name=subtitles.name),
-                t("main.play_existing"), wx.YES_NO | wx.ICON_QUESTION)
-            ask.SetYesNoLabels(t("main.play_existing_use_found"),
-                               t("main.play_existing_pick_other"))
-            use_it = ask.ShowModal() == wx.ID_YES
+                t("main.play_existing"),
+                wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
+            # v1.8.6: Cancel (and so Esc, which Windows disables without
+            # it) stops here instead of forcing a choice.
+            ask.SetYesNoCancelLabels(t("main.play_existing_use_found"),
+                                     t("main.play_existing_pick_other"),
+                                     t("cancel"))
+            answer = ask.ShowModal()
             ask.Destroy()
+            if answer == wx.ID_CANCEL:
+                return
+            use_it = answer == wx.ID_YES
             if not use_it:
                 subtitles = None
         if subtitles is None:
