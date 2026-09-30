@@ -232,4 +232,4 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
       ringkasan → "Accept all button Alt+A" → Esc "No changes made". DITEMUI semasa mendengar:
       transkrip gagal dalam gelung ejen ("Cannot run the event loop...") — dibaiki + ujian;
       "1 changes proposed" → "Changes proposed: 1". Gate 64 suite x2 GATE_ALL_PASS
-- [ ] 18.2f Build 1.9.0, exe NVDA, tag
+- [x] 18.2f Build 1.9.0 BUILD_ALL_OK (core.agent + ui.agent_dialog dalam exe); exe NVDA 10/10; tag v1.9.0
