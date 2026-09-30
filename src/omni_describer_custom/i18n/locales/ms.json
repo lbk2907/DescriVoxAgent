@@ -372,5 +372,16 @@
   "common.yes": "&Ya",
   "common.no": "&Tidak",
   "error.ai_busy": "Perkhidmatan AI sedang sibuk (terlalu banyak permintaan). Tunggu beberapa minit dan cuba lagi, atau pilih model lain dalam Tetapan > AI.",
-  "error.download_forbidden": "Laman video menolak muat turun (HTTP 403), walaupun selepas mencuba semula. Tunggu seminit dan cuba lagi. Jika berulang, guna Bantuan > Semak Kemas Kini untuk mengemas kini yt-dlp."
+  "error.download_forbidden": "Laman video menolak muat turun (HTTP 403), walaupun selepas mencuba semula. Tunggu seminit dan cuba lagi. Jika berulang, guna Bantuan > Semak Kemas Kini untuk mengemas kini yt-dlp.",
+  "settings.review_mode": "Semak penerangan dengan video (mod video penuh):",
+  "settings.review_off": "Mati",
+  "settings.review_auto": "Auto (app memilih)",
+  "settings.review_accurate": "Paling tepat (mungkin buang sedikit)",
+  "settings.review_most": "Paling banyak penerangan",
+  "settings.review_keep": "Kekalkan semua, betulkan masa sahaja",
+  "settings.review_hint": "Selepas AI menulis penerangan, setiap satu disemak dengan bingkai di sekelilingnya: dialih ke saat ia benar-benar berlaku, atau dibuang jika tiada langsung. Diukur pada dua filem: penerangan salah kira-kira separuh. Menambah beberapa minit dan kos kecil. Auto guna Paling tepat untuk video panjang dan Kekalkan semua untuk video pendek.",
+  "video.phase_reviewing": "Menyemak penerangan dengan video...",
+  "review.progress": "Menyemak penerangan: {done} daripada {total}",
+  "review.summary": "Penerangan disemak ({mode}): {checked} disemak, {moved} dialih ke saat yang betul, {removed} dibuang.",
+  "review.failed": "Semakan penerangan tidak dapat diselesaikan ({error}); penerangan disimpan tanpa semakan."
 }

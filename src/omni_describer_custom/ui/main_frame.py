@@ -1728,6 +1728,13 @@ class MainFrame(wx.Frame):
                         raise
                     raise
                 wx.CallAfter(self._log, t("video.parsed_count", count=len(pairs)))
+                # v1.8.8: optional check of each description against the
+                # picture (Settings; off unless the user turns it on).
+                pairs = self._review_pairs(loop, resolved, pairs,
+                                           float(info.duration or 0),
+                                           est_parts)
+                if pairs is None:
+                    return  # cancelled; _review_pairs has cleaned up
                 # v1.6.8: a cue lasts as long as its text takes to
                 # say, not a flat 3 seconds. Anything still landing
                 # on the dialogue is named in the log.
@@ -2299,6 +2306,7 @@ class MainFrame(wx.Frame):
             "encoding": "video.phase_encoding",
             "waiting": "video.phase_waiting",
             "parsing": "video.phase_parsing",
+            "reviewing": "video.phase_reviewing",
         }
         line = t(phase_keys.get(phase, "video.phase_processing"))
         # v1.6.4: three things had to change together here.
@@ -2320,6 +2328,59 @@ class MainFrame(wx.Frame):
             # A wait is announced by the first time-left tick, with
             # its estimate (see _video_eta_tick).
             self._announce_progress(line)
+
+    def _review_pairs(self, loop, video: str, pairs, length: float,
+                      parts: int):
+        """Run the description check if Settings asks for it (worker
+        thread). Returns the pairs to save, or None when cancelled.
+
+        A failed check never costs the job: the unchecked descriptions
+        are saved instead, and the log says why.
+        """
+        from ..core import review
+        mode = review.resolve_mode(
+            str(self.settings.get("general.review_mode", "off") or "off"),
+            parts)
+        if mode == "off" or not pairs:
+            return pairs
+        wx.CallAfter(self._video_status_tick, "reviewing")
+        last = {"pct": -1}
+
+        def progress(done: int, total: int) -> None:
+            pct = int(done * 100 / max(1, total))
+            # Only on whole 10% steps: text that changes every half
+            # second is read over and over when the dialog has focus
+            # (pitfall 65).
+            if pct // 10 != last["pct"] // 10 or done == total:
+                last["pct"] = pct
+                wx.CallAfter(self.SetStatusText, t(
+                    "review.progress", done=done, total=total))
+        try:
+            kept, summary = loop.run_until_complete(review.review(
+                self.ai_engine, video, pairs, mode, length,
+                on_progress=progress,
+                is_cancelled=lambda: bool(
+                    getattr(self, "_dl_cancelled", False))))
+        except RuntimeError as e:
+            if "cancel" in str(e).lower():
+                wx.CallAfter(self._log, t("download.cancelled_log"))
+                wx.CallAfter(self._close_download_progress)
+                if loop is not None and not loop.is_closed():
+                    loop.close()
+                wx.CallAfter(self._processing_done)
+                return None
+            logger.warning("Description check failed: %s", e)
+            wx.CallAfter(self._log, t("review.failed", error=str(e)[:200]))
+            return pairs
+        except Exception as e:
+            logger.warning("Description check failed: %s", e)
+            wx.CallAfter(self._log, t("review.failed", error=str(e)[:200]))
+            return pairs
+        wx.CallAfter(self._log, t(
+            "review.summary", checked=summary["checked"],
+            moved=summary["moved"], removed=summary["removed"],
+            mode=t(f"settings.review_{mode}")))
+        return kept
 
     def _announce_progress(self, text: str, part: bool = False) -> None:
         """Say a change of phase through the user's screen reader.

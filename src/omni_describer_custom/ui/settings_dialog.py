@@ -375,6 +375,18 @@ class SettingsDialog(wx.Dialog):
         self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=300, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
+        # v1.8.8: check descriptions against the picture. The label is
+        # created right before the Choice so NVDA names it (pitfall 53).
+        sizer.Add(wx.StaticText(panel, label=t("settings.review_mode"),
+                                name="review_mode_label"), 0, wx.ALL, 5)
+        self.review_choice = wx.Choice(
+            panel, choices=[t(f"settings.review_{m}") for m in
+                            ["off", "auto", "accurate", "most", "keep"]],
+            name="review_mode")
+        sizer.Add(self.review_choice, 0, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(wx.StaticText(panel, label=t("settings.review_hint"),
+                                name="review_mode_hint"), 0, wx.ALL, 5)
+
         self.preserve_res_check = wx.CheckBox(
             panel, label=t("settings.preserve_resolution"),
             name="preserve_resolution")
@@ -950,6 +962,11 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("general.preserve_resolution",
                           bool(self.preserve_res_check.GetValue()))
 
+        review_modes = ["off", "auto", "accurate", "most", "keep"]
+        idx = self.review_choice.GetSelection()
+        if idx != wx.NOT_FOUND:
+            self.settings.set("general.review_mode", review_modes[idx])
+
         backends = ["auto", "whisper", "grok", "off"]
         idx = self.transcribe_choice.GetSelection()
         if idx != wx.NOT_FOUND:
@@ -1041,6 +1058,11 @@ class SettingsDialog(wx.Dialog):
 
         chunk_val = int(self.settings.get("general.chunk_seconds", 300) or 300)
         self.chunk_spin.SetValue(max(60, chunk_val))
+
+        review_modes = ["off", "auto", "accurate", "most", "keep"]
+        saved = str(self.settings.get("general.review_mode", "off") or "off")
+        self.review_choice.SetSelection(
+            review_modes.index(saved) if saved in review_modes else 0)
 
         self.preserve_res_check.SetValue(bool(self.settings.get(
             "general.preserve_resolution", False)))

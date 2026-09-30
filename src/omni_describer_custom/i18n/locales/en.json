@@ -372,5 +372,16 @@
   "common.yes": "&Yes",
   "common.no": "&No",
   "error.ai_busy": "The AI service is busy right now (too many requests). Wait a few minutes and try again, or choose another model in Settings > AI.",
-  "error.download_forbidden": "The video site refused the download (HTTP 403), even after trying again. Wait a minute and try again. If it keeps happening, use Help > Check for Updates to update yt-dlp."
+  "error.download_forbidden": "The video site refused the download (HTTP 403), even after trying again. Wait a minute and try again. If it keeps happening, use Help > Check for Updates to update yt-dlp.",
+  "settings.review_mode": "Check descriptions against the video (full-video mode):",
+  "settings.review_off": "Off",
+  "settings.review_auto": "Auto (the app chooses)",
+  "settings.review_accurate": "Most accurate (may remove a few)",
+  "settings.review_most": "Most descriptions",
+  "settings.review_keep": "Keep all, only fix timing",
+  "settings.review_hint": "After the AI writes the descriptions, each one is checked against the frames around it: moved to where it really happens, or removed if it is nowhere to be seen. Measured on two films: about half as many wrong descriptions. Adds a few minutes and a small cost. Auto uses Most accurate for long videos and Keep all for short ones.",
+  "video.phase_reviewing": "Checking the descriptions against the video...",
+  "review.progress": "Checking descriptions: {done} of {total}",
+  "review.summary": "Descriptions checked ({mode}): {checked} checked, {moved} moved to the right moment, {removed} removed.",
+  "review.failed": "The description check could not finish ({error}); the descriptions are saved unchecked."
 }

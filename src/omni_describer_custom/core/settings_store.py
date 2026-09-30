@@ -267,6 +267,10 @@ class SettingsStore:
             # v1.8.7: seconds between frame-mode descriptions (one 12-word
             # line takes ~4 s to speak).
             "min_description_gap": 4,
+            # v1.8.8: check each description against the picture after
+            # full-video mode (core/review.py). Off unless chosen: it adds
+            # minutes and a little cost (owner's choice, 30 Sep 2026).
+            "review_mode": "off",
             # Seconds per part when a long video is split for the AI
             # (full-video mode). 600 = 10 minutes (user request v1.5.3).
             # v1.8.6: 300, not 600. Measured on two long films with the
