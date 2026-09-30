@@ -42,6 +42,7 @@ _OUR_PREFIXES = (
     "odc_explorer_",    # frames written for the scene explorer
     "odc_probe_",       # Settings > Test this model (v1.8.1)
     "odc_review_",      # frames for checking descriptions (v1.8.8)
+    "odc_agent_",       # the Player agent's frames (v1.9.0)
 )
 
 # A day: long enough that a paused job, a slow download or a user who

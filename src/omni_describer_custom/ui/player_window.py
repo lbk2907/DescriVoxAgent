@@ -66,6 +66,11 @@ class PlayerWindow(wx.Frame):
                 self._settings = SettingsStore()
             except Exception:  # settings are a nicety here, not a need
                 self._settings = None
+        # v1.9.0: the agent (F2) lives for this Player session.
+        self._agent = None
+        self._agent_transcript: list[str] = []
+        self._agent_undo: list[list] = []
+        self._agent_backup_done = False
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
         self._sub_cues: list[Description] = []  # v1.3.0: SRT subtitle cues
@@ -388,6 +393,7 @@ class PlayerWindow(wx.Frame):
         self.edit_btn = wx.Button(panel, label=t("editor.title"), name="edit_descriptions")
         self.ask_btn = wx.Button(panel, label=t("player.ask_more"), name="ask_more")
         self.explore_btn = wx.Button(panel, label=t("player.explore"), name="explore")
+        self.agent_btn = wx.Button(panel, label=t("player.agent"), name="agent")
         speaker = chr(0x1F50A)
         self.speak_btn = wx.Button(
             panel, label=speaker + " " + t("player.read_description"),
@@ -395,6 +401,7 @@ class PlayerWindow(wx.Frame):
 
         action_row.Add(self.edit_btn, 0, wx.ALL, 5)
         action_row.Add(self.ask_btn, 0, wx.ALL, 5)
+        action_row.Add(self.agent_btn, 0, wx.ALL, 5)
         action_row.Add(self.explore_btn, 0, wx.ALL, 5)
         action_row.Add(self.speak_btn, 0, wx.ALL, 5)
 
@@ -413,6 +420,9 @@ class PlayerWindow(wx.Frame):
         self.edit_btn.Bind(wx.EVT_BUTTON, self._on_edit)
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
+        self.agent_btn.Bind(wx.EVT_BUTTON, lambda e: self.open_agent())
+        # F2 anywhere in the Player (owner's choice; it had no shortcuts).
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
         self.pause_narration_check.Bind(wx.EVT_CHECKBOX,
                                         self._on_pause_narration_toggle)
@@ -829,6 +839,7 @@ class PlayerWindow(wx.Frame):
         self.edit_btn.SetLabel(t("editor.title"))
         self.ask_btn.SetLabel(t("player.ask_more"))
         self.explore_btn.SetLabel(t("player.explore"))
+        self.agent_btn.SetLabel(t("player.agent"))
         self.speak_btn.SetLabel(chr(0x1F50A) + " " + t("player.read_description"))
         self.video_panel.SetName(t("player.video_area"))
         self.Layout()
@@ -867,9 +878,219 @@ class PlayerWindow(wx.Frame):
         dlg = AskMoreDialog(
             self, self.ai_engine,
             descriptions=self.project.descriptions if self.project else None,
-            position=self._position)
+            position=self._position,
+            video_path=self.project.video_path if self.project else "")
         dlg.ShowModal()
         dlg.Destroy()
+
+    # ── The agent (v1.9.0) ─────────────────────────────────────
+    def _on_char_hook(self, event):
+        if event.GetKeyCode() == wx.WXK_F2 and not event.HasAnyModifiers():
+            self.open_agent()
+            return
+        event.Skip()
+
+    def agent_available(self) -> tuple[bool, str]:
+        """(ok, why not): OpenRouter, a key, a model that passed
+        Settings > Test agent mode, and a video to look at."""
+        import os
+        st = self._settings
+        if st is None:
+            return False, "settings"
+        if (st.get("ai.default_provider", "") or "") != "glm":
+            return False, "provider"
+        cfg = st.get_ai_provider("glm") or {}
+        if not cfg.get("api_key"):
+            return False, "key"
+        passed = st.get("ai.agent_models", []) or []
+        if (cfg.get("model") or "") not in passed:
+            return False, "untested"
+        if not (self.project and self.project.video_path
+                and os.path.exists(self.project.video_path)):
+            return False, "video"
+        return True, ""
+
+    def _make_agent(self):
+        from ..core.agent import Agent, Context
+        from ..i18n.strings import I18n
+        cfg = self._settings.get_ai_provider("glm")
+        proj = self.project
+        folder = self.store.project_dir(proj.id)
+        # Answers follow the app language (owner's choice).
+        language = I18n.ai_language_name(I18n.current_language()) or "English"
+        ctx = Context(
+            video=proj.video_path,
+            length=float(proj.video_duration or self._slider_dur or 0),
+            descriptions=[(d.start_time, d.text) for d in proj.descriptions],
+            get_position=lambda: float(self._position),
+            seek=lambda at: wx.CallAfter(self.seek_to, at),
+            get_transcript=lambda: self._transcript_for_agent(folder),
+            characters_file=str(folder / "characters.json"),
+            language=language)
+        return Agent(cfg["api_key"], cfg.get("model", ""), ctx)
+
+    def _transcript_for_agent(self, folder):
+        """Worker thread: the project's transcript, made once and kept in
+        the project folder (it is not stored anywhere else)."""
+        import asyncio
+        import json
+        from types import SimpleNamespace
+        cache = folder / "media" / "transcript.json"
+        if cache.exists():
+            try:
+                return [SimpleNamespace(**seg) for seg in
+                        json.loads(cache.read_text(encoding="utf-8"))]
+            except (ValueError, TypeError):
+                pass
+        from ..core.video_processor import VideoProcessor
+        video = self.project.video_path
+        # The agent calls this from INSIDE its own running event loop, so
+        # the transcript gets a loop of its own on a helper thread ("Cannot
+        # run the event loop while another loop is running" — heard in the
+        # first NVDA listening run, v1.9.0).
+        got: dict = {}
+
+        def work():
+            loop = asyncio.new_event_loop()
+            try:
+                got["segs"] = loop.run_until_complete(
+                    VideoProcessor().get_transcript(video, local_path=video))
+            except Exception as e:
+                got["error"] = e
+            finally:
+                loop.close()
+        import threading
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        worker.join()
+        if "error" in got:
+            raise got["error"]
+        segs = got.get("segs") or []
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(
+                [{"start": s.start, "end": s.end, "text": s.text} for s in segs],
+                ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+        return segs
+
+    def seek_to(self, seconds: float) -> None:
+        dur = float(self._slider_dur or 0)
+        self._position = max(0.0, min(float(seconds), dur or float(seconds)))
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.set_time(int(self._position * 1000))
+        elif self._audio_backend == "ffplay" and self._playing:
+            self._start_ffplay(self._position)
+        if dur > 0:
+            self.position_slider.SetValue(int(self._position / dur * 1000))
+        self._update_desc_display()
+
+    def open_agent(self) -> None:
+        """F2: the agent, or Ask More (with the frame) when this model has
+        not passed Test agent mode (owner's rule)."""
+        ok, why = self.agent_available()
+        if not ok:
+            self._announce(t(f"agent.unavailable_{why}"))
+            if why in ("untested", "provider"):
+                self._on_ask(None)
+            return
+        was_playing = bool(self._playing)
+        if was_playing:
+            self._do_pause()
+        try:
+            if self._agent is None:
+                self._agent = self._make_agent()
+            from .agent_dialog import AgentDialog
+            dlg = AgentDialog(self, self._agent)
+            dlg.ShowModal()
+            dlg.Destroy()
+        except Exception as e:
+            logger.error("Agent failed to open: %s", e)
+            self._announce(t("agent.error", error=str(e)[:200]))
+        finally:
+            if was_playing:
+                self._do_play()
+
+    def can_undo_agent(self) -> bool:
+        return bool(self._agent_undo)
+
+    def apply_agent_changes(self, proposals) -> int:
+        """Apply ACCEPTED proposals to this project's own descriptions.
+
+        Before the first change of the session the project's SRT is copied
+        aside; each batch can be undone. A subtitle file loaded from
+        elsewhere (Load SRT) is never written to.
+        """
+        import copy
+        import shutil
+        import time as _time
+        from ..core.project_store import Description
+        proj = self.project
+        if not proj or not proposals:
+            return 0
+        descs = proj.descriptions
+        self._agent_undo.append(copy.deepcopy(descs))
+        srt = self._project_srt_path()
+        if not self._agent_backup_done and srt.exists():
+            backup = srt.with_name(
+                f"descriptions.before-agent-{_time.strftime('%Y%m%d-%H%M%S')}.srt")
+            try:
+                shutil.copy2(srt, backup)
+                self._agent_backup_done = True
+            except OSError as e:
+                logger.warning("SRT backup failed: %s", e)
+        by_index = list(descs)
+        remove, applied = set(), 0
+        for p in proposals:
+            target = (by_index[p.index] if p.index is not None
+                      and 0 <= p.index < len(by_index) else None)
+            if p.action == "edit" and target is not None and p.text:
+                target.text, target.edited = p.text, True
+            elif p.action == "move" and target is not None and p.time is not None:
+                length = max(0.5, target.end_time - target.start_time)
+                target.start_time = float(p.time)
+                target.end_time = float(p.time) + length
+                target.edited = True
+            elif p.action == "remove" and target is not None:
+                remove.add(id(target))
+            elif p.action == "add" and p.time is not None and p.text:
+                from ..core.timeline_io import WORDS_PER_SECOND_AT_1X
+                words = len(p.text.split())
+                descs.append(Description(
+                    start_time=float(p.time),
+                    end_time=float(p.time) + max(2.0, words / WORDS_PER_SECOND_AT_1X),
+                    text=p.text, edited=True))
+            else:
+                continue
+            applied += 1
+        proj.descriptions = sorted((d for d in descs if id(d) not in remove),
+                                   key=lambda d: d.start_time)
+        self._save_agent_descriptions()
+        return applied
+
+    def undo_agent_changes(self) -> bool:
+        if not self._agent_undo or not self.project:
+            return False
+        self.project.descriptions = self._agent_undo.pop()
+        self._save_agent_descriptions()
+        return True
+
+    def _save_agent_descriptions(self) -> None:
+        proj = self.project
+        self.store.save_descriptions(proj.descriptions)
+        try:
+            from ..core.timeline_io import to_srt
+            srt = self._project_srt_path()
+            srt.parent.mkdir(parents=True, exist_ok=True)
+            srt.write_text(to_srt(proj.descriptions), encoding="utf-8")
+        except Exception as e:
+            logger.warning("Project SRT rewrite failed: %s", e)
+        if self._agent is not None:
+            self._agent.ctx.descriptions = [(d.start_time, d.text)
+                                            for d in proj.descriptions]
+        self._narrated.clear()
+        self._update_desc_display()
 
     def _on_explore(self, event):
         """Open scene explorer."""
@@ -913,6 +1134,12 @@ class PlayerWindow(wx.Frame):
                     child.save_edits()
                 except Exception as e:
                     logger.error("Saving editor on player close failed: %s", e)
+        if self._agent is not None:
+            try:
+                self._agent.close()      # its frames; memory ends here
+            except Exception:
+                pass
+            self._agent = None
         self.tts.stop()
         self._stop_ffplay()
         if self._vlc_available and self._vlc is not None:

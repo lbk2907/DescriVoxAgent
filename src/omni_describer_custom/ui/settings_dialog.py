@@ -172,6 +172,14 @@ class SettingsDialog(wx.Dialog):
         self.probe_model_btn.Bind(wx.EVT_BUTTON, self._on_probe_model)
         model_sizer.Add(self.probe_model_btn, 0, wx.ALL, 5)
 
+        # v1.9.0: can this model drive the Player agent (F2)? Judged on
+        # what it does (tools used, looked first, valid proposal, an
+        # answer), measured in tools/agent_bench.py.
+        self.test_agent_btn = wx.Button(
+            panel, label=t("settings.test_agent"), name="test_agent")
+        self.test_agent_btn.Bind(wx.EVT_BUTTON, self._on_test_agent)
+        model_sizer.Add(self.test_agent_btn, 0, wx.ALL, 5)
+
         # Custom model text input (hidden by default)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
         self.custom_model_text.SetHint(t("settings.model_hint"))
@@ -567,6 +575,7 @@ class SettingsDialog(wx.Dialog):
             self.model_choice.Show()
             self.fetch_models_btn.Show()
             self.probe_model_btn.Show()
+            self.test_agent_btn.Show()
             self.video_only_hint.Show()
             # Populate model list from presets (glm later swaps in the
             # video-capable catalog list when the user fetches).
@@ -583,6 +592,7 @@ class SettingsDialog(wx.Dialog):
             is_openrouter = provider == "glm"
             self.fetch_models_btn.Enable(is_openrouter)
             self.probe_model_btn.Enable(is_openrouter)
+            self.test_agent_btn.Enable(is_openrouter)
             self.video_only_hint.Show(is_openrouter)
             if prov_config.get("api_key"):
                 self.api_key_text.SetValue(prov_config["api_key"])
@@ -732,6 +742,51 @@ class SettingsDialog(wx.Dialog):
 
         import threading
         threading.Thread(target=work, daemon=True).start()
+
+    def _on_test_agent(self, event):
+        """Settings > Test agent mode: a 12-second test clip, one question."""
+        provider = self._selected_provider()
+        model = self._choice_value(self.model_choice)
+        api_key = self.api_key_text.GetValue().strip()
+        if provider != "glm" or not model:
+            self._show_test_result(t("settings.agent_openrouter_only"))
+            return
+        if not api_key:
+            self._show_test_result(t("settings.probe_needs_key"))
+            return
+        self.test_agent_btn.Disable()
+        self._show_test_result(t("settings.testing_agent", model=model))
+
+        def work():
+            import asyncio
+            from ..core.agent import probe
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(probe(api_key, model))
+            except Exception as e:
+                result = {"ok": False, "error": str(e)[:200]}
+            finally:
+                loop.close()
+            wx.CallAfter(self._test_agent_done, model, result)
+
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+
+    def _test_agent_done(self, model, result) -> None:
+        if not self:
+            return
+        self.test_agent_btn.Enable()
+        passed = list(self.settings.get("ai.agent_models", []) or [])
+        if result.get("ok"):
+            if model not in passed:
+                passed.append(model)
+            text = t("settings.agent_pass", model=model)
+        else:
+            passed = [m for m in passed if m != model]
+            text = (t("settings.agent_error", model=model, error=result["error"])
+                    if result.get("error") else t("settings.agent_fail", model=model))
+        self.settings.set("ai.agent_models", passed)
+        self._show_test_result(text)
 
     def _probe_done(self, model, result) -> None:
         if not self:

@@ -20,8 +20,13 @@ class AskMoreDialog(wx.Dialog):
     """Dialog for asking follow-up questions about a scene."""
 
     def __init__(self, parent, ai_engine: AIEngine | None,
-                 descriptions=None, position: float = 0.0):
+                 descriptions=None, position: float = 0.0,
+                 video_path: str = ""):
         self.ai = ai_engine
+        # v1.9.0: the question goes with the FRAME at the player's
+        # position. Ask More only ever sent description text, so it
+        # answered about a scene it had never seen.
+        self._video = video_path or ""
         self._history: list[dict] = []
         # v1.7.4: the scene context the "seconds" field refers to. It was
         # shown but never read, so the AI got the bare question with no
@@ -129,7 +134,15 @@ class AskMoreDialog(wx.Dialog):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                result = loop.run_until_complete(self.ai.ask(q, history))
+                frame = self._frame_at_position()
+                if frame:
+                    past = "\n".join(
+                        f"{h['role']}: {h['content']}" for h in history or [])
+                    seen = (f"{past}\n\n{q}" if past else q)
+                    result = loop.run_until_complete(
+                        self.ai.ask_about_scene(frame, seen))
+                else:
+                    result = loop.run_until_complete(self.ai.ask(q, history))
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})
                 wx.CallAfter(self.history_text.AppendText,
@@ -148,6 +161,28 @@ class AskMoreDialog(wx.Dialog):
         self._history.append({"role": "user", "content": question})
         threading.Thread(target=ask, daemon=True).start()
         self.question_text.SetValue("")
+
+    def _frame_at_position(self) -> str:
+        """A JPEG of the video at the player's position, or "" when
+        there is no video to look at (the text-only question is used)."""
+        import os
+        import subprocess
+        import tempfile
+        if not self._video or not os.path.exists(self._video):
+            return ""
+        from ..core.tools import find_tool
+        out = os.path.join(tempfile.gettempdir(),
+                           f"odc_ask_{os.getpid()}.jpg")
+        try:
+            subprocess.run(
+                [find_tool("ffmpeg"), "-hide_banner", "-nostdin", "-y",
+                 "-v", "error", "-ss", f"{max(0.0, self._position):.2f}",
+                 "-i", self._video, "-frames:v", "1", "-vf",
+                 "scale=960:-2", out], timeout=60, check=True)
+            return out if os.path.exists(out) else ""
+        except Exception as e:
+            logger.warning("Ask More: no frame at %.1fs: %s", self._position, e)
+            return ""
 
     def _scene_context(self) -> str:
         """Descriptions within +/- N seconds of the playback position,
