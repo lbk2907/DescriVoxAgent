@@ -358,6 +358,8 @@ the first change and **Undo** is always there. Every step is spoken.
 The conversation is remembered until the Player closes; character names
 are remembered for the project.
 
+**Check the whole video** (a button in the agent window) goes through every description, a minute of video at a time, and gives ONE list of proposals to accept, review or reject. It says the time and cost first; the same button stops it.
+
 The agent works with OpenRouter models that pass **Settings > Test agent
 mode**. For other models F2 opens **Ask More**, which now sends the
 frame at the Player's position with your question.

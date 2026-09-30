@@ -2,6 +2,21 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.1
+
+- **More accurate and steadier descriptions** (OpenRouter models).
+  Whole-video requests now ask for temperature 0. Measured on four
+  different clips, three runs each: correct descriptions 51 → 83,
+  wrong 24% → 17% (independent judge), and runs of the same video agree
+  far more (a news clip used to give 3, 15 or 14 descriptions; now 16–18).
+- **Check the whole video with the agent.** In the Player agent (F2), the
+  new **Check the whole video** button goes through every description a
+  minute of video at a time and gathers ONE list of proposed fixes, which
+  you then accept, review or reject as usual. It tells you the time and
+  cost first, says each part as it goes, and the same button stops it.
+  Tested on 3 minutes of a film: 22 descriptions, 6 proposals, $0.005.
+- The agent no longer offers an "edit" that keeps the same text.
+
 ## What's new in v1.9.0
 
 **The Player agent (F2).** In the Player, press F2 (or the Agent button)

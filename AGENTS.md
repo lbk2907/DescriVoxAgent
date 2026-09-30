@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 64 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 65 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 64 suite; run_gate.bat = semua
+tests/                           — 65 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -614,6 +614,16 @@ _Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di huju
    provider configured". `MainFrame.configure_ai()` kini dipanggil semasa
    mula, selepas Settings, dan semasa memproses.
 
+81. **Suhu 0 untuk video penuh OpenRouter** (`GLMProvider.TEMPERATURE`,
+   v1.9.1). Diukur: betul 51 → 83, salah 24.2% → 16.8% (penilai Gemini),
+   beza antara larian separuh. Gemini terus belum diukur — jangan salin
+   tetapan ke sana tanpa ukuran. Snap ke perubahan adegan DIUJI dan
+   DITOLAK (tiada kemajuan jelas; `model_bench.py snap`).
+82. **"Semak seluruh video" (`Agent.check_all`)** memulakan perbualan
+   BAHARU setiap 60 s video (sesi pengguna dipulihkan selepas), satu
+   senarai cadangan, satu cadangan setiap penerangan. `edit` dengan teks
+   yang sama DITOLAK (didengar dalam larian sebenar pertama).
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -659,8 +669,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.9.0 (tag `v1.9.0`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 64 suite dalam `run_gate.bat`.
+- **Versi:** 1.9.1 (tag `v1.9.1`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 65 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

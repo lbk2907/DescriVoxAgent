@@ -14,7 +14,7 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
   _(dari: Fasa 8 — penambahbaikan kecil (diminta pemilik 28 Sep 2026))_
 - [ ] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings
   _(dari: Fasa 15 — perbandingan model (diminta pemilik 29 Sep 2026, v1.8.5))_
-- [ ] 18.1e (tidak dibuat — kredit OpenRouter hampir habis) suhu tetap, snap perubahan adegan
+- [x] 18.1e suhu tetap, snap perubahan adegan — dibuat dalam 19.B1/19.B2
   _(dari: Fasa 18 — seterusnya (susunan pemilik 30 Sep 2026))_
 
 ## Fasa 19 — B + C + E (dipilih pemilik 30 Sep 2026; susunan E → B → C)
@@ -23,7 +23,12 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
       CHANGELOG.md, 0 baris sejarah hilang
 - [x] 19.E3 18 fasa siap → senarai-semak-arkib.md; 5 item terbuka di atas; 0 baris hilang
 - [x] 19.E4 doc/developer-guide.md
-- [ ] 19.B1 Suhu tetap — ukur konsistensi antara larian, simpan hanya jika lebih baik
-- [ ] 19.B2 Snap ke perubahan adegan — ukur, simpan hanya jika lebih baik
-- [ ] 19.C1 Ejen: "Semak seluruh video" (satu senarai cadangan untuk disemak)
+- [x] 19.B1 Suhu 0: betul 51 → 83, salah 24.2% → 16.8% (Gemini), beza larian 21 → 11 — DIGUNAKAN
+- [x] 19.B2 Snap ke perubahan adegan: tiada kemajuan jelas (salah 39 → 44 Gemini) — TIDAK digunakan
+- [x] 19.C1 "Semak seluruh video": sebenar pada 3 min Tears — 22 penerangan, 6 cadangan, $0.005;
+      DITEMUI: edit dengan teks sama — kini ditolak
 - [ ] 19.C2 Ejen untuk Gemini terus (perlu kunci Gemini yang sah untuk ujian sebenar)
+- [x] 19.R Didengar NVDA: pengesahan masa/kos dibaca penuh, "Checking part 1 of 1", langkah,
+      "Whole video checked: 2 changes proposed", Esc → "No changes made". DITEMUI & DIBAIKI:
+      kemajuan disebut dua kali (tajuk dialog), "About 1 minutes". Gate 65 suite x2 GATE_ALL_PASS
+- [ ] 19.S Build 1.9.1, exe NVDA, tag

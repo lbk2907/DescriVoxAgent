@@ -385,6 +385,8 @@ sebelum perubahan pertama, dan **Buat asal** sentiasa ada. Setiap langkah
 disebut. Perbualan diingat sehingga Player ditutup; nama watak diingat
 untuk projek itu.
 
+**Semak seluruh video** (butang dalam dialog ejen) menyemak setiap penerangan, seminit video pada satu masa, lalu memberi SATU senarai cadangan untuk anda terima, semak atau tolak. Masa dan kos disebut dahulu; butang yang sama menghentikannya.
+
 Ejen berfungsi dengan model OpenRouter yang lulus **Settings > Uji mod
 ejen**. Model yang belum lulus: F2 membuka **Tanya Lagi**, yang kini
 menghantar bingkai pada kedudukan Player bersama soalan anda.

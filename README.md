@@ -32,6 +32,21 @@ Gemini, MiniMax, OpenAI (frame mode) and any OpenAI-compatible endpoint.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.1
+
+- **More accurate and steadier descriptions** (OpenRouter models).
+  Whole-video requests now ask for temperature 0. Measured on four
+  different clips, three runs each: correct descriptions 51 → 83,
+  wrong 24% → 17% (independent judge), and runs of the same video agree
+  far more (a news clip used to give 3, 15 or 14 descriptions; now 16–18).
+- **Check the whole video with the agent.** In the Player agent (F2), the
+  new **Check the whole video** button goes through every description a
+  minute of video at a time and gathers ONE list of proposed fixes, which
+  you then accept, review or reject as usual. It tells you the time and
+  cost first, says each part as it goes, and the same button stops it.
+  Tested on 3 minutes of a film: 22 descriptions, 6 proposals, $0.005.
+- The agent no longer offers an "edit" that keeps the same text.
+
 ## What's new in v1.9.0
 
 **The Player agent (F2).** In the Player, press F2 (or the Agent button)
@@ -74,18 +89,6 @@ Player, and remembers character names for the project.
   few minutes per film and a very small cost. Choose Most accurate,
   Most descriptions, Keep all (only fix timing), or Auto (Most accurate
   for long videos, Keep all for short ones).
-
-## What's new in v1.8.7
-
-- **Esc now closes Yes/No questions.** Windows switches Esc off in a
-  message box that has no Cancel button, so Esc did nothing and you had
-  to find No. The boxes now have a Cancel button: Esc and Cancel mean
-  "no", nothing happens. They are still the standard Windows boxes,
-  which NVDA reads in full.
-- **Your own AV1, HEVC or VP9 videos work with every model.** A small
-  local file used to be sent exactly as it was, and some models (MiMo,
-  Nemotron) cannot open AV1. It is now re-encoded to H.264 first, the
-  same way a large file already was; H.264 files are sent untouched.
 
 ## Installing
 
