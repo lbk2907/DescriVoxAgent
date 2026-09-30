@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 61 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 62 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 61 suite; run_gate.bat = semua
+tests/                           — 62 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -579,6 +579,22 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    pecahan dan mampatan sudah H.264. `_video_codec` + `_SAFE_CODECS`.
    `test_fixes51` guna klip AV1/HEVC sebenar daripada ffmpeg terbundel.
 
+77. **Model pilihan pengguna TIDAK PERNAH sampai ke provider** sebelum
+   v1.8.8. `set_provider()` hanya log model (kecuali "custom"), dan
+   `describe_video_full`/`describe_frame` dipanggil dengan `model=""`,
+   jadi provider guna `models[0]` — memilih Gemini 3.1 Flash-Lite masih
+   menjalankan GLM. Bench tidak terjejas (ia hantar model secara
+   eksplisit). `AIEngine._models` + `_model_for()`; setiap kaedah enjin
+   isi model. `test_fixes52` gagal pada kod lama.
+78. **Semakan penerangan (`core/review.py`, v1.8.8) ikut ukuran 16.3.**
+   Bingkai diekstrak SEKALI setiap 3.64 s (bukan 12 seek setiap
+   penerangan). **Label jubin MESTI masa bingkai sebenar** — label masa
+   yang DIMINTA tersasar ±1.8 s dan model mengalih 27 penerangan tanpa
+   sebab (larian sebenar pertama). `BACK = 1.5`: jubin terdekat dalam
+   ukuran ialah 1.8 s, jadi alihan lebih kecil tidak pernah diukur.
+   Mod lalai MATI (pemilik). Semakan yang gagal simpan penerangan asal;
+   tidak pernah membuang kerja. Mod bingkai tidak disemak.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -624,8 +640,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.7 (tag `v1.8.7`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 61 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.8 (tag `v1.8.8`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 62 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

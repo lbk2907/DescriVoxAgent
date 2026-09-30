@@ -302,6 +302,20 @@ language are still untranslated and saves exactly those, with the
 English text, as `<code>.missing.json` in that folder. Full guide (in
 Malay): `doc/menambah-bahasa.md`.
 
+## Check descriptions against the video (Settings)
+
+In full-video mode the AI sometimes describes the right event at the
+wrong moment. **Check descriptions against the video** (General tab,
+**Off** by default) compares each description with the frames 20
+seconds either side, then moves it to the real moment or removes it if
+it is nowhere to be seen. Measured on two films: about half as many
+wrong descriptions. Adds a few minutes and a small cost.
+
+- **Most accurate**: fewest wrong; may remove a few.
+- **Most descriptions**: the most correct ones.
+- **Keep all, only fix timing**: nothing is removed.
+- **Auto**: Most accurate for long videos, Keep all for short ones.
+
 ## Check for Updates (Help menu)
 
 YouTube changes often, and an older yt-dlp (the program that downloads

@@ -329,6 +329,20 @@ menyimpan baris-baris itu sahaja, bersama teks Inggerisnya, sebagai
 `<kod>.missing.json` dalam folder itu. Panduan penuh:
 `doc/menambah-bahasa.md`.
 
+## Semak penerangan dengan video (Settings)
+
+Dalam mod video penuh, AI kadang-kadang menghurai peristiwa yang betul
+pada saat yang salah. **Semak penerangan dengan video** (tab General,
+**Mati** secara lalai) memeriksa setiap penerangan dengan bingkai 20 saat
+sebelum dan selepasnya, lalu mengalihnya ke saat sebenar atau
+membuangnya jika tiada langsung. Diukur pada dua filem: penerangan salah
+kira-kira separuh. Menambah beberapa minit dan kos kecil.
+
+- **Paling tepat** — paling sedikit salah; mungkin membuang beberapa.
+- **Paling banyak penerangan** — paling banyak yang betul.
+- **Kekalkan semua, betulkan masa sahaja** — tiada yang dibuang.
+- **Auto** — Paling tepat untuk video panjang, Kekalkan semua untuk pendek.
+
 ## Semak Kemas Kini (menu Help)
 
 YouTube kerap berubah, dan yt-dlp (program yang memuat turun video)

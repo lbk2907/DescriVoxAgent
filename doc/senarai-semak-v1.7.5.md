@@ -196,10 +196,10 @@ Ukuran: betul (padan bingkai), masa, rekaan, tertinggal, konsisten antara larian
       (Google 20 MB, GLM 8 MiB), 504 dalam jawapan 200. Mod bingkai: 147-204 penerangan/min
 - [x] 16.2b Pemilik (30 Sep): lalai video penuh; mod bingkai dijarakkan 4 s + dibersihkan.
       Larian sebenar GLM, Tears 60 s: 204 → 15 penerangan, 0 markdown (test_fixes50)
-- [ ] 16.3 Fasa 3 — baiki, simpan hanya yang menaikkan angka: pas semakan kedua (betulkan/buang/
+- [x] 16.3 Fasa 3 — baiki (lihat 18.1), simpan hanya yang menaikkan angka: pas semakan kedua (betulkan/buang/
       alih masa), snap ke perubahan adegan (ffmpeg scene), suhu tetap untuk konsistensi,
       semak jurang panjang untuk peristiwa tertinggal
-- [ ] 16.4 Fasa 4 — tetapan "Semak penerangan", NVDA, dokumen, gate
+- [x] 16.4 Fasa 4 — tetapan (lihat 18.1c) "Semak penerangan", NVDA, dokumen, gate
 Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diukur).
 
 ## Fasa 17 — pelepasan 1.8.6 (diteruskan 30 Sep 2026)
@@ -213,5 +213,12 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
       "Sahkan dialog Padam penerangan ini?" → "Tidak button Alt+T", Batal, Ya; Esc → Tidak; tag v1.8.7
 
 ## Fasa 18 — seterusnya (susunan pemilik 30 Sep 2026)
-- [ ] 18.1 Pelan ketepatan fasa 3 & 4 (16.3–16.4)
+- [x] 18.1 Pelan ketepatan fasa 3 (16.3): pas semakan diukur (doc/perbandingan-model.md) —
+      penilai bebas Gemini: salah 39/209 → 23–27 bergantung pilihan; kos ~$0.014/filem
+- [x] 18.1b DITEMUI: model pilihan pengguna tidak pernah digunakan (GLM/Gemini/MiniMax) — dibaiki v1.8.8
+- [x] 18.1c Fasa 4 (16.4): Settings "Semak penerangan" MATI lalai; Auto/Paling tepat/Paling banyak/
+      Kekalkan semua (pilihan pemilik); modul app diuji sebenar pada Tears: salah 15 → 7
+      (penilai Gemini), +227 s; test_fixes52 9/9
+- [ ] 18.1d Gate x2, build, NVDA (Settings: pilihan baharu dibaca), tag v1.8.8
+- [ ] 18.1e (tidak dibuat — kredit OpenRouter hampir habis) suhu tetap, snap perubahan adegan
 - [ ] 18.2 Mod agentic dalam Player (reka bentuk: memori agent-coeditor-design)

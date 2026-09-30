@@ -15,6 +15,23 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.8
+
+- **The model you choose is the model that runs.** The model picked in
+  Settings was saved but never used for OpenRouter, Gemini or MiniMax:
+  every request asked for no model in particular, and the provider's
+  first built-in one answered. Choosing "Recommended: Gemini 3.1
+  Flash-Lite" still ran GLM. It now reaches every request.
+- **New: check descriptions against the video** (Settings, full-video
+  mode, **off** unless you turn it on). After the AI writes the
+  descriptions, each one is compared with the frames 20 seconds either
+  side: moved to where it really happens, or removed if it is nowhere
+  to be seen. Measured on two long films by an independent model:
+  wrong descriptions roughly halved (Tears of Steel 15 → 7). Adds a
+  few minutes per film and a very small cost. Choose Most accurate,
+  Most descriptions, Keep all (only fix timing), or Auto (Most accurate
+  for long videos, Keep all for short ones).
+
 ## What's new in v1.8.7
 
 - **Esc now closes Yes/No questions.** Windows switches Esc off in a
