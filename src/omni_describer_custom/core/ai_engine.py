@@ -2865,6 +2865,7 @@ class AIEngine:
 
     def __init__(self):
         self._providers: dict[str, AIProvider] = {}
+        self._models: dict[str, str] = {}   # chosen in Settings, per provider
         self._default_provider: str = ""
         # v1.5.2: default output language for descriptions ('' = model decides).
         self.output_lang: str = ""
@@ -2936,7 +2937,20 @@ class AIEngine:
         # otherwise miss it and quietly fall back to a temp dir.
         self._providers[name].upload_cache_dir = self.upload_cache_dir
         self._providers[name].words_per_second = self.words_per_second
+        # v1.8.8: remember the model chosen in Settings. It was logged and
+        # then dropped for every provider but "custom", so each call went
+        # out with model="" and the provider used its FIRST built-in model:
+        # choosing Gemini 3.1 Flash-Lite ("Recommended") still ran GLM.
+        self._models[name] = model or ""
         logger.info("AI provider set: %s (model=%s)", name, model or "default")
+
+    def _model_for(self, provider: str, model: str) -> str:
+        """The model a call should use: the one passed, else the one
+        chosen in Settings for that provider, else "" (provider default)."""
+        if model:
+            return model
+        name = provider or self._default_provider
+        return getattr(self, "_models", {}).get(name, "")
 
     def set_default(self, name: str) -> None:
         """Set which provider to use by default."""
@@ -2975,6 +2989,7 @@ class AIEngine:
     ) -> str:
         """Free-form text question to the current provider (no image)."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         ask_fn = getattr(prov, "ask_text", None)
         if ask_fn is None:
             raise ValueError(f"Provider '{prov.name}' does not support text questions.")
@@ -2990,7 +3005,16 @@ class AIEngine:
     ) -> str:
         """Describe a single image/frame. Auto-fallback on failure."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
+        return await prov.describe_image(image_path, prompt, model)
+
+    async def look(self, image_path: str, prompt: str, provider: str = "",
+                   model: str = "") -> str:
+        """Ask about an image WITHOUT the description-language wrapper:
+        for the app's own checks (core/review.py), which want JSON back."""
+        prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         return await prov.describe_image(image_path, prompt, model)
 
     async def describe_frames(
@@ -3005,6 +3029,7 @@ class AIEngine:
     ) -> list[str]:
         """Describe multiple frames. Returns list of descriptions."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
         prompt += FRAME_FORMAT_SUFFIX
         return await prov.describe_frames_batch(
@@ -3034,6 +3059,7 @@ class AIEngine:
         provider does not support full-video mode.
         """
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         fn = getattr(prov, "describe_video_full", None)
         if fn is None:
             raise ValueError(
@@ -3079,6 +3105,7 @@ class AIEngine:
         are snapped onto the known extraction grid. Raises ValueError
         when the configured provider does not support this mode."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         fn = getattr(prov, "describe_video_frames_batch", None)
         if fn is None:
             raise ValueError(
@@ -3101,4 +3128,5 @@ class AIEngine:
     ) -> str:
         """Ask a question about a specific frame/scene."""
         prov = self._provider_or_raise(provider or self._default_provider)
+        model = self._model_for(provider, model)
         return await prov.ask_about_scene(image_path, question, model)
