@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 60 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 61 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 60 suite; run_gate.bat = semua
+tests/                           — 61 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -569,6 +569,16 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    SEBARIS, bukan hanya `#` — jika tidak TTS baca "Scene A girl...".
    `test_fixes50`. Ujian saluran bingkai lama (9, 11) set jarak 0.
 
+75. **Kotak Ya/Tidak ada butang Batal supaya Esc berfungsi** (v1.8.7).
+   Windows MELUMPUHKAN Esc dalam MessageBox tanpa Cancel. `ask_yes_no`
+   guna YES_NO|CANCEL (Batal = Tidak); kotak kekal asli supaya NVDA
+   membaca soalan penuh. Jangan tukar kepada dialog buatan sendiri
+   tanpa mendengar dengan NVDA.
+76. **Fail tempatan bukan H.264 dikod semula sebelum muat naik** (v1.8.7).
+   Hanya laluan "fail kecil satu bahagian" dahulu menghantar fail asal;
+   pecahan dan mampatan sudah H.264. `_video_codec` + `_SAFE_CODECS`.
+   `test_fixes51` guna klip AV1/HEVC sebenar daripada ffmpeg terbundel.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -614,8 +624,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.6 (tag `v1.8.6`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 60 suite dalam `run_gate.bat`.
+- **Versi:** 1.8.7 (tag `v1.8.7`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 61 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

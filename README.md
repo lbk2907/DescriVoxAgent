@@ -15,6 +15,18 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.8.7
+
+- **Esc now closes Yes/No questions.** Windows switches Esc off in a
+  message box that has no Cancel button, so Esc did nothing and you had
+  to find No. The boxes now have a Cancel button: Esc and Cancel mean
+  "no", nothing happens. They are still the standard Windows boxes,
+  which NVDA reads in full.
+- **Your own AV1, HEVC or VP9 videos work with every model.** A small
+  local file used to be sent exactly as it was, and some models (MiMo,
+  Nemotron) cannot open AV1. It is now re-encoded to H.264 first, the
+  same way a large file already was; H.264 files are sent untouched.
+
 ## What's new in v1.8.6
 
 **Found by measuring accuracy across genres and long videos**

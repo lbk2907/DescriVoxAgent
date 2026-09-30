@@ -150,7 +150,7 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
       'Tidak button Alt+T'; gate 56 x2; build 1.8.2; exe: provider OpenRouter, slider Kelajuan; tag.
       DITEMUI semasa mendengar: Tab terperangkap dalam kotak Description (dibaiki); huruf dari
       pywinauto dihantar sebagai VK_PACKET (artifak ujian; guna vk_packet=False untuk huruf)
-- [ ] 12.8 (cadangan) Esc dalam kotak Ya/Tidak tidak menutupnya — tingkah laku standard Windows
+- [x] 12.8 Esc dalam kotak Ya/Tidak: butang Batal ditambah (Esc/Batal = Tidak), v1.8.7 — standard Windows
       tanpa butang Batal; Alt+T memilih Tidak
 
 ## Fasa 13 — ujian video panjang pada exe (dipersetujui pemilik 29 Sep 2026)
@@ -178,7 +178,7 @@ Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 - [x] 15.3 Transkrip Ocong kosong (nisbah per tetingkap) — dibaiki, test_fixes31
 - [x] 15.4 YouTube AV1 tidak boleh dibuka MiMo/Nemotron — utamakan H.264, test_fixes47
 - [x] 15.5 Gate 58 x2 GATE_ALL_PASS; build 1.8.5 (test_fixes14 dikemas kini untuk label "Recommended:")
-- [ ] 15.6 (cadangan) Fail tempatan AV1/HEVC ditukar ke H.264 sebelum dihantar
+- [x] 15.6 Fail tempatan AV1/HEVC/VP9 dikod semula ke H.264 (v1.8.7, test_fixes51 klip sebenar)
 - [ ] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings
 - [x] 15.8 Pemilik: GLM kekal lalai; GLM + Gemini 3.1 Flash-Lite disusun dahulu, dibaca "Disyorkan: ..." (test_fixes44)
 
@@ -209,3 +209,4 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
 - [x] 17.2 test_fixes50 (mod bingkai) 5/5; larian sebenar GLM Tears 60 s: 204 → 15 penerangan
 - [x] 17.3 Gate 60 suite x2 GATE_ALL_PASS; build bersih 1.8.6 (kerja 1.8.7 di-stash semasa build);
       exe didengar NVDA 12/12; tag v1.8.6
+- [ ] 17.4 Gate x2, build, NVDA (termasuk kotak Ya/Tidak baharu), tag v1.8.7
