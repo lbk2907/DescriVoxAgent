@@ -219,6 +219,7 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
 - [x] 18.1c Fasa 4 (16.4): Settings "Semak penerangan" MATI lalai; Auto/Paling tepat/Paling banyak/
       Kekalkan semua (pilihan pemilik); modul app diuji sebenar pada Tears: salah 15 → 7
       (penilai Gemini), +227 s; test_fixes52 9/9
-- [ ] 18.1d Gate x2, build, NVDA (Settings: pilihan baharu dibaca), tag v1.8.8
+- [x] 18.1d Gate 62 suite x2 GATE_ALL_PASS; NVDA Settings: "Check descriptions against the video
+      (full-video mode): combo box Off collapsed"; build 1.8.8; exe NVDA 10/10; tag v1.8.8
 - [ ] 18.1e (tidak dibuat — kredit OpenRouter hampir habis) suhu tetap, snap perubahan adegan
 - [ ] 18.2 Mod agentic dalam Player (reka bentuk: memori agent-coeditor-design)
