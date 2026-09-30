@@ -224,3 +224,29 @@ penerangan betul 6/6 kali — syarat "jelas salah" itu penting.
 Untuk Fasa B: (1) bila had giliran dicapai, ejen MESTI dipaksa memberi
 jawapan akhir; (2) "Uji mod agentic" lulus jika protokol + lihat dahulu +
 argumen sah + ada jawapan akhir — bukan pada pendapat model.
+
+## Fasa 19.B — suhu tetap dan snap perubahan adegan (30 Sep 2026)
+
+**Suhu 0 — DIGUNAKAN (v1.9.1).** GLM 5.3 Flash, mod video penuh, 4 klip
+berbeza (Tears, NASA, berita BM, Sintel dialog) x 3 larian setiap tetapan,
+dijalankan serentak dengan kod yang sama (`@tdef` lwn `@temp0`):
+
+| | Suhu lalai pelayan | Suhu 0 |
+|---|---|---|
+| Penerangan (12 larian) | 95 | 119 |
+| Salah — penilai Gemini | 23 (24.2%) | **20 (16.8%)** |
+| Betul — penilai Gemini | 51 | **83** |
+| Salah — penilai GLM | 20 (21.1%) | **11 (9.2%)** |
+| Beza bilangan antara larian (jumlah) | 21 | **11** |
+
+Contoh ketidakstabilan suhu lalai: berita BM memberi 3, 15, 14 penerangan
+pada tiga larian (suhu 0: 18, 16, 16). Kini `GLMProvider.TEMPERATURE = 0`
+untuk semua model OpenRouter; Gemini terus tidak diubah (belum diukur).
+Kos $0.08 + penilaian $0.29.
+
+**Snap ke perubahan adegan — TIDAK digunakan.** Setiap penerangan dialih
+ke potongan adegan terdekat dalam ±2 s (ffmpeg scene > 0.3), pada Sintel
+dan Tears penuh: penilai Gemini — betul 106 → 113 tetapi salah 39 → 44;
+penilai GLM — salah 26 → 24, betul 125 → 126. Tiada kemajuan yang jelas,
+jadi tidak dimasukkan (peraturan: simpan hanya yang menaikkan angka).
+`model_bench.py snap` kekal untuk ujian lain kemudian. Kos $0.13.

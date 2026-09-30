@@ -212,6 +212,12 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
             base, _, variant = clip.partition("@")
             chunk = int(variant[5:]) if variant.startswith("chunk") else 600
             prov = GLMProvider(api_key=keys["glm"])
+            # "clip@temp0" = temperature 0 (phase 19.B1); "@tdef" = the
+            # server default, run fresh alongside it for a fair comparison.
+            if variant.startswith("temp"):
+                prov.TEMPERATURE = float(variant[4:] or 0)
+            elif variant == "tdef":
+                prov.TEMPERATURE = None   # the server's own default
             pairs = await prov.describe_video_full(
                 str(CLIPS / f"{base}.mp4"), prompt, model,
                 transcript=transcript, chunk_seconds=chunk)
@@ -897,6 +903,58 @@ def cmd_review(args) -> int:
     return 0
 
 
+# ── phase 19.B2: snap descriptions to scene changes ──────────────────
+
+def scene_cuts(clip: str, threshold: float) -> list[float]:
+    """Times of shot changes (ffmpeg scene score), cached per clip."""
+    cache = BENCH / f"cuts_{clip.split('@')[0]}_{threshold}.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+    src = CLIPS / f"{clip.split('@')[0]}.mp4"
+    out = subprocess.run(
+        [find_tool("ffmpeg"), "-hide_banner", "-nostdin", "-i", str(src),
+         "-vf", f"select='gt(scene,{threshold})',showinfo", "-an", "-f", "null", "-"],
+        capture_output=True, text=True, timeout=3600)
+    cuts = [float(m.group(1)) for m in
+            re.finditer(r"pts_time:([0-9.]+)", out.stderr)]
+    cache.write_text(json.dumps(cuts), encoding="utf-8")
+    return cuts
+
+
+def cmd_snap(args) -> int:
+    """Move each description to the nearest scene change within
+    --window seconds; writes "<clip>@<tag>" with unchanged verdicts
+    carried over, for `measure`."""
+    results = _load_results()
+    jpath = BENCH / "judgements.json"
+    judgements = json.loads(jpath.read_text(encoding="utf-8"))
+    for clip in args.clips.split(","):
+        cues = results[f"{args.model}|desc|{clip}|{args.run}"]["cues"]
+        cuts = scene_cuts(clip, args.threshold)
+        new, moved = [], 0
+        for i, (t, text) in enumerate(cues):
+            near = [c for c in cuts if abs(c - t) <= args.window]
+            nt = min(near, key=lambda c: abs(c - t)) if near else t
+            moved += abs(nt - t) > 0.05
+            new.append([round(nt, 2), text, i])
+        new.sort(key=lambda x: x[0])
+        variant = f"{clip.split('@')[0]}@{args.tag}"
+        results[f"{args.model}|desc|{variant}|1"] = {
+            "cues": [[t, x] for t, x, _ in new], "error": ""}
+        for new_i, (t, x, old_i) in enumerate(new):
+            if abs(t - cues[old_i][0]) > 0.05:
+                continue
+            for judge in ("z-ai/glm-5.3-flash", "google/gemini-3.8-flash"):
+                src = judgements.get(f"{judge}||{args.run}||{clip}|{args.model}|{old_i}")
+                if src and src.get("verdict"):
+                    judgements[f"{judge}||1||{variant}|{args.model}|{new_i}"] = src
+        print(f"{clip}: {len(cuts)} cuts, {moved}/{len(cues)} moved => {variant}")
+    _save_results(results)
+    jpath.write_text(json.dumps(judgements, indent=1, ensure_ascii=False),
+                     encoding="utf-8")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -935,11 +993,18 @@ def main() -> int:
     review.add_argument("--no-drop", action="store_true")
     review.add_argument("--version", default="v2",
                         help="prompt version; answers are cached per version")
+    snap = sub.add_parser("snap")
+    snap.add_argument("--clips", required=True)
+    snap.add_argument("--model", default="z-ai/glm-5.3-flash")
+    snap.add_argument("--run", default="1")
+    snap.add_argument("--window", type=float, default=2.0)
+    snap.add_argument("--threshold", type=float, default=0.3)
+    snap.add_argument("--tag", default="snap")
     args = parser.parse_args()
     return {"make-clips": cmd_make_clips, "run": cmd_run,
             "frames": cmd_frames, "score": cmd_score,
             "judge": cmd_judge, "measure": cmd_measure,
-            "review": cmd_review}[args.cmd](args)
+            "review": cmd_review, "snap": cmd_snap}[args.cmd](args)
 
 
 if __name__ == "__main__":

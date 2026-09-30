@@ -1477,6 +1477,12 @@ class GLMProvider(AIProvider):
     # 50.7 MB video (67.6 MB base64 payload) is accepted; 97.6 MB is
     # rejected with HTTP 502. Guard sits at the verified point; larger
     # videos are auto-compressed to 360p before upload.
+    # v1.9.1: temperature 0 for whole-video requests. Measured (phase
+    # 19.B1, GLM 5.3 Flash, 4 clips x 3 runs, independent Gemini judge):
+    # server default 51 correct / 24.2% wrong, temperature 0 83 correct /
+    # 16.8% wrong, and half the run-to-run spread (one news run had 3
+    # descriptions against 15). None = leave it to the server.
+    TEMPERATURE: float | None = 0.0
     MAX_VIDEO_BYTES = 50 * 1024 * 1024
     COMPRESS_TARGET_BYTES = 40 * 1024 * 1024
     # v1.8.6: OpenRouter passes a request on to the model's OWN provider,
@@ -1868,6 +1874,8 @@ class GLMProvider(AIProvider):
                 words_per_second=self.words_per_second)
         payload = {
             "model": model or self.models[0],
+            **({"temperature": self.TEMPERATURE}
+               if self.TEMPERATURE is not None else {}),
             "max_tokens": 16000,
             # v1.6.3: CAP THE THINKING. Measured on a real 45-second
             # clip with the `foreign` preset: the model spent 15,995 of
