@@ -191,7 +191,7 @@ def test_full_real_pipeline():
             frame.ai_engine = engine
             frame.project_store = ProjectStore(
                 projects_dir=str(Path(tmp) / "projects"))
-            frame.settings = {"general.frame_rate": 2}
+            frame.settings = {"general.frame_rate": 2, "general.min_description_gap": 0}
             frame._processing = True
 
             import glob
@@ -250,7 +250,7 @@ def test_player_shows_real_descriptions():
             frame.ai_engine = engine
             frame.project_store = ProjectStore(
                 projects_dir=str(Path(tmp) / "projects"))
-            frame.settings = {"general.frame_rate": 2}
+            frame.settings = {"general.frame_rate": 2, "general.min_description_gap": 0}
             frame._processing = True
             frame._process_video(str(video), "describe each frame")
             assert frame.project_store.current.descriptions, "no descriptions"
@@ -317,7 +317,7 @@ def test_full_url_to_player():
         frame.ai_engine = engine
         frame.project_store = ProjectStore(
             projects_dir=str(Path(tmp) / "projects"))
-        frame.settings = {"general.frame_rate": 1}
+        frame.settings = {"general.frame_rate": 1, "general.min_description_gap": 0}
         frame._processing = True
 
         frame._process_video("https://www.youtube.com/watch?v=jNQXAC9IVRw",

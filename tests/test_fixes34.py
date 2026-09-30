@@ -190,9 +190,16 @@ def test_placeholders_are_not_descriptions():
               "(no response from GLM)", "(no text in custom API response)"]:
         assert is_placeholder_text(t), t
     assert not is_placeholder_text("A man (smiling) waves.")
+    # v1.8.6: the frame pipeline filters through finalize_frame_descriptions
+    # (which also cleans markdown); check it still drops placeholders.
     src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
         encoding="utf-8")
-    assert "is_placeholder_text(text)" in src
+    assert "finalize_frame_descriptions(frames, descriptions)" in src
+    from omni_describer_custom.core.ai_engine import (
+        finalize_frame_descriptions)
+    kept = finalize_frame_descriptions(["a", "b", "c"], [
+        "(empty response)", "A real line.", "(no response from GLM)"])
+    assert [t for _, t in kept] == ["A real line."], kept
 
 
 # 4 + 5 + 6 ─────────────────────────────────────────────────────────

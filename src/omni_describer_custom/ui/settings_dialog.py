@@ -241,7 +241,7 @@ class SettingsDialog(wx.Dialog):
         self.video_mode_cb = wx.CheckBox(
             panel, label=t("settings.video_mode"), name="video_mode")
         self.video_mode_cb.SetValue(
-            self.settings.get("ai.video_mode", "frames") == "full")
+            self.settings.get("ai.video_mode", "full") == "full")
         sizer.Add(self.video_mode_cb, 0, wx.ALL, 5)
         sizer.Add(wx.StaticText(panel, label=t("settings.video_mode_hint"),
                                 name="video_mode_hint"), 0, wx.ALL, 5)
@@ -372,7 +372,7 @@ class SettingsDialog(wx.Dialog):
 
         # v1.4.1: chunk length for full-video mode (seconds per part).
         sizer.Add(wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"), 0, wx.ALL, 5)
-        self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=600, name="chunk_seconds")
+        self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=300, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
         self.preserve_res_check = wx.CheckBox(
@@ -1039,7 +1039,7 @@ class SettingsDialog(wx.Dialog):
         self.max_gap_spin.SetValue(
             int(self.settings.get("general.max_frame_gap", 30) or 0))
 
-        chunk_val = int(self.settings.get("general.chunk_seconds", 600) or 600)
+        chunk_val = int(self.settings.get("general.chunk_seconds", 300) or 300)
         self.chunk_spin.SetValue(max(60, chunk_val))
 
         self.preserve_res_check.SetValue(bool(self.settings.get(

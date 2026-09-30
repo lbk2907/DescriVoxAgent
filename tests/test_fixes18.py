@@ -3,7 +3,10 @@
 
 Covers:
 1. OpusProvider fully removed from AIEngine.
-2. Default chunk_seconds is 600 (10 minutes) everywhere.
+2. Default chunk_seconds is 300 (5 minutes) everywhere. It was 600
+   until v1.8.6; measured on two long films, 10-minute parts put
+   24.5% / 27.5% of descriptions at the wrong moment, 5-minute
+   parts 12.9% / 11.8% (doc/perbandingan-model.md).
 3. GLM full-video mode threads part position + previous-part summary
    into every _describe_one_part call (continuity context), and the
    part payload really contains the position/continuity text.
@@ -47,26 +50,26 @@ import omni_describer_custom.core.ai_engine as mod  # noqa: E402
 src_all = inspect.getsource(mod)
 ok("1b. no 'opus' token in ai_engine source", "opus" not in src_all.lower())
 
-# 2 ── chunk defaults 600 ---------------------------------------------
+# 2 ── chunk defaults 300 ---------------------------------------------
 sig = inspect.signature(AIEngine.describe_video_full)
-ok("2a. AIEngine full-video default chunk 600",
-   sig.parameters["chunk_seconds"].default == 600)
+ok("2a. AIEngine full-video default chunk 300",
+   sig.parameters["chunk_seconds"].default == 300)
 sig_g = inspect.signature(GLMProvider.describe_video_full)
-ok("2b. GLM full-video default chunk 600",
-   sig_g.parameters["chunk_seconds"].default == 600)
+ok("2b. GLM full-video default chunk 300",
+   sig_g.parameters["chunk_seconds"].default == 300)
 
 from omni_describer_custom.core.settings_store import SettingsStore  # noqa: E402
 _store_src = inspect.getsource(
     sys.modules["omni_describer_custom.core.settings_store"])
-ok("2c. settings_store default chunk 600",
-   '"chunk_seconds": 600' in _store_src
+ok("2c. settings_store default chunk 300",
+   '"chunk_seconds": 300' in _store_src
    and '"chunk_seconds": 480' not in _store_src)
 
 from omni_describer_custom.ui.settings_dialog import PROVIDER_MODELS  # noqa: E402
 _dlg_src = inspect.getsource(
     sys.modules["omni_describer_custom.ui.settings_dialog"])
-ok("2d. dialog chunk spin initial 600",
-   "initial=600" in _dlg_src and "initial=480" not in _dlg_src)
+ok("2d. dialog chunk spin initial 300",
+   "initial=300" in _dlg_src and "initial=480" not in _dlg_src)
 ok("2e. PROVIDER_MODELS has no opus", "opus" not in PROVIDER_MODELS)
 
 # 3 ── continuity context threading -----------------------------------

@@ -196,7 +196,7 @@ def test_defaults_merged_and_bad_sections_repaired():
         "ai": {"providers": {"glm": {"api_key": "", "model": "mine"}}},
     }), encoding="utf-8")
     s = SettingsStore(str(d))
-    assert s.get("general.chunk_seconds") == 600
+    assert s.get("general.chunk_seconds") == 300   # v1.8.6 default
     assert s.get("player.pause_for_narration") is True
     assert s.get_ai_provider("glm") == {"api_key": "", "model": "mine"}, \
         "saved provider config must not be altered"

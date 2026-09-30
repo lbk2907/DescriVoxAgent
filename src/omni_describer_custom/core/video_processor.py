@@ -49,6 +49,13 @@ logger = logging.getLogger(__name__)
 WHISPER_DECODE: dict = {
     "temperature": 0.0,
     "condition_on_previous_text": False,
+    # v1.8.6: segment times from the WORDS. Without this faster-whisper
+    # stretches each segment to the next one, so the gaps the describer
+    # is told about vanish: Tears of Steel claimed 58.5 s of speech in a
+    # 60 s clip (29.0 s by words) and both models wrote ONE description
+    # for a minute of robots and people. The text is identical; only
+    # the timing is aligned (29 Sep 2026, model benchmark).
+    "word_timestamps": True,
     "vad_filter": True,
     "vad_parameters": {
         "threshold": 0.3,
@@ -669,6 +676,7 @@ class VideoProcessor:
         on_progress: Callable[[DownloadProgress], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         download_dir: str = "",
+        min_spacing: float = 0.0,
     ) -> list[Frame]:
         """
         Extract frames at specified FPS.
@@ -800,9 +808,30 @@ class VideoProcessor:
             except (TypeError, ValueError):
                 max_gap = 30.0
             result = self._deduplicate_frames(result, max_gap=max_gap)
-
+        if min_spacing > 0:
+            result = self.space_frames(result, min_spacing)
         logger.info("Extracted %d frames at %d FPS", len(result), fps)
         return result
+
+    @staticmethod
+    def space_frames(frames: list[Frame], min_spacing: float) -> list[Frame]:
+        """At most one frame per min_spacing seconds.
+
+        v1.8.7: every frame that survived deduplication became a one-second
+        description. In a film the picture changes almost every frame, so
+        a minute gave 147-204 descriptions (Sintel, AWANI news, Tears of
+        Steel) — two or three a second, impossible to speak. The first
+        frame of each spacing window is kept: it is where that change
+        began.
+        """
+        kept: list[Frame] = []
+        for frame in frames:
+            if not kept or frame.timestamp - kept[-1].timestamp >= min_spacing:
+                kept.append(frame)
+        if len(kept) < len(frames):
+            logger.info("Spacing %.1fs kept %d of %d frames",
+                        min_spacing, len(kept), len(frames))
+        return kept
 
     @staticmethod
     def _frame_number(path: Path) -> tuple[int, str]:

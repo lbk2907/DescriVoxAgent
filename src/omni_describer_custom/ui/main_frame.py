@@ -1504,7 +1504,7 @@ class MainFrame(wx.Frame):
             # Announce it once with an estimated part count so blind users
             # know upfront how many parts the video will be split into.
             chunk_seconds = int(self.settings.get(
-                "general.chunk_seconds", 600) or 600)
+                "general.chunk_seconds", 300) or 300)
             est_parts = (max(1, int(float(info.duration) / chunk_seconds + 0.999))
                          if info.duration > 0 else 1)
             if est_parts > 1:
@@ -1517,7 +1517,7 @@ class MainFrame(wx.Frame):
             # Full-video mode decided ONCE here so every announcement in
             # this pipeline stays accurate for this mode (no frame wording)
             video_mode = (
-                self.settings.get("ai.video_mode", "frames") == "full"
+                self.settings.get("ai.video_mode", "full") == "full"
                 and self.settings.get("ai.default_provider", "")
                 in ("gemini", "minimax", "glm")
             )
@@ -1654,7 +1654,7 @@ class MainFrame(wx.Frame):
                     est = loop.run_until_complete(estimate_video_cost(
                         getattr(info, "duration", 0.0) if info else 0.0,
                         prov_cfg.get("model", ""),
-                        int(self.settings.get("general.chunk_seconds", 600) or 600),
+                        int(self.settings.get("general.chunk_seconds", 300) or 300),
                         prov_cfg.get("api_key", "")))
                     if est.get("priced"):
                         wx.CallAfter(self._log, t(
@@ -1701,7 +1701,7 @@ class MainFrame(wx.Frame):
                             on_part=vpart, on_split_progress=vsplit,
                             on_eta=veta,
                             chunk_seconds=int(self.settings.get(
-                                "general.chunk_seconds", 600) or 600),
+                                "general.chunk_seconds", 300) or 300),
                             is_cancelled=lambda: bool(
                                 getattr(self, "_dl_cancelled", False)),
                         )
@@ -1903,6 +1903,8 @@ class MainFrame(wx.Frame):
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
                 frames = loop.run_until_complete(
                     vp.extract_frames(source, fps=fps, output_dir=frame_dir,
+                                      min_spacing=float(self.settings.get(
+                                          "general.min_description_gap", 4) or 0),
                                       on_progress=download_progress,
                                       is_cancelled=lambda: bool(getattr(self, "_dl_cancelled", False)),
                                       download_dir=download_dir)
@@ -2007,12 +2009,11 @@ class MainFrame(wx.Frame):
             frames_dir = self.project_store.project_dir(self.project_store.current.id) / "frames"
             frames_dir.mkdir(parents=True, exist_ok=True)
             desc_objects = []
-            for i, (frame, text) in enumerate(zip(frames, descriptions)):
-                # v1.7.4: "(empty response)" and "(no response from ...)"
-                # are not descriptions either; they were saved and spoken.
-                from ..core.ai_engine import is_placeholder_text
-                if is_placeholder_text(text):
-                    continue
+            # v1.7.4: placeholders are not descriptions; v1.8.7: markdown,
+            # headings and invented timestamps are cleaned out, and a line
+            # identical to the one before is not said twice.
+            from ..core.ai_engine import finalize_frame_descriptions
+            for frame, text in finalize_frame_descriptions(frames, descriptions):
                 perm = frames_dir / Path(frame.path).name
                 try:
                     if not perm.exists():

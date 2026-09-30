@@ -130,7 +130,7 @@ def _make_frame(tmp: Path, cap: int | None):
     frame = MainFrame()
     frame.ai_engine = engine
     frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
-    frame.settings = {"general.frame_rate": 2}
+    frame.settings = {"general.frame_rate": 2, "general.min_description_gap": 0}
     if cap is not None:
         frame.settings["general.frame_cap"] = cap
     frame._processing = True

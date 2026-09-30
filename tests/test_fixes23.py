@@ -553,7 +553,9 @@ def test_glm_cues_come_back_in_time_order():
     src = Path("src/omni_describer_custom/core/ai_engine.py").read_text(
         encoding="utf-8")
     glm_start = src.index("class GLMProvider")
-    glm_body = src[glm_start:src.index("class ", glm_start + 10)]
+    # Next TOP-LEVEL class: a docstring saying "the class values" ended
+    # the slice early once (v1.8.6).
+    glm_body = src[glm_start:src.index("\nclass ", glm_start + 10)]
     assert "merged.sort(key=lambda pair: pair[0])" in glm_body, \
         "GLM results are returned unsorted again"
 

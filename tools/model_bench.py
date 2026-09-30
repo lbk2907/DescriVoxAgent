@@ -75,6 +75,10 @@ OPENROUTER_MODELS = [
 ]
 GEMINI_DIRECT = "gemini-3.8-flash"
 CLIP_NAMES = ["truth", "sintel_dialogue", "ocong", "bm_news", "bbb_music"]
+# Phase 16.2 (29 Sep 2026): the owner's four genres, one more each, and
+# a long video that is split into parts.
+GENRE_CLIPS = ["tears_drama", "nasa_doc", "excel_tutorial"]
+LONG_CLIP = "sintel_full"
 
 HEARING_QUESTION = (
     "Listen to this 60-second test video's SOUNDTRACK. Answer in exactly "
@@ -163,6 +167,7 @@ async def _balance(key: str) -> float | None:
 
 
 def _transcript(name: str) -> list:
+    name = name.split("@")[0]
     cache = BENCH / "transcripts" / f"{name}.json"
     from omni_describer_custom.core.video_processor import (
         TranscriptSegment, VideoProcessor)
@@ -203,11 +208,38 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
             pairs = await prov.describe_video_full(
                 str(CLIPS / f"{clip}.mp4"), prompt, model)
         else:
+            # "clip@chunk180" = the same video in 180-second parts.
+            base, _, variant = clip.partition("@")
+            chunk = int(variant[5:]) if variant.startswith("chunk") else 600
             prov = GLMProvider(api_key=keys["glm"])
             pairs = await prov.describe_video_full(
-                str(CLIPS / f"{clip}.mp4"), prompt, model,
-                transcript=transcript)
+                str(CLIPS / f"{base}.mp4"), prompt, model,
+                transcript=transcript, chunk_seconds=chunk)
         return {"cues": [[round(t, 2), d] for t, d in pairs], "error": "",
+                "seconds": round(time.monotonic() - started, 1)}
+    except Exception as e:
+        return {"cues": [], "error": f"{type(e).__name__}: {str(e)[:300]}",
+                "seconds": round(time.monotonic() - started, 1)}
+
+
+async def _describe_frames(model: str, clip: str, keys: dict) -> dict:
+    """The app's DEFAULT path: frames at 5 fps, similar ones dropped, each
+    kept frame described on its own (MainFrame frame mode)."""
+    from omni_describer_custom.core.ai_engine import GLMProvider
+    from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
+    from omni_describer_custom.core.video_processor import VideoProcessor
+    started = time.monotonic()
+    try:
+        folder = BENCH / "frames" / clip
+        frames = await VideoProcessor().extract_frames(
+            str(CLIPS / f"{clip}.mp4"), fps=5, output_dir=str(folder))
+        texts = await GLMProvider(api_key=keys["glm"]).describe_frames_batch(
+            [f.path for f in frames], DEFAULT_PROMPTS["default"], model)
+        cues = [[round(f.timestamp, 2), txt.strip()] for f, txt in zip(frames, texts)
+                if txt and not txt.startswith("(error")]
+        errors = sum(1 for txt in texts if not txt or txt.startswith("(error"))
+        return {"cues": cues, "error": "" if cues else f"{errors} frame errors",
+                "frames": len(frames), "frame_errors": errors,
                 "seconds": round(time.monotonic() - started, 1)}
     except Exception as e:
         return {"cues": [], "error": f"{type(e).__name__}: {str(e)[:300]}",
@@ -246,6 +278,8 @@ async def _run_model(model, jobs, keys, results, lock, stop):
             continue
         if kind == "hear":
             got = await _hearing(model, keys)
+        elif kind == "frame":
+            got = await _describe_frames(model, clip, keys)
         else:
             got = await _describe(model, clip, keys,
                                   _transcript(clip) if model != GEMINI_DIRECT else None)
@@ -277,13 +311,17 @@ def cmd_run(args) -> int:
     catalog = BENCH / "catalog.json"
     if catalog.exists():
         mc.save_cache(mc.parse_catalog(json.loads(catalog.read_text(encoding="utf-8"))))
-    for name in CLIP_NAMES:          # transcripts once, before the clock starts
+    clips = args.clips.split(",") if args.clips else CLIP_NAMES
+    for name in clips:               # transcripts once, before the clock starts
         _transcript(name)
     models = (args.models.split(",") if args.models
               else OPENROUTER_MODELS + [GEMINI_DIRECT])
-    jobs = [("hear", "truth", 1)] + [
-        ("desc", clip, run) for run in range(1, args.runs + 1)
-        for clip in CLIP_NAMES]
+    modes = args.modes.split(",")
+    jobs = ([("hear", "truth", 1)] if "hear" in modes else []) + [
+        (kind, clip, run) for run in range(1, args.runs + 1)
+        for clip in clips
+        for kind in (("desc",) if "full" in modes else ())
+        + (("frame",) if "frame" in modes and run == 1 else ())]
     results = _load_results()
 
     async def main():
@@ -465,6 +503,213 @@ def cmd_score(_args) -> int:
     return 0
 
 
+# ── the ruler: a second model checks each description against frames ──
+
+LABELS = REPO / "tools" / "bench_labels.json"
+# Where the frames are taken, relative to the description's time: the
+# moment it is placed, and the few seconds it is spoken over.
+JUDGE_OFFSETS = (-0.5, 1.0, 2.5, 4.0)
+JUDGE_PROMPT = (
+    "You check audio descriptions written for a blind viewer. The four "
+    "frames were taken from the video at the times printed on them, "
+    "starting where this description is placed.\n\n"
+    "Description: \"{text}\"\n\n"
+    "Judge ONLY what is visible in these frames. Ignore style.\n"
+    "- correct: everything the description states is visible here.\n"
+    "- partial: the main point is visible, but a detail is wrong, or it "
+    "happens just outside these frames.\n"
+    "- wrong: the main thing it states is NOT in these frames (invented, "
+    "misidentified, or at a clearly different time).\n"
+    "Reply with JSON only: {{\"verdict\": \"correct|partial|wrong\", "
+    "\"reason\": \"<one short sentence>\"}}")
+
+
+def judge_grid(clip: str, t: float, out: Path) -> Path:
+    """Four frames around a description's time, labelled, as one image."""
+    if out.exists():
+        return out
+    ffmpeg = find_tool("ffmpeg")
+    src = CLIPS / f"{clip.split('@')[0]}.mp4"   # "clip@variant" = same video
+    length = float(subprocess.run(
+        [find_tool("ffprobe"), "-v", "error", "-show_entries",
+         "format=duration", "-of", "csv=p=0", str(src)],
+        capture_output=True, text=True, timeout=60).stdout.strip() or 0)
+    tiles = []
+    for i, off in enumerate(JUDGE_OFFSETS):
+        at = min(max(0.0, t + off), max(0.0, length - 0.1))
+        tile = out.with_name(f"{out.stem}_{i}.jpg")
+        label = (f"drawtext=fontfile='{FONT}':text='{int(at // 60)}\\:{at % 60:04.1f}':"
+                 "fontsize=26:fontcolor=yellow:box=1:boxcolor=black:x=8:y=8")
+        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{at:.2f}",
+                        "-i", str(src), "-frames:v", "1",
+                        "-vf", f"scale=480:270,{label}", str(tile)], timeout=60)
+        tiles.append(tile)
+    inputs = []
+    for tile in tiles:
+        inputs += ["-i", str(tile)]
+    subprocess.run([ffmpeg, "-y", "-loglevel", "error", *inputs,
+                    "-filter_complex", "[0][1]hstack[a];[2][3]hstack[b];[a][b]vstack",
+                    "-q:v", "4", str(out)], timeout=60)
+    for tile in tiles:
+        tile.unlink(missing_ok=True)
+    return out
+
+
+async def _judge_one(judge: str, key: str, text: str, grid: Path,
+                     api_key: str) -> dict:
+    import base64
+    from omni_describer_custom.core.ai_engine import GLMProvider
+    data = base64.b64encode(grid.read_bytes()).decode()
+    payload = {"model": judge, "max_tokens": 2000,
+               "reasoning": {"max_tokens": 800},
+               "messages": [{"role": "user", "content": [
+                   {"type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
+                   {"type": "text", "text": JUDGE_PROMPT.format(text=text)}]}]}
+    try:
+        answer = await GLMProvider(api_key=api_key)._chat(payload, timeout=180)
+    except Exception as e:
+        return {"verdict": "", "reason": f"ERROR {str(e)[:120]}"}
+    m = re.search(r"\{.*\}", answer, re.S)
+    try:
+        got = json.loads(m.group(0)) if m else {}
+    except ValueError:
+        got = {}
+    verdict = str(got.get("verdict", "")).lower().strip()
+    if verdict not in ("correct", "partial", "wrong"):
+        low = answer.lower()
+        verdict = next((v for v in ("wrong", "partial", "correct") if v in low), "")
+    return {"verdict": verdict, "reason": str(got.get("reason", answer))[:200]}
+
+
+def cmd_judge(args) -> int:
+    """Judge the hand-labelled descriptions and report agreement."""
+    keys = _prepare_config()
+    source = REPO / "tools" / args.labels if args.labels else LABELS
+    labels = {k: v for k, v in json.loads(source.read_text(encoding="utf-8")).items()
+              if not k.startswith("_")}
+    run_no = "2" if "blind" in source.name else "1"
+    results = _load_results()
+    grids = BENCH / "judge_grids"
+    grids.mkdir(exist_ok=True)
+    store = BENCH / "judgements.json"
+    done = json.loads(store.read_text(encoding="utf-8")) if store.exists() else {}
+    items = []
+    for key in labels:
+        clip, rest = key.split("|", 1)
+        model, idx = rest.rsplit("|", 1)
+        t, text = results[f"{model}|desc|{clip}|{run_no}"]["cues"][int(idx)]
+        safe = f"r{run_no}__" + key.replace("/", "_").replace(":", "_").replace("|", "__")
+        items.append((key, clip, float(t), text, grids / f"{safe}.jpg"))
+    for _key, clip, t, _text, grid in items:
+        judge_grid(clip, t, grid)
+
+    async def run():
+        sem = asyncio.Semaphore(6)
+
+        async def one(judge, item):
+            key, _clip, _t, text, grid = item
+            jkey = f"{judge}||{run_no}||{key}"
+            if jkey in done and done[jkey].get("verdict"):
+                return
+            async with sem:
+                done[jkey] = await _judge_one(judge, key, text, grid, keys["glm"])
+        before = await _balance(keys["glm"])
+        await asyncio.gather(*[one(j, it) for j in args.judges.split(",")
+                               for it in items])
+        after = await _balance(keys["glm"])
+        if before is not None and after is not None:
+            print(f"spent ${before - after:.3f}")
+    asyncio.run(run())
+    store.write_text(json.dumps(done, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    short = {"correct": "c", "partial": "p", "wrong": "w"}
+    for judge in args.judges.split(","):
+        pairs = [(labels[k], short.get(done.get(f"{judge}||{run_no}||{k}", {}).get("verdict"), "?"))
+                 for k in labels]
+        n = len(pairs)
+        exact = sum(1 for a, b in pairs if a == b)
+        wrongs = [b for a, b in pairs if a == "w"]
+        rights = [b for a, b in pairs if a == "c"]
+        caught = sum(1 for b in wrongs if b == "w")
+        false_alarm = sum(1 for b in rights if b == "w")
+        loose = sum(1 for a, b in pairs if (a == "w") == (b == "w"))
+        print(f"{judge:32s} exact {exact}/{n} ({100 * exact // n}%)  "
+              f"wrong caught {caught}/{len(wrongs)}  "
+              f"false 'wrong' on correct {false_alarm}/{len(rights)}  "
+              f"wrong-vs-not agreement {100 * loose // n}%  "
+              f"unparsed {sum(1 for _, b in pairs if b == '?')}")
+    return 0
+
+
+def cmd_measure(args) -> int:
+    """The ruler on EVERY description: share judged wrong, per model.
+
+    Validated first (bench_labels.json, then 30 blind labels): the GLM
+    judge never called a correct description wrong (0/83) and caught 13
+    of 14 wrong ones. "correct" vs "partial" is fuzzy even between two
+    people, so the number to trust is the WRONG rate.
+    """
+    keys = _prepare_config()
+    results = _load_results()
+    grids = BENCH / "judge_grids"
+    grids.mkdir(exist_ok=True)
+    store = BENCH / "judgements.json"
+    done = json.loads(store.read_text(encoding="utf-8")) if store.exists() else {}
+    items = []
+    for rkey, got in results.items():
+        model, kind, clip, run = rkey.split("|")
+        if kind not in ("desc", "frame") or not got.get("cues") or model == GEMINI_DIRECT:
+            continue
+        if args.clips and clip not in args.clips.split(","):
+            continue
+        for i, (t, text) in enumerate(got["cues"]):
+            key = f"{clip}|{model}|{i}" if kind == "desc" else f"{clip}|{model}#frame|{i}"
+            safe = f"r{run}__" + key.replace("/", "_").replace(":", "_").replace("|", "__")
+            label = model if kind == "desc" else f"{model} [frame]"
+            items.append((run, key, label, clip, float(t), text, grids / f"{safe}.jpg"))
+    for _r, _k, _m, clip, t, _x, grid in items:
+        judge_grid(clip, t, grid)
+
+    async def run_all():
+        sem = asyncio.Semaphore(8)
+
+        async def one(item):
+            run, key, _m, _c, _t, text, grid = item
+            jkey = f"{args.judge}||{run}||{key}"
+            if jkey in done and done[jkey].get("verdict"):
+                return
+            async with sem:
+                done[jkey] = await _judge_one(args.judge, key, text, grid, keys["glm"])
+        before = await _balance(keys["glm"])
+        await asyncio.gather(*[one(it) for it in items])
+        after = await _balance(keys["glm"])
+        if before is not None and after is not None:
+            print(f"spent ${before - after:.3f}")
+    asyncio.run(run_all())
+    store.write_text(json.dumps(done, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    table: dict = {}
+    for run, key, model, clip, _t, _x, _g in items:
+        v = done.get(f"{args.judge}||{run}||{key}", {}).get("verdict", "?")
+        row = table.setdefault(model, {"n": 0, "wrong": 0, "partial": 0,
+                                       "correct": 0, "?": 0, "clips": {}})
+        row["n"] += 1
+        row[v if v in row else "?"] += 1
+        c = row["clips"].setdefault(clip, [0, 0])
+        c[0] += 1
+        c[1] += v == "wrong"
+    out = BENCH / "accuracy.json"
+    out.write_text(json.dumps(table, indent=1), encoding="utf-8")
+    print(f"{'model':34s} {'n':>4s} {'wrong%':>7s} {'partial%':>9s} {'correct%':>9s}   wrong by clip")
+    for model, r in sorted(table.items(), key=lambda kv: kv[1]["wrong"] / kv[1]["n"]):
+        n = r["n"]
+        per = "  ".join(f"{c[:6]} {w}/{t}" for c, (t, w) in sorted(r["clips"].items()))
+        print(f"{model[:34]:34s} {n:4d} {100 * r['wrong'] / n:6.1f}% "
+              f"{100 * r['partial'] / n:8.1f}% {100 * r['correct'] / n:8.1f}%   {per}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -473,15 +718,29 @@ def main() -> int:
     run = sub.add_parser("run")
     run.add_argument("--runs", type=int, default=2)
     run.add_argument("--models", default="")
+    run.add_argument("--clips", default="",
+                     help="comma list; default the five original clips")
+    run.add_argument("--modes", default="hear,full",
+                     help="hear, full (whole video) and/or frame (app default "
+                          "frame mode, one run only)")
     run.add_argument("--floor", type=float, default=1.15,
                      help="stop when OpenRouter credit falls below this "
                           "(video requests fail under $1)")
     frames = sub.add_parser("frames")
     frames.add_argument("--run", type=int, default=1)
     sub.add_parser("score")
+    judge = sub.add_parser("judge")
+    judge.add_argument("--labels", default="",
+                       help="labels file in tools/ (default bench_labels.json)")
+    judge.add_argument("--judges", default="google/gemini-3.8-flash,"
+                       "z-ai/glm-5.3-flash,google/gemini-3.1-flash-lite")
+    measure = sub.add_parser("measure")
+    measure.add_argument("--judge", default="z-ai/glm-5.3-flash")
+    measure.add_argument("--clips", default="", help="only these clips")
     args = parser.parse_args()
     return {"make-clips": cmd_make_clips, "run": cmd_run,
-            "frames": cmd_frames, "score": cmd_score}[args.cmd](args)
+            "frames": cmd_frames, "score": cmd_score,
+            "judge": cmd_judge, "measure": cmd_measure}[args.cmd](args)
 
 
 if __name__ == "__main__":

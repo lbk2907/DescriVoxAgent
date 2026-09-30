@@ -200,6 +200,24 @@ def _shared_for(path: Path) -> _SharedState:
         return state
 
 
+def _migrate(data: dict) -> None:
+    """One-time changes to values that were only ever the OLD default.
+
+    Each step runs once, marked in "migrated", so a value the user sets
+    afterwards — even the old one — is never changed again.
+    """
+    done = data.setdefault("migrated", [])
+    if not isinstance(done, list):
+        done = data["migrated"] = []
+    general = data.get("general")
+    if "chunk_300" not in done and isinstance(general, dict):
+        # 600 was the default until v1.8.6 and was saved into every
+        # settings.json by the Settings dialog; it halves accuracy.
+        if general.get("chunk_seconds") == 600:
+            general["chunk_seconds"] = 300
+        done.append("chunk_300")
+
+
 class SettingsStore:
     """
     Manages application settings with encrypted API key storage.
@@ -210,6 +228,11 @@ class SettingsStore:
         "ai": {
             "default_provider": "",
             "fast_mode": False,
+            # v1.8.7: whole-video mode for new users. Frame mode, the old
+            # default, described each frame separately — 147-204 lines a
+            # minute on films (doc/perbandingan-model.md). A mode already
+            # saved in settings.json is kept.
+            "video_mode": "full",
             "providers": {
                 "gemini": {"api_key": "", "model": "gemini-3.8-flash"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
@@ -241,9 +264,16 @@ class SettingsStore:
             # Longest stretch the AI may be left with no frame at all.
             # 0 disables it; see VideoProcessor._apply_coverage_floor.
             "max_frame_gap": 30,
+            # v1.8.7: seconds between frame-mode descriptions (one 12-word
+            # line takes ~4 s to speak).
+            "min_description_gap": 4,
             # Seconds per part when a long video is split for the AI
             # (full-video mode). 600 = 10 minutes (user request v1.5.3).
-            "chunk_seconds": 600,
+            # v1.8.6: 300, not 600. Measured on two long films with the
+            # accuracy ruler: 10-minute parts put 24.5% / 27.5% of the
+            # descriptions at the wrong moment, 5-minute parts 12.9% /
+            # 11.8% — and finished sooner (doc/perbandingan-model.md).
+            "chunk_seconds": 300,
             "output_dir": str(Path.home() / "Documents" / "OmniDescriber" / "output"),
             "chunk_long_videos": True,
             "auto_save": True,
@@ -345,6 +375,7 @@ class SettingsStore:
             return
 
         _merge_defaults(loaded, self.DEFAULTS)
+        _migrate(loaded)
         providers = loaded["ai"]["providers"]
         for provider, cfg in providers.items():
             if not isinstance(cfg, dict):

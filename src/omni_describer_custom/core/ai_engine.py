@@ -144,7 +144,7 @@ async def get_model_price(model: str) -> dict:
 
 
 async def estimate_video_cost(duration_seconds: float, model: str,
-                              chunk_seconds: int = 600,
+                              chunk_seconds: int = 300,
                               api_key: str = "") -> dict:
     """What this video will cost before a penny is spent.
 
@@ -443,6 +443,58 @@ def _strip_think(text: str) -> str:
 # "(empty response)" was saved as a cue and read aloud to the listener.
 _PLACEHOLDER_PREFIXES = ("(error:", "(no response", "(no text",
                          "(empty response")
+
+
+# v1.8.7: frame mode describes each still frame on its own, with the
+# video preset. Measured (29 Sep 2026): GLM answered a single frame with
+# ~41 words, markdown headings ("**Audio description**") and invented
+# timestamps ("[0:00] ... [0:06]") in 51% of replies — all read aloud.
+# FORMAT only, per pitfall 16: nothing here about WHAT to describe.
+FRAME_FORMAT_SUFFIX = (
+    "\n\nThis is ONE still frame from the video. Answer with one plain "
+    "sentence of at most 12 words: no markdown, no headings, no "
+    "timestamps, no lists.")
+
+_MARKDOWN = re.compile(r"\*\*|__|^\s*#+\s*|^\s*[-*\u2022]\s+", re.M)
+_HEADING_LINE = re.compile(r"^[ \t]*#+[^\n]*(?:\n|$)", re.M)
+_STAMPS = re.compile(r"\[\s*\d{1,2}:\d{2}(?::\d{2})?\s*\]")
+_HEADINGS = re.compile(r"^\s*(audio description|description)\b[^\n:]*[:\n]\s*",
+                       re.I)
+
+
+def clean_frame_text(text: str) -> str:
+    """A frame reply as a line that can be spoken: no markdown, no
+    headings, no timestamps the model made up for a single frame."""
+    t = _STAMPS.sub(" ", text or "")
+    # A markdown heading line ("## Scene") is a label, not part of the
+    # sentence — stripping only its "#" read "Scene A girl climbs..."
+    # aloud. Dropped whole, unless it is all the reply has.
+    body = _HEADING_LINE.sub("", t)
+    if body.strip():
+        t = body
+    # A bold heading ("**Audio description - Excel workbook (...)**") goes
+    # whole, before the bold markers are stripped from the rest.
+    t = re.sub(r"\*\*[^*]*(audio )?description[^*]*\*\*", " ", t, flags=re.I)
+    t = _MARKDOWN.sub("", t)
+    t = _HEADINGS.sub("", t.strip())
+    t = re.sub(r"\s*\(no dialogue[^)]*\)", "", t, flags=re.I)
+    return re.sub(r"\s+", " ", t).strip(" -:\u2014")
+
+
+def finalize_frame_descriptions(frames, texts) -> list[tuple]:
+    """(frame, cleaned text) pairs worth keeping: placeholders dropped,
+    and a line identical to the previous one not said twice."""
+    kept, last = [], ""
+    for frame, text in zip(frames, texts):
+        if is_placeholder_text(text):
+            continue
+        line = clean_frame_text(text)
+        norm = re.sub(r"\W+", " ", line.lower()).strip()
+        if not line or norm == last:
+            continue
+        last = norm
+        kept.append((frame, line))
+    return kept
 
 
 def is_placeholder_text(text: str) -> bool:
@@ -855,7 +907,7 @@ class GeminiProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 600,
+        chunk_seconds: int = 300,
         on_part: Callable[[int, int], None] | None = None,
         # Accepted for interface parity with chunked providers; these
         # providers never split, so the callback stays unused here.
@@ -1128,7 +1180,7 @@ class MiniMaxProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 600,
+        chunk_seconds: int = 300,
         on_part: Callable[[int, int], None] | None = None,
         # Accepted for interface parity with chunked providers; these
         # providers never split, so the callback stays unused here.
@@ -1354,7 +1406,17 @@ class GLMProvider(AIProvider):
                                 f"GLM HTTP {resp.status}: {body[:200]}")
                         data = await resp.json()
                         if "error" in data:
-                            raise RuntimeError(f"GLM API error: {data['error']}")
+                            err = data["error"]
+                            code = err.get("code") if isinstance(err, dict) else None
+                            if code in (429, 500, 502, 503, 504):
+                                # v1.8.6: OpenRouter reports an upstream
+                                # timeout INSIDE a 200 reply. It used to
+                                # end the whole job — a 504 after 15
+                                # minutes threw away every finished part
+                                # (29 Sep 2026). Busy/timeout: retry.
+                                raise aiohttp.ClientError(
+                                    f"HTTP {code} in reply: {str(err)[:120]}")
+                            raise RuntimeError(f"GLM API error: {err}")
                         choices = data.get("choices", [])
                         if not choices:
                             return "(no response from GLM)"
@@ -1417,6 +1479,61 @@ class GLMProvider(AIProvider):
     # videos are auto-compressed to 360p before upload.
     MAX_VIDEO_BYTES = 50 * 1024 * 1024
     COMPRESS_TARGET_BYTES = 40 * 1024 * 1024
+    # v1.8.6: OpenRouter passes a request on to the model's OWN provider,
+    # and those limits differ. Google AI Studio (every google/* model)
+    # refuses a body over 20,000,000 bytes: a 10-minute Sintel part,
+    # 29.6 MB once base64-encoded, failed with HTTP 413 (29 Sep 2026).
+    # Limits are on the REQUEST BODY; base64 makes the video 4/3 larger.
+    BODY_LIMITS = (("google/", 20_000_000),)
+
+    def _base_limits(self) -> tuple[int, int]:
+        """The limits this provider started with — the class values, or
+        whatever was set on the instance before its first job."""
+        current = (self.MAX_VIDEO_BYTES, self.COMPRESS_TARGET_BYTES)
+        if current != self.__dict__.get("_limits_we_set"):
+            # Not values we lowered: someone set them (or the class
+            # default is still in place) — that is the starting point.
+            self.__dict__["_base_limits_pair"] = current
+        return self.__dict__["_base_limits_pair"]
+
+    def _apply_limits(self, max_bytes: int, compress_bytes: int) -> None:
+        self.MAX_VIDEO_BYTES, self.COMPRESS_TARGET_BYTES = max_bytes, compress_bytes
+        self.__dict__["_limits_we_set"] = (max_bytes, compress_bytes)
+
+    def _set_upload_limits(self, body_limit: int) -> None:
+        """Video size limits that keep the base64 request under body_limit.
+        Only ever LOWERS them."""
+        base_max, base_compress = self._base_limits()
+        raw = int(body_limit * 0.72)          # 3/4 for base64, less the prompt
+        self._apply_limits(min(base_max, raw), min(base_compress, int(raw * 0.8)))
+
+    def _limits_for(self, model: str) -> None:
+        # Back to the starting limits first: one Gemini job must not
+        # shrink the next GLM job on the same provider.
+        self._apply_limits(*self._base_limits())
+        for prefix, limit in self.BODY_LIMITS:
+            if (model or "").startswith(prefix):
+                self._set_upload_limits(limit)
+
+    @staticmethod
+    def body_limit_from_error(error) -> int:
+        """The byte limit a 413 names ("... exceeds the 20000000 byte
+        limit ..."), or 0. Lets an unknown provider's limit be learned
+        from its first refusal instead of failing the job."""
+        text = str(error)
+        if "413" not in text and "payload_too_large" not in text:
+            return 0
+        m = re.search(r"(\d{6,})\s*byte limit", text)
+        if m:
+            return int(m.group(1))
+        # OpenRouter routes one model to several upstreams with DIFFERENT
+        # limits: a GLM part passed at 29 MB, the next was refused with
+        # "Request body exceeds the 8 MiB limit" (29 Sep 2026).
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(MiB|MB)\s*limit", text)
+        if m:
+            unit = 1024 * 1024 if m.group(2) == "MiB" else 1_000_000
+            return int(float(m.group(1)) * unit)
+        return 0
 
     @staticmethod
     def _chunk_seconds_to_fit(path: Path, duration: float,
@@ -1444,7 +1561,7 @@ class GLMProvider(AIProvider):
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 600,
+        chunk_seconds: int = 300,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,
@@ -1462,6 +1579,7 @@ class GLMProvider(AIProvider):
         rejected.
         """
         path = Path(video_path)
+        self._limits_for(model or self.models[0])
         # v1.8.1: a model that hears (Qwen/MiMo/Gemini via OpenRouter)
         # keeps the soundtrack when the upload has to be compressed.
         self._keep_audio = provider_hears_audio("glm", model or self.models[0])
@@ -1562,13 +1680,32 @@ class GLMProvider(AIProvider):
                 # v1.5.3: pass a short summary of the previous part so
                 # the model keeps its bearings (no "the video starts
                 # with" at minute 20) and keeps one name per character.
-                pairs = await self._describe_one_part(
-                    part, prompt, model, on_status=on_status,
-                    is_cancelled=is_cancelled, offset=offset,
-                    part_index=i + 1, part_total=total,
-                    prev_summary=prev_summary, transcript=transcript,
-                    part_seconds=part_len,
-                    on_part_progress=part_progress(i) if on_eta else None)
+                try:
+                    pairs = await self._describe_one_part(
+                        part, prompt, model, on_status=on_status,
+                        is_cancelled=is_cancelled, offset=offset,
+                        part_index=i + 1, part_total=total,
+                        prev_summary=prev_summary, transcript=transcript,
+                        part_seconds=part_len,
+                        on_part_progress=part_progress(i) if on_eta else None)
+                except RuntimeError as e:
+                    # v1.8.6: a provider we have no limit for refused the
+                    # size. Learn its limit from the refusal and send the
+                    # part again, compressed to fit.
+                    limit = self.body_limit_from_error(e)
+                    if not limit or self.MAX_VIDEO_BYTES <= int(limit * 0.72):
+                        raise
+                    logger.warning("part %d/%d: provider limit is %d bytes; "
+                                   "compressing to fit and retrying",
+                                   i + 1, total, limit)
+                    self._set_upload_limits(limit)
+                    pairs = await self._describe_one_part(
+                        part, prompt, model, on_status=on_status,
+                        is_cancelled=is_cancelled, offset=offset,
+                        part_index=i + 1, part_total=total,
+                        prev_summary=prev_summary, transcript=transcript,
+                        part_seconds=part_len,
+                        on_part_progress=part_progress(i) if on_eta else None)
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -2825,6 +2962,7 @@ class AIEngine:
         """Describe multiple frames. Returns list of descriptions."""
         prov = self._provider_or_raise(provider or self._default_provider)
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
+        prompt += FRAME_FORMAT_SUFFIX
         return await prov.describe_frames_batch(
             frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled)
 
@@ -2838,7 +2976,7 @@ class AIEngine:
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
-        chunk_seconds: int = 600,
+        chunk_seconds: int = 300,
         on_part: Callable[[int, int], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
         transcript: list | None = None,

@@ -107,3 +107,63 @@ dengan penilai YANG SAMA. GLM tidak memihak dirinya: Gemini menilai GLM
 lebih baik daripada Qwen. **Asas untuk Fasa 3: kira-kira 1 dalam 10
 penerangan GLM salah atau tersasar masa.** Kos penilai GLM ~$0.00005
 setiap penerangan — cukup murah untuk pas semakan dalam app.
+
+## Fasa 16.2 — asas lebih luas (29–30 Sep 2026)
+
+Klip genre baharu (60 s): **Tears of Steel** (drama aksi langsung,
+Blender CC-BY), **NASA Our Planet, Our Home** (dokumentari, domain awam),
+**Tutorial Asas Microsoft Excel** (PiTutorial, rakaman skrin BM).
+Video panjang: Sintel 14:48 penuh. Penilai: GLM (pembaris 16.1).
+
+### Genre pada klip pendek — ketepatan bukan masalah
+| Model | Drama | Dokumentari | Tutorial | 
+|---|---|---|---|
+| GLM 5.3 Flash | 0/10 salah | 0/16 | 0/16 |
+| Gemini 3.1 Flash-Lite | 1/12 | 0/11 | 1/13 |
+
+### Empat bug ditemui (dibaiki v1.8.6)
+1. **Jurang pertuturan yang hilang.** Whisper memanjangkan setiap segmen
+   hingga segmen seterusnya: Tears diklaim 58.5 s pertuturan dalam 60 s
+   (29.0 s ikut perkataan). Kedua-dua model menulis SATU penerangan untuk
+   seminit robot dan manusia. `word_timestamps=True`: GLM 12 → **30**
+   penerangan (4 larian), **0 salah** sebelum dan selepas.
+2. **Had saiz pembekal di sebalik OpenRouter.** Google AI Studio menolak
+   badan >20 MB; Gemini 3.1 Flash-Lite GAGAL pada Sintel penuh (413).
+   Satu pelayan hulu GLM pula berhad **8 MiB** walaupun bahagian 29 MB
+   diterima pelayan lain — kerja boleh gagal secara RAWAK. Kini had
+   diketahui untuk `google/*`, dan had lain DIPELAJARI daripada ralat 413
+   lalu bahagian itu dimampat dan dihantar semula.
+3. **504 di dalam jawapan 200** membunuh seluruh kerja selepas 15 minit
+   (semua bahagian siap dibuang). Kini dicuba semula seperti 5xx lain.
+4. Selepas pembetulan 2: Gemini 3.1 Flash-Lite berjaya pada Sintel penuh
+   (77 penerangan).
+
+### Video panjang: panjang bahagian menentukan ketepatan
+| GLM, Sintel 14:48 | Salah | Masa | Nota |
+|---|---|---|---|
+| Bahagian 10 min (lalai) | **24.5%** | 978 s | bahagian 1 ~30% salah, bahagian 2 (4.8 min) 14% |
+| Bahagian 5 min | **12.9%** | **605 s** | jurang 141 s = kredit penutup |
+| Bahagian 3 min | **12.1%** | 696 s | jurang 87 s = kredit penutup |
+
+Kesilapan bahagian panjang ialah peristiwa BETUL pada masa SALAH
+(bahagian 10 minit dimampat ke 360p; model tidak dapat menentukan saat).
+Klip 60 s: 0–8% salah. **Disahkan pada video panjang kedua sebelum
+menukar lalai** (Tears of Steel penuh, sedang berjalan).
+
+**Disahkan pada filem panjang KEDUA (Tears of Steel penuh, 12:14):**
+bahagian 10 min **27.5%** salah (+ lubang 85 s tanpa penerangan di hujung
+bahagian 1), bahagian 5 min **11.8%**. Lalai app kini 300 s (v1.8.6).
+
+### Mod bingkai (lalai pengguna baharu) — tidak sesuai untuk filem
+| Model | Klip 60 s | Penerangan | Patah/penerangan | Sampah markdown | Salah | Masa |
+|---|---|---|---|---|---|---|
+| Gemini 3.1 FL | Tears | **204** | 12 | 0% | 3% | 783 s |
+| Gemini 3.1 FL | Berita BM | **176** | 16 | 0% | 11% | 501 s |
+| Gemini 3.1 FL | Sintel | **147** | 10 | 0% | 10% | 417 s |
+| Gemini 3.1 FL | Big Buck Bunny | 98 | 28 | 1% | 15% | 294 s |
+| Gemini 3.1 FL | Ocong | 24 | 17 | 4% | 17% | 75 s |
+| GLM 5.3 Flash | Excel | 31 | **41** | **51%** | 6% | **856 s** |
+
+Setiap bingkai yang lolos dedup menjadi penerangan 1 saat — 2–3 sesaat,
+mustahil dituturkan. Tidak lebih tepat daripada mod video penuh. GLM
+~20 s setiap bingkai; larian GLM filem dihentikan (anggaran 4 jam).
