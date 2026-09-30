@@ -167,3 +167,33 @@ bahagian 1), bahagian 5 min **11.8%**. Lalai app kini 300 s (v1.8.6).
 Setiap bingkai yang lolos dedup menjadi penerangan 1 saat — 2–3 sesaat,
 mustahil dituturkan. Tidak lebih tepat daripada mod video penuh. GLM
 ~20 s setiap bingkai; larian GLM filem dihentikan (anggaran 4 jam).
+
+## Fasa 16.3 — pas semakan (30 Sep 2026)
+
+Penyemak (GLM) melihat 12 bingkai dari 20 s sebelum hingga 20 s selepas
+setiap penerangan, lalu menjawab di mana ia PALING jelas kelihatan, atau
+"tiada". Diuji pada hasil sedia ada (Sintel 14:48 + Tears 12:14, bahagian
+5 min, 209 penerangan) — `model_bench.py review` — dan diukur oleh
+penilai BEBAS (Gemini 3.8) serta GLM. Kos semakan ~$0.014 setiap filem.
+
+| Pilihan | Penerangan | Salah (Gemini) | Betul (Gemini) | Salah (GLM) |
+|---|---|---|---|---|
+| Tiada semakan | 209 | 39 (18.7%) | 106 | 26 (12.4%) |
+| A: v1 — alih ke bingkai paling jelas, buang "tiada" | 198 | 27 (13.6%) | **113** | 18 (9.1%) |
+| B: v2 — kekal jika sudah kelihatan di tempatnya, buang "tiada" | 187 | **23 (12.3%)** | 107 | **15 (8.0%)** |
+| C: v2 tanpa buang | 209 | 32 (15.3%) | 112 | – |
+
+Dapatan:
+- Kebanyakan kesilapan ialah peristiwa BETUL pada masa SALAH, jadi
+  mengalih masa membantu. v1 memperbaiki 17 penerangan salah di Sintel
+  tetapi merosakkan 9 yang betul/separa (mengalih yang sudah betul ke
+  bingkai "lebih jelas"); di Tears ia rugi bersih (5 dibaiki, 7 rosak).
+- v2 bertanya dahulu "adakah ia kelihatan di tempatnya?" — hanya 22
+  dialih (bukan 98).
+- "Tiada" (buang) v2: 9 salah, 8 separa, 5 betul — membuang juga
+  kehilangan penerangan baik.
+- Sampel kecil: beza A lwn B (27 lwn 23 salah) dalam lingkungan hingar.
+  Yang pasti: SEMUA pilihan menurunkan salah ~20–40% berbanding tiada
+  semakan, dengan kos kecil.
+- Kredit OpenRouter hampir habis ($0.80) — ujian suhu tetap dan snap
+  perubahan adegan belum dibuat.

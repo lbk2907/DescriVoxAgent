@@ -710,6 +710,193 @@ def cmd_measure(args) -> int:
     return 0
 
 
+# ── phase 16.3: a review pass that moves or drops descriptions ─────
+
+REVIEW_SPAN = 20.0        # seconds either side of the description
+REVIEW_TILES = 12         # 4 x 3 sheet
+REVIEW_PROMPT = (
+    "You check one audio description for a blind viewer. The twelve "
+    "frames come from the video, in time order, each labelled with its "
+    "time. The description is currently placed at {at}.\n\n"
+    "Description: \"{text}\"\n\n"
+    "First: is what it describes visible in the frames within about four "
+    "seconds AFTER {at} (where it is placed now)? Then: find the frame "
+    "where it is MOST clearly visible. Judge only what you can see; "
+    "ignore sound and style.\n"
+    "Reply with JSON only: {{\"here\": true|false, \"best\": \"M:SS.S\" "
+    "or \"none\", \"why\": \"<one short sentence>\"}}. Use \"none\" "
+    "only if what it describes is visible in NONE of the frames.")
+
+
+def review_sheet(clip: str, t: float, out: Path) -> tuple[Path, list[float]]:
+    """Twelve labelled frames from t-20 s to t+20 s as one 4x3 image."""
+    src = CLIPS / f"{clip.split('@')[0]}.mp4"
+    length = float(subprocess.run(
+        [find_tool("ffprobe"), "-v", "error", "-show_entries",
+         "format=duration", "-of", "csv=p=0", str(src)],
+        capture_output=True, text=True, timeout=60).stdout.strip() or 0)
+    step = 2 * REVIEW_SPAN / (REVIEW_TILES - 1)
+    times = [min(max(0.0, t - REVIEW_SPAN + i * step), max(0.0, length - 0.1))
+             for i in range(REVIEW_TILES)]
+    if out.exists():
+        return out, times
+    ffmpeg = find_tool("ffmpeg")
+    tiles = []
+    for i, at in enumerate(times):
+        tile = out.with_name(f"{out.stem}_{i}.jpg")
+        label = (f"drawtext=fontfile='{FONT}':text='{int(at // 60)}\\:{at % 60:04.1f}':"
+                 "fontsize=24:fontcolor=yellow:box=1:boxcolor=black:x=6:y=6")
+        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{at:.2f}",
+                        "-i", str(src), "-frames:v", "1",
+                        "-vf", f"scale=400:225,{label}", str(tile)], timeout=60)
+        tiles.append(tile)
+    inputs = []
+    for tile in tiles:
+        inputs += ["-i", str(tile)]
+    rows = ";".join(f"[{r*4}][{r*4+1}][{r*4+2}][{r*4+3}]hstack=4[r{r}]"
+                    for r in range(3))
+    subprocess.run([ffmpeg, "-y", "-loglevel", "error", *inputs,
+                    "-filter_complex", f"{rows};[r0][r1][r2]vstack=3",
+                    "-q:v", "4", str(out)], timeout=60)
+    for tile in tiles:
+        tile.unlink(missing_ok=True)
+    return out, times
+
+
+def _parse_mss(text: str) -> float | None:
+    m = re.match(r"\s*(\d+):(\d+(?:\.\d+)?)\s*$", text or "")
+    return int(m.group(1)) * 60 + float(m.group(2)) if m else None
+
+
+async def _review_one(model: str, clip: str, t: float, text: str,
+                      sheet: Path, times: list[float], api_key: str) -> dict:
+    import base64
+    from omni_describer_custom.core.ai_engine import GLMProvider
+    data = base64.b64encode(sheet.read_bytes()).decode()
+    at = f"{int(t // 60)}:{t % 60:04.1f}"
+    payload = {"model": model, "max_tokens": 2000, "temperature": 0,
+               "reasoning": {"max_tokens": 800},
+               "messages": [{"role": "user", "content": [
+                   {"type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
+                   {"type": "text",
+                    "text": REVIEW_PROMPT.format(at=at, text=text)}]}]}
+    try:
+        answer = await GLMProvider(api_key=api_key)._chat(payload, timeout=180)
+    except Exception as e:
+        return {"action": "keep", "why": f"ERROR {str(e)[:100]}"}
+    m = re.search(r"\{.*\}", answer, re.S)
+    try:
+        got = json.loads(m.group(0)) if m else {}
+    except ValueError:
+        got = {}
+    best = str(got.get("best", "")).strip().lower()
+    why = str(got.get("why", ""))[:160]
+    if best == "none":
+        return {"best": "none", "why": why}
+    when = _parse_mss(best)
+    if when is None:
+        return {"best": "", "why": "unparsed: " + answer[:100]}
+    # The nearest tile actually shown (the model sometimes rounds).
+    when = min(times, key=lambda x: abs(x - when))
+    return {"best": round(when, 1), "why": why,
+            "here": got.get("here") in (True, "true", "yes")}
+
+
+def review_action(r: dict, t: float, back: float, ahead: float) -> tuple:
+    """("drop"|"move"|"keep", new time). A description should start AT
+    or just before what it describes, so an earlier match moves it back
+    even a little; a later match only when it is well ahead."""
+    best = r.get("best", "")
+    if best == "none":
+        return "drop", t
+    # v2: already visible where it is -> leave it (v1 moved correct ones
+    # to a "clearer" frame and broke them), unless what it describes
+    # clearly STARTS earlier: a description should begin at or before it.
+    if r.get("here") and not (isinstance(best, (int, float))
+                              and best < t - back):
+        return "keep", t
+    if not isinstance(best, (int, float)):
+        return "keep", t
+    if best < t - back or best > t + ahead:
+        return "move", float(best)
+    return "keep", t
+
+
+def cmd_review(args) -> int:
+    """Phase 16.3 experiment: move or drop each description after looking
+    at 40 s of frames around it. Writes a new variant "<clip>@<tag>" that
+    `measure` can judge; judgements of unchanged descriptions are copied
+    from the base so only what moved is paid for again."""
+    keys = _prepare_config()
+    results = _load_results()
+    sheets = BENCH / "review_sheets"
+    sheets.mkdir(exist_ok=True)
+    log_path = BENCH / "review_log.json"
+    log = json.loads(log_path.read_text(encoding="utf-8")) if log_path.exists() else {}
+    judgements_path = BENCH / "judgements.json"
+    judgements = json.loads(judgements_path.read_text(encoding="utf-8"))
+    for clip in args.clips.split(","):
+        base_key = f"{args.model}|desc|{clip}|1"
+        cues = results[base_key]["cues"]
+        jobs = []
+        for i, (t, text) in enumerate(cues):
+            safe = f"{clip}__{i}".replace("@", "_")
+            sheet, times = review_sheet(clip, float(t), sheets / f"{safe}.jpg")
+            jobs.append((i, float(t), text, sheet, times))
+
+        async def run_all():
+            sem = asyncio.Semaphore(8)
+
+            async def one(job):
+                i, t, text, sheet, times = job
+                lkey = f"{args.reviewer}|{args.version}|{clip}|{i}"
+                if lkey in log:
+                    return
+                async with sem:
+                    log[lkey] = await _review_one(args.reviewer, clip, t, text,
+                                                  sheet, times, keys["glm"])
+            before = await _balance(keys["glm"])
+            await asyncio.gather(*[one(j) for j in jobs])
+            after = await _balance(keys["glm"])
+            if before is not None and after is not None:
+                print(f"review spent ${before - after:.3f}", flush=True)
+        asyncio.run(run_all())
+        log_path.write_text(json.dumps(log, indent=1, ensure_ascii=False),
+                            encoding="utf-8")
+
+        new_cues, moved, dropped = [], 0, 0
+        origin = {}
+        for i, (t, text) in enumerate(cues):
+            r = log[f"{args.reviewer}|{args.version}|{clip}|{i}"]
+            action, nt = review_action(r, float(t), args.back, args.ahead)
+            if action == "drop" and not args.no_drop:
+                dropped += 1
+                continue
+            moved += action == "move"
+            origin[len(new_cues)] = (i, nt == t)
+            new_cues.append([nt, text])
+        order = sorted(range(len(new_cues)), key=lambda k: new_cues[k][0])
+        variant = f"{clip.split('@')[0]}@{args.tag}"
+        results[f"{args.model}|desc|{variant}|1"] = {
+            "cues": [new_cues[k] for k in order], "error": ""}
+        # Carry verdicts for descriptions whose time did not change.
+        for new_i, k in enumerate(order):
+            old_i, same = origin[k]
+            if not same:
+                continue
+            for judge in ("z-ai/glm-5.3-flash", "google/gemini-3.8-flash"):
+                src = judgements.get(f"{judge}||1||{clip}|{args.model}|{old_i}")
+                if src and src.get("verdict"):
+                    judgements[f"{judge}||1||{variant}|{args.model}|{new_i}"] = src
+        print(f"{clip}: {len(cues)} descriptions -> kept {len(cues) - dropped} "
+              f"(moved {moved}), dropped {dropped}  => {variant}", flush=True)
+    _save_results(results)
+    judgements_path.write_text(json.dumps(judgements, indent=1, ensure_ascii=False),
+                               encoding="utf-8")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -737,10 +924,22 @@ def main() -> int:
     measure = sub.add_parser("measure")
     measure.add_argument("--judge", default="z-ai/glm-5.3-flash")
     measure.add_argument("--clips", default="", help="only these clips")
+    review = sub.add_parser("review")
+    review.add_argument("--clips", required=True)
+    review.add_argument("--model", default="z-ai/glm-5.3-flash",
+                        help="whose descriptions to review")
+    review.add_argument("--reviewer", default="z-ai/glm-5.3-flash")
+    review.add_argument("--tag", default="review")
+    review.add_argument("--back", type=float, default=0.5)
+    review.add_argument("--ahead", type=float, default=3.0)
+    review.add_argument("--no-drop", action="store_true")
+    review.add_argument("--version", default="v2",
+                        help="prompt version; answers are cached per version")
     args = parser.parse_args()
     return {"make-clips": cmd_make_clips, "run": cmd_run,
             "frames": cmd_frames, "score": cmd_score,
-            "judge": cmd_judge, "measure": cmd_measure}[args.cmd](args)
+            "judge": cmd_judge, "measure": cmd_measure,
+            "review": cmd_review}[args.cmd](args)
 
 
 if __name__ == "__main__":
