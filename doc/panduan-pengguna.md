@@ -370,6 +370,25 @@ turun YouTube gagal, log akan mencadangkan menu ini.
   ditunjukkan sebagai teks.
 - Gunakan kawalan pemain untuk jeda, carian, dan navigasi penerangan.
 
+## Ejen dalam Player (F2)
+
+Dalam Player, tekan **F2** (atau butang **Ejen**) dan tanya apa-apa tentang
+video dalam bahasa anda sendiri: "adakah penerangan di sini betul?",
+"apa berlaku di jambatan?", "lelaki tua itu bernama Hans". Ejen melihat
+bingkai video, membaca penerangan dan dialog, mencari jurang senyap, dan
+boleh mengalih Player. Video dijeda semasa ejen dibuka.
+
+Ejen **tidak mengubah apa-apa sendiri**. Ia mencadangkan; anda mendengar
+ringkasan, kemudian pilih **Terima semua**, **Semak satu per satu** atau
+**Tolak semua** (Esc = tolak). Fail sari kata projek disalin dahulu
+sebelum perubahan pertama, dan **Buat asal** sentiasa ada. Setiap langkah
+disebut. Perbualan diingat sehingga Player ditutup; nama watak diingat
+untuk projek itu.
+
+Ejen berfungsi dengan model OpenRouter yang lulus **Settings > Uji mod
+ejen**. Model yang belum lulus: F2 membuka **Tanya Lagi**, yang kini
+menghantar bingkai pada kedudukan Player bersama soalan anda.
+
 ## Penjelajah scene
 
 Dari pemain anda boleh membuka Scene Explorer untuk menyemak frame

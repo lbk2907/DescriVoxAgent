@@ -343,6 +343,25 @@ points to this menu.
   shown as text.
 - Use the player controls to pause, seek, and navigate descriptions.
 
+## The Player agent (F2)
+
+In the Player, press **F2** (or the **Agent** button) and ask anything
+about the video in your own words: "is the description here right?",
+"what happens at the bridge?", "the old man is called Hans". The agent
+looks at the frames, reads the descriptions and the dialogue, finds
+silent gaps and can move the Player. The video pauses while it is open.
+
+The agent **changes nothing by itself**. It proposes; you hear a
+summary, then choose **Accept all**, **Review one by one** or **Reject
+all** (Esc rejects). The project's subtitle file is copied aside before
+the first change and **Undo** is always there. Every step is spoken.
+The conversation is remembered until the Player closes; character names
+are remembered for the project.
+
+The agent works with OpenRouter models that pass **Settings > Test agent
+mode**. For other models F2 opens **Ask More**, which now sends the
+frame at the Player's position with your question.
+
 ## Scene Explorer
 
 From the player you can open the Scene Explorer to inspect frames one

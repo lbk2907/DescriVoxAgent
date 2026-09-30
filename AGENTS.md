@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 62 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 64 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 62 suite; run_gate.bat = semua
+tests/                           — 64 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -595,6 +595,23 @@ AI describe per frame ATAU chunked full-video (ai_engine) → Description datacl
    Mod lalai MATI (pemilik). Semakan yang gagal simpan penerangan asal;
    tidak pernah membuang kerja. Mod bingkai tidak disemak.
 
+79. **Ejen Player (`core/agent.py`, `ui/agent_dialog.py`, v1.9.0).**
+   Diukur dahulu (`tools/agent_bench.py`): semua 4 model guna tool call
+   sebenar. Peraturan yang DIKUATKUASA oleh enjin, bukan diharap daripada
+   model: cadangan sebelum melihat bingkai DITOLAK; pada had giliran
+   model DIPAKSA menjawab tanpa tool (Gemini 3.8 pernah diam); had kos
+   $0.02 → tanya "teruskan?". Ejen TIADA tool menulis — hanya
+   `propose_change`; Player yang menggunakan cadangan DITERIMA
+   (`apply_agent_changes`), salin SRT sekali sesi, Buat asal. Arahan
+   "hanya jika JELAS salah" menghentikan 3 model menulis semula
+   penerangan betul. Imej ke model dihantar sebagai mesej user selepas
+   mesej tool. Kunci i18n dinamik mesti ditulis terus dalam `t(f"...")`
+   supaya `test_fixes43` nampak ia digunakan.
+80. **Enjin AI hanya dikonfigurasi semasa memproses** sebelum v1.9.0:
+   Ask More / Explore Scene pada projek yang dibuka semula gagal "No AI
+   provider configured". `MainFrame.configure_ai()` kini dipanggil semasa
+   mula, selepas Settings, dan semasa memproses.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -640,8 +657,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.8.8 (tag `v1.8.8`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 62 suite dalam `run_gate.bat`.
+- **Versi:** 1.9.0 (tag `v1.9.0`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 64 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

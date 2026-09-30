@@ -222,4 +222,14 @@ Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diu
 - [x] 18.1d Gate 62 suite x2 GATE_ALL_PASS; NVDA Settings: "Check descriptions against the video
       (full-video mode): combo box Off collapsed"; build 1.8.8; exe NVDA 10/10; tag v1.8.8
 - [ ] 18.1e (tidak dibuat — kredit OpenRouter hampir habis) suhu tetap, snap perubahan adegan
-- [ ] 18.2 Mod agentic dalam Player (reka bentuk: memori agent-coeditor-design)
+- [x] 18.2 Mod agentic — Fasa A: 4 model lulus protokol (tools/agent_bench.py, $0.063)
+- [x] 18.2b Fasa B: core/agent.py (13 tool, lihat-dahulu dikuatkuasa, jawapan dipaksa, had kos) — test_fixes53
+- [x] 18.2c Fasa C: Tanya Lagi hantar bingkai; DITEMUI & DIBAIKI: enjin AI tidak dikonfigurasi untuk
+      projek yang dibuka semula ("No AI provider configured")
+- [x] 18.2d Fasa D: F2/butang Ejen, jeda/sambung, Terima semua/Semak/Tolak, salinan SRT, Buat asal,
+      Uji mod ejen — test_fixes54; sesi sebenar GLM (BM, ingat "Hans", transkrip) $0.0014
+- [x] 18.2e Fasa E: didengar NVDA (tools/nvda_agent_check.py): F2 → langkah disebut → jawapan →
+      ringkasan → "Accept all button Alt+A" → Esc "No changes made". DITEMUI semasa mendengar:
+      transkrip gagal dalam gelung ejen ("Cannot run the event loop...") — dibaiki + ujian;
+      "1 changes proposed" → "Changes proposed: 1". Gate 64 suite x2 GATE_ALL_PASS
+- [ ] 18.2f Build 1.9.0, exe NVDA, tag

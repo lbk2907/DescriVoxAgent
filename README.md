@@ -15,6 +15,32 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0. The releases now called 1.7.0 and 1.7.1 were first tagged
 1.6.10 and 1.6.11; an older zip with those names is the same code.
 
+## What's new in v1.9.0
+
+**The Player agent (F2).** In the Player, press F2 (or the Agent button)
+and ask about what you are watching, in your own words: "is the
+description here right?", "what happens at the bridge?", "the old man
+is called Hans". The agent looks at the video frames, reads the
+descriptions and the dialogue, finds silent gaps, and can move the
+player. It **changes nothing by itself**: it proposes, you hear a
+summary, and you choose Accept all, Review one by one, or Reject all.
+The project's subtitle file is copied aside before the first change,
+and Undo is always there. Every step is spoken; the video pauses while
+the agent is open. It remembers the conversation until you close the
+Player, and remembers character names for the project.
+
+- Works with OpenRouter models that pass **Settings > Test agent mode**
+  (measured first: GLM 5.3 Flash, Gemini 3.1 Flash-Lite, Qwen3.8-Omni
+  and Gemini 3.8 all pass). A question typically costs a fraction of a
+  cent; above $0.02 it asks before continuing.
+- **Ask More now looks at the picture.** It used to answer from the
+  description text alone; it now sends the frame at the player's
+  position with your question.
+- **Fixed: Ask More and Explore Scene failed on a project opened later**
+  ("No AI provider configured") unless a video had been processed in
+  the same session. The AI is now set up when the app starts and after
+  Settings.
+
 ## What's new in v1.8.8
 
 - **The model you choose is the model that runs.** The model picked in
