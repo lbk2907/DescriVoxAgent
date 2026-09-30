@@ -53,6 +53,8 @@ class MainFrame(wx.Frame):
         self.tts_engine = TTSEngine(self.settings.get("tts", {}))
         self.prompt_mgr = PromptManager(self.settings)
         self.project_store = ProjectStore()
+        # v1.9.0: ready before any project is opened (Ask More, agent).
+        self.configure_ai()
         # v1.7.6: old "project_48" folders become "Sintel (48)". Never
         # blocks start-up; a project that cannot move is tried next time.
         try:
@@ -804,6 +806,30 @@ class MainFrame(wx.Frame):
 
     # ── Settings / Exit ───────────────────────────────────────────
 
+    def configure_ai(self) -> bool:
+        """Point the AI engine at the provider, key and model in Settings.
+
+        v1.9.0: this happened only when a video was processed, so Ask More,
+        Explore Scene (and the Player agent) on a project opened later
+        failed with "No AI provider configured". Now it also runs at start
+        and after Settings. False when there is no key yet (silent: the
+        processing path still warns when it needs one).
+        """
+        provider = self.settings.get("ai.default_provider", "gemini") or "gemini"
+        cfg = self.settings.get_ai_provider(provider) or {}
+        if not cfg.get("api_key"):
+            return False
+        try:
+            self.ai_engine.set_provider(
+                provider, api_key=cfg["api_key"],
+                base_url=cfg.get("base_url", ""),
+                model=cfg.get("model", ""),
+                api_format=cfg.get("api_format", ""))
+        except Exception as e:
+            logger.warning("AI provider not configured: %s", e)
+            return False
+        return True
+
     def _on_settings(self, event):
         """Open settings dialog."""
         from .settings_dialog import SettingsDialog
@@ -828,6 +854,7 @@ class MainFrame(wx.Frame):
             if isinstance(child, PlayerWindow):
                 child.retranslate()
         self._load_settings()
+        self.configure_ai()
         # Re-apply TTS engine/voice/speed from settings
         self.tts_engine.settings = self.settings.get("tts", {})
         self.tts_engine._init_engines()
@@ -1169,13 +1196,7 @@ class MainFrame(wx.Frame):
             self._on_settings(None)
             return
 
-        self.ai_engine.set_provider(
-            provider,
-            api_key=prov_config["api_key"],
-            base_url=prov_config.get("base_url", ""),
-            model=prov_config.get("model", ""),
-            api_format=prov_config.get("api_format", ""),
-        )
+        self.configure_ai()
         # v1.5.2: description language - pilihan khas
         # ("ms"/"en"); kosong = ikut bahasa UI.
         desc_lang = str(self.settings.get(
