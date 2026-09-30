@@ -201,3 +201,11 @@ Ukuran: betul (padan bingkai), masa, rekaan, tertinggal, konsisten antara larian
       semak jurang panjang untuk peristiwa tertinggal
 - [ ] 16.4 Fasa 4 — tetapan "Semak penerangan", NVDA, dokumen, gate
 Anggaran: fasa 1-2 ~$0.50-1; pas semakan +20-40% kos/masa setiap video (akan diukur).
+
+## Fasa 17 — pelepasan 1.8.6 (diteruskan 30 Sep 2026)
+- [x] 17.1 Gate pertama GAGAL 4 suite (kerja 1.8.6 + mod bingkai bercampur, belum siap): ujian saluran
+      bingkai set jarak 0; test_fixes23 potong kod pada `class` peringkat atas; test_fixes34 uji
+      tingkah laku. DITEMUI: tajuk markdown dicantum ke ayat ("Scene A girl...") — dibaiki
+- [x] 17.2 test_fixes50 (mod bingkai) 5/5; larian sebenar GLM Tears 60 s: 204 → 15 penerangan
+- [x] 17.3 Gate 60 suite x2 GATE_ALL_PASS; build bersih 1.8.6 (kerja 1.8.7 di-stash semasa build);
+      exe didengar NVDA 12/12; tag v1.8.6
