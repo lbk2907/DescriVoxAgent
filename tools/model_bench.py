@@ -212,6 +212,11 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
                 prov.TEMPERATURE = float(variant[4:] or 0)
             elif variant == "tdef":
                 prov.TEMPERATURE = None
+            elif variant.startswith("think"):
+                # "@thinklow" etc. = thinkingConfig.thinkingLevel (phase 22);
+                # "@thinkdef" = the model's own default.
+                level = variant[5:]
+                prov.THINKING = {} if level == "def" else {"thinkingLevel": level}
             pairs = await prov.describe_video_full(
                 str(CLIPS / f"{base}.mp4"), prompt, model)
         else:
@@ -225,6 +230,17 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
                 prov.TEMPERATURE = float(variant[4:] or 0)
             elif variant == "tdef":
                 prov.TEMPERATURE = None   # the server's own default
+            elif variant.startswith("think"):
+                # "@thinklow"/"@thinkhigh"/... = reasoning.effort instead of
+                # the app's 2000-token cap; "@thinkcap" = the cap (phase 22).
+                level = variant[5:]
+                if level != "cap":
+                    send = prov._chat
+
+                    async def effort_chat(payload, *a, _send=send, _lvl=level, **k):
+                        payload = dict(payload, reasoning={"effort": _lvl})
+                        return await _send(payload, *a, **k)
+                    prov._chat = effort_chat
             pairs = await prov.describe_video_full(
                 str(CLIPS / f"{base}.mp4"), prompt, model,
                 transcript=transcript, chunk_seconds=chunk)

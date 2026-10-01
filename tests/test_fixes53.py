@@ -343,6 +343,22 @@ def test_gemini_price_from_catalog():
         model_catalog.load_cache = real
 
 
+def test_agent_thinking_per_model():
+    """Phase 22.5: GLM 5.3 Flash thinks at effort "low" (11/16 right
+    calls against 8/16 with the old cap, twice as fast); models that were
+    not measured keep the 1000-token cap."""
+    context = ag.Context(video=str(video()), length=30.0,
+                         descriptions=[(2.0, "A test pattern.")],
+                         get_position=lambda: 2.0)
+    for model, want in (("z-ai/glm-5.3-flash", {"effort": "low"}),
+                        ("qwen/qwen3.8-omni-flash", {"max_tokens": 1000})):
+        script = Script([turn(content="Fine.")])
+        agent = ag.Agent("k", model, context, post=script)
+        asyncio.run(agent.ask("Is it right?"))
+        agent.close()
+        assert script.payloads[0]["reasoning"] == want, (model, script.payloads[0])
+
+
 def main() -> int:
     check("no proposal before looking", test_no_proposal_before_looking)
     check("the turn limit forces an answer", test_turn_limit_forces_an_answer)
@@ -358,6 +374,7 @@ def main() -> int:
     check("temp folders are swept", test_temp_folders_are_swept)
     check("Gemini direct: Google endpoint, cost from tokens", test_gemini_direct)
     check("Gemini price comes from the catalog", test_gemini_price_from_catalog)
+    check("agent thinking is set per model", test_agent_thinking_per_model)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

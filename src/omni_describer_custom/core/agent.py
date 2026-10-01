@@ -41,6 +41,14 @@ URL = "https://openrouter.ai/api/v1/chat/completions"
 GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/openai/"
               "chat/completions")
 AGENT_PROVIDERS = ("glm", "gemini")
+# Thinking per OpenRouter model (v1.9.4, pitfall 86). Measured with
+# tools/agent_levels.py, 8 tasks x 2 runs on Tears, GLM 5.3 Flash:
+# the old 1000-token cap made 8/16 right calls (it rewrote 7 of 8
+# CORRECT descriptions) in 59 s; effort "low" 11/16 in 25 s; "high"
+# 11/16 at a higher cost. Other models keep the cap (not measured).
+AGENT_REASONING: dict[str, dict] = {
+    "z-ai/glm-5.3-flash": {"effort": "low"},
+}
 # Per million tokens, when the catalog does not list the model. Set high
 # on purpose: the cost cap must stop too early rather than too late.
 FALLBACK_PRICE = (1.5, 9.0)
@@ -316,7 +324,8 @@ class Agent:
         if self.provider == "gemini":
             payload["reasoning_effort"] = "low"
         else:
-            payload["reasoning"] = {"max_tokens": 1000}
+            payload["reasoning"] = dict(AGENT_REASONING.get(
+                self.model, {"max_tokens": 1000}))
             payload["usage"] = {"include": True}
         if tools:
             payload["tools"] = [{"type": "function", "function": f}

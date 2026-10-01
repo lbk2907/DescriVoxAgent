@@ -902,6 +902,10 @@ class GeminiProvider(AIProvider):
         config = {"maxOutputTokens": 8192}
         if self.TEMPERATURE is not None:
             config["temperature"] = self.TEMPERATURE
+        thinking = (self.THINKING if self.THINKING is not None
+                    else self.THINKING_BY_MODEL.get(model))
+        if thinking:
+            config["thinkingConfig"] = dict(thinking)
         payload = {
             "contents": [{"parts": [
                 {"text": prompt},
@@ -909,10 +913,24 @@ class GeminiProvider(AIProvider):
             ]}],
             "generationConfig": config,
         }
-        data = await _http_json("POST", url, label="Gemini",
-                                headers=self._auth_headers(),
-                                payload=payload, timeout=600,
-                                is_cancelled=is_cancelled)
+        try:
+            data = await _http_json("POST", url, label="Gemini",
+                                    headers=self._auth_headers(),
+                                    payload=payload, timeout=600,
+                                    is_cancelled=is_cancelled)
+        except RuntimeError as e:
+            # Thinking levels differ per model and a level a model does
+            # not take is HTTP 400 (phase 22: 3.8 Flash refuses
+            # "minimal"). Never lose the job to it: once more without.
+            if not (thinking and "400" in str(e) and "thinking" in str(e).lower()):
+                raise
+            logger.warning("Gemini refused thinking %s for %s; retrying "
+                           "with the model's default", thinking, model)
+            config.pop("thinkingConfig", None)
+            data = await _http_json("POST", url, label="Gemini",
+                                    headers=self._auth_headers(),
+                                    payload=payload, timeout=600,
+                                    is_cancelled=is_cancelled)
         if "error" in data:
             raise RuntimeError(f"Gemini error: {data['error']}")
         return _gemini_text(data)
@@ -964,6 +982,18 @@ class GeminiProvider(AIProvider):
     # 3.1 Flash-Lite, 4 clips x 3 runs, GLM judge: wrong 14.7% -> 14.2%
     # (no accuracy change), run-to-run spread 23 -> 12. Owner's choice.
     TEMPERATURE: float | None = 0.0
+    # Whole-video thinking, PER MODEL (v1.9.4, pitfall 86). Measured
+    # 4 clips x 3 runs, GLM judge, Gemini 3.1 Flash-Lite: the default
+    # (no thinking at all) 15.8% wrong, low 12.7%, MEDIUM 9.1% (and the
+    # fastest, 36 s a clip), high 10.7%. Models not listed keep Google's
+    # default: they differ (3.8 Flash already thinks by default and
+    # refuses "minimal") and were not measured.
+    THINKING_BY_MODEL: dict[str, dict] = {
+        "gemini-3.1-flash-lite": {"thinkingLevel": "medium"},
+    }
+    # Override for tests and tools/model_bench.py: None = the table above,
+    # {} = send no thinking setting at all.
+    THINKING: dict | None = None
 
     async def ask_about_video(
         self, video_path: str, question: str, model: str = ""

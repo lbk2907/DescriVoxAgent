@@ -6,6 +6,7 @@ wildly different runs (a news clip: 3, 15, 14 descriptions); with
 temperature 0, 83 correct / 16.8% wrong and half the spread.
 """
 import asyncio
+import json
 import io
 import os
 import subprocess
@@ -91,11 +92,56 @@ def test_gemini_temperature_reaches_the_request():
     assert "temperature" not in gemini_config(None)
 
 
+def gemini_calls(model, refuse_thinking=False, override=None):
+    """Every generateContent body Gemini sends for one video request."""
+    from omni_describer_custom.core import ai_engine
+    from omni_describer_custom.core.ai_engine import GeminiProvider
+    prov = GeminiProvider(api_key="k")
+    if override is not None:
+        prov.THINKING = override
+    bodies = []
+
+    async def fake_http(method, url, **kw):
+        bodies.append(json.loads(json.dumps(kw["payload"])))
+        if refuse_thinking and "thinkingConfig" in kw["payload"]["generationConfig"]:
+            raise RuntimeError("Gemini HTTP 400: Invalid value at "
+                               "'generation_config.thinking_config.thinking_level'")
+        return {"candidates": [{"content": {"parts": [{"text": "x"}]}}]}
+    real = ai_engine._http_json
+    ai_engine._http_json = fake_http
+    try:
+        asyncio.run(prov._generate_with_video("files/u", "video/mp4",
+                                              "describe", model))
+    finally:
+        ai_engine._http_json = real
+    return [b["generationConfig"] for b in bodies]
+
+
+def test_gemini_thinking_per_model():
+    """Phase 22: 3.1 Flash-Lite thinks at "medium" (wrong 15.8% -> 9.1%);
+    models that were not measured keep Google's default."""
+    assert gemini_calls("gemini-3.1-flash-lite")[0]["thinkingConfig"] == \
+        {"thinkingLevel": "medium"}
+    assert "thinkingConfig" not in gemini_calls("gemini-3.8-flash")[0]
+    assert "thinkingConfig" not in gemini_calls("gemini-3.1-flash-lite",
+                                                override={})[0]
+
+
+def test_refused_thinking_level_does_not_lose_the_job():
+    calls = gemini_calls("gemini-3.1-flash-lite", refuse_thinking=True)
+    assert len(calls) == 2, calls
+    assert "thinkingConfig" in calls[0] and "thinkingConfig" not in calls[1]
+
+
 def main():
     check("whole-video requests use temperature 0", test_default_is_zero)
     check("None sends no temperature", test_none_leaves_it_to_the_server)
     check("Gemini direct: the temperature reaches the request",
           test_gemini_temperature_reaches_the_request)
+    check("Gemini thinking is set per model",
+          test_gemini_thinking_per_model)
+    check("a refused thinking level does not lose the job",
+          test_refused_thinking_level_does_not_lose_the_job)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0
