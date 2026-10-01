@@ -324,3 +324,25 @@ masih mengubah 5 daripada 8 penerangan yang betul.
 Kos keseluruhan fasa 22: $0.68 OpenRouter (penilaian Gemini $0.40) +
 kuota Gemini percuma.
 
+### Fasa 22.5b — ejen Gemini terus (1 Okt 2026, selepas pemilik membaiki billing)
+
+Kunci lama pada peringkat PERCUMA: `GenerateRequestsPerDayPerProjectPerModel-
+FreeTier`, 20 permintaan sehari untuk 3.8 Flash — satu sesi ejen guna 5-10.
+Kunci baharu: 25/25 permintaan berturut lulus. (Larian pertama selepas itu
+masih gagal kerana `model_bench` memakai SALINAN tetapan lama — kini
+disalin semula bila tetapan sebenar lebih baharu.)
+
+| Gemini terus | Jawapan betul | Salah dibetulkan | Betul dikekalkan | Kos / soalan | Purata |
+|---|---|---|---|---|---|
+| 3.8 Flash, low, had $0.02 (app) | 0/8 diputuskan | — | — | $0.02 (had) | 29 s |
+| 3.8 Flash, low, had $0.10 | 4/8 | **0/4** | 4/4 | $0.029 | 34 s |
+| **3.1 Flash-Lite, low (app)** | **6/8** | **4/4** | 2/4 | **$0.0026** | **10 s** |
+| 3.1 Flash-Lite, medium | 5/8 | 4/4 | 1/4 | $0.004 | 13 s |
+| 3.1 Flash-Lite, high | 6/8 | 4/4 | 2/4 | $0.0048 | 15 s |
+
+3.8 Flash terus melihat (8 giliran berturut) tanpa memutuskan, sehingga had
+kos; bila dibenarkan lebih, ia kadang-kadang MENYEBUT pembetulan dalam
+jawapan tetapi tidak memanggil `propose_change`. 3.1 Flash-Lite: tahap
+`low` semasa dikekalkan. Pemilik menukar model Gemini kepada 3.1 Flash-Lite.
+Kos (anggaran harga katalog): kira-kira $1.3 kredit Gemini.
+

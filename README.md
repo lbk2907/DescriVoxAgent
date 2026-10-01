@@ -32,6 +32,18 @@ Gemini, MiniMax, OpenAI (frame mode) and any OpenAI-compatible endpoint.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.5
+
+- **Clearer, steadier handling of "too many requests" (HTTP 429).** When
+  a provider says how long to wait (Gemini does, per minute), the app now
+  waits that long instead of giving up after 5 and 15 seconds. When a
+  DAILY quota is used up, it stops at once and says so ("daily quota used
+  up ... resets at midnight Pacific time") instead of waiting for nothing.
+- Measured: for the Player agent (F2) with your own Gemini key, **Gemini
+  3.1 Flash-Lite** is the better choice. It fixed 4 of 4 wrong
+  descriptions at about $0.003 a question; Gemini 3.8 Flash fixed none
+  and cost about ten times more.
+
 ## What's new in v1.9.4
 
 - **Gemini 3.1 Flash-Lite describes more accurately.** It now thinks at
@@ -54,23 +66,6 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
   that can watch a video (12 of 61 on the day it was written), the
   recommended one first, with its price. New Gemini models appear
   without an app update. Listing models is free and uses no quota.
-
-## What's new in v1.9.2
-
-- **Settings > AI is clearer.** The Custom provider's model box now has
-  a name ("Model name") for screen readers; the full-video checkbox is
-  now **Send the whole video to the AI (recommended)** and its hint says
-  what unticking does. Buttons that did nothing for Custom are greyed out.
-- **Test this model works for every provider**, replacing Test
-  Connection (which only asked the AI to say "OK"). Gemini and MiniMax
-  get a 6-second clip through the real upload path (does it see and
-  hear?); OpenAI and Custom get one picture.
-- **The Player agent (F2) works with your own Gemini key**, not only
-  OpenRouter. Pass **Test agent mode** once with the Gemini model.
-- **Gemini gives steadier results**: whole-video requests use
-  temperature 0. Measured: the same accuracy (14.7% → 14.2% wrong) and
-  half the difference between runs of the same video.
-- Gemini 3.1 Flash-Lite (recommended) added to the Gemini model list.
 
 ## Installing
 

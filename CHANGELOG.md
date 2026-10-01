@@ -2,6 +2,18 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.5
+
+- **Clearer, steadier handling of "too many requests" (HTTP 429).** When
+  a provider says how long to wait (Gemini does, per minute), the app now
+  waits that long instead of giving up after 5 and 15 seconds. When a
+  DAILY quota is used up, it stops at once and says so ("daily quota used
+  up ... resets at midnight Pacific time") instead of waiting for nothing.
+- Measured: for the Player agent (F2) with your own Gemini key, **Gemini
+  3.1 Flash-Lite** is the better choice. It fixed 4 of 4 wrong
+  descriptions at about $0.003 a question; Gemini 3.8 Flash fixed none
+  and cost about ten times more.
+
 ## What's new in v1.9.4
 
 - **Gemini 3.1 Flash-Lite describes more accurately.** It now thinks at

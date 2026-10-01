@@ -80,3 +80,16 @@ paling murah/pantas. Catat masa dan kos setiap tahap.
       test_fixes53/55
 - [x] 22.8a Gate 67 suite x2 berturut GATE_ALL_PASS (kegagalan pertama: folder odc_probe_ ditinggalkan SKRIP MANUAL saya, bukan app)
 - [x] 22.8b Build 1.9.4 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.4, zip 1.9.3 dibuang
+
+## Fasa 23 — 1.9.5 (pemilik: "saya topup Gemini, sepatutnya tiada masalah")
+
+- [x] 23.1 Dokumentasi Google dibaca (rate-limits, billing, thinking, openai): tier per PROJEK
+- [x] 23.2 Punca 429: kunci lama FreeTier 20/hari untuk 3.8 Flash (quotaId daripada badan ralat penuh)
+- [x] 23.3 DIBAIKI: 429 tunggu `retryDelay`/`Retry-After` (maks 65 s); had harian gagal serta-merta + mesej jelas (test_fixes34)
+- [x] 23.4 DIBAIKI (alat): salinan tetapan bench basi memakai kunci lama; kiraan bench "berhenti pada had kos" ≠ "dikekalkan"
+- [x] 23.5 Ujian keras kunci baharu: 25/25; ejen 3.8 Flash 0/4 pembetulan, 3.1 Flash-Lite 4/4 (low dikekalkan)
+- [x] 23.6 Tetapan pemilik: model Gemini → 3.1 Flash-Lite, Test agent mode lulus (pilihan pemilik)
+- [x] 23.7a Gate 67 suite x2 berturut GATE_ALL_PASS
+- [ ] 23.7b Build 1.9.5, exe NVDA, tag
+- [ ] 23.8 (cadangan) Ejen: jawapan akhir kosong selepas had giliran, dan pembetulan yang disebut tanpa propose_change
+

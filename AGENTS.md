@@ -659,6 +659,17 @@ _Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di huju
    salin tahap ke model lain tanpa ukuran (`model_bench.py @think<tahap>`,
    `tools/agent_levels.py`).
 
+87. **429 Google: baca `quotaId`, bukan `retryDelay` sahaja** (v1.9.5).
+   Had harian (`...PerDay...FreeTier`) TETAP berkata "retry in 53s" —
+   menunggu tidak membantu; `daily_quota()` gagal serta-merta dengan mesej
+   jelas. Had per minit: tunggu selama yang diminta (`retryDelay` /
+   `Retry-After`, maksimum 65 s), bukan 5 s lalu 15 s. Tier ialah per
+   PROJEK kunci; top-up pada akaun billing yang tidak dipaut ke projek
+   kunci itu tiada kesan. Bench: `model_bench._prepare_config` menyalin
+   semula tetapan bila tetapan sebenar lebih baharu (salinan basi pernah
+   memakai kunci lama). Ejen Gemini 3.8 Flash LEMAH (0/4 pembetulan, terus
+   melihat hingga had kos); 3.1 Flash-Lite 4/4 — lihat perbandingan-model.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -704,7 +715,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.9.4 (tag `v1.9.4`; rumusan v1.5.4:
+- **Versi:** 1.9.5 (tag `v1.9.5`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`). Gate: 67 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
