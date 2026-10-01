@@ -55,5 +55,5 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
       dahulu, harga daripada katalog OpenRouter; kunci salah → "HTTP 400: API key not valid"
 - [x] 21.2 test_fixes57 (gagal pada kod lama 0/4, lulus 4/4); MiniMax/OpenAI kekal senarai terbina (tiada kunci)
 - [x] 21.3a Gate 67 suite x2 GATE_ALL_PASS; NVDA Tab AI Gemini 11/11 ("Fetch models button")
-- [ ] 21.3b Build 1.9.3, exe NVDA, tag v1.9.3
+- [x] 21.3b Build 1.9.3 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.3, zip 1.9.2 dibuang
 
