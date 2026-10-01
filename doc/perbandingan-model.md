@@ -271,3 +271,56 @@ Ketepatan TIDAK berubah; kestabilan bertambah (Tears 15, 8, 14 →
 diukur: 503 "high demand" berulang, kemudian 429 kuota kunci percuma.
 Kos: penilaian $0.04 (OpenRouter); larian Gemini pada kunci pemilik.
 
+## Fasa 22 — tahap thinking (1 Okt 2026)
+
+**22.1 Tahap yang diterima** (panggilan teks kecil, bukan agakan):
+
+- OpenRouter GLM 5.3 Flash: `reasoning.effort` minimal/low/medium/high/
+  xhigh/max diterima; `none` DITOLAK ("Reasoning is mandatory").
+- Gemini terus, `thinkingConfig.thinkingLevel`: 3.1 Flash-Lite TIDAK
+  berfikir secara lalai; low 115, medium 309, high 460 token; `max`
+  tidak wujud. 3.8 Flash SUDAH berfikir secara lalai (926 token); low
+  464, high 3746; `minimal` DITOLAK untuk model itu.
+- Gemini OpenAI-compatible (`reasoning_effort`, laluan ejen) tidak
+  melaporkan token thinking — kesannya tidak dapat dilihat.
+
+**22.3 Video penuh GLM 5.3 Flash**, 4 klip x 3 larian:
+
+| Tahap | Penerangan | Salah (penilai Gemini) | Salah (penilai GLM) | Purata masa |
+|---|---|---|---|---|
+| had 2000 token (app) | 108 | 9 (8.3%) | 5 (4.6%) | 84 s |
+| low | 112 | 8 (7.1%) | 3 (2.7%) | 101 s |
+| high | 75 | 9 (12.0%) | 2 (2.7%) | 98 s |
+| max (2 larian) | 5 | — | — | **901 s, 1 kosong** |
+
+Beza cap/low hanya 1-2 penerangan (dalam julat kebetulan) dan low lebih
+perlahan: had 2000 token DIKEKALKAN. `max` merosakkan (NASA: 644 s, 0
+penerangan — corak v1.6.3); dihentikan selepas 2 larian.
+
+**22.4 Video penuh Gemini 3.1 Flash-Lite**, 4 klip x 3 larian, penilai GLM:
+
+| Tahap | Penerangan | Salah | Betul | Beza larian | Purata masa |
+|---|---|---|---|---|---|
+| lalai (tiada thinking) | 273 | 43 (15.8%) | 168 | 3 | 61 s |
+| low | 228 | 29 (12.7%) | 152 | 14 | 45 s |
+| **medium** | 232 | **21 (9.1%)** | 156 | 4 | **36 s** |
+| high | 243 | 26 (10.7%) | 164 | 3 | 59 s |
+
+`medium` DIGUNAKAN untuk model ini sahaja (`THINKING_BY_MODEL`).
+
+**22.5 Ejen** (`tools/agent_levels.py`, enjin ejen app sebenar, 4
+penerangan salah + 4 betul yang dipersetujui DUA penilai, x 2 larian):
+
+| GLM 5.3 Flash | Jawapan betul | Salah dibetulkan | Betul dikekalkan | Kos | Purata |
+|---|---|---|---|---|---|
+| had 1000 token (app) | 8/16 | 7/8 | 1/8 | $0.0086 | 59 s |
+| **low** | **11/16** | 8/8 | 3/8 | $0.0076 | **25 s** |
+| high | 11/16 | 8/8 | 3/8 | $0.0122 | 36 s |
+
+`low` DIGUNAKAN untuk ejen GLM (`AGENT_REASONING`). Ejen Gemini 3.8 Flash
+tidak dapat diukur: 429 kuota kunci percuma. Masih ada kelemahan: ejen
+masih mengubah 5 daripada 8 penerangan yang betul.
+
+Kos keseluruhan fasa 22: $0.68 OpenRouter (penilaian Gemini $0.40) +
+kuota Gemini percuma.
+

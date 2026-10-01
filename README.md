@@ -32,6 +32,21 @@ Gemini, MiniMax, OpenAI (frame mode) and any OpenAI-compatible endpoint.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.4
+
+- **Gemini 3.1 Flash-Lite describes more accurately.** It now thinks at
+  a "medium" level before writing. Measured on four different clips,
+  three runs each: wrong descriptions 15.8% → 9.1%, and it is faster.
+- **The Player agent (F2) is better with GLM.** Its thinking setting was
+  measured and changed: right decisions 8 → 11 out of 16, and answers
+  come about twice as fast. It rewrites fewer descriptions that were
+  already correct.
+- Thinking levels are set only for the models that were measured. If a
+  model refuses a level, the app retries without it instead of failing.
+- Measured and NOT used: more thinking for GLM whole-video (no clear
+  gain; the highest level took 19 minutes on a one-minute clip and once
+  returned nothing).
+
 ## What's new in v1.9.3
 
 - **Fetch models works for Gemini.** With the Gemini provider, Fetch
@@ -56,21 +71,6 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
   temperature 0. Measured: the same accuracy (14.7% → 14.2% wrong) and
   half the difference between runs of the same video.
 - Gemini 3.1 Flash-Lite (recommended) added to the Gemini model list.
-
-## What's new in v1.9.1
-
-- **More accurate and steadier descriptions** (OpenRouter models).
-  Whole-video requests now ask for temperature 0. Measured on four
-  different clips, three runs each: correct descriptions 51 → 83,
-  wrong 24% → 17% (independent judge), and runs of the same video agree
-  far more (a news clip used to give 3, 15 or 14 descriptions; now 16–18).
-- **Check the whole video with the agent.** In the Player agent (F2), the
-  new **Check the whole video** button goes through every description a
-  minute of video at a time and gathers ONE list of proposed fixes, which
-  you then accept, review or reject as usual. It tells you the time and
-  cost first, says each part as it goes, and the same button stops it.
-  Tested on 3 minutes of a film: 22 descriptions, 6 proposals, $0.005.
-- The agent no longer offers an "edit" that keeps the same text.
 
 ## Installing
 

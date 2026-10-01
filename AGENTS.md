@@ -648,6 +648,17 @@ _Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di huju
    sebenar, bukan agakan. Senarai terbina (`PROVIDER_MODELS`) kekal
    sebagai sandaran sebelum Fetch pertama.
 
+86. **Tahap thinking ditetapkan PER MODEL, hanya yang diukur** (v1.9.4,
+   fasa 22). Model berbeza: Gemini 3.1 Flash-Lite tidak berfikir secara
+   lalai, 3.8 Flash berfikir dan MENOLAK "minimal" (HTTP 400); GLM tidak
+   boleh dimatikan. `GeminiProvider.THINKING_BY_MODEL` (3.1 Flash-Lite:
+   medium, salah 15.8% → 9.1%) dan `agent.AGENT_REASONING` (GLM: effort
+   low, 8/16 → 11/16 jawapan betul). Tahap yang ditolak dicuba semula
+   TANPA thinking — kerja tidak hilang. `max` untuk video GLM DIUJI dan
+   DITOLAK (19 minit untuk klip 1 minit, satu jawapan kosong). Jangan
+   salin tahap ke model lain tanpa ukuran (`model_bench.py @think<tahap>`,
+   `tools/agent_levels.py`).
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -693,7 +704,7 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.9.3 (tag `v1.9.3`; rumusan v1.5.4:
+- **Versi:** 1.9.4 (tag `v1.9.4`; rumusan v1.5.4:
   `doc/rumusan-v1.5.4.md`). Gate: 67 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),

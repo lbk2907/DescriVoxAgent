@@ -64,16 +64,19 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 Peraturan: guna tahap baharu HANYA jika lebih tepat (penilai bebas); jika sama, pilih yang
 paling murah/pantas. Catat masa dan kos setiap tahap.
 
-- [ ] 22.1 Semak tahap yang DITERIMA setiap API (panggilan teks kecil, bukan agakan):
+- [x] 22.1 Semak tahap yang DITERIMA setiap API — GLM: none ditolak; Gemini 3.1 Lite tiada thinking
+      secara lalai, max tiada; 3.8 Flash menolak minimal; laluan compat tidak lapor token:
       OpenRouter `reasoning.effort` (GLM), Gemini `thinkingConfig` (video penuh),
       Gemini OpenAI-compatible `reasoning_effort` (ejen)
-- [ ] 22.2 model_bench: varian `@think<tahap>` untuk GLM dan Gemini
-- [ ] 22.3 Video penuh GLM 5.3 Flash: tahap semasa (2000 token) lwn tahap yang diterima,
+- [x] 22.2 model_bench: varian `@think<tahap>` untuk GLM dan Gemini
+- [x] 22.3 (cap 8.3%/4.6%, low 7.1%/2.7%, high 12.0%; max 19 min + kosong → DIKEKALKAN had 2000) Video penuh GLM 5.3 Flash: tahap semasa (2000 token) lwn tahap yang diterima,
       4 klip x 3 larian, penilai Gemini (+ GLM sebagai semakan kedua)
-- [ ] 22.4 Video penuh Gemini 3.1 Flash-Lite: lalai Google lwn tahap yang diterima,
+- [x] 22.4 (lalai 15.8%, low 12.7%, MEDIUM 9.1%, high 10.7% → medium DIGUNAKAN) Video penuh Gemini 3.1 Flash-Lite: lalai Google lwn tahap yang diterima,
       4 klip x 3 larian, penilai GLM
-- [ ] 22.5 Ejen (agent_bench): tahap semasa lwn tahap lain, GLM + Gemini — cadangan betul?
+- [x] 22.5 (GLM: cap 8/16, LOW 11/16 2x pantas → DIGUNAKAN; Gemini 3.8: 429 kuota, tidak diukur) Ejen (tools/agent_levels.py): tahap semasa lwn tahap lain, GLM + Gemini — cadangan betul?
       langkah? kos?
-- [ ] 22.6 Keputusan + angka ke doc/perbandingan-model.md; tanya pemilik jika keputusan tidak jelas
-- [ ] 22.7 Laksana pilihan + test (payload membawa tahap yang dipilih)
-- [ ] 22.8 Gate x2, NVDA, build, tag
+- [x] 22.6 Keputusan + angka ke doc/perbandingan-model.md (keputusan jelas; kos $0.68)
+- [x] 22.7 THINKING_BY_MODEL + AGENT_REASONING + cuba semula tanpa thinking bila ditolak (sebenar: 3.8 + minimal → berjaya);
+      test_fixes53/55
+- [x] 22.8a Gate 67 suite x2 berturut GATE_ALL_PASS (kegagalan pertama: folder odc_probe_ ditinggalkan SKRIP MANUAL saya, bukan app)
+- [ ] 22.8b Build 1.9.4, exe NVDA, tag

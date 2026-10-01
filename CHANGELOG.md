@@ -2,6 +2,21 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.4
+
+- **Gemini 3.1 Flash-Lite describes more accurately.** It now thinks at
+  a "medium" level before writing. Measured on four different clips,
+  three runs each: wrong descriptions 15.8% → 9.1%, and it is faster.
+- **The Player agent (F2) is better with GLM.** Its thinking setting was
+  measured and changed: right decisions 8 → 11 out of 16, and answers
+  come about twice as fast. It rewrites fewer descriptions that were
+  already correct.
+- Thinking levels are set only for the models that were measured. If a
+  model refuses a level, the app retries without it instead of failing.
+- Measured and NOT used: more thinking for GLM whole-video (no clear
+  gain; the highest level took 19 minutes on a one-minute clip and once
+  returned nothing).
+
 ## What's new in v1.9.3
 
 - **Fetch models works for Gemini.** With the Gemini provider, Fetch
