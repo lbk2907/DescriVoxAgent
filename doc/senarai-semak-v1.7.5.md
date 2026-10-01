@@ -79,4 +79,4 @@ paling murah/pantas. Catat masa dan kos setiap tahap.
 - [x] 22.7 THINKING_BY_MODEL + AGENT_REASONING + cuba semula tanpa thinking bila ditolak (sebenar: 3.8 + minimal → berjaya);
       test_fixes53/55
 - [x] 22.8a Gate 67 suite x2 berturut GATE_ALL_PASS (kegagalan pertama: folder odc_probe_ ditinggalkan SKRIP MANUAL saya, bukan app)
-- [ ] 22.8b Build 1.9.4, exe NVDA, tag
+- [x] 22.8b Build 1.9.4 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.4, zip 1.9.3 dibuang
