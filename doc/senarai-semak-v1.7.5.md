@@ -57,3 +57,4 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 21.3a Gate 67 suite x2 GATE_ALL_PASS; NVDA Tab AI Gemini 11/11 ("Fetch models button")
 - [x] 21.3b Build 1.9.3 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.3, zip 1.9.2 dibuang
 
+- [x] 21.4 Ejen Gemini disediakan untuk pemilik: Test agent mode gemini-3.8-flash LULUS (4 tool, betulkan BLUE→RED, $0.0076), direkod dalam ai.agent_models
