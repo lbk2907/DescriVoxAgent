@@ -90,6 +90,6 @@ paling murah/pantas. Catat masa dan kos setiap tahap.
 - [x] 23.5 Ujian keras kunci baharu: 25/25; ejen 3.8 Flash 0/4 pembetulan, 3.1 Flash-Lite 4/4 (low dikekalkan)
 - [x] 23.6 Tetapan pemilik: model Gemini → 3.1 Flash-Lite, Test agent mode lulus (pilihan pemilik)
 - [x] 23.7a Gate 67 suite x2 berturut GATE_ALL_PASS
-- [ ] 23.7b Build 1.9.5, exe NVDA, tag
+- [x] 23.7b Build 1.9.5 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.5, zip 1.9.4 dibuang
 - [ ] 23.8 (cadangan) Ejen: jawapan akhir kosong selepas had giliran, dan pembetulan yang disebut tanpa propose_change
 
