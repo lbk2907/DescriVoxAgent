@@ -32,6 +32,14 @@ Gemini, MiniMax, OpenAI (frame mode) and any OpenAI-compatible endpoint.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.3
+
+- **Fetch models works for Gemini.** With the Gemini provider, Fetch
+  models asks Google which models your key can use and lists the ones
+  that can watch a video (12 of 61 on the day it was written), the
+  recommended one first, with its price. New Gemini models appear
+  without an app update. Listing models is free and uses no quota.
+
 ## What's new in v1.9.2
 
 - **Settings > AI is clearer.** The Custom provider's model box now has
@@ -63,32 +71,6 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
   cost first, says each part as it goes, and the same button stops it.
   Tested on 3 minutes of a film: 22 descriptions, 6 proposals, $0.005.
 - The agent no longer offers an "edit" that keeps the same text.
-
-## What's new in v1.9.0
-
-**The Player agent (F2).** In the Player, press F2 (or the Agent button)
-and ask about what you are watching, in your own words: "is the
-description here right?", "what happens at the bridge?", "the old man
-is called Hans". The agent looks at the video frames, reads the
-descriptions and the dialogue, finds silent gaps, and can move the
-player. It **changes nothing by itself**: it proposes, you hear a
-summary, and you choose Accept all, Review one by one, or Reject all.
-The project's subtitle file is copied aside before the first change,
-and Undo is always there. Every step is spoken; the video pauses while
-the agent is open. It remembers the conversation until you close the
-Player, and remembers character names for the project.
-
-- Works with OpenRouter models that pass **Settings > Test agent mode**
-  (measured first: GLM 5.3 Flash, Gemini 3.1 Flash-Lite, Qwen3.8-Omni
-  and Gemini 3.8 all pass). A question typically costs a fraction of a
-  cent; above $0.02 it asks before continuing.
-- **Ask More now looks at the picture.** It used to answer from the
-  description text alone; it now sends the frame at the player's
-  position with your question.
-- **Fixed: Ask More and Explore Scene failed on a project opened later**
-  ("No AI provider configured") unless a video had been processed in
-  the same session. The AI is now set up when the app starts and after
-  Settings.
 
 ## Installing
 

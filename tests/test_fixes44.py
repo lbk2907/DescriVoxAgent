@@ -234,6 +234,9 @@ def test_settings_labels_save_ids_and_offer_a_test():
         # v1.9.2: Test this model works for every provider (test_fixes56).
         dlg.select_provider("gemini")
         assert dlg.probe_model_btn.IsEnabled()
+        # v1.9.3: Fetch models asks Google for Gemini (test_fixes57).
+        assert dlg.fetch_models_btn.IsEnabled()
+        dlg.select_provider("minimax")
         assert not dlg.fetch_models_btn.IsEnabled()
     finally:
         dlg.Destroy()

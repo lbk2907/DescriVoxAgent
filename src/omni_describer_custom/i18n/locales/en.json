@@ -443,5 +443,7 @@
   "settings.custom_model": "Model name:",
   "settings.probe_needs_model": "Enter or choose a model first.",
   "settings.probe_needs_url": "The Custom provider needs a Base URL first.",
-  "settings.probe_sees_picture": "{model} works and sees pictures. This provider is sent still pictures, not the video."
+  "settings.probe_sees_picture": "{model} works and sees pictures. This provider is sent still pictures, not the video.",
+  "settings.fetch_gemini_ok": "OK: {count} Gemini models that can watch a video. Saved for next time.",
+  "settings.gemini_model_label": "{name} — ${price} per million tokens"
 }

@@ -111,24 +111,24 @@ def fetch_catalog(url: str = CATALOG_URL, timeout: float = 60.0) -> list[dict]:
         return parse_catalog(json.loads(response.read().decode("utf-8")))
 
 
-def _cache_path() -> Path:
+def _cache_path(name: str = CACHE_NAME) -> Path:
     from .settings_store import _get_config_dir
-    return _get_config_dir() / CACHE_NAME
+    return _get_config_dir() / name
 
 
-def save_cache(models: list[dict]) -> None:
+def save_cache(models: list[dict], name: str = CACHE_NAME) -> None:
     try:
-        _cache_path().write_text(json.dumps(
+        _cache_path(name).write_text(json.dumps(
             {"fetched": time.strftime("%Y-%m-%d"), "models": models},
             indent=1), encoding="utf-8")
     except OSError as e:
         logger.warning("Could not save the model list: %s", e)
 
 
-def load_cache() -> tuple[list[dict], str]:
+def load_cache(name: str = CACHE_NAME) -> tuple[list[dict], str]:
     """(models, date fetched) — ([], "") when nothing is cached."""
     try:
-        data = json.loads(_cache_path().read_text(encoding="utf-8"))
+        data = json.loads(_cache_path(name).read_text(encoding="utf-8"))
         return list(data.get("models") or []), str(data.get("fetched") or "")
     except (OSError, ValueError):
         return [], ""
@@ -343,3 +343,71 @@ def probe_engine(engine, provider: str, model: str = "") -> dict:
     finally:
         loop.close()
         shutil.rmtree(folder, ignore_errors=True)
+
+
+# ── Gemini with the user's own key (v1.9.3) ─────────────────────
+
+GEMINI_LIST_URL = ("https://generativelanguage.googleapis.com/v1beta/"
+                   "models?pageSize=1000")
+GEMINI_CACHE_NAME = "gemini_models.json"
+# Google lists 61 models for one key (1 Oct 2026): speech, pictures,
+# music, embeddings, live audio... none describes a video file. Kept:
+# "gemini-*" models with generateContent and a context of a million
+# tokens or more (what a video needs), minus these:
+_GEMINI_SKIP = ("tts", "image", "live", "robotics", "computer-use",
+                "embedding", "transcribe", "customtools", "native-audio",
+                "latest")
+
+
+def parse_gemini_models(data: dict) -> list[dict]:
+    """Google's ListModels answer -> rows for Settings: the recommended
+    one first, released before previews, newest version first."""
+    import re
+    rows = []
+    for m in data.get("models") or []:
+        model_id = str(m.get("name", "")).split("/", 1)[-1]
+        if not model_id.startswith("gemini-"):
+            continue
+        if "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        if int(m.get("inputTokenLimit") or 0) < 1_000_000:
+            continue
+        if any(word in model_id for word in _GEMINI_SKIP):
+            continue
+        rows.append({"id": model_id, "name": m.get("displayName") or model_id,
+                     "gemini": True})
+
+    def order(row):
+        found = re.match(r"gemini-(\d+)(?:\.(\d+))?", row["id"])
+        version = ((int(found.group(1)), int(found.group(2) or 0))
+                   if found else (0, 0))
+        return (recommended_rank(f"google/{row['id']}"),
+                "preview" in row["id"], -version[0], -version[1], row["id"])
+    rows.sort(key=order)
+    # The price, when OpenRouter's catalog knows it (the same model).
+    prices = {r["id"]: r.get("price_in") for r in load_cache()[0]}
+    for row in rows:
+        if prices.get(f"google/{row['id']}"):
+            row["price_in"] = prices[f"google/{row['id']}"]
+    return rows
+
+
+def fetch_gemini_models(api_key: str, url: str = GEMINI_LIST_URL,
+                        timeout: float = 60.0) -> list[dict]:
+    """Ask Google which models this key can use. Listing models uses no
+    quota. The key goes in a header, never the URL (pitfall 51)."""
+    import urllib.error
+    request = urllib.request.Request(
+        url, headers={"x-goog-api-key": api_key, "User-Agent": "OmniDescriber",
+                      "Accept-Encoding": "identity"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return parse_gemini_models(
+                json.loads(response.read().decode("utf-8")))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")
+        try:
+            detail = json.loads(detail)["error"]["message"]
+        except Exception:
+            pass
+        raise RuntimeError(f"HTTP {e.code}: {str(detail)[:160]}") from None

@@ -590,16 +590,18 @@ class SettingsDialog(wx.Dialog):
                 # v1.8.1: the list fetched last time, kept between visits.
                 from ..core.model_catalog import load_cache
                 rows = load_cache()[0]
+            elif provider == "gemini":
+                from ..core.model_catalog import GEMINI_CACHE_NAME, load_cache
+                rows = load_cache(GEMINI_CACHE_NAME)[0]
             prov_config = self.settings.get_ai_provider(provider)
             self._fill_models(
                 rows or [{"id": m} for m in PROVIDER_MODELS.get(provider, [])],
                 prov_config.get("model", ""))
             # Video-only catalog filter + fetch button: OpenRouter only.
-            is_openrouter = provider == "glm"
-            self.fetch_models_btn.Enable(is_openrouter)
+            self.fetch_models_btn.Enable(provider in ("glm", "gemini"))
             self.probe_model_btn.Enable()
             self.test_agent_btn.Enable(provider in ("glm", "gemini"))
-            self.video_only_hint.Show(is_openrouter)
+            self.video_only_hint.Show(provider in ("glm", "gemini"))
             if prov_config.get("api_key"):
                 self.api_key_text.SetValue(prov_config["api_key"])
             else:
@@ -655,7 +657,10 @@ class SettingsDialog(wx.Dialog):
     def _on_fetch_models(self, event):
         """Fetch video-capable model ids from the provider catalog."""
         provider = self._selected_provider()
-        if provider != "glm":
+        if provider not in ("glm", "gemini"):
+            return
+        if provider == "gemini":
+            self._fetch_gemini_models()
             return
         self.fetch_models_btn.Disable()
         self._show_test_result(t("settings.fetching_models"))
@@ -684,6 +689,37 @@ class SettingsDialog(wx.Dialog):
         import threading
         threading.Thread(target=fetch, daemon=True).start()
 
+    def _fetch_gemini_models(self):
+        """v1.9.3: the models this Gemini key can use, from Google."""
+        api_key = self.api_key_text.GetValue().strip()
+        if not api_key:
+            self._show_test_result(t("settings.probe_needs_key"))
+            return
+        self.fetch_models_btn.Disable()
+        self._show_test_result(t("settings.fetching_models"))
+
+        def fetch():
+            try:
+                from ..core.model_catalog import (
+                    GEMINI_CACHE_NAME, fetch_gemini_models, save_cache)
+                models = fetch_gemini_models(api_key)
+                if models:
+                    save_cache(models, GEMINI_CACHE_NAME)
+                    wx.CallAfter(self._apply_fetched_models, models)
+                    wx.CallAfter(self._show_test_result,
+                                 t("settings.fetch_gemini_ok", count=len(models)))
+                else:
+                    wx.CallAfter(self._show_test_result,
+                                 t("settings.fetch_models_none"))
+            except Exception as e:
+                wx.CallAfter(self._show_test_result,
+                             t("settings.fetch_models_error", error=str(e)[:160]))
+            finally:
+                wx.CallAfter(self.fetch_models_btn.Enable)
+
+        import threading
+        threading.Thread(target=fetch, daemon=True).start()
+
     def _apply_fetched_models(self, models):
         """Replace the dropdown with fetched video models (rows from
         core.model_catalog), keeping the current selection reachable."""
@@ -696,6 +732,12 @@ class SettingsDialog(wx.Dialog):
         from ..core.model_catalog import RECOMMENDED
         if "name" not in row:
             label = row["id"]
+        elif row.get("gemini"):
+            # Every model Google lists here takes video; whether one
+            # HEARS is for Test this model to say, not the list.
+            label = (t("settings.gemini_model_label", name=row["name"],
+                       price=f"{row['price_in']:.2f}")
+                     if row.get("price_in") else row["name"])
         else:
             if row.get("tested"):
                 hears = row.get("hears")
@@ -706,7 +748,7 @@ class SettingsDialog(wx.Dialog):
                       else t("settings.model_video_only"),
                       price=f"{row.get('price_in', 0):.2f}")
         # v1.8.5: said FIRST, so it is heard before the details.
-        if row["id"] in RECOMMENDED:
+        if row["id"] in RECOMMENDED or f"google/{row['id']}" in RECOMMENDED:
             label = t("settings.model_recommended", label=label)
         return label
 

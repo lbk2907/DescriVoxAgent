@@ -18,7 +18,7 @@ dikekalkan dalam setiap perubahan UI.
 ## Peraturan Wajib (hard rules)
 
 1. **GATE SEBELUM COMMIT.** Jalankan `run_gate.bat` selepas setiap perubahan kod.
-   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 66 test suite
+   Commit hanya bila `GATE_ALL_PASS`. Gate = compileall + 67 test suite
    (unit, E2E real-GUI, acceptance, pipeline, packaging).
    **Gate FAIL yang "kadang-kadang" BUKAN flake sampai dibuktikan.** v1.5.5:
    test_fixes12 gagal ~1 daripada 3 run; puncanya bug sebenar dalam app
@@ -70,7 +70,7 @@ src/omni_describer_custom/
 └── i18n/
     ├── strings.py            — pemuat + API t()
     └── locales/<kod>.json    — satu fail satu bahasa (lihat doc/menambah-bahasa.md)
-tests/                           — 66 suite; run_gate.bat = semua
+tests/                           — 67 suite; run_gate.bat = semua
 bin/                             — ffmpeg/ffprobe/ffplay/yt-dlp terbungkus
                                    (TIDAK dalam git; tools/fetch_binaries.py)
 doc/                             — panduan-pengguna.md (BM), README
@@ -639,6 +639,15 @@ _Nombor pitfall dirujuk dalam komen kod — JANGAN nombor semula; tambah di huju
    yang sengaja tinggi supaya had $0.02 berhenti awal, bukan lewat.
    Kunci Gemini percuma cepat kena 429 kuota — itu bukan pepijat.
 
+85. **Senarai model Gemini diambil daripada Google** (v1.9.3,
+   `model_catalog.fetch_gemini_models`, cache `gemini_models.json`).
+   Google tiada medan "terima video": penapis = `gemini-*`,
+   `generateContent`, konteks >= 1 juta token, tolak tts/image/live/
+   robotics/customtools/"latest". Pada 1 Okt 2026: 61 → 12. Kalau Google
+   menamakan model baharu dengan cara lain, semak penapis dengan senarai
+   sebenar, bukan agakan. Senarai terbina (`PROVIDER_MODELS`) kekal
+   sebagai sandaran sebelum Fetch pertama.
+
 ## Prosedur Biasa
 
 ### Run app (dev)
@@ -684,8 +693,8 @@ C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe -u tests/test_f
 
 ## Status Semasa (kemas kini bila release)
 
-- **Versi:** 1.9.2 (tag `v1.9.2`; rumusan v1.5.4:
-  `doc/rumusan-v1.5.4.md`). Gate: 66 suite dalam `run_gate.bat`.
+- **Versi:** 1.9.3 (tag `v1.9.3`; rumusan v1.5.4:
+  `doc/rumusan-v1.5.4.md`). Gate: 67 suite dalam `run_gate.bat`.
 - Provider aktif dalam GUI: GLM (OpenRouter), Gemini (lalai
   `gemini-3.8-flash` sejak v1.7.3; 2.5 ditutup untuk pengguna baharu),
   MiniMax, custom. Mendengar audio video: Gemini, dan melalui OpenRouter

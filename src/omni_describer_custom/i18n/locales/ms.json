@@ -443,5 +443,7 @@
   "settings.custom_model": "Nama model:",
   "settings.probe_needs_model": "Masukkan atau pilih model dahulu.",
   "settings.probe_needs_url": "Pembekal Custom memerlukan URL Asas dahulu.",
-  "settings.probe_sees_picture": "{model} berfungsi dan melihat gambar. Pembekal ini dihantar gambar pegun, bukan video."
+  "settings.probe_sees_picture": "{model} berfungsi dan melihat gambar. Pembekal ini dihantar gambar pegun, bukan video.",
+  "settings.fetch_gemini_ok": "OK: {count} model Gemini yang boleh menonton video. Disimpan untuk kali seterusnya.",
+  "settings.gemini_model_label": "{name} — ${price} sejuta token"
 }

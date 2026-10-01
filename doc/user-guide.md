@@ -133,7 +133,10 @@ descriptions in sync during playback.
   The **GLM** provider is displayed as **OpenRouter** in the list. For
   OpenRouter, the model list only shows models that support video, and
   the **Fetch models** button reloads that list from the public
-  OpenRouter catalog (free, no key or credit needed).
+  OpenRouter catalog (free, no key or credit needed). Since 1.9.3 the
+  same button works for **Gemini**: it asks Google which models your key
+  can use and lists only those that can watch a video (free, no quota
+  used). New Gemini models appear without an app update.
   - **Fast one-shot mode**: this checkbox is only enabled when the
     **OpenRouter (GLM)** provider is selected. Frames are extracted
     locally with a **burned-in H:MM:SS time stamp** on each frame

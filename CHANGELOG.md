@@ -2,6 +2,14 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.3
+
+- **Fetch models works for Gemini.** With the Gemini provider, Fetch
+  models asks Google which models your key can use and lists the ones
+  that can watch a video (12 of 61 on the day it was written), the
+  recommended one first, with its price. New Gemini models appear
+  without an app update. Listing models is free and uses no quota.
+
 ## What's new in v1.9.2
 
 - **Settings > AI is clearer.** The Custom provider's model box now has

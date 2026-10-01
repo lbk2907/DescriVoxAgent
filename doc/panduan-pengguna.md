@@ -157,7 +157,11 @@ membacakan penerangan itu segerak semasa main balik.
   Untuk OpenRouter, senarai model hanya menunjukkan model yang
   menyokong video, dan butang **Dapatkan model (Fetch models)**
   memuat semula senarai itu dari katalog awam OpenRouter (percuma,
-  tanpa kunci atau kredit).
+  tanpa kunci atau kredit). Sejak 1.9.3 butang yang sama berfungsi
+  untuk **Gemini**: ia bertanya kepada Google model mana yang boleh
+  digunakan oleh kunci anda dan menyenaraikan model yang boleh menonton
+  video sahaja (percuma, tidak guna kuota). Model Gemini baharu muncul
+  tanpa perlu kemas kini app.
   - **Mod pantas satu-request (Fast one-shot mode)**: kotak semak ini
     hanya aktif apabila pembekal **OpenRouter (GLM)** dipilih. Frame diekstrak
     secara lokal dengan **cap masa H:MM:SS tertera terbakar** pada
