@@ -151,8 +151,12 @@ def _prepare_config() -> dict:
     cfg = BENCH / "cfg"
     cfg.mkdir(parents=True, exist_ok=True)
     user = Path(os.environ["APPDATA"]) / "OmniDescriber" / "settings.json"
-    if not (cfg / "settings.json").exists():
-        shutil.copy2(user, cfg / "settings.json")
+    copy = cfg / "settings.json"
+    # Refresh when the real settings are newer: a stale copy kept a
+    # replaced Gemini key and every run hit the old key's free quota
+    # (1 Oct 2026).
+    if not copy.exists() or user.stat().st_mtime > copy.stat().st_mtime:
+        shutil.copy2(user, copy)
     from omni_describer_custom.core.settings_store import SettingsStore
     store = SettingsStore()
     keys = {"glm": (store.get_ai_provider("glm") or {}).get("api_key", ""),

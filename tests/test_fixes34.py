@@ -177,6 +177,59 @@ def test_client_errors_are_not_retried_and_cancel_stops_backoff():
     assert len(run(body2).requests) == 1
 
 
+def test_429_waits_as_long_as_the_server_says():
+    """v1.9.5: a per-minute limit says how long to wait; 5 s then 15 s
+    was not enough. A daily quota (hours) is not waited for at all."""
+    slept = []
+
+    async def fake_sleep(seconds, is_cancelled):
+        slept.append(seconds)
+
+    async def body(stub, base):
+        stub.script = [("json", 429, {"error": {"details": [
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+             "retryDelay": "37s"}]}}), ("json", 200, {"ok": 1})]
+        assert await ae._http_json("GET", base, label="X") == {"ok": 1}
+        stub.script = [("json", 429, {"error": {"details": [
+            {"retryDelay": "43200s"}]}})] * 3
+        try:
+            await ae._http_json("GET", base, label="X")
+        except RuntimeError as e:
+            assert "429" in str(e)
+        else:
+            raise AssertionError("a daily quota must fail")
+        return stub
+    with mock.patch.object(ae, "_sleep_cancellable", fake_sleep):
+        stub = run(body)
+    assert slept == [38.0], slept
+    assert len(stub.requests) == 3, "a daily quota was retried"
+    assert ae._server_wait("", "12") == 12.0
+    assert ae._server_wait("", None) is None
+
+    # Google's real daily-quota answer still says "retry in 53s".
+    daily = {"error": {"code": 429, "details": [
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+         "violations": [{"quotaId":
+                         "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                         "quotaValue": "20"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo",
+         "retryDelay": "53s"}]}}
+
+    async def body3(stub, base):
+        stub.script = [("json", 429, daily)] * 3
+        try:
+            await ae._http_json("GET", base, label="Gemini")
+        except RuntimeError as e:
+            assert "daily quota" in str(e) and "FreeTier" in str(e), e
+        else:
+            raise AssertionError("a daily quota must fail")
+        return stub
+    slept.clear()
+    with mock.patch.object(ae, "_sleep_cancellable", fake_sleep):
+        stub = run(body3)
+    assert len(stub.requests) == 1 and slept == [], (len(stub.requests), slept)
+
+
 # 3 ──────────────────────────────────────────────────────────────────
 def test_placeholders_are_not_descriptions():
     async def body(stub, base):
@@ -381,6 +434,8 @@ if __name__ == "__main__":
           test_every_provider_retries_transient_errors)
     check("client errors not retried; cancel stops backoff",
           test_client_errors_are_not_retried_and_cancel_stops_backoff)
+    check("429 waits as long as the server says",
+          test_429_waits_as_long_as_the_server_says)
     check("placeholders are not descriptions",
           test_placeholders_are_not_descriptions)
     check("single part uses its real length",

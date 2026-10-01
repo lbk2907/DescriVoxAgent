@@ -515,6 +515,44 @@ HTTP_RETRY_BACKOFF_SECONDS = 5.0
 class _TransientHTTPError(Exception):
     """A status worth another attempt (rate limit, overload)."""
 
+    def __init__(self, message: str, wait: float | None = None):
+        super().__init__(message)
+        self.wait = wait
+
+
+# v1.9.5: how long a 429 says to wait. Google puts it in the body
+# ("retryDelay": "37s"); others send a Retry-After header in seconds.
+# Waiting only 5 s then 15 s failed the Gemini agent on per-MINUTE
+# limits (1 Oct 2026), which clear within the minute.
+_RETRY_DELAY = re.compile(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"')
+# Longer than this is a daily quota, not a minute's wait: stop at once
+# and say so rather than hold the job for hours.
+MAX_RETRY_WAIT = 65.0
+
+
+# Google still says "retry in 53s" when the DAILY free quota is gone
+# (seen 1 Oct 2026: GenerateRequestsPerDayPerProjectPerModel-FreeTier,
+# 20 a day for gemini-3.8-flash). The quota id is the truth.
+_DAILY_QUOTA = re.compile(r'"quotaId"\s*:\s*"([^"]*PerDay[^"]*)"')
+
+
+def daily_quota(body: str) -> str:
+    """The daily quota a 429 hit ("" if it was not a daily one)."""
+    found = _DAILY_QUOTA.search(body or "")
+    return found.group(1) if found else ""
+
+
+def _server_wait(body: str, retry_after: str | None) -> float | None:
+    if daily_quota(body):
+        return float("inf")
+    found = _RETRY_DELAY.search(body or "")
+    if found:
+        return float(found.group(1))
+    try:
+        return float(retry_after) if retry_after else None
+    except ValueError:
+        return None
+
 
 async def _sleep_cancellable(seconds: float,
                              is_cancelled: Callable[[], bool] | None) -> None:
@@ -553,9 +591,16 @@ async def _http_json(
                     timeout=aiohttp.ClientTimeout(total=timeout),
                 ) as resp:
                     body = await resp.text()
+                    if resp.status == 429 and daily_quota(body):
+                        raise RuntimeError(
+                            f"{label} HTTP 429: daily quota used up "
+                            f"({daily_quota(body)}). It resets at midnight "
+                            "Pacific time; a paid tier raises it.")
                     if resp.status in _TRANSIENT_STATUSES:
                         raise _TransientHTTPError(
-                            f"HTTP {resp.status}: {body[:120]}")
+                            f"HTTP {resp.status}: {body[:120]}",
+                            _server_wait(body, resp.headers.get("Retry-After"))
+                            if resp.status == 429 else None)
                     if resp.status != 200:
                         raise RuntimeError(
                             f"{label} HTTP {resp.status}: {body[:200]}")
@@ -578,6 +623,11 @@ async def _http_json(
             # 503 outlasted the old waits on 29 Sep 2026 and whole jobs
             # failed; the longer gap gives a busy service time to recover.
             wait = HTTP_RETRY_BACKOFF_SECONDS * (3 ** (attempt - 1))
+            asked = getattr(e, "wait", None)
+            if asked is not None:
+                if asked > MAX_RETRY_WAIT:
+                    break           # a daily quota: waiting will not help
+                wait = max(wait, asked + 1.0)
             logger.warning("%s: %s on attempt %d/%d; retrying in %.0fs",
                            label, str(e) or type(e).__name__,
                            attempt, HTTP_RETRIES, wait)

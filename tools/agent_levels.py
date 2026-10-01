@@ -40,6 +40,7 @@ SOURCE = "z-ai/glm-5.3-flash|desc|tears_full@chunk300|1"
 # Both judges (GLM and Gemini) agreed, run 1 of the chunk300 bench.
 WRONG = (16, 24, 28, 72)
 RIGHT = (6, 21, 42, 61)
+CAP = ag.COST_CAP
 
 
 def make_agent(provider: str, model: str, key: str, level: str, cues, at):
@@ -68,15 +69,18 @@ async def one(provider, model, key, level, cues, index, kind) -> dict:
     agent = make_agent(provider, model, key, level, cues, at)
     started = time.monotonic()
     try:
-        reply = await agent.ask(
+        reply = await agent.ask(cost_cap=CAP, question=
             f"The description [{index}] at {at:.1f}s says: \"{text}\". Is it "
             "right for what is on screen then? Check it and fix it if needed.")
     finally:
         agent.close()
     changes = [p for p in reply.proposals if p.action != "keep"]
+    # Stopped at the cost cap = no decision, not "kept" (1 Oct 2026: Gemini
+    # 3.8 Flash looked 8 times, hit $0.02, and was scored as keeping).
+    decided = not reply.needs_confirmation and not reply.error
     return {"kind": kind, "index": index, "looked": agent._looked,
             "changes": [p.__dict__ for p in changes],
-            "outcome": bool(changes) if kind == "wrong" else not changes,
+            "outcome": decided and (bool(changes) if kind == "wrong" else not changes),
             "answer": reply.answer[:300], "error": reply.error[:200],
             "cost": round(reply.cost, 5),
             "seconds": round(time.monotonic() - started, 1),
@@ -89,7 +93,12 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--levels", required=True)
     parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument("--cap", type=float, default=ag.COST_CAP,
+                        help="cost cap per question (the app asks 'continue?' there)")
+    parser.add_argument("--tag", default="", help="suffix for the level key")
     args = parser.parse_args()
+    global CAP
+    CAP = args.cap
     keys = mb._prepare_config()
     key = keys["glm"] if args.provider == "glm" else keys["gemini"]
     cues = [(float(t), x) for t, x in mb._load_results()[SOURCE]["cues"]]
@@ -100,7 +109,7 @@ def main() -> int:
         for level in args.levels.split(","):
             for run in range(1, args.runs + 1):
                 for kind, index in tasks:
-                    k = f"{args.model}|{level}|{kind}{index}|{run}"
+                    k = f"{args.model}|{level}{args.tag}|{kind}{index}|{run}"
                     if k in done and not done[k].get("error"):
                         continue
                     done[k] = await one(args.provider, args.model, key, level,
@@ -133,9 +142,9 @@ def summary(model: str) -> None:
         s["looked"] += r["looked"]
         s["cost"] += r["cost"]
         s["sec"] += r["seconds"]
-        s["err"] += bool(r["error"])
+        s["err"] += bool(r["error"]) or bool(r.get("stopped_at_cap"))
     print(f"\n{model}")
-    print("level    n  right-call  wrong-fixed  correct-kept  looked  errors  cost     avg s")
+    print("level    n  right-call  wrong-fixed  correct-kept  looked  err/cap  cost     avg s")
     for level, s in rows.items():
         print(f"{level:7} {s['n']:2}  {s['ok']:>10}  {s['wrong_ok']:>11}  "
               f"{s['right_ok']:>12}  {s['looked']:>6}  {s['err']:>6}  "
