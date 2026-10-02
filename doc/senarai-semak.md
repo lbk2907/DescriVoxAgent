@@ -137,4 +137,5 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
 - [x] 25.14a Gate 74 suite x2 GATE_ALL_PASS (sebelum 25.18); NVDA didengar: bar kemajuan "10 percent".."90 percent"
       (tools/nvda_progress_check.py), slider "0:00 of 0:30", Settings (Language di atas), Tanya Lagi, tetingkap
       utama 10/10, ejen sebenar (alat, cadangan, kotak keputusan, Esc)
-- [ ] 25.14b Gate x2 selepas 25.18, build, exe NVDA, tag v1.9.6
+- [x] 25.14b Gate 74 suite x2 GATE_ALL_PASS selepas 25.18; build BUILD_ALL_OK; exe didengar NVDA 10/10;
+      tag v1.9.6; zip 1.9.5 dibuang
