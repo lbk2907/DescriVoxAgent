@@ -159,7 +159,7 @@
   "player.subtitle_failed": "Subtitle load failed",
   "player.subtitle_no_entries": "No subtitle entries found in that file.",
   "player.subtitles_loaded": "Subtitles loaded: {count}",
-  "player.video_area": "Video picture",
+  "player.video_area": "Video picture. Space: play or pause. Left and Right: 5 seconds, with Ctrl 10 seconds, with Ctrl and Shift 1 minute. Up and Down: volume.",
   "player.timeline": "Playback position",
   "player.title": "Described Video Player",
   "player.tts_error": "TTS error: {error}",
@@ -460,5 +460,7 @@
   "editor.tts_failed": "Could not read the description aloud. Check the voice in Settings.",
   "player.slider_value": "{position} of {total}",
   "progress.bar_label": "Overall progress",
-  "progress.cancelling": "Cancelling..."
+  "progress.cancelling": "Cancelling...",
+  "scene.still_loading": "Still loading the frames of this video. Try again in a moment.",
+  "player.volume": "Volume {pct}%"
 }

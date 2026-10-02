@@ -100,12 +100,12 @@ Summary (details: CHANGELOG.md).
 | 1.6.8–1.7.1 | 23 Sep | Bajet patah per jurang; Whisper deterministik (0/7); lantai liputan bingkai 30 s; jeda NVDA melalui meter audio | Word budget per gap; deterministic Whisper (0/7); 30 s frame coverage floor; NVDA pause via audio meter |
 | 1.7.2–1.7.4 | 27–28 Sep | Muat naik Gemini dibaiki; lalai `gemini-3.8-flash`; audit + E2E Sintel 15 min (tiada konsol) | Gemini upload fixed; `gemini-3.8-flash` default; audit + 15-min Sintel E2E (no consoles) |
 
-### 3.2 Fasa 1–25 / Phases 1–25
+### 3.2 Fasa 1–26 / Phases 1–26
 
 **BM:** Fasa 1–18 dalam [arkib/senarai-semak-fasa-1-18.md](arkib/senarai-semak-fasa-1-18.md);
-fasa 19–25 dalam [senarai-semak.md](senarai-semak.md). "—" = tiada keluaran.
+fasa 19–26 dalam [senarai-semak.md](senarai-semak.md). "—" = tiada keluaran.
 **EN:** Phases 1–18 are in [arkib/senarai-semak-fasa-1-18.md](arkib/senarai-semak-fasa-1-18.md);
-phases 19–25 in [senarai-semak.md](senarai-semak.md). "—" = no release.
+phases 19–26 in [senarai-semak.md](senarai-semak.md). "—" = no release.
 
 | Fasa | Nama / Name | Keluaran | Hasil (BM) | Outcome (EN) |
 |---|---|---|---|---|
@@ -133,6 +133,7 @@ phases 19–25 in [senarai-semak.md](senarai-semak.md). "—" = no release.
 | 22 | Tahap thinking / Thinking levels | 1.9.4 | Gemini 3.1 Flash-Lite `medium` 15.8% → 9.1%; ejen GLM `low` 8/16 → 11/16; GLM video penuh kekal had 2000 | Gemini 3.1 Flash-Lite `medium` 15.8% → 9.1%; GLM agent `low` 8/16 → 11/16; GLM full video keeps 2000 cap |
 | 23 | 429 Gemini | 1.9.5 | 429 tunggu `retryDelay`; had harian gagal serta-merta; ejen Gemini 3.1 Flash-Lite 4/4; 15.7 selesai (kunci baharu 25/25) | 429 waits `retryDelay`; daily quota fails at once; Gemini 3.1 Flash-Lite agent 4/4; 15.7 done (new key 25/25) |
 | 25 | Bug laporan pemilik / Owner's bug report | 1.9.6 | Cancel dikesan selepas muat turun (punca utama); transkrip boleh dibatal & disimpan; Buka Projek dibaiki; 413 tanpa had; ralat dalam kata-kata; tetapan sebenar tidak lagi disentuh ujian; slider "1:04"; ejen terima masa semasa | Cancel noticed after the download (the main cause); transcript cancellable & kept; Open Project fixed; 413 without a limit; errors in words; tests never touch real settings; slider "1:04"; agent gets the current time |
+| 26 | Ejen atau alat lama / Agent or older tools | 1.9.7 | Scene Explorer: mesej betul, ~600 bingkai; Player: Agent (F2) ATAU Tanya Lagi + Jelajah Adegan | Scene Explorer: right message, ~600 frames; Player: Agent (F2) OR Ask More + Explore Scene |
 | 24 | Kemas dokumen / Tidy the docs | — | `plan.md` ini; AGENTS.md dalam English + `pitfalls.md` (88 entri, nombor sama); `CLAUDE.md`; fail lama ke `arkib/` | this `plan.md`; AGENTS.md in English + `pitfalls.md` (88 entries, same numbers); `CLAUDE.md`; old files to `arkib/` |
 
 **BM:** Setiap fasa keluaran ditutup dengan gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, exe
@@ -238,9 +239,9 @@ measurement.
 ## 6. Cara menambah pelan / How to add a plan
 
 **BM:**
-1. Fasa baharu meneruskan nombor: yang seterusnya ialah **Fasa 26**. Jangan nombor semula.
+1. Fasa baharu meneruskan nombor: yang seterusnya ialah **Fasa 27**. Jangan nombor semula.
 2. Tulis entri ringkas di sini (fasa, nama, sebab, tarikh, siapa yang meminta), dan
-   item terperinci dalam [senarai-semak.md](senarai-semak.md) (`26.1`, `26.2`, ...).
+   item terperinci dalam [senarai-semak.md](senarai-semak.md) (`27.1`, `27.2`, ...).
 3. Tanda `[x]` hanya dengan bukti: output ujian, angka, larian sebenar, atau NVDA didengar.
 4. Ukur sebelum menggunakan: tetapan atau model baharu masuk hanya bila angka lebih baik
    (penilai bebas, beberapa klip berbeza, beberapa larian). Catat angka dalam
@@ -249,9 +250,9 @@ measurement.
 6. Bila keluaran siap: kemas kini jadual fasa di sini, CHANGELOG.md dan status AGENTS.md.
 
 **EN:**
-1. A new phase continues the numbering: the next one is **Phase 26**. Never renumber.
+1. A new phase continues the numbering: the next one is **Phase 27**. Never renumber.
 2. Write a short entry here (phase, name, reason, date, who asked) and the detailed items
-   in [senarai-semak.md](senarai-semak.md) (`26.1`, `26.2`, ...).
+   in [senarai-semak.md](senarai-semak.md) (`27.1`, `27.2`, ...).
 3. Tick `[x]` only with evidence: test output, numbers, a real run, or NVDA heard.
 4. Measure before adopting: a new setting or model goes in only when the numbers are better
    (independent judge, several different clips, several runs). Record the numbers in

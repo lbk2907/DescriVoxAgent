@@ -159,7 +159,7 @@
   "player.subtitle_failed": "Gagal memuatkan sari kata",
   "player.subtitle_no_entries": "Tiada entri sari kata dalam fail itu.",
   "player.subtitles_loaded": "Sari kata dimuatkan: {count}",
-  "player.video_area": "Gambar video",
+  "player.video_area": "Gambar video. Space: main atau jeda. Kiri dan Kanan: 5 saat, dengan Ctrl 10 saat, dengan Ctrl dan Shift 1 minit. Atas dan Bawah: kelantangan.",
   "player.timeline": "Kedudukan main balik",
   "player.title": "Pemain Video Berpenerangan",
   "player.tts_error": "Ralat TTS: {error}",
@@ -460,5 +460,7 @@
   "editor.tts_failed": "Penerangan tidak dapat dibacakan. Semak suara dalam Tetapan.",
   "player.slider_value": "{position} daripada {total}",
   "progress.bar_label": "Kemajuan keseluruhan",
-  "progress.cancelling": "Membatalkan..."
+  "progress.cancelling": "Membatalkan...",
+  "scene.still_loading": "Bingkai video ini masih dimuatkan. Cuba lagi sebentar.",
+  "player.volume": "Kelantangan {pct}%"
 }

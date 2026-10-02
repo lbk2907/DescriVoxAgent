@@ -139,3 +139,20 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       utama 10/10, ejen sebenar (alat, cadangan, kotak keputusan, Esc)
 - [x] 25.14b Gate 74 suite x2 GATE_ALL_PASS selepas 25.18; build BUILD_ALL_OK; exe didengar NVDA 10/10;
       tag v1.9.6; zip 1.9.5 dibuang
+
+## Fasa 26 — 1.9.7 (pemilik 2 Okt 2026)
+
+- [x] 26.1 Scene Explorer berkata "No AI configured" — puncanya: tiada bingkai LAGI (video panjang dimuat 2 fps,
+      >2,800 bingkai); mesej itu untuk dua keadaan. Kini: "masih memuatkan" / "tiada bingkai" / "tiada AI";
+      video panjang dimuat ~600 bingkai (test_fixes65)
+- [x] 26.2 Ejen ATAU dua alat lama (pilihan pemilik): ejen sedia -> hanya Agent (F2); belum diuji -> ketiga-tiganya,
+      lulus -> dua alat lama hilang; tiada ejen -> Ask More + Explore Scene. Ikut perubahan Settings (EVT_ACTIVATE)
+      (test_fixes65; kod lama 0/6)
+- [x] 26.4 Pemilik: pintasan di kawasan video — Space main/jeda, Kiri/Kanan 5 s (Ctrl 10 s, Ctrl+Shift 1 minit) + kedudukan disebut,
+      Atas/Bawah kelantangan video 10% (disimpan; ffplay -volume, VLC audio_set_volume); nama kawasan video
+      menyenaraikan kekunci (test_fixes65)
+- [x] 26.5 Kekunci Video picture diuji SEBENAR (tools/nvda_video_keys_check.py, PostMessage ke tetingkap Player sahaja):
+      fokus kekal, kelantangan ikut setiap kekunci, NVDA baca setiap satu (3 Okt 2026). Punca bug pemilik: _announce
+      mengalih fokus ke baris status; ffplay dimulakan semula setiap kekunci (pitfall 95-97; test_fixes65 11/11)
+- [ ] 26.3 Gate x2, NVDA Player (termasuk kekunci kawasan video), build, exe NVDA, tag v1.9.7
+

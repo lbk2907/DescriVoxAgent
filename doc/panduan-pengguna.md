@@ -439,8 +439,19 @@ turun YouTube gagal, log akan mencadangkan menu ini.
 - **Jeda video semasa penerangan dibaca**: menahan video sehingga
   penerangan habis, kemudian sambung semula — berguna untuk slaid,
   tutorial dan video yang padat dialog.
+- **Gambar video** (Tab ke sana; NVDA membaca kekuncinya): **Space**
+  main atau jeda; **Kiri/Kanan** melompat 5 saat, dengan **Ctrl** 10
+  saat, dengan **Ctrl+Shift** 1 minit, dan kedudukan baharu disebut ("1:09 daripada 24:30");
+  **Atas/Bawah** menukar kelantangan video 10% setiap kali (suara pembaca
+  skrin tidak berubah). Kelantangan diingati.
 - **Penyunting Penerangan**, **Tanya Lagi...**, **Jelajah Adegan...**
-  dan **Ejen (F2)** membuka tetingkap yang diterangkan di bawah.
+  dan **Ejen (F2)** membuka tetingkap yang diterangkan di bawah. Sejak
+  1.9.7 Player memaparkan SAMA ADA ejen ATAU dua alat lama: bila ejen
+  sedia (OpenRouter atau Gemini, ada kunci, dan model sudah lulus Uji mod
+  ejen) hanya **Ejen (F2)** dipaparkan, kerana ia sendiri boleh melihat
+  video dan menjawab soalan; tanpa ejen, **Tanya Lagi...** dan **Jelajah
+  Adegan...** dipaparkan. Untuk model yang belum diuji, ketiga-tiganya
+  dipaparkan; bila ujian lulus, dua alat lama itu hilang.
 
 ## Ejen dalam Player (F2)
 
@@ -486,6 +497,10 @@ kedudukan Player bersama soalan anda. Dalam Tanya Lagi, **Batal** (atau
 Esc) meninggalkan soalan yang masih menunggu jawapan.
 
 ## Penjelajah Adegan
+
+(Sejak 1.9.7 video panjang memuatkan kira-kira 600 bingkai, jadi
+penjelajah lebih cepat sedia; semasa masih memuat, D dan L
+memberitahunya dan bukan lagi "No AI configured".)
 
 Dari pemain, **Jelajah Adegan...** membuka Penjelajah Adegan untuk
 menyemak frame satu demi satu: kunci anak panah kiri/kanan untuk

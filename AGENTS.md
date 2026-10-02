@@ -162,7 +162,7 @@ src/omni_describer_custom/
     update_dialog.py        Check for Updates
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 74
+tests/                      one script per regression round; run_gate.bat lists 75
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -187,7 +187,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 74 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 75 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -237,7 +237,7 @@ python tools\whisper_bench.py
 ## 8. Pitfalls by area
 
 Full text: `doc/pitfalls.md`. **Pitfall numbers are referenced from code
-comments: never renumber; add new ones at the end (next is 95).** (57b is a
+comments: never renumber; add new ones at the end (next is 98).** (57b is a
 historical double number, kept.) A pitfall may appear in more than one row.
 
 | Area | Pitfalls |
@@ -257,9 +257,9 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 1.9.6**, tag `v1.9.6`. Gate: compileall + 74 suites in
-  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 1.9.6; build
-  `BUILD_ALL_OK`; frozen exe heard by NVDA 10/10 (checklist phase 25).
+- **Version 1.9.7**, tag `v1.9.7`. Gate: compileall + 75 suites in
+  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 1.9.7; build
+  `BUILD_ALL_OK`; frozen exe heard by NVDA 10/10 (checklist phase 26).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom

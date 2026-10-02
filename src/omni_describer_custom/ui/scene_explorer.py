@@ -38,6 +38,7 @@ class SceneExplorer(wx.Frame):
         # v1.9.6: set by _on_close; stops the frame extraction (and a
         # URL's download) and tells the worker to delete its temp folder.
         self._closing = False
+        self._loading = False
 
         super().__init__(parent, title=t("explorer.title"), size=(900, 700))
 
@@ -168,7 +169,9 @@ class SceneExplorer(wx.Frame):
         users who cannot see a hung window).
         """
         self._announce(t("scene.loading"))
+        self._loading = True
         import asyncio, tempfile
+        fps = self._frames_per_second(self.video_path)
 
         def run():
             vp = VideoProcessor()
@@ -180,7 +183,7 @@ class SceneExplorer(wx.Frame):
                 self.frames = [
                     {"path": f.path, "time": f.timestamp}
                     for f in loop.run_until_complete(vp.extract_frames(
-                        self.video_path, fps=2, output_dir=tmp,
+                        self.video_path, fps=fps, output_dir=tmp,
                         is_cancelled=lambda: self._closing))
                 ]
             except SourceError as e:
@@ -205,12 +208,31 @@ class SceneExplorer(wx.Frame):
             wx.CallAfter(self._frames_loaded, self.frames, tmp, error_msg)
         threading.Thread(target=run, daemon=True).start()
 
+    # About this many frames at most: 2 a second for a short video, fewer
+    # for a long one (a 24-minute film took minutes at 2 fps, and the owner
+    # asked for a description before it had finished).
+    MAX_FRAMES = 600
+
+    @classmethod
+    def _frames_per_second(cls, video_path: str) -> float:
+        if not video_path or "://" in video_path:
+            return 2.0
+        try:
+            from ..core.timeline_io import _ffprobe_duration
+            seconds = float(_ffprobe_duration(video_path) or 0.0)
+        except Exception:
+            seconds = 0.0
+        if seconds <= cls.MAX_FRAMES / 2:
+            return 2.0
+        return max(0.1, round(cls.MAX_FRAMES / seconds, 3))
+
     def _frames_loaded(self, frames: list[dict], frames_dir: str, error_msg: str = ""):
         """Called on the UI thread when background extraction finishes."""
         if not self or self._closing:
             import shutil
             shutil.rmtree(frames_dir, ignore_errors=True)
             return
+        self._loading = False
         self.frames = frames
         self._frames_dir = frames_dir
         if self.frames:
@@ -285,10 +307,24 @@ class SceneExplorer(wx.Frame):
         else:
             event.Skip()
 
+    def _ready_to_ask(self) -> bool:
+        """v1.9.6 (owner): "No AI configured" was said whenever there were
+        no frames yet - while a long video was still loading, the AI was
+        fine. Each case now has its own words."""
+        if not self.ai:
+            self._announce(t("scene.no_ai"))
+            return False
+        if self._loading:
+            self._announce(t("scene.still_loading"))
+            return False
+        if not self.frames:
+            self._announce(t("scene.no_frames"))
+            return False
+        return True
+
     def _describe_frame(self):
         """Get full AI description of current frame."""
-        if not self.frames or not self.ai:
-            self._announce(t("scene.no_ai"))
+        if not self._ready_to_ask():
             return
 
         if self._describing:
@@ -325,8 +361,7 @@ class SceneExplorer(wx.Frame):
 
     def _list_objects(self):
         """List objects in current frame."""
-        if not self.frames or not self.ai:
-            self._announce(t("scene.no_ai"))  # v1.8.2: was silent
+        if not self._ready_to_ask():
             return
         frame = self.frames[self._current_idx]
         self._announce(t("scene.detecting"))

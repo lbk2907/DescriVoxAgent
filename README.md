@@ -48,6 +48,25 @@ F2 for OpenRouter and Gemini models.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v1.9.7
+
+- **The Player shows the agent OR the two older tools.** When the agent
+  is ready (OpenRouter or Gemini, a key, and a model that passed Test
+  agent mode), only **Agent (F2)** is shown: it looks at the video and
+  answers questions itself. With no agent, **Ask More** and **Explore
+  Scene** are shown instead. With a model not yet tested all three are
+  shown, and the two older tools go away once the test passes. Changing
+  Settings while the Player is open is followed.
+- **Keys in the video area of the Player.** Tab to the video picture,
+  then: **Space** plays or pauses, **Left/Right** jump 5 seconds
+  (**Ctrl** with them: 10 seconds; **Ctrl+Shift**: one minute) and say the new position ("1:09 of
+  24:30"), **Up/Down** change the video's volume by 10% and say it. The
+  screen reader's own voice is not changed; the volume is remembered.
+- **Scene Explorer no longer says "No AI configured" by mistake.** It
+  said so while a long video's frames were still loading. It now says it
+  is still loading, and a long video loads about 600 frames (a
+  24-minute film used to take minutes).
+
 ## What's new in v1.9.6
 
 Fixes from the owner's own log of 1 October, checked by two independent
@@ -105,21 +124,6 @@ audits so that nothing was left out.
   3.1 Flash-Lite** is the better choice. It fixed 4 of 4 wrong
   descriptions at about $0.003 a question; Gemini 3.8 Flash fixed none
   and cost about ten times more.
-
-## What's new in v1.9.4
-
-- **Gemini 3.1 Flash-Lite describes more accurately.** It now thinks at
-  a "medium" level before writing. Measured on four different clips,
-  three runs each: wrong descriptions 15.8% → 9.1%, and it is faster.
-- **The Player agent (F2) is better with GLM.** Its thinking setting was
-  measured and changed: right decisions 8 → 11 out of 16, and answers
-  come about twice as fast. It rewrites fewer descriptions that were
-  already correct.
-- Thinking levels are set only for the models that were measured. If a
-  model refuses a level, the app retries without it instead of failing.
-- Measured and NOT used: more thinking for GLM whole-video (no clear
-  gain; the highest level took 19 minutes on a one-minute clip and once
-  returned nothing).
 
 ## Installing
 

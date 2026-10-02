@@ -355,3 +355,29 @@ periodic speech. A new step that knows its progress calls `_advance`.
 `test_fixes48`'s `pump()` runs a real `wx.GUIEventLoop`. Use one when a test
 depends on a `wx.Timer` or `wx.CallLater`.
 
+
+### 95. Keys in a focusable area: `_announce` moves the focus
+`PlayerWindow._announce` moves the focus to the status line so NVDA reads
+it. The 1.9.7 video-area keys used it, so after the first key the focus sat
+on `player_status` and the next arrow went to another control; the owner
+heard "focus moves, volume changes only sometimes". While the video picture
+has the focus, `_announce` now speaks through Prism (`_say_in_video_area`)
+and leaves the focus where it is. Any new keyboard area must do the same.
+Also: ffplay takes the volume and start point only when it starts, so
+volume/seek keys restart it ONCE, 0.35 s after the last key
+(`_restart_sound_soon`). Found only by the real test
+`tools/nvda_video_keys_check.py`; a unit test that calls the handler
+cannot see it.
+
+### 96. Global key automation can type into another program
+On 2 Oct 2026 a diagnostic sent arrows and spaces with `send_keys` while the
+foreground check passed; they landed in the Claude app. `safe_keys` now also
+checks the keyboard-focus control (`GetGUIThreadInfo`). Prefer posting
+WM_KEYDOWN/WM_KEYUP to the app's own HWND (`nvda_video_keys_check.py`); it
+can never reach another program.
+
+### 97. Posted keys: set the extended bit, and CHAR_HOOK does not see them
+`PostMessage(WM_KEYDOWN)` for an arrow without bit 24 of lParam arrives as a
+number-pad arrow (`WXK_NUMPAD_DOWN`). wx's `EVT_CHAR_HOOK` is not raised for
+posted keys at all, so the video panel also binds `EVT_KEY_DOWN` (a key
+handled in CHAR_HOOK never reaches it, so nothing runs twice).

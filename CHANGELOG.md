@@ -2,6 +2,25 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.7
+
+- **The Player shows the agent OR the two older tools.** When the agent
+  is ready (OpenRouter or Gemini, a key, and a model that passed Test
+  agent mode), only **Agent (F2)** is shown: it looks at the video and
+  answers questions itself. With no agent, **Ask More** and **Explore
+  Scene** are shown instead. With a model not yet tested all three are
+  shown, and the two older tools go away once the test passes. Changing
+  Settings while the Player is open is followed.
+- **Keys in the video area of the Player.** Tab to the video picture,
+  then: **Space** plays or pauses, **Left/Right** jump 5 seconds
+  (**Ctrl** with them: 10 seconds; **Ctrl+Shift**: one minute) and say the new position ("1:09 of
+  24:30"), **Up/Down** change the video's volume by 10% and say it. The
+  screen reader's own voice is not changed; the volume is remembered.
+- **Scene Explorer no longer says "No AI configured" by mistake.** It
+  said so while a long video's frames were still loading. It now says it
+  is still loading, and a long video loads about 600 frames (a
+  24-minute film used to take minutes).
+
 ## What's new in v1.9.6
 
 Fixes from the owner's own log of 1 October, checked by two independent

@@ -42,14 +42,46 @@ def foreground() -> tuple[int, str]:
     return pid.value, buf.value
 
 
+class _GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+                ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+                ("rcCaret", wintypes.RECT)]
+
+
+def keyboard_focus() -> tuple[int, str]:
+    """(pid, title) of the control that really receives keystrokes.
+
+    2 Oct 2026: the foreground check passed and the keys still landed in
+    the Claude desktop app's message box (arrows, Space). The control
+    holding the KEYBOARD focus is what counts, so it is checked too."""
+    info = _GUITHREADINFO()
+    info.cbSize = ctypes.sizeof(_GUITHREADINFO)
+    if not _user32.GetGUIThreadInfo(0, ctypes.byref(info)) or not info.hwndFocus:
+        return 0, ""
+    pid = wintypes.DWORD()
+    _user32.GetWindowThreadProcessId(info.hwndFocus, ctypes.byref(pid))
+    buf = ctypes.create_unicode_buffer(256)
+    _user32.GetWindowTextW(info.hwndFocus, buf, 256)
+    return pid.value, buf.value
+
+
 def send_keys(keys, *args, **kwargs):
-    pid, title = foreground()
     if not _allowed:
         raise ForeignFocus("no test process registered with safe_keys.allow()")
+    # Checked for EVERY key: a multi-key string is sent one key at a time,
+    # so focus taken away half way stops the rest.
+    pid, title = foreground()
     if pid not in _allowed:
         raise ForeignFocus(
             f"refusing to type {keys!r}: the foreground window "
             f"({title!r}, pid {pid}) is not the app under test")
+    fpid, ftitle = keyboard_focus()
+    if fpid not in _allowed:
+        raise ForeignFocus(
+            f"refusing to type {keys!r}: the keyboard focus "
+            f"({ftitle!r}, pid {fpid}) is not in the app under test")
     return _original(keys, *args, **kwargs)
 
 

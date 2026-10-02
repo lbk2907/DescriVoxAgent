@@ -63,6 +63,7 @@ class PlayerWindow(wx.Frame):
         self._timer: wx.Timer | None = None
         self._position = 0.0  # Current playback position in seconds
         self._tick_at: float | None = None  # clock of the last position update
+        self._volume = 100                  # video sound, 0..100 (v1.9.7)
         self._vlc = None
         self._vlc_instance = None
         self._vlc_media = None
@@ -108,7 +109,13 @@ class PlayerWindow(wx.Frame):
                          size=(1000, 700))
 
         self._ensure_duration()
+        try:
+            self._volume = max(0, min(100, int(
+                self._settings.get("player.volume", 100) if self._settings else 100)))
+        except (TypeError, ValueError):
+            self._volume = 100
         self._build_ui()
+        self._refresh_mode_buttons()
         self._load_descriptions()
         self._attach_vlc_video()
         # v1.5.1: VLC attach may learn the real duration (media probe);
@@ -180,6 +187,7 @@ class PlayerWindow(wx.Frame):
                 find_tool("ffplay"), "-vn", "-nodisp", "-loglevel", "quiet",
                 "-window_title", "omni_audio",
                 "-autoexit", "-nostats", "-hide_banner",
+                "-volume", str(self._volume),
             ]
             if seek_seconds > 0.5:
                 cmd += ["-ss", f"{seek_seconds:.3f}"]
@@ -306,7 +314,11 @@ class PlayerWindow(wx.Frame):
         panel.SetSizer(sizer)
 
         # ── Video Area ─────────────────────────────────────────
+        # v1.9.7 (owner): keys in the video area - Space play/pause, Left/
+        # Right 5 s, Ctrl 10 s, Ctrl+Shift 1 min, Up/Down volume. WANTS_CHARS so
+        # the arrows reach the panel instead of moving the focus.
         self.video_panel = wx.Panel(panel, size=(854, 480),
+                                    style=wx.WANTS_CHARS,
                                     name=t("player.video_area"))
         self.video_panel.SetBackgroundColour(wx.Colour(0, 0, 0))
         # v1.3.0: subtitle overlay for simulated playback (no VLC).
@@ -455,8 +467,15 @@ class PlayerWindow(wx.Frame):
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
         self.agent_btn.Bind(wx.EVT_BUTTON, lambda e: self.open_agent())
+        # Settings may change the provider or model while the Player is
+        # open: the buttons are brought up to date whenever it is active.
+        self.Bind(wx.EVT_ACTIVATE, self._on_activate)
         # F2 anywhere in the Player (owner's choice; it had no shortcuts).
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
+        # Keys that reach the panel without the window's CHAR_HOOK (a key
+        # posted straight to it) are taken here too; a key handled in
+        # CHAR_HOOK never arrives, so nothing is done twice.
+        self.video_panel.Bind(wx.EVT_KEY_DOWN, self._on_video_key_down)
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
         self.pause_narration_check.Bind(wx.EVT_CHECKBOX,
                                         self._on_pause_narration_toggle)
@@ -481,6 +500,9 @@ class PlayerWindow(wx.Frame):
         """
         if not self:
             return  # v1.9.6: a worker's CallAfter after the window closed
+        if self._video_has_focus():
+            self._say_in_video_area(msg)   # v1.9.7: keep the focus there
+            return
         self.status_text.SetLabel(msg)
         self.status_text.SetFocus()
         try:
@@ -488,6 +510,28 @@ class PlayerWindow(wx.Frame):
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
+
+    def _say_in_video_area(self, msg: str) -> None:
+        """v1.9.7: say msg WITHOUT moving the focus off the video picture.
+
+        _announce moves the focus to the status line so the screen reader
+        reads it; after a video key the focus stayed there and the next
+        arrow went somewhere else (owner, 2 Oct 2026; real test 3 Oct:
+        focus on player_status after the first key). Here the words go
+        straight to the screen reader through Prism. Without a voice the
+        old way is used and the focus is given back to the picture.
+        """
+        if not self:
+            return
+        self.status_text.SetLabel(msg)
+        try:
+            from ..core.speech import get_speech
+            if get_speech().speak(msg, interrupt=True):
+                return
+        except Exception:
+            logger.debug("Prism speak failed", exc_info=True)
+        self.status_text.SetFocus()
+        wx.CallLater(700, lambda: self and self.video_panel.SetFocus())
 
     def _load_descriptions(self):
         """Load descriptions from current project."""
@@ -958,9 +1002,122 @@ class PlayerWindow(wx.Frame):
         dlg.Destroy()
 
     # ── The agent (v1.9.0) ─────────────────────────────────────
+    def _on_activate(self, event):
+        if event.GetActive():
+            wx.CallAfter(self._refresh_mode_buttons)
+        event.Skip()
+
+    def _refresh_mode_buttons(self) -> None:
+        """Agent OR Ask More + Explore Scene (owner, 2 Oct 2026).
+
+        Agent ready  -> only "Agent (F2)": it can look at frames and answer
+                        questions, so the two older tools are hidden.
+        Not tested   -> all three; once Test agent mode passes, the two
+                        older tools go away.
+        No agent     -> Ask More and Explore Scene; no Agent button.
+        """
+        if not self:
+            return
+        ok, why = self.agent_available()
+        show_agent = ok or why == "untested"
+        show_old = not ok
+        changed = False
+        for btn, show in ((self.agent_btn, show_agent),
+                          (self.ask_btn, show_old),
+                          (self.explore_btn, show_old)):
+            if btn.IsShown() != show:
+                if not show and btn.HasFocus():
+                    self.play_btn.SetFocus()
+                btn.Show(show)
+                changed = True
+        if changed:
+            self.agent_btn.GetParent().Layout()
+
+    # ── v1.9.7: keys in the video area (owner's request) ──────────
+
+    def _video_has_focus(self) -> bool:
+        focus = wx.Window.FindFocus()
+        while focus is not None:
+            if focus is self.video_panel:
+                return True
+            focus = focus.GetParent()
+        return False
+
+    def _on_video_key(self, event) -> bool:
+        """True when the key was one of the video-area keys (handled)."""
+        code = event.GetKeyCode()
+        ctrl = event.ControlDown()
+        if code == wx.WXK_SPACE and not event.HasAnyModifiers():
+            self._on_play_toggle(None)
+        elif code in (wx.WXK_LEFT, wx.WXK_RIGHT):
+            # 5 s; Ctrl 10 s; Ctrl+Shift one minute (owner, 2 Oct 2026)
+            step = 60 if (ctrl and event.ShiftDown()) else 10 if ctrl else 5
+            self._seek_by(-step if code == wx.WXK_LEFT else step)
+        elif code in (wx.WXK_UP, wx.WXK_DOWN) and not event.HasAnyModifiers():
+            self._change_volume(10 if code == wx.WXK_UP else -10)
+        else:
+            return False
+        return True
+
+    def _seek_by(self, delta: float) -> None:
+        """Jump by delta seconds and say where the video is now."""
+        total = float(self._slider_dur or 0)
+        pos = self._position + delta
+        pos = max(0.0, min(pos, total)) if total > 0 else max(0.0, pos)
+        self._position = pos
+        if self._vlc_available and self._vlc_media is not None:
+            self._vlc.set_time(int(pos * 1000))
+        elif self._audio_backend == "ffplay" and self._playing:
+            self._restart_sound_soon()
+        self.position_slider.SetValue(int(pos))
+        self._update_desc_display()
+        self._announce(t("player.slider_value",
+                         position=self._format_time(pos),
+                         total=self._format_time(total)))
+
+    def _change_volume(self, delta: int) -> None:
+        """Video sound only; the screen reader's voice is not touched."""
+        self._volume = max(0, min(100, self._volume + delta))
+        if self._settings is not None:
+            try:
+                self._settings.set("player.volume", self._volume)
+            except Exception:
+                logger.debug("volume not saved", exc_info=True)
+        if self._vlc_available and self._vlc is not None:
+            try:
+                self._vlc.audio_set_volume(self._volume)
+            except Exception:
+                logger.debug("VLC volume failed", exc_info=True)
+        elif self._audio_backend == "ffplay" and self._playing:
+            self._restart_sound_soon()           # ffplay takes it at start
+        self._announce(t("player.volume", pct=self._volume))
+
+    def _restart_sound_soon(self) -> None:
+        """ffplay only takes the volume and the start point when it starts.
+        Restarting it on every key made quick presses stutter and miss
+        (owner, 2 Oct 2026): restart once, 0.35 s after the last key."""
+        timer = getattr(self, "_sound_timer", None)
+        if timer is not None and timer.IsRunning():
+            timer.Stop()
+        self._sound_timer = wx.CallLater(350, self._restart_sound_now)
+
+    def _restart_sound_now(self) -> None:
+        if self and self._playing and self._audio_backend == "ffplay":
+            self._start_ffplay(self._position)
+
+    def _on_video_key_down(self, event):
+        if not self._on_video_key(event):
+            event.Skip()
+
     def _on_char_hook(self, event):
         if event.GetKeyCode() == wx.WXK_F2 and not event.HasAnyModifiers():
             self.open_agent()
+            return
+        # v1.9.7: the video-area keys are taken HERE, before Windows uses
+        # the arrows to move between controls. As EVT_KEY_DOWN on the panel
+        # (first try) the arrows mostly moved the focus to a button and the
+        # volume changed only now and then (owner, 2 Oct 2026).
+        if self._video_has_focus() and self._on_video_key(event):
             return
         event.Skip()
 
@@ -1123,6 +1280,7 @@ class PlayerWindow(wx.Frame):
                 passed.append(model)
                 self._settings.set("ai.agent_models", passed)
             self._announce(t("settings.agent_pass", model=model))
+            self._refresh_mode_buttons()
             self._open_agent_dialog()
             return
         from ..core.ai_engine import user_error_text

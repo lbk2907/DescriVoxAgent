@@ -411,8 +411,20 @@ points to this menu.
 - **Pause video while a description is read**: holds the video until
   the description finishes, then carries on — useful for slides,
   tutorials and videos with dense dialogue.
+- **The video picture** (Tab to it; NVDA reads the keys): **Space**
+  plays or pauses; **Left/Right** jump 5 seconds, with **Ctrl** 10
+  seconds, with **Ctrl+Shift** one minute, and the new position is said ("1:09 of 24:30"); **Up/Down**
+  change the video's volume in steps of 10% (the screen reader's voice
+  is not changed). The volume is remembered.
 - **Description Editor**, **Ask More...**, **Explore Scene...** and
-  **Agent (F2)** open the windows described below.
+  **Agent (F2)** open the windows described below. Since 1.9.7 the
+  Player shows EITHER the agent OR the two older tools: when the agent
+  is ready (OpenRouter or Gemini, a key, and a model that passed Test
+  agent mode) only **Agent (F2)** is there, because it can look at the
+  video and answer questions itself; with no agent, **Ask More...** and
+  **Explore Scene...** are there instead. With a model that has not been
+  tested yet, all three are shown; once the test passes, the two older
+  tools go away.
 
 ## The Player agent (F2)
 
@@ -456,6 +468,10 @@ with your question. In Ask More, **Cancel** (or Esc) abandons a question
 that is still waiting for its answer.
 
 ## Scene Explorer
+
+(Since 1.9.7 a long video loads about 600 frames, so the explorer is
+ready sooner; while it is still loading, D and L say so instead of "No AI
+configured".)
 
 From the player, **Explore Scene...** opens the Scene Explorer to
 inspect frames one by one: left/right arrow keys move between frames,
