@@ -381,3 +381,9 @@ can never reach another program.
 number-pad arrow (`WXK_NUMPAD_DOWN`). wx's `EVT_CHAR_HOOK` is not raised for
 posted keys at all, so the video panel also binds `EVT_KEY_DOWN` (a key
 handled in CHAR_HOOK never reaches it, so nothing runs twice).
+The same panel swallowed F2 (the Player's only shortcut). F2 is now a
+window accelerator (`SetAcceleratorTable`), translated before any control
+sees the key; posted keys are translated too, so it can be tested. When F2
+opens Ask More instead of the agent, the reason is spoken 0.9 s later
+(`_speak_queued`): a focus-move announcement is lost when a dialog takes
+the focus at once.

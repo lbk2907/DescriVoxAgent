@@ -282,6 +282,62 @@ def test_video_keys_keep_the_focus():
         pump()
 
 
+def test_tab_leaves_the_video_area():
+    """Owner, 3 Oct 2026: Tab did nothing on the video picture (the panel
+    takes every key for the arrows). Tab and Shift+Tab must move on."""
+    w = player()
+    went = []
+    w.video_panel.Navigate = lambda flags: went.append(
+        bool(flags & wx.NavigationKeyEvent.IsForward)) or True
+    try:
+        for shift in (False, True):
+            ev = wx.KeyEvent(wx.wxEVT_KEY_DOWN)
+            ev.SetKeyCode(wx.WXK_TAB)
+            ev.SetShiftDown(shift)
+            w._on_video_key_down(ev)
+        assert went == [True, False], went
+    finally:
+        w.Destroy()
+        pump()
+
+
+def test_f2_works_on_the_video_picture():
+    """Owner, 3 Oct 2026: F2 said nothing with the focus on the video
+    picture (the panel takes every key)."""
+    w = player()
+    opened = []
+    w.open_agent = lambda: opened.append(True)
+    try:
+        ev = wx.KeyEvent(wx.wxEVT_KEY_DOWN)
+        ev.SetKeyCode(wx.WXK_F2)
+        w._on_video_key_down(ev)
+        assert opened == [True], opened
+    finally:
+        w.Destroy()
+        pump()
+
+
+def test_f2_is_a_window_accelerator():
+    """Real test 3 Oct 2026: F2 was silent away from the video picture.
+    It is a window accelerator now, translated before any control."""
+    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(encoding="utf-8")
+    assert "(wx.ACCEL_NORMAL, wx.WXK_F2, self._agent_key_id)" in src
+    w = player(provider="minimax")
+    spoken, asked = [], []
+    real_later = wx.CallLater
+    wx.CallLater = lambda ms, fn, *a: spoken.append(a[0] if a else None)
+    w._on_ask = lambda e: asked.append(True)
+    try:
+        w.ProcessEvent(wx.CommandEvent(wx.wxEVT_MENU, int(w._agent_key_id)))
+        assert asked == [True], asked
+        assert w.status_text.GetLabel() == t("agent.unavailable_provider")
+        assert spoken == [t("agent.unavailable_provider")], spoken  # said later
+    finally:
+        wx.CallLater = real_later
+        w.Destroy()
+        pump()
+
+
 def test_ffplay_gets_the_volume():
     src = Path("src/omni_describer_custom/ui/player_window.py").read_text(encoding="utf-8")
     assert '"-volume", str(self._volume)' in src
@@ -300,6 +356,9 @@ def main() -> int:
     check("ffplay gets the volume", test_ffplay_gets_the_volume)
     check("quick keys restart the sound once", test_quick_keys_restart_the_sound_once)
     check("video keys keep the focus", test_video_keys_keep_the_focus)
+    check("Tab leaves the video area", test_tab_leaves_the_video_area)
+    check("F2 works on the video picture", test_f2_works_on_the_video_picture)
+    check("F2 is a window accelerator", test_f2_is_a_window_accelerator)
     check("video keys are taken before navigation",
           test_video_keys_are_taken_before_navigation)
     del app

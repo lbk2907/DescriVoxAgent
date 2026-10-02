@@ -472,6 +472,13 @@ class PlayerWindow(wx.Frame):
         self.Bind(wx.EVT_ACTIVATE, self._on_activate)
         # F2 anywhere in the Player (owner's choice; it had no shortcuts).
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
+        # F2 as a window accelerator too: Windows translates it before any
+        # control sees the key. In the test Player (3 Oct 2026) CHAR_HOOK
+        # never ran, so F2 was silent everywhere but the video picture.
+        self._agent_key_id = wx.NewIdRef()
+        self.Bind(wx.EVT_MENU, lambda e: self.open_agent(), id=self._agent_key_id)
+        self.SetAcceleratorTable(wx.AcceleratorTable(
+            [(wx.ACCEL_NORMAL, wx.WXK_F2, self._agent_key_id)]))
         # Keys that reach the panel without the window's CHAR_HOOK (a key
         # posted straight to it) are taken here too; a key handled in
         # CHAR_HOOK never arrives, so nothing is done twice.
@@ -532,6 +539,14 @@ class PlayerWindow(wx.Frame):
             logger.debug("Prism speak failed", exc_info=True)
         self.status_text.SetFocus()
         wx.CallLater(700, lambda: self and self.video_panel.SetFocus())
+
+    def _speak_queued(self, msg: str) -> None:
+        """Say msg after what the screen reader is saying now."""
+        try:
+            from ..core.speech import get_speech
+            get_speech().speak(msg, interrupt=False)
+        except Exception:
+            logger.debug("Prism speak failed", exc_info=True)
 
     def _load_descriptions(self):
         """Load descriptions from current project."""
@@ -1106,8 +1121,24 @@ class PlayerWindow(wx.Frame):
             self._start_ffplay(self._position)
 
     def _on_video_key_down(self, event):
-        if not self._on_video_key(event):
-            event.Skip()
+        if self._on_video_key(event):
+            return
+        if event.GetKeyCode() == wx.WXK_F2 and not event.HasAnyModifiers():
+            # F2 was silent on the video picture (owner, 3 Oct 2026): the
+            # panel takes every key, so it never reached the window's
+            # CHAR_HOOK. Taken here too; a key CHAR_HOOK handled never
+            # arrives, so the agent is not opened twice.
+            self.open_agent()
+            return
+        if event.GetKeyCode() == wx.WXK_TAB and not event.ControlDown():
+            # WANTS_CHARS gives the panel Tab too, so Windows no longer
+            # moves on by itself: Tab seemed dead (owner, 3 Oct 2026).
+            flags = wx.NavigationKeyEvent.FromTab | (
+                wx.NavigationKeyEvent.IsBackward if event.ShiftDown()
+                else wx.NavigationKeyEvent.IsForward)
+            self.video_panel.Navigate(flags)
+            return
+        event.Skip()
 
     def _on_char_hook(self, event):
         if event.GetKeyCode() == wx.WXK_F2 and not event.HasAnyModifiers():
@@ -1232,9 +1263,16 @@ class PlayerWindow(wx.Frame):
             logger.info("Agent not available: %s", why)
             if why == "untested" and self._offer_agent_test():
                 return          # the test runs; the agent opens if it passes
-            self._announce(t(f"agent.unavailable_{why}"))
+            msg = t(f"agent.unavailable_{why}")
             if why in ("untested", "provider"):
+                # Ask More takes the focus at once, so a focus-move
+                # announcement was never heard (real test 3 Oct 2026):
+                # the reason is spoken once the dialog is up.
+                self.status_text.SetLabel(msg)
+                wx.CallLater(900, self._speak_queued, msg)
                 self._on_ask(None)
+            else:
+                self._announce(msg)
             return
         self._open_agent_dialog()
 
