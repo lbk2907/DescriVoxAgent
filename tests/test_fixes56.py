@@ -11,6 +11,7 @@
    Provider list does not show (GLM is shown as OpenRouter) and did not
    say what unticking means.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sys

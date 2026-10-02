@@ -6,7 +6,7 @@ name was set with SetLabel(): the code looked correct, the control
 quietly lost its state, and a real user met the result — the preset
 combo had nothing selected, so Open refused to run, and the prompt box
 held its own label, which was sent to the AI as if the user had typed
-it (AGENTS.md pitfall 12).
+it (pitfall 12).
 
 tools/nvda_accessibility_check.py tabs through the real window and
 asks NVDA what it announced, through the local NVDA HTTP Bridge. That
@@ -18,6 +18,7 @@ Heard on 22 Sep 2026 with the fix in place:
     combo:  "... combo box default collapsed"
     prompt: "... edit multi line You are writing audio description ..."
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import traceback

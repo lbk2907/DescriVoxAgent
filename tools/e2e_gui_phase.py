@@ -23,6 +23,7 @@ import ctypes
 from ctypes import wintypes
 import io
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -38,12 +39,27 @@ REPO = Path(r"C:\Users\USER\Documents\omni-describer-custom")
 PY = sys.executable
 APP_TITLE = "Omni Describer Custom"
 URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # "Me at the zoo" 19s
-SETTINGS_JSON = (Path.home() / "AppData" / "Roaming" / "OmniDescriber" /
-                 "settings.json")
-PROJECTS_DIR = Path.home() / "Documents" / "OmniDescriber" / "projects"
+# v1.9.6: a SANDBOX, never the owner's real data (pitfall 19). This tool
+# used to rewrite general.chunk_seconds in the real settings.json and
+# delete new projects from the real projects folder. The real settings
+# are only READ (copied once: the app needs the owner's encrypted key).
+import shutil as _shutil  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+_REAL_CONFIG = Path.home() / "AppData" / "Roaming" / "OmniDescriber"
+SANDBOX = Path(_tempfile.mkdtemp(prefix="odc_e2e_"))
+(SANDBOX / "config").mkdir()
+for _name in ("settings.json", "openrouter_models.json", "gemini_models.json"):
+    if (_REAL_CONFIG / _name).exists():
+        _shutil.copy2(_REAL_CONFIG / _name, SANDBOX / "config" / _name)
+SETTINGS_JSON = SANDBOX / "config" / "settings.json"
+PROJECTS_DIR = SANDBOX / "projects"
+PROJECTS_DIR.mkdir()
+APP_ENV = dict(os.environ, ODC_CONFIG_DIR=str(SANDBOX / "config"),
+               ODC_PROJECTS_DIR=str(PROJECTS_DIR),
+               ODC_LOCALES_DIR=str(SANDBOX / "locales"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from e2e_projects import ProjectsGuard, newest_db  # noqa: E402
-SRT_OUT = Path.home() / "Documents" / "OmniDescriber" / "e2e_gui_test.srt"
+SRT_OUT = SANDBOX / "e2e_gui_test.srt"
 # v1.5.5: was 10 s (to split the 19 s zoo video into 2 parts), but since
 # v1.5.3 the Settings spin control enforces min=60, so Apply clamps any
 # smaller value and the seed never persisted — the run died on a stale
@@ -382,7 +398,7 @@ def step_launch():
     log(f"seeded general.chunk_seconds={CHUNK_SECONDS}")
     app_log = open(REPO / "_e2e_app_log.txt", "w", encoding="utf-8")
     proc = subprocess.Popen(
-        [PY, "main.py"], cwd=str(REPO),
+        [PY, "main.py"], cwd=str(REPO), env=APP_ENV,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         stdout=app_log, stderr=app_log)
     APP_PID = proc.pid

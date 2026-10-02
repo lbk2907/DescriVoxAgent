@@ -5,6 +5,7 @@ Each run drives MainFrame._process_video down a REAL failing path
 worker exit path suspected of missing loop.close(). Handles are measured
 with a correctly prototyped GetProcessHandleCount.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ctypes, sys, io, tempfile, shutil
 from pathlib import Path
 

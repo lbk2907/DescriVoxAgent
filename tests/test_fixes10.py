@@ -8,6 +8,7 @@ poll between frames, and the real partial save into SQLite. Also fixes
 worker's error paths too, and a 100-run growth probe shows handle use
 PLATEAUS (no unbounded leak) on the error path.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, asyncio, traceback, tempfile, shutil, time
 from pathlib import Path
 
@@ -76,7 +77,9 @@ class SlowLoopbackAI:
 
         async def handler(request):
             self.hits += 1
-            if self.hits == 1:
+            # v1.9.6: the SECOND request is the slow one, so frame 1 is
+            # finished when the test cancels during frame 2.
+            if self.hits == 2:
                 await asyncio.sleep(self.first_delay)
             data = await request.json()
             url = data["messages"][0]["content"][1]["image_url"]["url"]
@@ -116,7 +119,7 @@ class SlowLoopbackAI:
 
 def test_cancel_during_real_http_ai():
     import wx
-    srv = SlowLoopbackAI(first_delay=1.5)
+    srv = SlowLoopbackAI(first_delay=8)
     tmp = tempfile.mkdtemp(prefix="cancel10_")
     frame = None
     player_opened = []
@@ -135,7 +138,7 @@ def test_cancel_during_real_http_ai():
         frame.ai_engine = engine
         frame.project_store = ProjectStore(
             projects_dir=str(Path(tmp) / "projects"))
-        frame.settings = {"general.frame_rate": 1}
+        frame.settings = {"general.frame_rate": 1, "general.min_description_gap": 0}
         frame._processing = True
         # The player path is proven in test_fixes9; here the subject is the
         # CANCEL path, so record the call instead of opening VLC.
@@ -146,20 +149,23 @@ def test_cancel_during_real_http_ai():
                               args=(str(video), "describe each frame"))
         th.start()
 
-        # Cancel as soon as the first (delayed) request hits the wire: the
-        # production is_cancelled lambda reads _ai_cancelled between frames.
+        # Cancel while the second (8 s) request is on the wire. v1.9.6: the
+        # request in flight is abandoned at once (owner: Cancel did nothing
+        # for minutes); frames already described are kept.
         deadline = time.monotonic() + 20
-        while srv.hits < 1 and time.monotonic() < deadline:
+        while srv.hits < 2 and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert srv.hits == 1, "first AI request never reached the wire"
+        assert srv.hits == 2, "second AI request never reached the wire"
         frame._ai_cancelled = True
+        cancelled_at = time.monotonic()
 
         th.join(60)
         assert not th.is_alive(), "worker thread did not finish after cancel"
+        took = time.monotonic() - cancelled_at
+        assert took < 4, f"Cancel took {took:.1f} s (the request is 8 s)"
 
-        # Exactly ONE real response was served; frames 2..N were cancelled
-        # between frames WITHOUT further HTTP calls.
-        assert srv.hits == 1, f"expected 1 HTTP hit, got {srv.hits}"
+        # Frames 3..N were never sent.
+        assert srv.hits == 2, f"expected 2 HTTP hits, got {srv.hits}"
 
         # Partial save: frame 1's real description persisted to SQLite.
         proj = frame.project_store.current

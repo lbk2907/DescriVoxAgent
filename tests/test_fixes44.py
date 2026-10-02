@@ -14,6 +14,7 @@ which heard the probe word.
 No network here: the catalog is a fixture, the probe's HTTP is a local
 server, and the audio check reads the real ffmpeg output with ffprobe.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

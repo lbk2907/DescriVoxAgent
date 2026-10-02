@@ -16,6 +16,7 @@ Now the body is streamed with a byte count, the wait is estimated from
 what this model took before (core/timing_store), and each phase is said
 through Prism, which speaks through the screen reader.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json
@@ -192,15 +193,27 @@ def test_window_bar_and_speech():
     frame._speak_progress = spoken.append
 
     def pump(seconds):
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
-            wx.Yield()
-            time.sleep(0.02)
+        # A real event loop: wx timers (the 0.8 s announcement) do not
+        # fire from wx.Yield() alone. wx.ProgressDialog used to run its
+        # own loop inside Update(), which hid that; the v1.9.6 dialog
+        # does not (it never blocks the caller).
+        loop = wx.GUIEventLoop()
+        stop = threading.Timer(seconds, lambda: wx.CallAfter(loop.Exit))
+        stop.start()
+        old = wx.EventLoopBase.GetActive()
+        wx.EventLoopBase.SetActive(loop)
+        try:
+            loop.Run()
+        finally:
+            wx.EventLoopBase.SetActive(old)
+            stop.cancel()
 
     try:
         frame._ensure_download_progress()
         frame._video_part_tick(1, 2)
-        assert "10%" in frame.GetStatusBar().GetStatusText(), \
+        # v1.9.6: ONE overall percentage for the whole job; the AI step's
+        # 10% is 30 + 65 * 0.10 = 36 of it.
+        assert "36%" in frame.GetStatusBar().GetStatusText(), \
             frame.GetStatusBar().GetStatusText()
         frame._video_status_tick("encoding")
         frame._video_status_tick("uploading")
@@ -225,7 +238,8 @@ def test_window_bar_and_speech():
             and t("video.eta_minutes", minutes=3) in spoken[1], spoken
         status = frame.GetStatusBar().GetStatusText()
         assert t("video.eta_minutes", minutes=3) in status, status
-        assert "31%" in frame._dl_dialog.GetTitle(), frame._dl_dialog.GetTitle()
+        # 31% of the AI step = 30 + 65 * 0.31 = 50% overall (v1.9.6).
+        assert "50%" in frame._dl_dialog.GetTitle(), frame._dl_dialog.GetTitle()
         frame._video_eta_tick(40.0, None)
         assert t("video.eta_over") in frame.GetStatusBar().GetStatusText()
         I18n.set_language("ms")

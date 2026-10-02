@@ -140,16 +140,54 @@ class FrameStrip:
         from .tools import find_tool
         self.dir = Path(tempfile.mkdtemp(prefix="odc_review_"))
         self.length = length
-        subprocess.run(
-            [find_tool("ffmpeg"), "-hide_banner", "-nostdin", "-y", "-v",
-             "error", "-i", video, "-vf",
-             f"fps=1/{STEP:.4f},scale=400:-2", "-q:v", "5",
-             str(self.dir / "f_%05d.jpg")],
-            check=True, timeout=max(600, int(length * 2)))
+        try:
+            self._extract(find_tool("ffmpeg"), video,
+                          max(600, int(length * 2)), is_cancelled)
+        except BaseException:
+            self.close()
+            raise
         self.frames = sorted(self.dir.glob("f_*.jpg"),
                              key=lambda p: int(p.stem.split("_")[1]))
         if not self.frames:
             raise RuntimeError("no frames could be read from the video")
+
+    def _extract(self, ffmpeg: str, video: str, timeout: float,
+                 is_cancelled: Callable[[], bool] | None) -> None:
+        """Decode the whole video once. v1.9.6: Popen polled every 0.5 s
+        so Cancel stops it (subprocess.run decoded a 24-minute film for
+        up to 48 minutes with Cancel ignored)."""
+        import time
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        proc = subprocess.Popen(
+            [ffmpeg, "-hide_banner", "-nostdin", "-y", "-v",
+             "error", "-i", video, "-vf",
+             f"fps=1/{STEP:.4f},scale=400:-2", "-q:v", "5",
+             str(self.dir / "f_%05d.jpg")],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            creationflags=flags)
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                try:
+                    _, err = proc.communicate(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                if is_cancelled and is_cancelled():
+                    raise RuntimeError("cancelled")
+                if time.monotonic() > deadline:
+                    raise subprocess.TimeoutExpired(ffmpeg, timeout)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.communicate(timeout=5)
+                except Exception:
+                    pass
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(
+                proc.returncode, ffmpeg,
+                stderr=(err or b"")[-400:])
 
     def frame_at(self, seconds: float) -> Path:
         index = int(round(seconds / STEP))
@@ -210,20 +248,34 @@ async def review(engine, video: str, pairs: list[tuple[float, str]],
             sheet = strip.dir / f"sheet_{i:05d}.jpg"
             times = await asyncio.to_thread(strip.sheet, t, sheet)
             try:
-                answer = await engine.look(
-                    str(sheet), PROMPT.format(at=_clock(t), text=text))
+                # v1.9.6: Cancel abandons a look in flight (up to
+                # CONCURRENCY of them used to run to the end first).
+                from .ai_engine import _run_cancellable
+                answer = await _run_cancellable(
+                    engine.look(str(sheet),
+                                PROMPT.format(at=_clock(t), text=text)),
+                    is_cancelled)
                 results[i] = decide(mode, parse_answer(answer, times), t)
             except Exception as e:
+                if str(e) == "cancelled" or (is_cancelled and is_cancelled()):
+                    raise RuntimeError("cancelled") from None
                 logger.warning("Review of description %d failed: %s", i, e)
                 results[i] = ("failed", t)
             done += 1
             if on_progress:
                 on_progress(done, len(pairs))
 
+    tasks = [asyncio.ensure_future(one(i, float(t), text))
+             for i, (t, text) in enumerate(pairs)]
     try:
-        await asyncio.gather(*[one(i, float(t), text)
-                               for i, (t, text) in enumerate(pairs)])
+        await asyncio.gather(*tasks)
     finally:
+        # A cancelled/failed gather leaves the other checks running;
+        # stop them before their frames are deleted.
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         strip.close()
     kept: list[tuple[float, str]] = []
     for (t, text), (action, new_t) in zip(pairs, results):

@@ -15,6 +15,7 @@ import threading
 import wx
 
 from ..core import tools, updater
+from ..core.ai_engine import short_error
 from ..i18n.strings import t
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,8 @@ class UpdateDialog(wx.Dialog):
                 wx.CallAfter(self._check_done, st, latest, newer, "")
             except Exception as e:
                 logger.warning("Update check failed: %s", e)
-                wx.CallAfter(self._check_done, st, "", "", str(e))
+                wx.CallAfter(self._check_done, st, "", "",
+                             short_error(str(e)))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -149,7 +151,8 @@ class UpdateDialog(wx.Dialog):
                 wx.CallAfter(self._install_done, version, "")
             except Exception as e:
                 logger.error("yt-dlp update failed: %s", e)
-                wx.CallAfter(self._install_done, "", str(e))
+                wx.CallAfter(self._install_done, "",
+                             short_error(str(e)))
 
         threading.Thread(target=work, daemon=True).start()
 

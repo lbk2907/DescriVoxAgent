@@ -376,19 +376,31 @@ def export_audio(
     voice: str = "",
     speed: float = 0.0,
     progress_cb=None,  # callable(done: int, total: int, skipped: int)
+    *,
+    is_cancelled=None,  # callable() -> bool; v1.9.6
 ) -> dict:
     """Render every description to speech and place each clip at its
     start time, producing one synchronized audio file.
 
     Returns {"path": str, "rendered": int, "skipped": int}.
-    Raises RuntimeError on ffmpeg failure.
+    Raises RuntimeError on ffmpeg failure, RuntimeError("cancelled") when
+    is_cancelled() turns true (checked every cue, before every mix and
+    before the final encode; a speech request in flight is abandoned).
+    Messages meant for a person are translated; the log keeps English.
     """
+    from ..i18n.strings import t
+
+    def check_cancel() -> None:
+        if is_cancelled is not None and is_cancelled():
+            raise RuntimeError("cancelled")
+
     descs = sorted(
         [d for d in descriptions if d.text.strip()],
         key=lambda d: d.start_time,
     )
     if not descs:
-        raise ValueError("No descriptions with text to render")
+        logger.error("Audio export: no descriptions with text to render")
+        raise ValueError(t("impexp.nothing_to_export"))
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -403,8 +415,15 @@ def export_audio(
 
         async def _render_all():
             nonlocal skipped
+            from .ai_engine import _run_cancellable
             for i, d in enumerate(descs):
-                audio = await tts.speak(d.text, engine, voice, speed)
+                check_cancel()
+                audio = await _run_cancellable(
+                    tts.speak(d.text, engine, voice, speed), is_cancelled)
+                if is_cancelled is not None and is_cancelled():
+                    if audio:
+                        Path(audio).unlink(missing_ok=True)
+                    raise RuntimeError("cancelled")
                 if progress_cb:
                     progress_cb(i + 1, len(descs), skipped)
                 if not audio:
@@ -434,7 +453,8 @@ def export_audio(
             asyncio.set_event_loop(None)
 
         if not clips:
-            raise RuntimeError("All TTS clips failed to synthesize")
+            logger.error("Audio export: all TTS clips failed to synthesize")
+            raise RuntimeError(t("impexp.all_clips_failed"))
 
         # Chunked mixing to keep ffmpeg command lines bounded
         chunk_size = 16
@@ -450,6 +470,7 @@ def export_audio(
                 base = gdel[0]
                 gdel = [d - base for d in gdel]
                 outk = tmp / f"mix{stage}_{k // chunk_size:04d}.wav"
+                check_cancel()
                 _mix(group, gdel, outk)
                 nxt.append(outk)
                 nxt_delays.append(base)
@@ -457,6 +478,7 @@ def export_audio(
             stage += 1
 
         # Final encode to requested container/format
+        check_cancel()
         final_tmp = tmp / f"final{out_path.suffix or '.mp3'}"
         if out_path.suffix.lower() == ".wav":
             shutil.copyfile(level[0], final_tmp)
@@ -466,6 +488,11 @@ def export_audio(
                  "-c:a", "libmp3lame", "-q:a", "4", str(final_tmp)],
                 check=True, timeout=600,
             )
-        shutil.copyfile(final_tmp, out_path)
+        check_cancel()
+        try:
+            shutil.copyfile(final_tmp, out_path)
+        except BaseException:
+            out_path.unlink(missing_ok=True)  # never a half-written file
+            raise
 
     return {"path": str(out_path), "rendered": len(descs) - skipped, "skipped": skipped}

@@ -12,6 +12,7 @@ ffmpeg extraction, real HTTP loopback AI, real SQLite):
    saved with full-video timestamps, temp dir cleaned.
 2. cap absent/0 (default) -> every extracted frame is analysed (all hits).
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, traceback, tempfile, shutil, time
 from pathlib import Path
 

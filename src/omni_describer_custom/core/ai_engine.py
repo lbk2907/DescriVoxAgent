@@ -245,7 +245,7 @@ def _gap_budget_block(segments, start: float, end: float | None,
     """Name each silent gap and how many words actually fit in it.
 
     Asking for "12 words maximum" did not work, and asking harder is
-    not a plan (AGENTS.md pitfall 14). This gives arithmetic instead of
+    not a plan (pitfall 14). This gives arithmetic instead of
     a plea. Measured on a real 50-second clip: it holds 77 words of
     silence, and the model wrote 97 and then 99 — about a quarter more
     than there was room for — because nothing ever told it the budget.
@@ -539,7 +539,11 @@ _DAILY_QUOTA = re.compile(r'"quotaId"\s*:\s*"([^"]*PerDay[^"]*)"')
 def daily_quota(body: str) -> str:
     """The daily quota a 429 hit ("" if it was not a daily one)."""
     found = _DAILY_QUOTA.search(body or "")
-    return found.group(1) if found else ""
+    if found:
+        return found.group(1)
+    # OpenRouter: "Rate limit exceeded: free-models-per-day".
+    found = re.search(r"[\w-]*per-day[\w-]*", body or "")
+    return found.group(0) if found else ""
 
 
 def _server_wait(body: str, retry_after: str | None) -> float | None:
@@ -584,7 +588,9 @@ async def _http_json(
     for attempt in range(1, HTTP_RETRIES + 1):
         if is_cancelled is not None and is_cancelled():
             raise RuntimeError("cancelled")
-        try:
+        # v1.9.6: the request itself is abandoned within 0.5 s of a
+        # Cancel (Gemini generate could hold a job for 600 s).
+        async def _once() -> dict:
             async with aiohttp.ClientSession() as session:
                 async with session.request(
                     method, url, json=payload, headers=headers,
@@ -614,6 +620,9 @@ async def _http_json(
                         raise RuntimeError(
                             f"{label}: unexpected reply: {body[:200]}")
                     return data
+
+        try:
+            return await _run_cancellable(_once(), is_cancelled)
         except (_TransientHTTPError, aiohttp.ClientError,
                 asyncio.TimeoutError, OSError) as e:
             last = e
@@ -635,6 +644,63 @@ async def _http_json(
     raise RuntimeError(
         f"{label} request failed after {HTTP_RETRIES} attempts: "
         f"{str(last) or type(last).__name__}")
+
+
+def is_daily_quota_error(message: str) -> bool:
+    """True when a provider's DAILY quota is used up (v1.9.5,
+    `_http_json`). Waiting minutes does not help, so the user is told
+    when it resets instead of "busy, try again"."""
+    return "daily quota used up" in (message or "").lower()
+
+
+_URL = re.compile(r"\b(?:https?|wss?)://\S+")
+_USER_ID = re.compile(r"user_[A-Za-z0-9]{6,}")
+
+
+def short_error(message: str, limit: int = 160) -> str:
+    """A raw error cut to something a person can hear: no JSON body, no
+    URL (they can carry tokens), no OpenRouter user id."""
+    text = str(message or "").strip()
+    if "{" in text:
+        text = text[:text.index("{")].rstrip(" :")
+    text = _URL.sub("<url>", text)
+    text = _USER_ID.sub("<id>", text)
+    return text[:limit] or "?"
+
+
+def user_error_text(message: str) -> str:
+    """The words a person hears for a failure (v1.9.6: ONE translator,
+    used wherever an error reaches the user). Known kinds are explained
+    with what to do, in the app language; anything else is shortened by
+    short_error() so no JSON, URL or account id is read out."""
+    from ..i18n.strings import t
+    text = str(message or "")
+    low = text.lower()
+    if text == "cancelled":
+        return t("error.cancelled")
+    if is_daily_quota_error(text):
+        return t("error.ai_daily_quota")
+    if is_busy_error(text):
+        return t("error.ai_busy")
+    if ("http 413" in low or "payload too large" in low
+            or "payload_too_large" in low):
+        return t("error.ai_too_large")
+    if re.search(r"\bhttp (401|403)\b", low) and "youtube" not in low:
+        return t("error.ai_key")
+    if re.search(r"\bhttp 402\b", low) or "insufficient credit" in low:
+        return t("error.ai_credit")
+    # Before the network check: "ffmpeg timed out" is not a network fault.
+    if any(k in low for k in ("video split failed", "video compression failed",
+                              "video preparation failed", "ffmpeg exit code",
+                              "ffmpeg timed out", "ffmpeg failed")):
+        return t("error.video_prepare", detail=short_error(text, 120))
+    if any(k in low for k in ("cannot connect to host", "getaddrinfo",
+                              "name or service not known", "connection reset",
+                              "connection aborted", "server disconnected",
+                              "timed out", "timeouterror", "winerror 10060",
+                              "winerror 10061", "winerror 1236", "winerror 64")):
+        return t("error.ai_network")
+    return t("error.ai_generic", detail=short_error(text))
 
 
 def is_busy_error(message: str) -> bool:
@@ -801,7 +867,8 @@ class GeminiProvider(AIProvider):
                 results.extend(["(cancelled)"] * (len(frames) - len(results)))
                 return results
             try:
-                desc = await self.describe_image(frame, prompt, model)
+                desc = await _run_cancellable(
+                    self.describe_image(frame, prompt, model), is_cancelled)
             except Exception as e:
                 logger.warning("Gemini frame error: %s", e)
                 desc = f"(error: {e})"
@@ -819,6 +886,40 @@ class GeminiProvider(AIProvider):
         return mimetypes.guess_type(video_path)[0] or "video/mp4"
 
     async def _upload_video(
+        self, video_path: str,
+        on_progress: Callable[[float], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> str:
+        """The upload, tried up to HTTP_RETRIES times (v1.9.6).
+
+        It had no retry at all: one dropped connection ended the job with
+        a raw "Cannot connect to host ..." (owner's report, 1 Oct 2026).
+        A retry starts a new upload session; Cancel is honoured within
+        0.5 s, also in the middle of an 8 MiB chunk.
+        """
+        last: Exception | None = None
+        for attempt in range(1, HTTP_RETRIES + 1):
+            try:
+                return await _run_cancellable(
+                    self._upload_video_once(video_path, on_progress,
+                                            is_cancelled), is_cancelled)
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+                if isinstance(e, FileNotFoundError):
+                    raise
+                last = e
+            except RuntimeError as e:
+                if not re.search(r"HTTP (429|5\d\d)", str(e)):
+                    raise
+                last = e
+            if attempt < HTTP_RETRIES:
+                wait = HTTP_RETRY_BACKOFF_SECONDS * (3 ** (attempt - 1))
+                logger.warning("Gemini upload: %s on attempt %d/%d; retrying "
+                               "in %.0fs", last, attempt, HTTP_RETRIES, wait)
+                await _sleep_cancellable(wait, is_cancelled)
+        raise RuntimeError(f"Gemini upload failed after {HTTP_RETRIES} "
+                           f"attempts: {last}")
+
+    async def _upload_video_once(
         self, video_path: str,
         on_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -867,7 +968,7 @@ class GeminiProvider(AIProvider):
             with path.open("rb") as f:
                 while True:
                     if is_cancelled is not None and is_cancelled():
-                        raise RuntimeError("upload cancelled")
+                        raise RuntimeError("cancelled")
                     data = f.read(chunk)
                     if not data:
                         break
@@ -925,8 +1026,7 @@ class GeminiProvider(AIProvider):
         deadline = loop.time() + timeout
         while True:
             if is_cancelled is not None and is_cancelled():
-                raise RuntimeError(
-                    "cancelled while waiting for Gemini to process the video")
+                raise RuntimeError("cancelled")
             data = await _http_json("GET", url, label="Gemini file status",
                                     headers=self._auth_headers(),
                                     timeout=60, is_cancelled=is_cancelled)
@@ -1146,7 +1246,8 @@ class OpenAIProvider(AIProvider):
                 results.extend(["(cancelled)"] * (len(frames) - len(results)))
                 return results
             try:
-                desc = await self.describe_image(frame, prompt, model)
+                desc = await _run_cancellable(
+                    self.describe_image(frame, prompt, model), is_cancelled)
             except Exception as e:
                 logger.warning("OpenAI frame error: %s", e)
                 desc = f"(error: {e})"
@@ -1235,7 +1336,8 @@ class MiniMaxProvider(AIProvider):
                 results.extend(["(cancelled)"] * (len(frames) - len(results)))
                 return results
             try:
-                desc = await self.describe_image(frame, prompt, model)
+                desc = await _run_cancellable(
+                    self.describe_image(frame, prompt, model), is_cancelled)
             except Exception as e:
                 logger.warning("MiniMax frame error: %s", e)
                 desc = f"(error: {e})"
@@ -1416,7 +1518,7 @@ class MiniMaxProvider(AIProvider):
                     progress_cb(sent)
                     yield chunk
                     if is_cancelled is not None and is_cancelled():
-                        raise RuntimeError("upload cancelled")
+                        raise RuntimeError("cancelled")
                 yield f"\r\n--{boundary}--\r\n".encode()
 
             async with aiohttp.ClientSession() as session:
@@ -1526,15 +1628,32 @@ class GLMProvider(AIProvider):
                         if resp.status in (429, 500, 502, 503, 504):
                             # Provider-side wobble: worth another go.
                             body = await resp.text()
-                            raise aiohttp.ClientError(
-                                f"HTTP {resp.status}: {body[:120]}")
+                            # v1.9.6: the same 429 rules as _http_json —
+                            # a daily quota ends at once and says so, a
+                            # per-minute one waits as long as asked.
+                            if resp.status == 429 and daily_quota(body):
+                                raise RuntimeError(
+                                    f"GLM HTTP 429: daily quota used up "
+                                    f"({daily_quota(body)}). It resets at "
+                                    "midnight UTC; adding credit raises it.")
+                            raise _TransientHTTPError(
+                                f"HTTP {resp.status}: {body[:120]}",
+                                _server_wait(body, resp.headers.get("Retry-After"))
+                                if resp.status == 429 else None)
                         if resp.status != 200:
                             # 4xx (bad key, no credit, payload too big):
                             # retrying cannot help and would burn time.
                             body = await resp.text()
                             raise RuntimeError(
                                 f"GLM HTTP {resp.status}: {body[:200]}")
-                        data = await resp.json()
+                        # Decoded by hand: resp.json() on a wrong content
+                        # type raises with the request URL in its text.
+                        raw = await resp.text()
+                        try:
+                            data = json.loads(raw)
+                        except ValueError:
+                            raise RuntimeError(
+                                f"GLM: reply was not JSON: {raw[:200]}") from None
                         if "error" in data:
                             err = data["error"]
                             code = err.get("code") if isinstance(err, dict) else None
@@ -1568,11 +1687,17 @@ class GLMProvider(AIProvider):
                                 choice.get("finish_reason"),
                                 usage.get("completion_tokens"), reasoning)
                         return content
-            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+            except (_TransientHTTPError, aiohttp.ClientError,
+                    asyncio.TimeoutError, OSError) as e:
                 last_error = e
                 if attempt >= self._NETWORK_RETRIES:
                     break
                 wait = self._RETRY_BACKOFF_SECONDS * attempt
+                asked = getattr(e, "wait", None)
+                if asked is not None:
+                    if asked > MAX_RETRY_WAIT:
+                        break       # a daily limit: waiting will not help
+                    wait = max(wait, asked + 1.0)
                 logger.warning(
                     "Network error on attempt %d/%d (%s); retrying in %.0fs",
                     attempt, self._NETWORK_RETRIES, e, wait)
@@ -1591,7 +1716,7 @@ class GLMProvider(AIProvider):
         payload = {
             "model": model,
             # GLM reasoning models burn tokens thinking before the visible
-            # answer; 1024 truncated/emptied replies (AGENTS.md pitfall 7).
+            # answer; 1024 truncated/emptied replies (pitfall 7).
             "max_tokens": 6000,
             "messages": [
                 {"role": "user", "content": [
@@ -1650,6 +1775,13 @@ class GLMProvider(AIProvider):
         for prefix, limit in self.BODY_LIMITS:
             if (model or "").startswith(prefix):
                 self._set_upload_limits(limit)
+
+    @staticmethod
+    def is_too_large_error(error) -> bool:
+        """An HTTP 413 refusal, whether or not it names a limit."""
+        text = str(error).lower()
+        return ("http 413" in text or "payload too large" in text
+                or "payload_too_large" in text or '"code":413' in text)
 
     @staticmethod
     def body_limit_from_error(error) -> int:
@@ -1852,21 +1984,34 @@ class GLMProvider(AIProvider):
                 except RuntimeError as e:
                     # v1.8.6: a provider we have no limit for refused the
                     # size. Learn its limit from the refusal and send the
-                    # part again, compressed to fit.
-                    limit = self.body_limit_from_error(e)
-                    if not limit or self.MAX_VIDEO_BYTES <= int(limit * 0.72):
-                        raise
-                    logger.warning("part %d/%d: provider limit is %d bytes; "
-                                   "compressing to fit and retrying",
-                                   i + 1, total, limit)
-                    self._set_upload_limits(limit)
-                    pairs = await self._describe_one_part(
-                        part, prompt, model, on_status=on_status,
-                        is_cancelled=is_cancelled, offset=offset,
-                        part_index=i + 1, part_total=total,
-                        prev_summary=prev_summary, transcript=transcript,
-                        part_seconds=part_len,
-                        on_part_progress=part_progress(i) if on_eta else None)
+                    # part again, compressed to fit. v1.9.6: an upstream
+                    # that names NO limit ("Payload Too Large", Alibaba
+                    # behind OpenRouter, 1 Oct 2026) gets a part 40%
+                    # smaller than the refused one, up to three times.
+                    pairs, err = None, e
+                    for _attempt in range(3):
+                        limit = self.body_limit_from_error(err)
+                        if not limit and self.is_too_large_error(err):
+                            limit = int(getattr(self, "_last_body_bytes", 0) * 0.6)
+                        if not limit or self.MAX_VIDEO_BYTES <= int(limit * 0.72):
+                            raise err
+                        logger.warning("part %d/%d: provider limit is %d bytes; "
+                                       "compressing to fit and retrying",
+                                       i + 1, total, limit)
+                        self._set_upload_limits(limit)
+                        try:
+                            pairs = await self._describe_one_part(
+                                part, prompt, model, on_status=on_status,
+                                is_cancelled=is_cancelled, offset=offset,
+                                part_index=i + 1, part_total=total,
+                                prev_summary=prev_summary, transcript=transcript,
+                                part_seconds=part_len,
+                                on_part_progress=part_progress(i) if on_eta else None)
+                            break
+                        except RuntimeError as again:
+                            err = again
+                    else:
+                        raise err
                 if not pairs:
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
@@ -1976,6 +2121,9 @@ class GLMProvider(AIProvider):
                 on_status("encoding")
             b64 = base64.b64encode(path.read_bytes()).decode()
         data_url = f"data:video/mp4;base64,{b64}"
+        # v1.9.6: what was sent, so a 413 that names no limit can still
+        # be answered with a smaller part (see _describe_parts).
+        self._last_body_bytes = len(b64)
         # v1.5.3: position notice so part 2+ is never treated as the
         # beginning of the video.
         position = ""
@@ -2015,7 +2163,7 @@ class GLMProvider(AIProvider):
             # with no reason given. With the cap: 17 reasoning tokens,
             # finish_reason "stop", a full correct answer.
             #
-            # This is AGENTS.md pitfall 7 one level up — raising
+            # This is pitfall 7 one level up — raising
             # max_tokens does not help, because the model simply thinks
             # more. The budget has to be split, not enlarged.
             "reasoning": {"max_tokens": self._REASONING_BUDGET},
@@ -2182,8 +2330,14 @@ class GLMProvider(AIProvider):
                         f"ffmpeg timed out after {int(timeout)} s")
                 _time.sleep(1.0)
         finally:
-            if proc.poll() is None:
+            running = proc.poll() is None
+            if running:
                 proc.kill()
+            else:
+                # v1.9.6: ffmpeg has ended, so its stderr is at EOF; let the
+                # reader finish BEFORE closing, or the reason is lost (the
+                # same race as the empty "video split failed: ").
+                t.join(timeout=2.0)
             try:
                 proc.stderr.close()
             except Exception:
@@ -2533,7 +2687,8 @@ class GLMProvider(AIProvider):
             except Exception:
                 pass
 
-        _threading.Thread(target=_drain_err, daemon=True).start()
+        drain = _threading.Thread(target=_drain_err, daemon=True)
+        drain.start()
         # Parse ffmpeg key=value progress lines (out_time_us) for a
         # REAL split percentage. Splitting counts as the FIRST 10%
         # of the overall progress (each described part then shares
@@ -2559,8 +2714,13 @@ class GLMProvider(AIProvider):
                     pass
         proc.wait(timeout=3600)
         if proc.returncode != 0:
-            tail = b"".join(stderr_tail).decode("utf-8", "replace")[-300:]
-            raise RuntimeError(f"video split failed: {tail}")
+            # v1.9.6: read the reason only after the reader has finished;
+            # the owner got "video split failed: " with nothing after it.
+            drain.join(timeout=5)
+            tail = b"".join(stderr_tail).decode("utf-8", "replace").strip()[-300:]
+            raise RuntimeError(
+                f"video split failed (ffmpeg exit code {proc.returncode})"
+                + (f": {tail}" if tail else ""))
         parts = sorted(out_dir.glob("part_*.mp4"))
         if not parts:
             raise RuntimeError("video split produced no parts")
@@ -2586,7 +2746,8 @@ class GLMProvider(AIProvider):
                 results.extend(["(cancelled)"] * (len(frames) - len(results)))
                 return results
             try:
-                desc = await self.describe_image(frame, prompt, model)
+                desc = await _run_cancellable(
+                    self.describe_image(frame, prompt, model), is_cancelled)
             except Exception as e:
                 logger.warning("GLM frame error: %s", e)
                 desc = f"(error: {e})"
@@ -2610,7 +2771,7 @@ class GLMProvider(AIProvider):
         ]
         messages.append({"role": "user", "content": question})
         # GLM reasoning models burn tokens thinking before the visible
-        # answer; 1024 truncated/emptied replies (AGENTS.md pitfall 7).
+        # answer; 1024 truncated/emptied replies (pitfall 7).
         payload = {"model": model, "max_tokens": 6000, "messages": messages}
         return _strip_think(await self._chat(payload, timeout=120))
 
@@ -2916,7 +3077,8 @@ class CustomProvider(AIProvider):
                 results.extend(["(cancelled)"] * (len(frames) - len(results)))
                 return results
             try:
-                desc = await self.describe_image(frame, prompt, model)
+                desc = await _run_cancellable(
+                    self.describe_image(frame, prompt, model), is_cancelled)
             except Exception as e:
                 logger.warning("Custom provider frame error: %s", e)
                 desc = f"(error: {e})"

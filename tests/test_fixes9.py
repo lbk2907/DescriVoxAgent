@@ -14,6 +14,7 @@ Closes the honest gap left by test_fixes8 (whose AI calls were stubbed):
    the modal dialog pump (proven separately on a real dialog in
    test_fixes7/8).
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, asyncio, traceback, tempfile, shutil, time
 from pathlib import Path
 

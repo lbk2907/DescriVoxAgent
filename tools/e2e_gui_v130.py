@@ -51,8 +51,8 @@ sys.path.insert(0, str(REPO / "src"))
 
 import e2e_gui_phase as phase  # reuse the proven helpers
 
-BASE = Path.home() / "Documents" / "OmniDescriber"
-PROJECTS_DIR = BASE / "projects"
+BASE = phase.SANDBOX              # v1.9.6: never the owner's real folders
+PROJECTS_DIR = phase.PROJECTS_DIR
 EXT_SRT = BASE / "e2e_ext_srt.srt"
 EXT_CUES = [
     (0.5, 4.0, "E2E EXT SUB ONE"),

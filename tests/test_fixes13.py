@@ -20,6 +20,7 @@ Covered here WITHOUT any network access:
 5. Bilingual strings: provider-neutral full-video wording and the new
    mm_file error key exist in BOTH languages.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json

@@ -3,6 +3,7 @@ and a REAL audio export through the real TTS engine + ffmpeg mix.
 
 Standalone script; exits 0 on success, 1 on failure.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import os
 import sys
 import tempfile

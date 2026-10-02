@@ -20,6 +20,7 @@ offline against a loopback aiohttp server or unittest.mock.
  10. prompt_manager: a universal preset could not be deleted; a null
      in an import file crashed.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import glob
 import io
@@ -230,6 +231,32 @@ def test_429_waits_as_long_as_the_server_says():
     assert len(stub.requests) == 1 and slept == [], (len(stub.requests), slept)
 
 
+def test_daily_quota_is_told_apart_from_busy():
+    """v1.9.6: found in review — the daily-quota error from _http_json
+    reached the user as the generic "busy, wait a few minutes"."""
+    from omni_describer_custom.i18n.strings import t
+    daily = ("Gemini HTTP 429: daily quota used up "
+             "(GenerateRequestsPerDayPerProjectPerModel-FreeTier). It resets "
+             "at midnight Pacific time; a paid tier raises it.")
+    assert ae.is_daily_quota_error(daily) and ae.is_busy_error(daily)
+    assert ae.user_error_text(daily) == t("error.ai_daily_quota")
+    assert ae.user_error_text("Gemini HTTP 503: high demand") == t("error.ai_busy")
+    # v1.9.6: every failure is translated; none is read out raw.
+    assert ae.user_error_text("GLM HTTP 401: invalid key") == t("error.ai_key")
+    owner_413 = ('GLM HTTP 413: {"error":{"message":"Provider returned error",'
+                 '"code":413},"user_id":"user_3FfsFSgsvnGKAlJHZrrWW8rMjKG"}')
+    assert ae.user_error_text(owner_413) == t("error.ai_too_large")
+    odd = ae.user_error_text('X failed: {"a": 1} https://h/p?key=SECRET user_ABCDEFG123')
+    assert "{" not in odd and "SECRET" not in odd and "user_ABC" not in odd, odd
+    assert ae.user_error_text("Cannot connect to host 127.0.0.1:12144 ssl:default")         == t("error.ai_network")
+    from omni_describer_custom.ui.agent_dialog import AgentDialog
+    assert AgentDialog._error_text(daily) == t("error.ai_daily_quota")
+    assert "{" not in AgentDialog._error_text('GLM HTTP 500: {"x": 1}')
+    src = open(os.path.join("src", "omni_describer_custom", "ui",
+                            "main_frame.py"), encoding="utf-8").read()
+    assert "user_error_text(" in src
+
+
 # 3 ──────────────────────────────────────────────────────────────────
 def test_placeholders_are_not_descriptions():
     async def body(stub, base):
@@ -436,6 +463,8 @@ if __name__ == "__main__":
           test_client_errors_are_not_retried_and_cancel_stops_backoff)
     check("429 waits as long as the server says",
           test_429_waits_as_long_as_the_server_says)
+    check("a daily quota is told apart from busy",
+          test_daily_quota_is_told_apart_from_busy)
     check("placeholders are not descriptions",
           test_placeholders_are_not_descriptions)
     check("single part uses its real length",

@@ -1,7 +1,7 @@
 """Check what NVDA says in the player, the editor and Ask More.
 
 tools/nvda_accessibility_check.py walks the MAIN window only. v1.7.4
-changed the editor, the player and Ask More, and AGENTS.md pitfall 29
+changed the editor, the player and Ask More, and pitfall 29
 asks for a listening check after any UI change — so this opens each of
 those windows on a throwaway project and tabs through it the same way.
 

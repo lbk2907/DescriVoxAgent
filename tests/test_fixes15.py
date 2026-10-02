@@ -19,6 +19,7 @@ Covered here WITHOUT any network access:
 4. AIEngine wiring + Settings dialog: checkbox only enabled for glm,
    ai.fast_mode persists via SettingsStore.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json

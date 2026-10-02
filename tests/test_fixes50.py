@@ -15,6 +15,7 @@ frame mode fixed so it no longer describes frames one by one.
      line identical to the previous one not said twice;
   3. new users start in whole-video mode; a saved mode is kept.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

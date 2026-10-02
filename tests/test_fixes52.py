@@ -10,6 +10,7 @@ checked against the picture (v1.8.8).
    films. core/review.py; Settings "Check descriptions against the
    video", off by default (owner, 30 Sep 2026).
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import os

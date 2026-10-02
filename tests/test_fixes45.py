@@ -17,6 +17,7 @@ pressed by keyboard and listened to (29 Sep 2026). Seven faults:
 
 All checked here without sending a single keystroke.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sys

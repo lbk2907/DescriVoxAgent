@@ -6,6 +6,7 @@ the user's own key) and keeps the models that can describe a video.
 Google listed 61 models for one key on 1 Oct 2026; 12 qualify. The
 fixture below mixes them with every kind that must be left out.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

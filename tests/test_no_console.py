@@ -4,6 +4,7 @@ A windowed parent (pythonw, like the frozen exe) starts a console child.
 The child reports whether it got a console WINDOW. With no_console
 installed it must not; without it, it does — proving the test can fail.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import os
 import subprocess
 import sys

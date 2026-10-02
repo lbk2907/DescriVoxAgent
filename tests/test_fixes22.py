@@ -20,6 +20,7 @@ preset, but it may not quietly reintroduce "describe everything in
 detail", drop the ban on narrating dialogue, or start asking the model
 for emotional interpretation.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import tempfile

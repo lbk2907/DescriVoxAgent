@@ -24,6 +24,7 @@ build all reported as fine.
 4. THE KEY STAYS PUT. Audited during the same run: no plaintext key in
    the log, the settings file, 37 gate outputs, or the shipped zip.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

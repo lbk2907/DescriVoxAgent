@@ -9,6 +9,7 @@ all 888 seconds. The app tried once and showed the raw English error.
   2. if the site keeps refusing, the user hears what to do, in the app's
      language, instead of "ERROR: unable to download video data".
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import os

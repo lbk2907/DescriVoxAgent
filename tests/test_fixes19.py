@@ -20,6 +20,7 @@ Covers:
 7. AIEngine._run_ffmpeg_cancellable actually honours is_cancelled.
 8. i18n EN/MS key parity after the v1.5.4 string additions.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import json
 import sys

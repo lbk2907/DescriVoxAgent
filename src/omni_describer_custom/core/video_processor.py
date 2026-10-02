@@ -932,7 +932,11 @@ class VideoProcessor:
         return self._apply_coverage_floor(deduped, frames, max_gap)
 
     async def get_transcript(self, source: str,
-                             local_path: str = "") -> list[TranscriptSegment]:
+                             local_path: str = "",
+                             is_cancelled: Callable[[], bool] | None = None,
+                             cache_path: str | Path | None = None,
+                             on_progress: Callable[[float], None] | None = None,
+                             ) -> list[TranscriptSegment]:
         """Get what is SAID in the video, as timed segments.
 
         v1.6.1: pass the ORIGINAL source here — the URL for a download,
@@ -947,18 +951,67 @@ class VideoProcessor:
         ACCESS". Handing the model a transcript is what lets it know
         what was said, so it can avoid repeating what the listener
         already hears, and so the `foreign` preset can convey speech.
+
+        v1.9.6: on_progress(fraction) reports how far local Whisper is
+        through the audio (0..1, from the worker thread, once per
+        segment). Subtitles and the cache answer at once and report
+        nothing; the caller ends the stage itself.
         """
+        # v1.9.6: kept in the project (media/transcript.json, the file the
+        # Player agent already used). The owner's log, 1 Oct 2026: the same
+        # 24-minute video was transcribed FOUR times, 3-6 minutes each,
+        # once per attempt.
+        cached = self._read_transcript_cache(cache_path)
+        if cached:
+            logger.info("Transcript: %d segments from the project cache",
+                        len(cached))
+            return cached
+        segments = await self._fresh_transcript(source, local_path, is_cancelled,
+                                                on_progress=on_progress)
+        self._write_transcript_cache(cache_path, segments)
+        return segments
+
+    @staticmethod
+    def _read_transcript_cache(cache_path) -> list[TranscriptSegment]:
+        if not cache_path or not Path(cache_path).is_file():
+            return []
+        try:
+            rows = json.loads(Path(cache_path).read_text(encoding="utf-8"))
+            return [TranscriptSegment(start=float(r["start"]), end=float(r["end"]),
+                                      text=str(r["text"])) for r in rows]
+        except (OSError, ValueError, TypeError, KeyError):
+            logger.warning("Transcript cache unreadable, making a new one: %s",
+                           cache_path)
+            return []
+
+    @staticmethod
+    def _write_transcript_cache(cache_path, segments) -> None:
+        if not cache_path or not segments:
+            return
+        try:
+            Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(cache_path).write_text(json.dumps(
+                [{"start": s.start, "end": s.end, "text": s.text}
+                 for s in segments], ensure_ascii=False), encoding="utf-8")
+        except OSError as e:
+            logger.warning("Could not keep the transcript: %s", e)
+
+    async def _fresh_transcript(self, source: str, local_path: str,
+                                is_cancelled, on_progress=None,
+                                ) -> list[TranscriptSegment]:
         is_url = "://" in source
         try:
             if is_url:
-                segments = await self._ytdlp_subtitles(source)
+                segments = await self._ytdlp_subtitles(source, is_cancelled)
             else:
-                segments = await self._embedded_subtitles(source)
+                segments = await self._embedded_subtitles(source, is_cancelled)
             if segments:
                 logger.info("Transcript: %d segments from %s",
                             len(segments), "subtitles" if is_url else "file")
                 return segments
         except Exception as e:
+            if str(e) == "cancelled":
+                raise
             logger.warning("Transcript fetch failed: %s", e)
 
         # Nothing published and nothing embedded: transcribe the audio.
@@ -969,17 +1022,26 @@ class VideoProcessor:
         audio_source = local_path or ("" if is_url else source)
         if audio_source and Path(audio_source).exists():
             try:
-                segments = await self.transcribe_audio(audio_source)
+                # on_progress only when asked for: stand-ins of
+                # transcribe_audio in tests take (path, is_cancelled).
+                extra = {"on_progress": on_progress} if on_progress else {}
+                segments = await self.transcribe_audio(
+                    audio_source, is_cancelled=is_cancelled, **extra)
                 if segments:
                     return segments
             except Exception as e:
+                if str(e) == "cancelled":
+                    raise           # Cancel must stop the job, not be logged
                 logger.warning("Speech-to-text failed: %s", e)
 
         logger.info("No transcript available for %s",
                     "URL" if is_url else "local file")
         return []
 
-    async def transcribe_audio(self, video_path: str) -> list[TranscriptSegment]:
+    async def transcribe_audio(self, video_path: str,
+                               is_cancelled: Callable[[], bool] | None = None,
+                               on_progress: Callable[[float], None] | None = None,
+                               ) -> list[TranscriptSegment]:
         """Turn the spoken audio into timed text.
 
         Backends, in the order they are tried when set to "auto":
@@ -1013,7 +1075,10 @@ class VideoProcessor:
                 return []
 
         if backend in ("auto", "whisper"):
-            return await self._whisper_transcribe(video_path)
+            if on_progress is not None:
+                return await self._whisper_transcribe(
+                    video_path, is_cancelled, on_progress=on_progress)
+            return await self._whisper_transcribe(video_path, is_cancelled)
         return []
 
     @staticmethod
@@ -1050,9 +1115,15 @@ class VideoProcessor:
         ratio = len(data) / len(zlib.compress(data))
         return ratio > WHISPER_COMPRESSION_LIMIT
 
-    async def _whisper_transcribe(self, video_path: str) -> list[TranscriptSegment]:
+    async def _whisper_transcribe(self, video_path: str,
+                                  is_cancelled: Callable[[], bool] | None = None,
+                                  on_progress: Callable[[float], None] | None = None,
+                                  ) -> list[TranscriptSegment]:
         """Local faster-whisper. Imported lazily: the app must still run
-        (and describe) on a machine where it was never installed."""
+        (and describe) on a machine where it was never installed.
+
+        on_progress(fraction): segment end / audio length, per segment
+        (v1.9.6, the transcript stage of the overall progress bar)."""
         try:
             from faster_whisper import WhisperModel
         except ImportError:
@@ -1065,11 +1136,26 @@ class VideoProcessor:
 
         def _run() -> list[TranscriptSegment]:
             model = WhisperModel(size, device="cpu", compute_type="int8")
+            if is_cancelled is not None and is_cancelled():
+                raise RuntimeError("cancelled")     # model load can take a while
             segments, info = model.transcribe(
                 video_path, beam_size=1, **WHISPER_DECODE)
+            if is_cancelled is not None and is_cancelled():
+                raise RuntimeError("cancelled")     # VAD + language detection
             kept: list[TranscriptSegment] = []
             dropped = 0
+            length = float(getattr(info, "duration", 0.0) or 0.0)
             for s in segments:
+                # v1.9.6: segments arrive one by one as Whisper decodes, so
+                # Cancel now stops within a segment instead of after the
+                # whole film (the owner waited 1.5-6 minutes, 1 Oct 2026).
+                if is_cancelled is not None and is_cancelled():
+                    raise RuntimeError("cancelled")
+                if on_progress is not None and length > 0:
+                    try:
+                        on_progress(min(1.0, max(0.0, float(s.end) / length)))
+                    except Exception:
+                        logger.debug("transcript progress raised", exc_info=True)
                 text = (s.text or "").strip()
                 if not text:
                     continue
@@ -1149,7 +1235,31 @@ class VideoProcessor:
         except Exception:
             pass
 
-    async def _embedded_subtitles(self, video_path: str) -> list[TranscriptSegment]:
+    async def _communicate_cancellable(self, proc, timeout: float,
+                                       is_cancelled=None) -> None:
+        """proc.communicate() that stops within 0.5 s of a Cancel (v1.9.6:
+        the subtitle steps ignored Cancel for up to 60 and 120 s).
+        Raises asyncio.TimeoutError at the deadline, RuntimeError on Cancel;
+        the process is killed and reaped either way."""
+        task = asyncio.ensure_future(proc.communicate())
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            done, _ = await asyncio.wait({task}, timeout=0.5)
+            if done:
+                task.result()
+                return
+            if is_cancelled is not None and is_cancelled():
+                await self._kill_and_reap(proc)
+                task.cancel()
+                raise RuntimeError("cancelled")
+            if loop.time() > deadline:
+                await self._kill_and_reap(proc)
+                task.cancel()
+                raise asyncio.TimeoutError()
+
+    async def _embedded_subtitles(self, video_path: str,
+                                  is_cancelled=None) -> list[TranscriptSegment]:
         """Pull a subtitle track out of a local file with ffmpeg.
 
         Many downloaded or ripped files carry one; when they do it is
@@ -1167,22 +1277,24 @@ class VideoProcessor:
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                await asyncio.wait_for(proc.communicate(), timeout=120)
+                await self._communicate_cancellable(proc, 120, is_cancelled)
             except asyncio.TimeoutError:
-                await self._kill_and_reap(proc)
                 logger.debug("Embedded subtitle extraction timed out")
                 return []
             if Path(out).exists() and Path(out).stat().st_size > 0:
                 return self._parse_vtt(out)
             return []
         except Exception as e:
+            if str(e) == "cancelled":
+                raise
             logger.debug("No embedded subtitles: %s", e)
             return []
         finally:
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)
 
-    async def _ytdlp_subtitles(self, video_url: str) -> list[TranscriptSegment]:
+    async def _ytdlp_subtitles(self, video_url: str,
+                               is_cancelled=None) -> list[TranscriptSegment]:
         """Fetch subtitles for a URL (uploaded or auto-generated).
 
         v1.6.1: the guard here used to be `if not Path(...).exists()`,
@@ -1208,11 +1320,10 @@ class VideoProcessor:
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                await asyncio.wait_for(proc.communicate(), timeout=60)
+                # The helper kills the process on timeout or Cancel; it
+                # would otherwise keep writing into the temp dir removed below.
+                await self._communicate_cancellable(proc, 60, is_cancelled)
             except asyncio.TimeoutError:
-                # wait_for only abandons the read; the process would keep
-                # running and writing into the temp dir removed below.
-                await self._kill_and_reap(proc)
                 logger.warning("yt-dlp subtitle fetch timed out")
                 return []
 
@@ -1225,6 +1336,8 @@ class VideoProcessor:
             segments = self._parse_vtt(subs[0])
             return segments
         except Exception as e:
+            if str(e) == "cancelled":
+                raise
             logger.warning("yt-dlp subtitle error: %s", e)
             return []
         finally:

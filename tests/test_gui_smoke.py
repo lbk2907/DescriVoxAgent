@@ -1,4 +1,5 @@
 """GUI smoke test: build every window/dialog, verify, then auto-close."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)

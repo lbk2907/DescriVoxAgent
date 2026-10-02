@@ -20,6 +20,7 @@ one run in three, first as a hard interpreter crash (empty log), then as
    outer finally, covering a failure between the thread starting and
    those points.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import sys
@@ -77,11 +78,14 @@ def test_close_during_dialog_construction():
     frame = MainFrame()
     destroyed = []
     try:
-        real_dialog = mf.wx.ProgressDialog
+        # v1.9.6: the dialog is AccessibleProgressDialog; the guard must
+        # hold for whatever dialog class is built there.
+        real_dialog = mf.AccessibleProgressDialog
 
         class ReentrantDialog:
-            """Stands in for wx.ProgressDialog, whose constructor pumps
-            the event loop and so can run the pipeline's cleanup."""
+            """Stands in for a progress dialog whose constructor pumps
+            the event loop (wx.ProgressDialog did) and so can run the
+            pipeline's cleanup."""
 
             def __init__(self, *a, **k):
                 # This is what the real constructor's nested event pump
@@ -94,11 +98,11 @@ def test_close_during_dialog_construction():
             def Destroy(self):
                 destroyed.append(1)
 
-        mf.wx.ProgressDialog = ReentrantDialog
+        mf.AccessibleProgressDialog = ReentrantDialog
         try:
             frame._ensure_download_progress()
         finally:
-            mf.wx.ProgressDialog = real_dialog
+            mf.AccessibleProgressDialog = real_dialog
 
         assert frame._dl_dialog is None, (
             f"ghost dialog adopted after cleanup: {frame._dl_dialog!r}")

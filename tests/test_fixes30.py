@@ -16,7 +16,7 @@ of silence available, 97 words written in one run and 99 in the next.
 A 36-word cue takes ten seconds to speak at this user's 1.5x and was
 given a flat three-second slot.
 
-Two mechanisms, no pleading (AGENTS.md pitfall 14):
+Two mechanisms, no pleading (pitfall 14):
 
   - the prompt now lists each silent gap and how many words fit in it,
     scaled by the user's own speaking rate;
@@ -30,6 +30,7 @@ first speech reported at 30.0s, 30.0s, then 0.0s; coverage 40%, 32%,
 and enabling the VAD filter was tried and made it WORSE (coverage fell
 to 20% and speech was dropped entirely), so nothing was changed.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import re

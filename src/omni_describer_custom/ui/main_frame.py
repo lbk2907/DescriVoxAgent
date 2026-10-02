@@ -33,6 +33,7 @@ from ..core.prompt_manager import PromptManager
 from ..core.video_processor import VideoProcessor, SourceError, DownloadProgress
 from ..i18n.strings import I18n, t
 from .settings_dialog import PROVIDER_MODELS
+from .progress_dialog import AccessibleProgressDialog
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,8 @@ class MainFrame(wx.Frame):
         # v1.5.1: TRUE download title from yt-dlp metadata (used as the
         # project name instead of the raw URL) and the resolved local file.
         self._download_title: str = ""
-        # v1.5.1: heartbeat timer keeps the progress dialog responsive and
-        # shows elapsed time so long silent phases never look stuck.
+        # v1.5.1: heartbeat timer; it notices Cancel every second and
+        # moves the bar by time while a provider gives no percentage.
         self._hb_timer = None
         self._hb_start = 0.0
         self._hb_phase = ""
@@ -89,6 +90,8 @@ class MainFrame(wx.Frame):
         # can land WHILE a dialog is being built; the counter lets the
         # builder notice and throw the newborn dialog away.
         self._dl_close_gen = 0
+        # v1.9.6: ONE overall percentage for the whole job (_advance).
+        self._progress_reset()
 
         # Language
         lang = self.settings.get("general.language", "en")
@@ -433,7 +436,7 @@ class MainFrame(wx.Frame):
             descs = timeline_io.parse_any(path)
         except Exception as e:
             logger.error("Import failed: %s", e)
-            wx.MessageBox(t("impexp.import_failed", error=str(e)[:150]),
+            wx.MessageBox(t("impexp.import_failed", error=self._local_error_text(e)),
                           t("impexp.dlg_import"), wx.OK | wx.ICON_ERROR)
             return
         if not descs:
@@ -472,6 +475,7 @@ class MainFrame(wx.Frame):
         dlg = wx.FileDialog(
             self, t("menu.export_srt"),
             defaultFile=f"{cur.name or 'descriptions'}.srt",
+            defaultDir=self._export_dir(),
             wildcard="SubRip (*.srt)|*.srt",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         )
@@ -485,7 +489,7 @@ class MainFrame(wx.Frame):
                                   encoding="utf-8")
         except Exception as e:
             logger.error("SRT export failed: %s", e)
-            wx.MessageBox(t("impexp.export_failed", error=str(e)[:150]),
+            wx.MessageBox(t("impexp.export_failed", error=self._local_error_text(e)),
                           t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
             return
         msg = t("impexp.exported", count=len(cur.descriptions), path=path)
@@ -501,6 +505,7 @@ class MainFrame(wx.Frame):
         dlg = wx.FileDialog(
             self, t("menu.export_vtt"),
             defaultFile=f"{cur.name or 'descriptions'}.vtt",
+            defaultDir=self._export_dir(),
             wildcard="WebVTT (*.vtt)|*.vtt",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         )
@@ -514,7 +519,7 @@ class MainFrame(wx.Frame):
                                   encoding="utf-8")
         except Exception as e:
             logger.error("VTT export failed: %s", e)
-            wx.MessageBox(t("impexp.export_failed", error=str(e)[:150]),
+            wx.MessageBox(t("impexp.export_failed", error=self._local_error_text(e)),
                           t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
             return
         msg = t("impexp.exported", count=len(cur.descriptions), path=path)
@@ -532,6 +537,7 @@ class MainFrame(wx.Frame):
         dlg = wx.FileDialog(
             self, t("menu.export_audio"),
             defaultFile=f"{cur.name or 'descriptions'}.mp3",
+            defaultDir=self._export_dir(),
             wildcard=(f"{t('filter.mp3')}|*.mp3"
                       f"|{t('filter.wav')}|*.wav"),
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
@@ -543,40 +549,101 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
 
         self._exporting = True
-        progress = wx.ProgressDialog(
+        maximum = max(1, len(cur.descriptions))
+        # v1.9.6: Cancel. Rendering a long film is minutes of TTS and
+        # there was no way out but waiting (or killing the app). A real
+        # progress bar NVDA reads; app-modal, closed by done_cb below.
+        progress = AccessibleProgressDialog(
             t("impexp.exporting_title"), t("impexp.rendering", done=0,
                                            total=len(cur.descriptions)),
-            maximum=len(cur.descriptions), parent=self,
-            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE,
+            maximum=maximum, parent=self,
         )
+        cancel_event = threading.Event()
+        # A cancelled export must not leave a half-written file — but the
+        # user may have chosen to overwrite an existing one, which is
+        # theirs until the export really replaces it.
+        out = Path(path)
+        try:
+            before = out.stat().st_mtime_ns if out.exists() else None
+        except OSError:
+            before = None
+
+        def remove_partial() -> None:
+            try:
+                if out.exists() and (before is None
+                                     or out.stat().st_mtime_ns != before):
+                    out.unlink()
+            except OSError as e:
+                logger.warning("Could not remove partial export %s: %s",
+                               out, e)
 
         def done_cb(result: dict | None, error: str | None):
             def ui():
-                progress.Destroy()
+                try:
+                    progress.Destroy()
+                except RuntimeError:
+                    pass
                 self._exporting = False
+                # A Cancel pressed too late to stop a finished export is
+                # not a failure: the file is complete, so keep it.
+                if error and (cancel_event.is_set() or error == "cancelled"):
+                    remove_partial()
+                    msg = t("error.cancelled")
+                    self._log(msg)
+                    self.SetStatusText(msg, 0)
+                    return
                 if error:
                     logger.error("Audio export failed: %s", error)
-                    wx.MessageBox(t("impexp.export_failed", error=error[:150]),
-                                  t("impexp.dlg_export"), wx.OK | wx.ICON_ERROR)
+                    # export_audio's own messages are already in the app
+                    # language; anything else (a file error) is shortened.
+                    own = {t("impexp.nothing_to_export"),
+                           t("impexp.all_clips_failed")}
+                    shown = error if error in own else self._local_error_text(error)
+                    wx.MessageBox(t("impexp.export_failed", error=shown),
+                                  t("impexp.dlg_export"),
+                                  wx.OK | wx.ICON_ERROR, self)
                     return
                 msg = t("impexp.audio_done", path=result["path"],
                         rendered=result["rendered"], skipped=result["skipped"])
                 self._log(msg)
                 self.SetStatusText(msg, 0)
                 wx.MessageBox(msg, t("impexp.dlg_export"),
-                              wx.OK | wx.ICON_INFORMATION)
-            wx.CallAfter(ui)
+                              wx.OK | wx.ICON_INFORMATION, self)
+            self._ui(ui)
+
+        def progress_tick(done: int, total: int) -> None:
+            if cancel_event.is_set():
+                return
+            try:
+                res = progress.Update(min(done, maximum),
+                                      t("impexp.rendering", done=done,
+                                        total=total))
+            except RuntimeError:
+                return  # dialog already gone
+            if not res[0]:
+                cancel_event.set()
 
         def progress_cb(done, total, skipped):
-            wx.CallAfter(progress.Update,
-                         done, t("impexp.rendering", done=done, total=total))
+            if cancel_event.is_set():
+                # Stops export_audio between cues when it does not take
+                # is_cancelled itself (the exception ends its loop).
+                raise RuntimeError("cancelled")
+            self._ui(progress_tick, done, total)
+
+        import inspect as _inspect
+        try:
+            takes_cancel = "is_cancelled" in _inspect.signature(
+                timeline_io.export_audio).parameters
+        except (TypeError, ValueError):
+            takes_cancel = False
 
         def worker():
             try:
+                kwargs = {"progress_cb": progress_cb}
+                if takes_cancel:
+                    kwargs["is_cancelled"] = cancel_event.is_set
                 result = timeline_io.export_audio(
-                    cur.descriptions, path, self.tts_engine,
-                    progress_cb=progress_cb,
-                )
+                    cur.descriptions, path, self.tts_engine, **kwargs)
                 done_cb(result, None)
             except Exception as e:
                 done_cb(None, str(e))
@@ -682,7 +749,7 @@ class MainFrame(wx.Frame):
             descriptions = timeline_io.parse_any(str(subtitles))
         except Exception as e:
             logger.error("Could not read %s: %s", subtitles, e)
-            wx.MessageBox(t("impexp.import_failed", error=str(e)[:150]),
+            wx.MessageBox(t("impexp.import_failed", error=self._local_error_text(e)),
                           t("main.play_existing"), wx.OK | wx.ICON_ERROR)
             return
         if not descriptions:
@@ -697,7 +764,8 @@ class MainFrame(wx.Frame):
             self.project_store.save_descriptions(descriptions)
         except Exception as e:
             logger.error("Could not build a project for %s: %s", video, e)
-            wx.MessageBox(t("main.play_existing_failed", error=str(e)[:150]),
+            wx.MessageBox(t("main.play_existing_failed",
+                            error=self._local_error_text(e)),
                           t("main.play_existing"), wx.OK | wx.ICON_ERROR)
             return
         message = t("main.play_existing_ready",
@@ -757,7 +825,7 @@ class MainFrame(wx.Frame):
         if "foreign" in preset_name.lower():
             from ..core.ai_engine import provider_hears_audio
 
-            provider = self.settings.get("ai.default_provider", "gemini")
+            provider = self._provider_name()
             model = (self.settings.get_ai_provider(provider) or {}).get(
                 "model", "")
             if not provider_hears_audio(provider, model):
@@ -806,6 +874,14 @@ class MainFrame(wx.Frame):
 
     # ── Settings / Exit ───────────────────────────────────────────
 
+    def _provider_name(self) -> str:
+        """The provider in use. Empty means the default, which is "glm"
+        (OpenRouter) as in the Settings dialog -- not "gemini" (v1.9.6:
+        the main window and Settings disagreed, and an empty value
+        produced "API key not set for ." when Open was pressed)."""
+        return str(self.settings.get("ai.default_provider", "glm")
+                   or "glm").strip() or "glm"
+
     def configure_ai(self) -> bool:
         """Point the AI engine at the provider, key and model in Settings.
 
@@ -815,7 +891,7 @@ class MainFrame(wx.Frame):
         and after Settings. False when there is no key yet (silent: the
         processing path still warns when it needs one).
         """
-        provider = self.settings.get("ai.default_provider", "gemini") or "gemini"
+        provider = self._provider_name()
         cfg = self.settings.get_ai_provider(provider) or {}
         if not cfg.get("api_key"):
             return False
@@ -1005,7 +1081,7 @@ class MainFrame(wx.Frame):
 
         remove_btn.Bind(wx.EVT_BUTTON, _on_remove)
         rename_btn.Bind(wx.EVT_BUTTON, _on_rename)
-        lb.Bind(wx.EVT_DOUBLECLICK, lambda evt: dlg.EndModal(wx.ID_OK))
+        lb.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: dlg.EndModal(wx.ID_OK))
 
         # Preselect the newest project
         lb.SetSelection(0)
@@ -1037,7 +1113,7 @@ class MainFrame(wx.Frame):
             if media_root.exists():
                 _shutil.rmtree(media_root, ignore_errors=False)
         except Exception as e:
-            errors.append(str(e))
+            errors.append(self._local_error_text(e))
         try:
             # Keep the .db while its media survives (a file locked by the
             # player): the project stays listed and can be deleted later,
@@ -1045,7 +1121,7 @@ class MainFrame(wx.Frame):
             if db_path.exists() and not errors:
                 db_path.unlink()
         except Exception as e:
-            errors.append(str(e))
+            errors.append(self._local_error_text(e))
         if self.project_store.current and self.project_store.current.id == project_id:
             self.project_store._current = None
         return (not errors, "; ".join(errors))
@@ -1125,7 +1201,7 @@ class MainFrame(wx.Frame):
                 logger.info("Weekly update check skipped: %s", e)
                 return
             if newer:
-                wx.CallAfter(self._announce_update, newer)
+                self._ui(self._announce_update, newer)
 
         import threading as _threading
         _threading.Thread(target=work, daemon=True).start()
@@ -1167,10 +1243,41 @@ class MainFrame(wx.Frame):
             self._close_download_progress()
             # Give the worker a moment to observe the flag; it is a
             # daemon thread, so even a slow subprocess teardown will not
-            # block process exit.
+            # block process exit. Whatever it posts after Destroy goes
+            # through _ui(), which drops calls into a dead frame (v1.9.6:
+            # "wrapped C/C++ object of type MainFrame has been deleted").
             self._worker.join(timeout=3.0) if self._worker and self._worker.is_alive() else None
         self._processing = False
+        timer = getattr(self, "_announce_timer", None)
+        try:
+            if timer is not None and timer.IsRunning():
+                timer.Stop()
+        except Exception:
+            pass
+        self._close_child_frames()
         self.Destroy()
+
+    def _close_child_frames(self) -> None:
+        """Close Player/Editor windows through their own EVT_CLOSE.
+
+        Destroy() on this frame takes its children down WITHOUT their
+        close handlers: an open editor lost its unsaved edits and the
+        player's ffplay/TTS kept running. Deepest first, so an editor
+        (child of the player) saves before its player goes.
+        """
+        def frames_under(win):
+            for child in list(win.GetChildren()):
+                if isinstance(child, wx.Frame):
+                    yield from frames_under(child)
+                    yield child
+
+        for frame in list(frames_under(self)):
+            try:
+                if frame and not frame.IsBeingDeleted():
+                    frame.Close()
+            except Exception:
+                logger.warning("Closing a child window failed",
+                               exc_info=True)
 
     # ── Processing ────────────────────────────────────────────────
 
@@ -1186,7 +1293,7 @@ class MainFrame(wx.Frame):
             return
 
         # Validate provider
-        provider = self.settings.get("ai.default_provider", "gemini")
+        provider = self._provider_name()
         prov_config = self.settings.get_ai_provider(provider)
         if not prov_config.get("api_key"):
             wx.MessageBox(
@@ -1255,6 +1362,7 @@ class MainFrame(wx.Frame):
         self._processing = True
         self._dl_cancelled = False
         self._dl_done = False
+        self._progress_reset()
         self.btn_preset_open.Disable()
         self.btn_local.Disable()
         self.btn_play_existing.Disable()
@@ -1268,13 +1376,12 @@ class MainFrame(wx.Frame):
         )
         self._worker.start()
 
-    # ── v1.5.1 heartbeat: silent phases stay visibly alive ────────
+    # ── v1.5.1 heartbeat: Cancel is noticed in silent phases too ──────
 
     def _hb_start_timer(self, phase: str) -> None:
         """Start the 1s heartbeat timer (UI thread) for a phase."""
-        import time as _time
         self._hb_phase = phase
-        self._hb_start = _time.monotonic()
+        self._hb_start = time.monotonic()
         self._hb_dialog_was_destroyed = False
         if self._hb_timer is None:
             self._hb_timer = wx.Timer(self)
@@ -1285,54 +1392,400 @@ class MainFrame(wx.Frame):
         """Tell the heartbeat which phase we are actually in now.
 
         v1.6.4: this was the missing half. _hb_phase was written once, at
-        the start, with "Loading video info..." — and never again. The
-        dialog then repeated that line for the whole job while the
-        counter climbed: a user waiting 808 seconds was told the app was
-        still loading video info, and the title still read "Downloading
-        video - 100%" from a download that had finished long before.
-
-        Resetting _hb_start too means the seconds shown are the seconds
-        THIS phase has taken, which is the number a waiting user wants —
-        not the age of the whole job.
+        the start, with "Loading video info..." — and never again, so the
+        dialog repeated that line for the whole job. _hb_start is reset
+        too: it is when THIS phase began.
         """
-        import time as _time
         if not phase or phase == self._hb_phase:
             return
         self._hb_phase = phase
-        self._hb_start = _time.monotonic()
+        self._hb_start = time.monotonic()
 
     def _hb_stop(self) -> None:
         if self._hb_timer is not None:
             self._hb_timer.Stop()
 
     def _hb_tick(self, event):
-        """1s tick: keep the dialog responsive and show elapsed time.
+        """1s tick: notice Cancel, and move the bar by time while the
+        provider gives no percentage (_begin_timed_wait).
 
-        Fixes the "stuck" feel (and stuck REALITY) during silent phases:
-        - metadata probe / ffmpeg merge: Pulse keeps the dialog painting
-          and the Cancel button live.
-        - only pulses when NO real progress arrived recently (>1.5s), so
-          it never fights with real percentage updates.
-        - if the dialog was destroyed by a Cancel press, nothing is
-          re-created (guarded by _dl_done).
+        v1.9.6 (owner, 2 Oct 2026): nothing is spoken and no text is
+        written here any more. The bar is the progress (NVDA reads it
+        with its own progress bar setting); a changing seconds counter
+        was read as just "46s", "47s" (pitfall 93), and a spoken report
+        every 30 s was not wanted.
         """
+        if not self:
+            return
         if self._dl_done or self._dl_cancelled:
             self._hb_stop()
             return
-        import time as _time
         dlg = self._dl_dialog
         if dlg is None:
             return
-        now = _time.monotonic()
-        if now - getattr(self, "_last_progress_at", 0.0) < 1.5:
-            return  # real progress is flowing; stay out of the way
-        secs = int(now - self._hb_start)
-        line = t("download.heartbeat", phase=self._hb_phase, secs=secs)
+        # v1.9.6: Cancel is checked FIRST, every second, for the whole
+        # job. Before, a press was noticed only by the few ticks that
+        # read Update()'s result, so after the download (or for a local
+        # file) Cancel did nothing at all.
         try:
-            dlg.Pulse(line)
+            pressed = (dlg.WasCancelled()
+                       if hasattr(dlg, "WasCancelled") else False)
         except Exception:
-            # Dialog already destroyed (e.g. user closed it): stop.
-            self._hb_stop()
+            pressed = False
+        if pressed:
+            self._on_dialog_cancel()
+            return
+        self._timed_wait_tick(time.monotonic())
+
+    # ── v1.9.6: ONE overall percentage for the whole job ──────────────
+    #
+    # Owner's decision, 2 Oct 2026: a real progress bar with ONE
+    # percentage for the WHOLE job, never going backwards. Each stage
+    # owns a slice of the bar; every tick reports a fraction (0..1) of its
+    # own stage through _advance(), which maps it into the slice.
+    #
+    #   download     0-15   only when something is downloaded; a local or
+    #                       already downloaded file starts at 15
+    #   transcript  15-30   full video (Whisper per segment; subtitles or
+    #   extract     15-30   the project cache jump to the end); frame
+    #                       mode extracts frames here instead
+    #   ai          30-95   OpenRouter: its own 0..100 (split, parts,
+    #                       upload, estimated wait); Gemini/MiniMax:
+    #                       upload = first half, then the silent wait
+    #                       moves by time (_begin_timed_wait); frame mode:
+    #                       frames done/total; fast mode: by time
+    #   review      95-99   the description check, done/total
+    #
+    # 100 is never shown: _close_download_progress closes the dialog when
+    # the job is really done. A stage that is already behind is ignored,
+    # so a late tick (a retry, a second stream) can never pull the bar
+    # back.
+    STAGES = {
+        "download": (0, 0.0, 15.0),
+        "transcript": (1, 15.0, 30.0),
+        "extract": (1, 15.0, 30.0),
+        "ai": (2, 30.0, 95.0),
+        "review": (3, 95.0, 99.0),
+    }
+    # A wait with no real percentage stops short of its stage's end
+    # (share of the stage); only the real answer moves past it.
+    TIMED_WAIT_CEILING = 0.95
+
+    def _progress_reset(self) -> None:
+        """A new job: the bar starts again from 0 (UI thread)."""
+        self._overall = 0.0
+        self._stage_order = -1
+        self._stage_name = ""
+        self._timed_wait = None
+        self._part_text = ""
+        self._dlg_text = None
+        self._dlg_title = None
+        self._title_phase = ""
+        self._expected_frames = 0
+        self._wait_basis = None
+
+    def _overall_pct(self) -> int:
+        return max(0, min(99, int(getattr(self, "_overall", 0.0))))
+
+    def _advance(self, stage: str, fraction: float = 0.0) -> int:
+        """Report `fraction` (0..1) of `stage`; returns the overall %.
+
+        Moving to a later stage starts the bar at that stage's beginning;
+        an earlier stage, or a lower value, changes nothing.
+        """
+        order, lo, hi = self.STAGES[stage]
+        current = getattr(self, "_stage_order", -1)
+        if order < current:
+            return self._overall_pct()
+        if order > current:
+            self._stage_order = order
+            self._stage_name = stage
+            self._timed_wait = None
+        try:
+            fraction = max(0.0, min(1.0, float(fraction)))
+        except (TypeError, ValueError):
+            fraction = 0.0
+        value = lo + (hi - lo) * fraction
+        if value > getattr(self, "_overall", 0.0):
+            self._overall = value
+        return self._overall_pct()
+
+    def _stage_fraction(self) -> float:
+        """How far the current stage is, 0..1 (for a timed wait's start)."""
+        stage = getattr(self, "_stage_name", "")
+        if stage not in self.STAGES:
+            return 0.0
+        _, lo, hi = self.STAGES[stage]
+        return max(0.0, min(1.0, (self._overall - lo) / (hi - lo)))
+
+    def _push_dialog(self, text: str | None = None):
+        """Show the overall % (bar and title) and, if it CHANGED, the
+        text. Returns Update()'s raw (continue, skip), or None when there
+        is no dialog or it is gone."""
+        dlg = self._dl_dialog
+        if dlg is None:
+            return None
+        pct = self._overall_pct()
+        self._set_dialog_phase_title(
+            getattr(self, "_title_phase", "") or t("download.dialog_title"))
+        try:
+            # Pitfall 65: text only when it changes, else the bar alone.
+            if text and text != getattr(self, "_dlg_text", None):
+                self._dlg_text = text
+                return dlg.Update(pct, text)
+            return dlg.Update(pct)
+        except Exception:
+            logger.debug("progress dialog update failed", exc_info=True)
+            return None
+
+    def _show_progress(self, text: str | None = None) -> bool:
+        """_push_dialog, then react to Cancel. False = cancelled."""
+        result = self._push_dialog(text)
+        if result is None:
+            return True
+        return self._dialog_ok(result)
+
+    def _phase_text(self, phase: str, left: str = "") -> str:
+        """The dialog text: "Part 2 of 3." + the phase, time left below."""
+        line = " ".join(x for x in (getattr(self, "_part_text", ""), phase)
+                        if x)
+        return f"{line}\n{left}" if left else line
+
+    def _estimate_wait(self, key: str, media_seconds: float) -> float:
+        """Seconds a silent AI wait should take (an estimate, never
+        shown as finished). Learned per model in core/timing_store when
+        this model was measured before; otherwise 60 s plus half a second
+        per second of video."""
+        from ..core import timing_store
+        media = max(0.0, float(media_seconds or 0.0))
+        try:
+            known = bool(key) and key in timing_store._load()
+        except Exception:
+            known = False
+        if known and media > 0:
+            return timing_store.expected_seconds(key, media)
+        return 60.0 + 0.5 * media
+
+    def _begin_timed_wait(self, key: str = "", media_seconds: float = 0.0,
+                          record: bool = False) -> None:
+        """A provider is working and says nothing (Gemini "processing",
+        "describing"; MiniMax "describing"; fast mode). From now on the
+        heartbeat moves the AI stage by time, easing out toward
+        TIMED_WAIT_CEILING (UI thread). Started once per wait."""
+        if getattr(self, "_timed_wait", None) is not None:
+            return
+        self._advance("ai")
+        self._timed_wait = {
+            "start": time.monotonic(),
+            "expected": max(1.0, self._estimate_wait(key, media_seconds)),
+            "from": self._stage_fraction(),
+            "key": key if record else "",
+            "media": media_seconds,
+        }
+
+    def _timed_wait_tick(self, now: float) -> None:
+        """Heartbeat: one step of a timed wait. 80% of the way at the
+        estimate, 96% at twice it, never the stage's end."""
+        import math
+        wait = getattr(self, "_timed_wait", None)
+        if not wait or getattr(self, "_stage_name", "") != "ai":
+            return
+        waited = max(0.0, now - wait["start"])
+        eased = 1.0 - math.exp(-1.6 * waited / wait["expected"])
+        frm = min(wait["from"], self.TIMED_WAIT_CEILING)
+        self._advance("ai", frm + (self.TIMED_WAIT_CEILING - frm) * eased)
+        left = wait["expected"] - waited
+        self._show_progress(self._phase_text(
+            getattr(self, "_hb_phase", ""),
+            self._eta_text(left if left > 0 else None)))
+
+    def _record_timed_wait(self) -> None:
+        """Worker thread, after the real answer: learn how long this
+        model took (core/timing_store), so the next estimate is better.
+        OpenRouter records its own waits per part."""
+        wait = getattr(self, "_timed_wait", None)
+        if not wait or not wait.get("key"):
+            return
+        from ..core import timing_store
+        timing_store.record(wait["key"], float(wait.get("media") or 0.0),
+                            time.monotonic() - wait["start"])
+
+    # ── v1.9.6: one way to react to Cancel, one way to reach the UI ──
+
+    def _ui(self, fn, *args) -> None:
+        """wx.CallAfter that does nothing once this frame is gone.
+
+        The worker thread keeps posting updates after the user closes
+        the main window; each landed on a deleted C++ object and raised
+        "wrapped C/C++ object of type MainFrame has been deleted". The
+        frame is checked when the call is posted AND when it runs.
+        """
+        def alive() -> bool:
+            try:
+                return bool(self) and not self.IsBeingDeleted()
+            except RuntimeError:
+                return False
+
+        def run() -> None:
+            if alive():
+                fn(*args)
+
+        if alive():
+            wx.CallAfter(run)
+
+    def _user_cancel(self) -> None:
+        """The user pressed Cancel in the progress dialog (UI thread)."""
+        if not self:
+            return
+        self._dl_cancelled = True
+        self._dl_done = True
+        self._hb_stop()
+        dlg = self._dl_dialog
+        if dlg is not None:
+            try:
+                dlg.Update(0, t("download.cancelling"))
+            except Exception:
+                pass
+        try:
+            self.SetStatusText(t("download.cancelling"))
+        except Exception:
+            pass
+        self._close_download_progress()
+
+    def _ai_cancel(self, pct: int = 0) -> None:
+        """Frame mode, AI phase: Cancel keeps the frames already described
+        (they are saved) instead of throwing the whole job away."""
+        self._ai_cancelled = True
+        dlg = self._dl_dialog
+        if dlg is not None:
+            try:
+                dlg.Update(pct, t("download.cancel_analysis"))
+            except Exception:
+                pass
+        self._close_download_progress()
+
+    def _on_dialog_cancel(self, pct: int = 0) -> None:
+        if getattr(self, "_frame_ai_phase", False):
+            self._ai_cancel(pct)
+        else:
+            self._user_cancel()
+
+    def _dialog_ok(self, result) -> bool:
+        """Read the (continue, skip) pair from Update()/Pulse(). False
+        means Cancel was pressed: the job is cancelled here, so EVERY
+        dialog update notices it, not only some of them."""
+        try:
+            ok = bool(result[0])
+        except Exception:
+            ok = True
+        if not ok:
+            self._on_dialog_cancel()
+        return ok
+
+    def _export_dir(self) -> str:
+        """Settings > General > Output Directory, where Save dialogs for
+        exports open (v1.9.6: the setting was stored and used nowhere)."""
+        try:
+            folder = str(self.settings.get("general.output_dir", "") or "")
+        except Exception:
+            return ""
+        return folder if folder and Path(folder).is_dir() else ""
+
+    @staticmethod
+    def _local_error_text(error) -> str:
+        """A file/OS error in words: no JSON, URL or account id."""
+        from ..core.ai_engine import short_error
+        if isinstance(error, OSError) and error.strerror:
+            name = Path(error.filename).name if error.filename else ""
+            return f"{error.strerror}: {name}" if name else error.strerror
+        return short_error(str(error), 150)
+
+    @staticmethod
+    def _error_text(error, source_error: bool = False) -> str:
+        """What the user is told for a failed job (status log, status
+        bar, message box). Never the raw provider text: an HTTP 413 used
+        to be read out as a JSON body with an OpenRouter user id."""
+        from ..core.ai_engine import short_error, user_error_text
+        from ..core.video_processor import is_forbidden_error
+        text = str(error)
+        if is_forbidden_error(text):
+            # v1.8.3: YouTube still refused after the retries. Download
+            # 403s arrive as SourceError, which used to skip this test.
+            return t("error.download_forbidden")
+        shown = user_error_text(text)
+        if source_error and shown == t("error.ai_generic",
+                                       detail=short_error(text)):
+            # Not an AI step: say what failed without the "AI" wording.
+            return short_error(text, 300)
+        return shown
+
+    def _report_failure(self, shown: str) -> None:
+        """Worker thread: a job failed. Log, status bar, close the
+        progress dialog, THEN the message box NVDA reads."""
+        line = t("status.error", error=shown)
+        self._ui(self._log, line)
+        self._ui(self.SetStatusText, line)
+        self._ui(self._close_download_progress)
+        self._ui(self._show_failure, shown)
+
+    def _show_failure(self, shown: str) -> None:
+        """v1.9.6: say a failed job in a message box. The status log and
+        bar are not read by NVDA, and the progress dialog just closed,
+        so a failure used to be silent. Never for a cancel."""
+        try:
+            if (not self or self.IsBeingDeleted()
+                    or getattr(self, "_dl_cancelled", False)
+                    or not self.IsShown()):
+                return
+        except RuntimeError:
+            return
+        wx.MessageBox(t("status.error", error=shown),
+                      t("process.failed_title"), wx.OK | wx.ICON_ERROR, self)
+
+    def _run_cancellable(self, cmd: list[str], timeout: float = 900.0):
+        """Run a command, polling Cancel every 0.5 s (worker thread).
+
+        Returns (returncode, stderr tail). Raises RuntimeError("cancelled")
+        when the user cancels (the process is killed) and RuntimeError on
+        timeout. Fast mode's frame extraction used subprocess.run, which
+        ignored Cancel for up to 15 minutes.
+        """
+        import subprocess as _sp
+        proc = _sp.Popen(cmd, stdout=_sp.DEVNULL, stderr=_sp.PIPE)
+        tail = bytearray()
+
+        def drain() -> None:
+            try:
+                for line in iter(proc.stderr.readline, b""):
+                    tail.extend(line)
+                    del tail[:-8192]
+            except Exception:
+                pass
+
+        reader = threading.Thread(target=drain, daemon=True)
+        reader.start()
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                if getattr(self, "_dl_cancelled", False):
+                    proc.kill()
+                    raise RuntimeError("cancelled")
+                ret = proc.poll()
+                if ret is not None:
+                    break
+                if time.monotonic() > deadline:
+                    proc.kill()
+                    raise TimeoutError(int(timeout))   # seconds; logged by the caller
+                time.sleep(0.5)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            reader.join(timeout=2.0)
+            try:
+                proc.stderr.close()
+            except Exception:
+                pass
+        return ret, bytes(tail)
 
     def _project_display_name(self, source: str) -> str:
         """v1.5.1: human project name for remote sources.
@@ -1410,7 +1863,7 @@ class MainFrame(wx.Frame):
         message = t("process.cues_overrun", count=len(collisions),
                     total=total, where=where)
         logger.info("Cue/speech collisions: %s", where)
-        wx.CallAfter(self._log, message)
+        self._ui(self._log, message)
 
     def _ensure_project_for(self, source: str) -> str:
         """Make sure a project exists before anything is downloaded.
@@ -1510,15 +1963,15 @@ class MainFrame(wx.Frame):
             import time as _time
 
             # Step 1: Video info
-            wx.CallAfter(self.SetStatusText, t("status.loading_video"))
+            self._ui(self.SetStatusText, t("status.loading_video"))
             # FIX (1 Sep): for URLs the yt-dlp metadata probe can take up
             # to 120s with NO visible feedback (the download dialog only
             # appears at the first download event). Show the phase
             # immediately; screen readers read the status line.
-            wx.CallAfter(self._ensure_download_progress)
-            wx.CallAfter(self._download_progress_tick_text,
+            self._ui(self._ensure_download_progress)
+            self._ui(self._download_progress_tick_text,
                          t("download.loading_info"), -1)
-            wx.CallAfter(self._hb_start_timer, t("download.loading_info"))
+            self._ui(self._hb_start_timer, t("download.loading_info"))
             info = loop.run_until_complete(vp.get_video_info(
                 source,
                 is_cancelled=lambda: bool(
@@ -1526,7 +1979,7 @@ class MainFrame(wx.Frame):
             # v1.5.1: keep the REAL title (yt-dlp metadata) for the
             # project name; local files keep their filename stem.
             self._download_title = getattr(info, "title", "") or ""
-            wx.CallAfter(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
+            self._ui(self._log, f"Video: {info.width}x{info.height}, {info.duration:.1f}s")
 
             # v1.4.1: chunk length is user-configurable (General tab).
             # Announce it once with an estimated part count so blind users
@@ -1536,10 +1989,10 @@ class MainFrame(wx.Frame):
             est_parts = (max(1, int(float(info.duration) / chunk_seconds + 0.999))
                          if info.duration > 0 else 1)
             if est_parts > 1:
-                wx.CallAfter(self._log, t("video.chunk_multi",
+                self._ui(self._log, t("video.chunk_multi",
                                           chunk=chunk_seconds, parts=est_parts))
             else:
-                wx.CallAfter(self._log, t("video.chunk_single",
+                self._ui(self._log, t("video.chunk_single",
                                           chunk=chunk_seconds))
 
             # Full-video mode decided ONCE here so every announcement in
@@ -1561,7 +2014,7 @@ class MainFrame(wx.Frame):
             # frames" misleads screen-reader users when no frames are
             # involved; frame_dir/counter stay as harmless machinery.
             if not video_mode:
-                wx.CallAfter(self.SetStatusText, t("status.extracting_frames"))
+                self._ui(self.SetStatusText, t("status.extracting_frames"))
             # v1.6.7: the project is created HERE, before the download,
             # not after the AI finishes. A download that dies halfway
             # then has a permanent home to resume into; previously each
@@ -1604,10 +2057,10 @@ class MainFrame(wx.Frame):
                 if now - last_ui_update[0] < 0.5:
                     return
                 last_ui_update[0] = now
-                wx.CallAfter(fn, *args)
+                self._ui(fn, *args)
 
             def _ui_now(fn, *args) -> None:
-                wx.CallAfter(fn, *args)
+                self._ui(fn, *args)
 
             def count_frames() -> None:
                 """Keep the dialog alive while ffmpeg extracts silently."""
@@ -1617,7 +2070,7 @@ class MainFrame(wx.Frame):
                     except Exception:
                         continue
                     if n:
-                        wx.CallAfter(self._ensure_download_progress)
+                        self._ui(self._ensure_download_progress)
                         _ui_throttled(self._frame_count_tick, n)
 
             counter_thread = threading.Thread(target=count_frames, daemon=True)
@@ -1634,8 +2087,8 @@ class MainFrame(wx.Frame):
             # extraction, one AI call instead of one per frame.
             if video_mode:
                 stop_counter.set()  # no frames to count in this mode
-                wx.CallAfter(self._log, t("video.mode_enabled_log"))
-                wx.CallAfter(self.SetStatusText, t("status.analyzing_video"))
+                self._ui(self._log, t("video.mode_enabled_log"))
+                self._ui(self.SetStatusText, t("status.analyzing_video"))
                 try:
                     resolved = loop.run_until_complete(vp.resolve_source(
                         source, on_progress=download_progress,
@@ -1646,27 +2099,27 @@ class MainFrame(wx.Frame):
                     self._pending_local_video = resolved
                 except SourceError as e:
                     if "cancelled" in str(e).lower():
-                        wx.CallAfter(self._log, t("download.cancelled_log"))
-                        wx.CallAfter(self._close_download_progress)
-                        wx.CallAfter(self._processing_done)
+                        self._ui(self._log, t("download.cancelled_log"))
+                        self._ui(self._close_download_progress)
+                        self._ui(self._processing_done)
                         loop.close()
                         return
                     raise
 
                 def vstatus(phase: str) -> None:
-                    wx.CallAfter(self._video_status_tick, phase)
+                    self._ui(self._video_status_tick, phase)
 
                 def vprogress(pct: float) -> None:
-                    wx.CallAfter(self._video_upload_tick, pct)
+                    self._ui(self._video_upload_tick, pct)
 
                 def vpart(part: int, total: int) -> None:
-                    wx.CallAfter(self._video_part_tick, part, total)
+                    self._ui(self._video_part_tick, part, total)
 
                 def vsplit(pct: float) -> None:
-                    wx.CallAfter(self._video_split_tick, pct)
+                    self._ui(self._video_split_tick, pct)
 
                 def veta(pct: float, eta: float | None) -> None:
-                    wx.CallAfter(self._video_eta_tick, pct, eta)
+                    self._ui(self._video_eta_tick, pct, eta)
 
                 # v1.6.1: say what this will cost BEFORE spending it. A
                 # run died mid-way with "HTTP 402: requires at least
@@ -1685,14 +2138,14 @@ class MainFrame(wx.Frame):
                         int(self.settings.get("general.chunk_seconds", 300) or 300),
                         prov_cfg.get("api_key", "")))
                     if est.get("priced"):
-                        wx.CallAfter(self._log, t(
+                        self._ui(self._log, t(
                             "cost.estimate", usd=f"{est['usd']:.3f}",
                             parts=est["parts"]))
                     if "remaining" in est:
-                        wx.CallAfter(self._log, t(
+                        self._ui(self._log, t(
                             "cost.balance", usd=f"{est['remaining']:.2f}"))
                     if est.get("min_balance_ok") is False:
-                        wx.CallAfter(self._log, t("cost.too_low"))
+                        self._ui(self._log, t("cost.too_low"))
                 except Exception as e:
                     logger.debug("Cost estimate skipped: %s", e)
 
@@ -1703,20 +2156,60 @@ class MainFrame(wx.Frame):
                 # effort only — no transcript simply means no extra
                 # context, never a failed run.
                 transcript = []
+                last_t = [-1]
+
+                def tprogress(fraction: float) -> None:
+                    # Whisper's thread, once per segment: post only when
+                    # the whole percentage changes (a film has thousands
+                    # of segments).
+                    pct = int(max(0.0, min(1.0, fraction)) * 100)
+                    if pct != last_t[0]:
+                        last_t[0] = pct
+                        self._ui(self._transcript_tick, fraction)
+
                 try:
-                    wx.CallAfter(self._video_status_tick, "transcript")
+                    self._ui(self._video_status_tick, "transcript")
                     # local_path lets a URL with no published captions
                     # fall back to transcribing the file just downloaded.
                     transcript = loop.run_until_complete(
-                        vp.get_transcript(source, local_path=resolved))
+                        vp.get_transcript(
+                            source, local_path=resolved,
+                            is_cancelled=lambda: bool(
+                                getattr(self, "_dl_cancelled", False)),
+                            cache_path=self._transcript_cache_path(),
+                            on_progress=tprogress))
                     if transcript:
-                        wx.CallAfter(
+                        self._ui(
                             self._log,
                             t("process.transcript_ok", count=len(transcript)))
                     else:
-                        wx.CallAfter(self._log, t("process.transcript_none"))
+                        self._ui(self._log, t("process.transcript_none"))
                 except Exception as e:
+                    if str(e) == "cancelled":
+                        # Same ending as a cancelled AI step below.
+                        self._ui(self._log, t("download.cancelled_log"))
+                        self._ui(self._close_download_progress)
+                        if loop is not None and not loop.is_closed():
+                            loop.close()
+                        self._ui(self._processing_done)
+                        return
                     logger.warning("Transcript step failed: %s", e)
+                # Subtitles, the project cache or no transcript at all:
+                # the stage is over either way.
+                self._ui(self._transcript_tick, 1.0)
+
+                # What a silent wait (Gemini/MiniMax) is estimated from;
+                # OpenRouter reports its own progress and records its
+                # own timings.
+                try:
+                    prov = self._provider_name()
+                    model = (self.settings.get_ai_provider(prov) or {}).get(
+                        "model", "")
+                    self._wait_basis = (f"{prov}:{model}" if model else "",
+                                        float(info.duration or 0.0),
+                                        prov != "glm" and bool(model))
+                except Exception:
+                    self._wait_basis = None
 
                 try:
                     pairs = loop.run_until_complete(
@@ -1736,19 +2229,24 @@ class MainFrame(wx.Frame):
                     )
                 except Exception as e:
                     if "cancel" in str(e).lower():
-                        wx.CallAfter(self._log, t("download.cancelled_log"))
-                        wx.CallAfter(self._close_download_progress)
+                        self._ui(self._log, t("download.cancelled_log"))
+                        self._ui(self._close_download_progress)
                         if loop is not None and not loop.is_closed():
                             loop.close()
-                        wx.CallAfter(self._processing_done)
+                        self._ui(self._processing_done)
                         return
                     if "mm_file" in str(e):
-                        wx.CallAfter(
+                        self._ui(
                             self._log, t("video.mm_file_error",
-                                         msg=str(e)[:300]))
-                        raise
+                                         msg=self._error_text(e)))
                     raise
-                wx.CallAfter(self._log, t("video.parsed_count", count=len(pairs)))
+                try:
+                    self._record_timed_wait()
+                except Exception:
+                    logger.debug("wait timing not recorded", exc_info=True)
+                # The real answer is in: the AI stage is done.
+                self._ui(self._stage_tick, "ai", 1.0)
+                self._ui(self._log, t("video.parsed_count", count=len(pairs)))
                 # v1.8.8: optional check of each description against the
                 # picture (Settings; off unless the user turns it on).
                 pairs = self._review_pairs(loop, resolved, pairs,
@@ -1787,11 +2285,13 @@ class MainFrame(wx.Frame):
                 and self.settings.get("ai.default_provider", "") == "glm"
             )
             if fast_mode:
-                stop_counter.set()  # this branch runs its own counter
-                wx.CallAfter(self.SetStatusText, t("video.fast_extracting"))
+                # No frame counter here: ffmpeg's frames are counted by
+                # nobody. The 1 s heartbeat started at the top keeps
+                # running for this branch, and it is what notices Cancel.
+                stop_counter.set()
+                self._ui(self.SetStatusText, t("video.fast_extracting"))
                 from ..core.ai_engine import build_fast_batch_filter
                 import re as _re
-                import subprocess as _subprocess
                 try:
                     resolved = loop.run_until_complete(vp.resolve_source(
                         source, on_progress=download_progress,
@@ -1802,9 +2302,9 @@ class MainFrame(wx.Frame):
                     self._pending_local_video = resolved
                 except SourceError as e:
                     if "cancelled" in str(e).lower():
-                        wx.CallAfter(self._log, t("download.cancelled_log"))
-                        wx.CallAfter(self._close_download_progress)
-                        wx.CallAfter(self._processing_done)
+                        self._ui(self._log, t("download.cancelled_log"))
+                        self._ui(self._close_download_progress)
+                        self._ui(self._processing_done)
                         loop.close()
                         return
                     raise
@@ -1817,37 +2317,43 @@ class MainFrame(wx.Frame):
                     "-vf", build_fast_batch_filter(fast_fps),
                     "-q:v", "3", "-y", pattern,
                 ]
-                # Blocking run on the worker thread; cancellation is
-                # checked after (extraction of a normal video takes
-                # seconds; the dialog stays alive via Pulse text).
-                wx.CallAfter(self._download_progress_tick_text,
-                             t("video.fast_extracting"), -1)
+                # v1.9.6: polled every 0.5 s, so Cancel kills ffmpeg at
+                # once. subprocess.run ignored Cancel for up to 900 s.
+                self._ui(self._hb_set_phase, t("video.fast_extracting"))
+                self._ui(self._stage_tick, "extract", 0.0)
+                self._ui(self._download_progress_tick_text,
+                         t("video.fast_extracting"), -1)
+                failure = ""
                 try:
-                    ff = _subprocess.run(cmd, capture_output=True,
-                                         timeout=900)
+                    returncode, stderr = self._run_cancellable(cmd, 900)
+                    if returncode != 0:
+                        tail = stderr.decode("utf-8", "replace")[-500:]
+                        logger.error("Fast-mode ffmpeg failed (%s): %s",
+                                     returncode, tail)
+                        lines = [x for x in tail.splitlines() if x.strip()]
+                        failure = f"ffmpeg: {lines[-1] if lines else returncode}"
+                except RuntimeError as e:
+                    if str(e) != "cancelled":
+                        logger.error("Fast-mode ffmpeg failed: %s", e)
+                        failure = f"ffmpeg: {e}"
                 except Exception as e:
-                    wx.CallAfter(self._log, t("status.error", error=t(
-                        "log.ffmpeg_failed", error=e)))
-                    wx.CallAfter(self._close_download_progress)
-                    wx.CallAfter(self._processing_done)
-                    self._cleanup_dir(frame_dir)
-                    frame_dir = None
-                    loop.close()
-                    return
-                if ff.returncode != 0:
-                    tail = ff.stderr.decode("utf-8", "replace")[-500:]
-                    wx.CallAfter(self._log, t("status.error", error=t(
-                        "log.ffmpeg_failed", error=tail)))
-                    wx.CallAfter(self._close_download_progress)
-                    wx.CallAfter(self._processing_done)
+                    logger.error("Fast-mode ffmpeg failed: %s", e)
+                    failure = f"ffmpeg: {e}"
+                if failure and not getattr(self, "_dl_cancelled", False):
+                    from ..core.ai_engine import short_error
+                    # Named directly: user_error_text would call an
+                    # ffmpeg timeout a network problem.
+                    self._report_failure(t("error.video_prepare",
+                                           detail=short_error(failure, 120)))
+                    self._ui(self._processing_done)
                     self._cleanup_dir(frame_dir)
                     frame_dir = None
                     loop.close()
                     return
                 if bool(getattr(self, "_dl_cancelled", False)):
-                    wx.CallAfter(self._log, t("download.cancelled_log"))
-                    wx.CallAfter(self._close_download_progress)
-                    wx.CallAfter(self._processing_done)
+                    self._ui(self._log, t("download.cancelled_log"))
+                    self._ui(self._close_download_progress)
+                    self._ui(self._processing_done)
                     self._cleanup_dir(frame_dir)
                     frame_dir = None
                     loop.close()
@@ -1859,9 +2365,8 @@ class MainFrame(wx.Frame):
                         r"(\d+)\.jpg$", p.name).group(1))
                     if _re.search(r"(\d+)\.jpg$", p.name) else 0)
                 if not fast_frames:
-                    wx.CallAfter(self._log, t("status.error", error=t("error.no_frames")))
-                    wx.CallAfter(self._close_download_progress)
-                    wx.CallAfter(self._processing_done)
+                    self._report_failure(t("error.no_frames"))
+                    self._ui(self._processing_done)
                     self._cleanup_dir(frame_dir)
                     frame_dir = None
                     loop.close()
@@ -1873,21 +2378,30 @@ class MainFrame(wx.Frame):
                                   for i in range(len(fast_frames))]
                 n_batches = max(
                     1, -(-len(fast_frames) // 150))  # ceil division
-                wx.CallAfter(self._log, t(
+                self._ui(self._log, t(
                     "video.fast_mode_enabled_log",
                     count=len(fast_frames), batches=n_batches))
-                wx.CallAfter(self._download_progress_tick_text,
+                self._ui(self._download_progress_tick_text,
                              t("video.fast_encoding",
                                count=len(fast_frames)), -1)
                 frame_paths_fast = [str(p) for p in fast_frames]
 
+                self._ui(self._stage_tick, "extract", 1.0)
+
                 def fast_status(phase: str) -> None:
                     if phase == "describing":
-                        wx.CallAfter(self._download_progress_tick_text,
+                        # One request, no percentage: the bar moves by
+                        # time (60 s + 0.5 s per second of video).
+                        self._ui(self._hb_set_phase, t(
+                            "video.fast_batches",
+                            count=len(frame_paths_fast), batches=n_batches))
+                        self._ui(self._begin_timed_wait, "",
+                                 float(info.duration or 0.0))
+                        self._ui(self._download_progress_tick_text,
                                      t("video.fast_batches",
                                        count=len(frame_paths_fast),
                                        batches=n_batches), -1)
-                        wx.CallAfter(self.SetStatusText,
+                        self._ui(self.SetStatusText,
                                      t("status.analyzing"))
 
                 try:
@@ -1902,14 +2416,15 @@ class MainFrame(wx.Frame):
                     )
                 except Exception as e:
                     if "cancel" in str(e).lower():
-                        wx.CallAfter(self._log, t("download.cancelled_log"))
-                        wx.CallAfter(self._close_download_progress)
+                        self._ui(self._log, t("download.cancelled_log"))
+                        self._ui(self._close_download_progress)
                         if loop is not None and not loop.is_closed():
                             loop.close()
-                        wx.CallAfter(self._processing_done)
+                        self._ui(self._processing_done)
                         return
                     raise
-                wx.CallAfter(self._log, t("video.parsed_count",
+                self._ui(self._stage_tick, "ai", 1.0)
+                self._ui(self._log, t("video.parsed_count",
                                           count=len(pairs)))
                 # v1.6.8: a cue lasts as long as its text takes to
                 # say, not a flat 3 seconds. Anything still landing
@@ -1936,6 +2451,8 @@ class MainFrame(wx.Frame):
             cancelled = False
             try:
                 fps = int(self.settings.get("general.frame_rate", 5) or 5)
+                # The extract stage of the bar: frames written of these.
+                self._expected_frames = int(float(info.duration or 0) * fps)
                 frames = loop.run_until_complete(
                     vp.extract_frames(source, fps=fps, output_dir=frame_dir,
                                       min_spacing=float(self.settings.get(
@@ -1953,20 +2470,20 @@ class MainFrame(wx.Frame):
             finally:
                 stop_counter.set()
             if cancelled:
-                wx.CallAfter(self._log, t("download.cancelled_log"))
-                wx.CallAfter(self._close_download_progress)
-                wx.CallAfter(self.SetStatusText, t("status.ready"))
-                wx.CallAfter(self._processing_done)
+                self._ui(self._log, t("download.cancelled_log"))
+                self._ui(self._close_download_progress)
+                self._ui(self.SetStatusText, t("status.ready"))
+                self._ui(self._processing_done)
                 self._cleanup_dir(frame_dir)
                 frame_dir = None
                 loop.close()
                 return
-            wx.CallAfter(self._log, t("main.log_frames",
+            self._ui(self._log, t("main.log_frames",
                                       count=len(frames), fps=fps))
             # Announce the completed download phase explicitly so screen
             # reader users know the fetch finished and what comes next.
-            wx.CallAfter(self._ensure_download_progress)
-            wx.CallAfter(self._download_progress_tick_text,
+            self._ui(self._ensure_download_progress)
+            self._ui(self._download_progress_tick_text,
                          t("download.download_done"), -1)
 
             # OPT-IN FRAME CAP (30 Aug): an optional user setting limits how
@@ -1988,12 +2505,12 @@ class MainFrame(wx.Frame):
                 step = total_extracted / float(cap)
                 frames = [frames[min(total_extracted - 1, int(i * step))]
                           for i in range(cap)]
-                wx.CallAfter(self._log, t("process.frame_capped", cap=cap, total=total_extracted))
+                self._ui(self._log, t("process.frame_capped", cap=cap, total=total_extracted))
 
             if not frames:
-                wx.CallAfter(self._log, t("main.log_no_frames"))
-                wx.CallAfter(self._close_download_progress)
-                wx.CallAfter(self._processing_done)
+                self._ui(self._log, t("main.log_no_frames"))
+                self._ui(self._close_download_progress)
+                self._ui(self._processing_done)
                 self._cleanup_dir(frame_dir)
                 frame_dir = None
                 loop.close()
@@ -2002,26 +2519,32 @@ class MainFrame(wx.Frame):
             # Step 3: Describe frames. The same dialog now shows real
             # per-frame AI progress (done/total); Cancel aborts the AI loop
             # between frames and keeps whatever is already done.
-            wx.CallAfter(self.SetStatusText, t("status.analyzing"))
+            self._ui(self.SetStatusText, t("status.analyzing"))
             self._ai_cancelled = False
             frame_paths = [f.path for f in frames]
 
             def ai_progress(done: int, tot: int) -> None:
                 _ui_now(self._ai_progress_tick, done, tot)
 
-            descriptions = loop.run_until_complete(
-                self.ai_engine.describe_frames(
-                    frame_paths, prompt,
-                    on_progress=ai_progress,
-                    is_cancelled=lambda: bool(
-                        getattr(self, "_ai_cancelled", False)
-                        or getattr(self, "_dl_cancelled", False)
-                    ),
+            # While this flag is up, Cancel noticed anywhere (heartbeat
+            # included) means "stop and keep what is described".
+            self._frame_ai_phase = True
+            try:
+                descriptions = loop.run_until_complete(
+                    self.ai_engine.describe_frames(
+                        frame_paths, prompt,
+                        on_progress=ai_progress,
+                        is_cancelled=lambda: bool(
+                            getattr(self, "_ai_cancelled", False)
+                            or getattr(self, "_dl_cancelled", False)
+                        ),
+                    )
                 )
-            )
+            finally:
+                self._frame_ai_phase = False
 
             # Step 4: Save
-            wx.CallAfter(self.SetStatusText, t("status.generating_descriptions"))
+            self._ui(self.SetStatusText, t("status.generating_descriptions"))
 
             if not self.project_store.current:
                 video_name = (self._project_display_name(source)
@@ -2071,10 +2594,21 @@ class MainFrame(wx.Frame):
             # explanation. Now surface a clear failure notice instead of
             # an empty project, and clean up like the error paths do.
             if not desc_objects:
-                wx.CallAfter(self._log, t("status.error", error=t("error.ai_empty")))
-                wx.CallAfter(self.SetStatusText,
-                             t("status.error", error=t("error.ai_empty")))
-                wx.CallAfter(self._close_download_progress)
+                # v1.9.6: when EVERY frame failed, say why -- the first
+                # "(error: ...)" placeholder, in words (no JSON body).
+                reason = ""
+                for text in descriptions or []:
+                    if str(text).startswith("(error:"):
+                        reason = self._error_text(
+                            str(text)[len("(error:"):].rstrip(") ").strip())
+                        break
+                empty = t("error.ai_empty")
+                if reason:
+                    empty = f"{empty} {reason}"
+                self._ui(self._log, t("status.error", error=empty))
+                self._ui(self.SetStatusText,
+                         t("status.error", error=empty))
+                self._ui(self._close_download_progress)
 
                 def _notify_empty() -> None:
                     # A modal MessageBox blocks until dismissed, which hung
@@ -2082,34 +2616,40 @@ class MainFrame(wx.Frame):
                     # stuck in test_fixes9). Show the modal only when the
                     # frame is actually on screen; headless runs get the
                     # same information via the log + status bar lines.
+                    if not self or self.IsBeingDeleted():
+                        return
                     if self.IsShown():
-                        wx.MessageBox(t("process.no_descriptions"),
-                                      t("process.failed_title"),
-                                      wx.OK | wx.ICON_ERROR)
+                        msg = t("process.no_descriptions")
+                        if reason:
+                            msg = f"{msg}\n\n{t('status.error', error=reason)}"
+                        wx.MessageBox(msg, t("process.failed_title"),
+                                      wx.OK | wx.ICON_ERROR, self)
 
-                wx.CallAfter(_notify_empty)
+                self._ui(_notify_empty)
                 self._cleanup_dir(frame_dir)
                 frame_dir = None
                 if loop is not None and not loop.is_closed():
                     loop.close()
-                wx.CallAfter(self._processing_done)
+                self._ui(self._processing_done)
                 return
 
-            wx.CallAfter(self._ensure_download_progress)
-            wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
+            self._ui(self._ensure_download_progress)
+            self._ui(self._download_progress_tick_text, t("download.saving"), -1)
             self.project_store.save_descriptions(desc_objects)
             self._write_project_srt()
             video_path = self._video_saved_path()
-            wx.CallAfter(self._log, t("main.log_generated",
+            self._ui(self._log, t("main.log_generated",
                                       count=len(desc_objects)))
-            wx.CallAfter(self._log, t("status.processing_complete",
+            self._ui(self._log, t("status.processing_complete",
                                       count=len(desc_objects)))
             if video_path:
-                wx.CallAfter(self._log, t("log.video_saved_at", path=video_path))
+                self._ui(self._log, t("log.video_saved_at", path=video_path))
 
             def _notify_done(count: int, vpath: str) -> None:
                 # Same guard as _notify_empty: modal only for visible
                 # frames (real users), log/status only for headless runs.
+                if not self or self.IsBeingDeleted():
+                    return
                 if self.IsShown():
                     key = ("process.complete_with_video" if vpath
                            else "status.processing_complete")
@@ -2117,11 +2657,11 @@ class MainFrame(wx.Frame):
                                   t("process.complete_title"),
                                   wx.OK | wx.ICON_INFORMATION)
 
-            wx.CallAfter(_notify_done, len(desc_objects), video_path)
+            self._ui(_notify_done, len(desc_objects), video_path)
             if getattr(self, "_ai_cancelled", False):
-                wx.CallAfter(self._log, t("log.ai_cancelled_partial"))
-            wx.CallAfter(self._close_download_progress)
-            wx.CallAfter(self.SetStatusText, t("status.complete"))
+                self._ui(self._log, t("log.ai_cancelled_partial"))
+            self._ui(self._close_download_progress)
+            self._ui(self.SetStatusText, t("status.complete"))
 
             # Temp frames are no longer needed: used frames were copied.
             self._cleanup_dir(frame_dir)
@@ -2130,15 +2670,22 @@ class MainFrame(wx.Frame):
 
         except SourceError as e:
             logger.error("Source resolution failed: %s", e)
-            msg = str(e)
-            wx.CallAfter(self._log, t("status.error", error=msg))
-            # v1.7.7: the usual cause of a YouTube download that used to
-            # work is an outdated yt-dlp, so say where the fix is.
-            if "youtu" in str(getattr(self, "_current_source", "") or msg):
-                wx.CallAfter(self._log, t("update.download_hint"))
-            wx.CallAfter(self.SetStatusText, t("status.error", error=msg))
-            wx.CallAfter(self._close_download_progress)
-            wx.CallAfter(self._processing_done)
+            if getattr(self, "_dl_cancelled", False):
+                self._ui(self._log, t("download.cancelled_log"))
+                self._ui(self._close_download_progress)
+            else:
+                from ..core.video_processor import is_forbidden_error
+                # v1.9.6: never the raw text (it carried the URL), and a
+                # download 403 -- raised as SourceError -- now reaches
+                # error.download_forbidden.
+                shown = self._error_text(e, source_error=True)
+                self._report_failure(shown)
+                # v1.7.7: the usual cause of a YouTube download that used
+                # to work is an outdated yt-dlp, so say where the fix is.
+                if (not is_forbidden_error(str(e)) and "youtu" in str(
+                        getattr(self, "_current_source", "") or e)):
+                    self._ui(self._log, t("update.download_hint"))
+            self._ui(self._processing_done)
             if frame_dir:
                 self._cleanup_dir(frame_dir)
             # LEAK FIX (30 Aug): close the proactor loop on the error path
@@ -2150,20 +2697,16 @@ class MainFrame(wx.Frame):
             return
         except Exception as e:
             logger.error("Processing error: %s", e)
-            from ..core.ai_engine import is_busy_error
-            from ..core.video_processor import is_forbidden_error
-            # v1.8.2: a busy service ("HTTP 503: {...json...}") is told
-            # in words, with what to do -- not as raw JSON.
-            if is_busy_error(str(e)):
-                shown = t("error.ai_busy")
-            elif is_forbidden_error(str(e)):
-                # v1.8.3: YouTube still refused after the retries.
-                shown = t("error.download_forbidden")
+            if getattr(self, "_dl_cancelled", False):
+                # Cancel (or closing the window) made a step fail on its
+                # way out: that is a cancellation, not "Processing error".
+                self._ui(self._log, t("download.cancelled_log"))
+                self._ui(self._close_download_progress)
             else:
-                shown = str(e)
-            wx.CallAfter(self._log, t("status.error", error=shown))
-            wx.CallAfter(self.SetStatusText, t("status.error", error=shown))
-            wx.CallAfter(self._close_download_progress)
+                # v1.8.2/v1.9.6: busy, daily quota, 413, key, credit,
+                # network... told in words with what to do -- never the
+                # raw JSON body (it carried an OpenRouter user id).
+                self._report_failure(self._error_text(e))
             if frame_dir:
                 self._cleanup_dir(frame_dir)
             if loop is not None and not loop.is_closed():
@@ -2175,7 +2718,7 @@ class MainFrame(wx.Frame):
             if stop_counter is not None:
                 stop_counter.set()
 
-        wx.CallAfter(self._processing_done)
+        self._ui(self._processing_done)
 
     def _ensure_download_progress(self):
         """Create the download progress dialog on first progress event.
@@ -2192,6 +2735,11 @@ class MainFrame(wx.Frame):
         if self._dl_dialog is not None or self.IsBeingDeleted():
             return
         try:
+            # v1.9.6: AccessibleProgressDialog, a real progress bar NVDA
+            # reads (wx.ProgressDialog's bar is DirectUI, pitfall 3). It
+            # does not pump the event loop, but the guard below stays:
+            # it is what keeps ANY dialog built here from becoming a
+            # ghost.
             # v1.5.5 GHOST DIALOG FIX: wx.ProgressDialog pumps the event
             # loop while it shows the window, so queued CallAfter
             # handlers run INSIDE this constructor. When the pipeline
@@ -2202,118 +2750,164 @@ class MainFrame(wx.Frame):
             # frozen. Comparing the close counter across the constructor
             # detects exactly that and discards the newborn dialog.
             gen = getattr(self, "_dl_close_gen", 0)
-            dlg = wx.ProgressDialog(
+            dlg = AccessibleProgressDialog(
                 t("download.dialog_title"),
                 t("download.preparing"),
                 maximum=100,
                 parent=self,
-                style=wx.PD_CAN_ABORT | wx.PD_SMOOTH | wx.PD_AUTO_HIDE,
             )
             if (getattr(self, "_dl_close_gen", 0) != gen
                     or getattr(self, "_dl_done", False)):
                 dlg.Destroy()
                 self._dl_dialog = None
                 return
-            dlg.SetSize((460, 150))
             self._dl_dialog = dlg
+            # A dialog re-created mid-job starts where the job is.
+            self._dlg_text = self._dlg_title = None
+            if self._overall_pct() > 0:
+                dlg.Update(self._overall_pct())
+            # The heartbeat is what notices Cancel in silent phases; a
+            # dialog re-created mid-job (it is closed between phases)
+            # must have it running again.
+            timer = self._hb_timer
+            if (self._processing and timer is not None
+                    and not timer.IsRunning()):
+                timer.Start(1000)
         except Exception:
-            logger.debug("ProgressDialog creation failed", exc_info=True)
+            logger.debug("progress dialog creation failed", exc_info=True)
             self._dl_dialog = None
 
     def _download_progress_tick(self, p):
-        """Update the progress dialog from a DownloadProgress (UI thread)."""
-        if getattr(self, "_dl_done", False):
+        """Download progress from a DownloadProgress (UI thread): the
+        download stage, 0-15 of the overall bar."""
+        if not self or getattr(self, "_dl_done", False):
             return
-        dlg = self._dl_dialog
-        if dlg is None:
+        if self._dl_dialog is None:
             return
-        # Real progress is flowing: record the time so the 1s heartbeat
-        # tick stands down (it resumes pulsing only in silent phases).
-        try:
-            self._last_progress_at = time.monotonic()
-        except Exception:
-            pass
-        line = self._format_progress(p)
-        if p.percent < 0:
-            # Unknown percentage: pulse the bar, show the text
-            ok = dlg.Pulse(line)[0]
+        # Real progress is flowing (kept for tools that look at it).
+        self._last_progress_at = time.monotonic()
+        if p.phase == "merge":
+            fraction, text = 1.0, t("download.merging")
         else:
-            # Cap at 99: Update(100) auto-hides a PD_AUTO_HIDE dialog while
-            # later phases (frame extraction, AI pass) still need it.
-            ok = dlg.Update(min(int(p.percent), 99), line)[0]
-            # Live percentage in the title: screen readers announce it
-            # and cross-process tools can read a window title.
-            try:
-                dlg.SetTitle(f"{t('download.dialog_title')} - "
-                             f"{min(int(p.percent), 100)}%")
-            except Exception:
-                pass
-        if not ok:
-            # User pressed Cancel
-            self._dl_cancelled = True
-            self._dl_done = True
-            self._hb_stop()
-            dlg.Update(0, t("download.cancelling"))
-            self._close_download_progress()
+            # Video first, then the (much smaller) audio stream: each
+            # restarts at 0%, so they share the stage 90/10. A single
+            # file ("preparing") has the whole stage.
+            share = (max(0.0, min(100.0, p.percent)) / 100.0
+                     if p.percent >= 0 else 0.0)
+            fraction = {"video": 0.9 * share,
+                        "audio": 0.9 + 0.1 * share}.get(p.phase, share)
+            text = self._phase_text(t("download.dialog_title"),
+                                    self._eta_text(self._clock_seconds(p.eta)))
+        self._advance("download", fraction)
+        self._title_phase = t("download.dialog_title")
+        self._show_progress(text)
+        # The detail (percent, MB, speed) stays in the status bar, which
+        # is read on demand, not in the dialog.
+        try:
+            self.SetStatusText(self._format_progress(p))
+        except Exception:
+            logger.debug("status bar update failed", exc_info=True)
+
+    @staticmethod
+    def _clock_seconds(value: str) -> float:
+        """yt-dlp's ETA ("01:05", "1:02:03") in seconds; -1 = unknown."""
+        try:
+            total = 0
+            for part in str(value or "").strip().split(":"):
+                total = total * 60 + int(part)
+            return float(total) if value else -1.0
+        except ValueError:
+            return -1.0
 
     def _frame_count_tick(self, count: int):
-        """Show extraction progress in the dialog (UI thread)."""
-        if getattr(self, "_dl_done", False):
+        """Frame mode, extraction (UI thread): the extract stage, by the
+        number of frames written of those expected."""
+        if not self or getattr(self, "_dl_done", False):
             return
-        dlg = self._dl_dialog
-        if dlg is None:
+        if self._dl_dialog is None:
             return
-        line = t("download.extract_progress", count=count)
-        ok = dlg.Pulse(line)[0]
-        if not ok:
-            self._dl_cancelled = True
-            self._dl_done = True
-            self._hb_stop()
-            dlg.Update(0, t("download.cancelling"))
-            self._close_download_progress()
+        expected = getattr(self, "_expected_frames", 0) or 0
+        self._advance("extract", count / expected if expected > 0 else 0.0)
+        self._title_phase = t("status.extracting_frames")
+        self._show_progress(t("status.extracting_frames"))
+        self.SetStatusText(t("download.extract_progress", count=count))
 
     def _ai_progress_tick(self, done: int, total: int):
-        """Show real per-frame AI progress in the dialog (UI thread)."""
-        if getattr(self, "_dl_done", False):
+        """Frame mode, AI pass (UI thread): frames done of total."""
+        if not self or getattr(self, "_dl_done", False):
             return
-        dlg = self._dl_dialog
-        if dlg is None:
+        if self._dl_dialog is None:
             return
-        line = t("download.analyzing", done=done, total=total)
-        pct = int(done * 100 / total) if total else 0
-        ok = dlg.Update(pct, line)[0]
-        if not ok:
-            self._ai_cancelled = True
-            dlg.Update(pct, t("download.cancel_analysis"))
-            self._close_download_progress()
+        pct = self._advance("ai", done / total if total else 0.0)
+        self._title_phase = t("status.analyzing")
+        result = self._push_dialog(t("status.analyzing"))
+        self.SetStatusText(t("download.analyzing", done=done, total=total))
+        if result is not None and not result[0]:
+            # Frame mode keeps its meaning: stop and save what is done.
+            self._ai_cancel(pct)
+
+    def _stage_tick(self, stage: str, fraction: float,
+                    text: str | None = None) -> None:
+        """A step with no tick of its own reached `fraction` of `stage`
+        (UI thread)."""
+        if not self or getattr(self, "_dl_done", False):
+            return
+        self._advance(stage, fraction)
+        if fraction >= 1.0:
+            # The real answer is in: a timed wait must not go on writing
+            # "taking longer than usual" over the next phase.
+            self._timed_wait = None
+        self._show_progress(text)
+
+    def _transcript_tick(self, fraction: float) -> None:
+        """Transcript (UI thread): Whisper's position in the audio, or 1.0
+        when subtitles or the project cache answered at once."""
+        if not self or getattr(self, "_dl_done", False):
+            return
+        self._last_progress_at = time.monotonic()
+        self._advance("transcript", fraction)
+        self._show_progress()
+
+    def _review_tick(self, done: int, total: int) -> None:
+        """Description check (UI thread): checked of total."""
+        if not self or getattr(self, "_dl_done", False):
+            return
+        self._advance("review", done / max(1, total))
+        self._show_progress()
+        self.SetStatusText(t("review.progress", done=done, total=total))
 
     def _set_dialog_phase_title(self, phase_line: str, pct: int | None = None) -> None:
-        """Put the CURRENT phase in the dialog title.
+        """Put the CURRENT phase and the OVERALL percentage in the title.
 
         The title is what a screen reader announces when the dialog
-        takes focus, and what Win32 tools can read. It used to be
+        takes focus, and what Win32 tools read (pitfall 3). It used to be
         "Downloading video - N%" for every phase of the run, frozen at
-        the download's last percentage — so a user ten minutes into an
-        AI upload was told the download was finished at 100%.
+        the download's last percentage. `pct` is ignored: the title
+        always shows the one overall percentage of the bar. Written only
+        when it changes.
         """
+        self._title_phase = phase_line
         dlg = self._dl_dialog
         if dlg is None:
             return
-        text = phase_line.rstrip(". ")
-        if pct is not None:
-            text = f"{text} - {pct}%"
+        text = f"{phase_line.rstrip('. ')} - {self._overall_pct()}%"
+        if text == getattr(self, "_dlg_title", None):
+            return
         try:
             dlg.SetTitle(text)
+            self._dlg_title = text
         except Exception:
             logger.debug("dialog title update failed", exc_info=True)
 
     def _video_status_tick(self, phase: str):
         """Full-video mode: announce the current phase (UI thread).
 
-        The dialog text and status bar change together so screen readers
-        pick the new phase up as it happens.
+        The dialog text, title and status bar change together; the phase
+        is SPOKEN once (_announce_progress, pitfall 65), and the bar
+        moves to the stage the phase belongs to.
         """
-        dlg = self._dl_dialog
+        if not self or getattr(self, "_dl_done", False):
+            return
         phase_keys = {
             "transcript": "video.phase_transcript",
             "uploading": "video.phase_uploading",
@@ -2330,20 +2924,23 @@ class MainFrame(wx.Frame):
             "reviewing": "video.phase_reviewing",
         }
         line = t(phase_keys.get(phase, "video.phase_processing"))
-        # v1.6.4: three things had to change together here.
-        #
-        # The heartbeat now learns the new phase, so its once-a-second
-        # pulse repeats THIS phase instead of "Loading video info..."
-        # forever. Without that, the line below was overwritten 1.5
-        # seconds later and the truth was visible only in that window.
+        # The heartbeat learns the phase (v1.6.4), the title stops
+        # claiming "Downloading" for phases that are not a download.
         self._hb_set_phase(line)
-        # The title carried the word "Downloading" and the download's
-        # final percentage for the whole job. Phases that are not a
-        # download now say so, and drop the stale percentage.
-        self._set_dialog_phase_title(line)
-        if dlg is not None:
-            dlg.Pulse(line)
-            self._eta_last_line = line
+        self._title_phase = line
+        if phase == "transcript":
+            self._advance("transcript")
+        elif phase == "reviewing":
+            self._advance("review")
+        else:
+            self._advance("ai")
+            if phase in ("processing", "describing"):
+                # Gemini/MiniMax say nothing until the answer: the bar
+                # moves by time from here (_begin_timed_wait).
+                basis = getattr(self, "_wait_basis", None) or ("", 0.0, False)
+                self._begin_timed_wait(*basis)
+        if not self._show_progress(self._phase_text(line)):
+            return  # Cancel pressed: the job is being cancelled
         self.SetStatusText(line)
         if phase != "waiting":
             # A wait is announced by the first time-left tick, with
@@ -2364,18 +2961,16 @@ class MainFrame(wx.Frame):
             parts)
         if mode == "off" or not pairs:
             return pairs
-        wx.CallAfter(self._video_status_tick, "reviewing")
+        self._ui(self._video_status_tick, "reviewing")
         last = {"pct": -1}
 
         def progress(done: int, total: int) -> None:
             pct = int(done * 100 / max(1, total))
-            # Only on whole 10% steps: text that changes every half
-            # second is read over and over when the dialog has focus
-            # (pitfall 65).
+            # Only on whole 10% steps: the review owns 4 points of the
+            # overall bar, and the status line need not change faster.
             if pct // 10 != last["pct"] // 10 or done == total:
                 last["pct"] = pct
-                wx.CallAfter(self.SetStatusText, t(
-                    "review.progress", done=done, total=total))
+                self._ui(self._review_tick, done, total)
         try:
             kept, summary = loop.run_until_complete(review.review(
                 self.ai_engine, video, pairs, mode, length,
@@ -2384,20 +2979,20 @@ class MainFrame(wx.Frame):
                     getattr(self, "_dl_cancelled", False))))
         except RuntimeError as e:
             if "cancel" in str(e).lower():
-                wx.CallAfter(self._log, t("download.cancelled_log"))
-                wx.CallAfter(self._close_download_progress)
+                self._ui(self._log, t("download.cancelled_log"))
+                self._ui(self._close_download_progress)
                 if loop is not None and not loop.is_closed():
                     loop.close()
-                wx.CallAfter(self._processing_done)
+                self._ui(self._processing_done)
                 return None
             logger.warning("Description check failed: %s", e)
-            wx.CallAfter(self._log, t("review.failed", error=str(e)[:200]))
+            self._ui(self._log, t("review.failed", error=self._error_text(e)))
             return pairs
         except Exception as e:
             logger.warning("Description check failed: %s", e)
-            wx.CallAfter(self._log, t("review.failed", error=str(e)[:200]))
+            self._ui(self._log, t("review.failed", error=self._error_text(e)))
             return pairs
-        wx.CallAfter(self._log, t(
+        self._ui(self._log, t(
             "review.summary", checked=summary["checked"],
             moved=summary["moved"], removed=summary["removed"],
             mode=t(f"settings.review_{mode}")))
@@ -2459,99 +3054,74 @@ class MainFrame(wx.Frame):
         return t("video.eta_minutes", minutes=max(1, int(round(eta / 60.0))))
 
     def _video_eta_tick(self, pct: float, eta: float | None):
-        """v1.8.4: overall bar + time left while a part uploads and waits.
-
-        The bar used to sit at 0% for the whole upload and the model's
-        wait, with only a seconds counter moving.
-        """
-        if getattr(self, "_dl_done", False):
+        """v1.8.4: OpenRouter's progress (0..100 of the AI step) and time
+        left while a part uploads and waits. Mapped into the AI stage of
+        the overall bar (v1.9.6)."""
+        if not self or getattr(self, "_dl_done", False):
             return
-        dlg = self._dl_dialog
         self._last_progress_at = time.monotonic()
-        pct_i = min(99, max(1, int(pct)))
+        overall = self._advance("ai", pct / 100.0)
         phase = getattr(self, "_hb_phase", "") or t("video.phase_processing")
-        line = phase
+        left = ""
         if phase == t("video.phase_waiting"):
             left = self._eta_text(eta)
-            if left:
-                line = f"{phase}\n{left}"
             # The wait is announced once, with its estimate, from here
             # rather than from the phase change a second earlier.
             if getattr(self, "_wait_said_for", None) != self._hb_start:
                 self._wait_said_for = self._hb_start
                 self._announce_progress(f"{phase} {left}".strip())
-        self._set_dialog_phase_title(phase, pct_i)
-        if dlg is not None:
-            try:
-                # The text is set only when it CHANGES. Heard in the
-                # 1.8.4 run: with focus on the dialog itself, NVDA read
-                # the same two lines again every second for 20 seconds.
-                if line != getattr(self, "_eta_last_line", None):
-                    self._eta_last_line = line
-                    dlg.Update(pct_i, line)
-                else:
-                    dlg.Update(pct_i)
-            except Exception:
-                logger.debug("eta tick dialog update failed", exc_info=True)
-        self.SetStatusText(line.replace("\n", " "))
+        self._title_phase = phase
+        # The text is set only when it CHANGES. Heard in the 1.8.4 run:
+        # with focus on the dialog itself, NVDA read the same two lines
+        # again every second for 20 seconds.
+        line = self._phase_text(phase, left)
+        if not self._show_progress(line):
+            return
+        status = phase if not left else f"{phase} {left}"
+        self.SetStatusText(f"{status} ({overall}%)")
 
     def _video_upload_tick(self, pct: float):
-        """Full-video mode: upload progress percentage (UI thread).
-
-        Clamped to 99: Update(100) would auto-hide the dialog
-        (PD_AUTO_HIDE) while the AI is still describing the video.
-        """
-        dlg = self._dl_dialog
+        """Gemini/MiniMax upload percentage (UI thread): the first half
+        of the AI stage; the silent wait after it is the second half."""
+        if not self or getattr(self, "_dl_done", False):
+            return
         line = t("video.uploading_progress", pct=int(pct))
-        # v1.6.4: real progress is arriving, so the heartbeat must stand
-        # down — otherwise it overwrites this line a second and a half
-        # later with whatever phase it last knew about. Only the
-        # download tick used to record this, which is why every AI phase
-        # was eventually covered over.
+        # v1.6.4: real progress is arriving (tools and older tests read
+        # this; the heartbeat no longer writes over anything).
         self._last_progress_at = time.monotonic()
-        self._set_dialog_phase_title(t("video.phase_uploading"), int(pct))
-        if dlg is not None:
-            dlg.Update(min(99, int(pct)), line)
+        self._advance("ai", 0.5 * max(0.0, min(100.0, pct)) / 100.0)
+        self._title_phase = t("video.phase_uploading")
+        if not self._show_progress(self._phase_text(t("video.phase_uploading"))):
+            return
         self.SetStatusText(line)
 
     def _video_split_tick(self, pct: float):
-        """v1.4.1: real split/describe progress for chunked videos (UI)."""
-        dlg = self._dl_dialog
-        line = t("video.split_progress", pct=int(pct))
-        if dlg is not None:
-            try:
-                dlg.Update(min(99, max(1, int(pct))), line)
-                # Live percentage in the title (screen readers + Win32).
-                dlg.SetTitle(f"{t('download.dialog_title')} - "
-                             f"{int(pct)}%")
-            except Exception:
-                logger.debug("split tick dialog update failed", exc_info=True)
-        self.SetStatusText(line)
+        """v1.4.1: OpenRouter split/describe progress for chunked videos,
+        0..100 of the AI step (UI thread)."""
+        if not self or getattr(self, "_dl_done", False):
+            return
+        overall = self._advance("ai", pct / 100.0)
+        if not self._show_progress():
+            return
+        self.SetStatusText(t("video.split_progress", pct=overall))
 
     def _video_part_tick(self, part: int, total: int):
-        """v1.4.1: part counter + OVERALL percentage for chunked videos.
+        """v1.4.1: part N of M starts (OpenRouter, UI thread).
 
-        part_progress callback (ai_engine) already computed the overall
-        percent; the dialog bar MOVES here instead of pulsing, and the
-        same line is written to the status log for E2E verification.
+        v1.8.4: part N STARTS here, so the parts already finished are
+        N-1 ("part 1 of 2, overall 55%" was said before anything was
+        sent). Splitting is the first 10% of the AI step.
         """
-        # v1.8.4: part N STARTS here, so the parts already finished are
-        # N-1. "part / total" announced "part 1 of 2, overall 55%" before
-        # the first part had even been sent.
-        pct = 10.0 + 90.0 * (part - 1) / max(1, total)
-        dlg = self._dl_dialog
-        line = t("video.part_progress", part=part, total=total, pct=int(pct))
-        if dlg is not None:
-            try:
-                # 99 cap: Update(100) auto-hides the dialog while the
-                # "Saving project" phase is still running; the dialog
-                # is closed properly by _close_download_progress.
-                dlg.Update(min(99, max(1, int(pct))), line)
-                # Live percentage in the title (screen readers + Win32).
-                dlg.SetTitle(f"{t('download.dialog_title')} - "
-                             f"{int(pct)}%")
-            except Exception:
-                logger.debug("part tick dialog update failed", exc_info=True)
+        if not self or getattr(self, "_dl_done", False):
+            return
+        overall = self._advance(
+            "ai", (10.0 + 90.0 * (part - 1) / max(1, total)) / 100.0)
+        line = t("video.part_progress", part=part, total=total, pct=overall)
+        self._part_text = (t("video.part_start", part=part, total=total)
+                           if total > 1 else "")
+        if not self._show_progress(
+                self._phase_text(getattr(self, "_hb_phase", ""))):
+            return
         self.SetStatusText(line)
         self._log(line)
         if total > 1:
@@ -2597,38 +3167,42 @@ class MainFrame(wx.Frame):
         never hang.
         """
         if not desc_objects:
-            wx.CallAfter(self._log, t("status.error", error=t("error.ai_empty")))
-            wx.CallAfter(self.SetStatusText,
+            self._ui(self._log, t("status.error", error=t("error.ai_empty")))
+            self._ui(self.SetStatusText,
                          t("status.error", error=t("error.ai_empty")))
-            wx.CallAfter(self._close_download_progress)
+            self._ui(self._close_download_progress)
 
             def _notify_empty() -> None:
+                if not self or self.IsBeingDeleted():
+                    return
                 if self.IsShown():
                     wx.MessageBox(t("process.no_descriptions"),
                                   t("process.failed_title"),
-                                  wx.OK | wx.ICON_ERROR)
+                                  wx.OK | wx.ICON_ERROR, self)
 
-            wx.CallAfter(_notify_empty)
+            self._ui(_notify_empty)
             if frame_dir:
                 self._cleanup_dir(frame_dir)
             if loop is not None and not loop.is_closed():
                 loop.close()
-            wx.CallAfter(self._processing_done)
+            self._ui(self._processing_done)
             return
 
-        wx.CallAfter(self._ensure_download_progress)
-        wx.CallAfter(self._download_progress_tick_text, t("download.saving"), -1)
+        self._ui(self._ensure_download_progress)
+        self._ui(self._download_progress_tick_text, t("download.saving"), -1)
         self.project_store.save_descriptions(desc_objects)
         self._write_project_srt()
         video_path = self._video_saved_path()
-        wx.CallAfter(self._log, t("main.log_generated",
+        self._ui(self._log, t("main.log_generated",
                                   count=len(desc_objects)))
-        wx.CallAfter(self._log, t("status.processing_complete",
+        self._ui(self._log, t("status.processing_complete",
                                   count=len(desc_objects)))
         if video_path:
-            wx.CallAfter(self._log, t("log.video_saved_at", path=video_path))
+            self._ui(self._log, t("log.video_saved_at", path=video_path))
 
         def _notify_done(count: int, vpath: str) -> None:
+            if not self or self.IsBeingDeleted():
+                return
             if self.IsShown():
                 key = ("process.complete_with_video" if vpath
                        else "status.processing_complete")
@@ -2636,24 +3210,24 @@ class MainFrame(wx.Frame):
                               t("process.complete_title"),
                               wx.OK | wx.ICON_INFORMATION)
 
-        wx.CallAfter(_notify_done, len(desc_objects), video_path)
-        wx.CallAfter(self._close_download_progress)
-        wx.CallAfter(self.SetStatusText, t("status.complete"))
+        self._ui(_notify_done, len(desc_objects), video_path)
+        self._ui(self._close_download_progress)
+        self._ui(self.SetStatusText, t("status.complete"))
         if frame_dir:
             self._cleanup_dir(frame_dir)
         if loop is not None and not loop.is_closed():
             loop.close()
-        wx.CallAfter(self._processing_done)
+        self._ui(self._processing_done)
 
     def _download_progress_tick_text(self, text: str, percent: int):
-        """Show an arbitrary phase text in the dialog (UI thread)."""
-        dlg = self._dl_dialog
-        if dlg is None:
+        """Show a phase text in the dialog (UI thread). The bar keeps the
+        overall percentage; `percent` is ignored (every caller passed -1,
+        "no percentage", which used to animate the bar and lose it)."""
+        if not self or getattr(self, "_dl_done", False):
             return
-        if percent < 0:
-            dlg.Pulse(text)
-        else:
-            dlg.Update(percent, text)
+        if self._dl_dialog is None:
+            return
+        self._show_progress(text)
 
     def _format_progress(self, p) -> str:
         """Format one progress line: percent, MB of MB, speed, ETA."""
@@ -2679,11 +3253,14 @@ class MainFrame(wx.Frame):
 
     def _close_download_progress(self):
         """Close and destroy the progress dialog if it exists (UI thread)."""
+        if not self:
+            return
         self._hb_stop()
         # Bumped even when there is nothing to close: a dialog may be
         # mid-construction right now (see _ensure_download_progress).
         self._dl_close_gen = getattr(self, "_dl_close_gen", 0) + 1
         dlg, self._dl_dialog = self._dl_dialog, None
+        self._dlg_text = self._dlg_title = None
         if dlg is not None:
             try:
                 dlg.Destroy()
@@ -2698,6 +3275,8 @@ class MainFrame(wx.Frame):
         flip the status bar (the old code auto-opened the player on the
         partial/empty state left behind by cancellation).
         """
+        if not self:
+            return  # the window was closed while the job ran
         self._hb_stop()
         self._processing = False
         # v1.6.7: the project is created before the download now, so an
@@ -2718,7 +3297,7 @@ class MainFrame(wx.Frame):
         # Auto-open PlayerWindow if descriptions were generated
         if self.project_store.current and self.project_store.current.descriptions:
             self._log(t("main.log_opening_player"))
-            wx.CallAfter(self._open_player)
+            self._ui(self._open_player)
 
     @staticmethod
     def _cleanup_dir(path: str):
@@ -2759,6 +3338,17 @@ class MainFrame(wx.Frame):
             self.prompt_choice.SetSelection(0)
             self._preview_preset(names[0])
 
+    def _transcript_cache_path(self):
+        """media/transcript.json of the project being processed (shared
+        with the Player agent), or None when there is no project."""
+        cur = self.project_store.current
+        if cur is None:
+            return None
+        try:
+            return self.project_store.media_dir(cur.id) / "transcript.json"
+        except Exception:
+            return None
+
     def _open_player(self):
         """Open the described video player window."""
         from .player_window import PlayerWindow
@@ -2768,7 +3358,7 @@ class MainFrame(wx.Frame):
             win.Show()
         except Exception as e:
             logger.error("Failed to open PlayerWindow: %s", e)
-            self._log(t("log.player_failed", error=str(e)))
+            self._log(t("log.player_failed", error=self._local_error_text(e)))
 
     def _log(self, message: str):
         """Append a line to the status log.

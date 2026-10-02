@@ -12,6 +12,7 @@ AUDIO track ran only 9.25 seconds:
      bin/ three folders up (src/bin) instead of four: anything run from
      outside the repo root silently used a different ffmpeg.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import subprocess

@@ -13,7 +13,7 @@ from typing import Any
 
 import wx
 
-from ..core.ai_engine import AIEngine
+from ..core.ai_engine import AIEngine, short_error, user_error_text
 from ..core.prompt_manager import PromptManager
 from ..core.video_processor import VideoProcessor, SourceError
 from ..i18n.strings import I18n, t
@@ -35,6 +35,9 @@ class SceneExplorer(wx.Frame):
         self._frames_dir = ""
         self._prompt_mgr: PromptManager | None = None
         self._describing = False  # reentrancy guard for the D key
+        # v1.9.6: set by _on_close; stops the frame extraction (and a
+        # URL's download) and tells the worker to delete its temp folder.
+        self._closing = False
 
         super().__init__(parent, title=t("explorer.title"), size=(900, 700))
 
@@ -120,6 +123,8 @@ class SceneExplorer(wx.Frame):
         message through Prism in exactly that case, and stays quiet
         when a reader is running so nothing is said twice.
         """
+        if not self or self._closing:
+            return  # v1.9.6: a worker's CallAfter after the window closed
         shown, hidden = self.status_text, self._status_alt
         if wx.Window.FindFocus() is shown:
             shown, hidden = hidden, shown
@@ -133,6 +138,15 @@ class SceneExplorer(wx.Frame):
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
+
+    def _set_text(self, ctrl_name: str, text: str) -> None:
+        """SetValue from a worker's CallAfter, only while the window is
+        alive (v1.9.6: closing during a describe raised RuntimeError)."""
+        if not self or self._closing:
+            return
+        ctrl = getattr(self, ctrl_name, None)
+        if ctrl:
+            ctrl.SetValue(text)
 
     def _default_prompt(self) -> str:
         """Per-language default AI prompt, consistent with MainFrame.
@@ -165,24 +179,38 @@ class SceneExplorer(wx.Frame):
             try:
                 self.frames = [
                     {"path": f.path, "time": f.timestamp}
-                    for f in loop.run_until_complete(vp.extract_frames(self.video_path, fps=2, output_dir=tmp))
+                    for f in loop.run_until_complete(vp.extract_frames(
+                        self.video_path, fps=2, output_dir=tmp,
+                        is_cancelled=lambda: self._closing))
                 ]
             except SourceError as e:
                 # Real reason: bad URL, private video, network failure...
                 logger.error("Source error: %s", e)
-                error_msg = str(e)
+                # Not an AI error: shortened only (no URL, no JSON).
+                error_msg = short_error(str(e))
                 self.frames = []
             except Exception as e:
                 logger.error("Frame loading error: %s", e)
                 self.frames = []
             finally:
                 loop.close()
+                if self._closing:
+                    # v1.9.6: the window closed while extracting; it
+                    # never learned this folder, so it is deleted here.
+                    import shutil
+                    shutil.rmtree(tmp, ignore_errors=True)
+            if self._closing:
+                return
             # Always notify the UI thread, success or failure
             wx.CallAfter(self._frames_loaded, self.frames, tmp, error_msg)
         threading.Thread(target=run, daemon=True).start()
 
     def _frames_loaded(self, frames: list[dict], frames_dir: str, error_msg: str = ""):
         """Called on the UI thread when background extraction finishes."""
+        if not self or self._closing:
+            import shutil
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            return
         self.frames = frames
         self._frames_dir = frames_dir
         if self.frames:
@@ -190,9 +218,7 @@ class SceneExplorer(wx.Frame):
         elif error_msg:
             self._announce(t("scene.error", msg=error_msg))
         else:
-            self.status_text.SetLabel(
-                t("scene.no_frames")
-            )
+            self._announce(t("scene.no_frames"))
 
     def _load_sample_frames(self):
         """No video available — leave frame list empty and inform the user."""
@@ -283,15 +309,17 @@ class SceneExplorer(wx.Frame):
                 result = loop.run_until_complete(
                     self.ai.describe_frame(frame["path"], prompt)
                 )
-                wx.CallAfter(self.desc_text.SetValue, result)
+                wx.CallAfter(self._set_text, "desc_text", result)
                 wx.CallAfter(self._announce, t("status.ready"))
             except Exception as e:
-                wx.CallAfter(self.desc_text.SetValue,
-                             t("scene.error", msg=str(e)))
-                wx.CallAfter(self._announce, t("status.error", error=str(e)))
+                logger.error("Describe frame failed: %s", e)
+                said = user_error_text(str(e))
+                wx.CallAfter(self._set_text, "desc_text",
+                             t("scene.error", msg=said))
+                wx.CallAfter(self._announce, t("status.error", error=said))
             finally:
                 loop.close()
-                wx.CallAfter(setattr, self, "_describing", False)
+                wx.CallAfter(self._describe_done)
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -311,13 +339,19 @@ class SceneExplorer(wx.Frame):
                 result = loop.run_until_complete(
                     self.ai.describe_frame(frame["path"], t("scene.objects_prompt"))
                 )
-                wx.CallAfter(self.objects_text.SetValue, result)
+                wx.CallAfter(self._set_text, "objects_text", result)
             except Exception as e:
-                wx.CallAfter(self.objects_text.SetValue, f"Error: {e}")
+                logger.error("List objects failed: %s", e)
+                wx.CallAfter(self._set_text, "objects_text",
+                             t("scene.error", msg=user_error_text(str(e))))
             finally:
                 loop.close()
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _describe_done(self) -> None:
+        if self:
+            self._describing = False
 
     def _describe_nearest(self):
         """Describe the nearest detected object."""
@@ -325,6 +359,9 @@ class SceneExplorer(wx.Frame):
 
     def _on_close(self, event):
         """Clean up extracted frames temp dir and close."""
+        # v1.9.6: stops a running extraction; its worker deletes the
+        # folder this window has not been told about yet.
+        self._closing = True
         if self._frames_dir:
             import shutil
             shutil.rmtree(self._frames_dir, ignore_errors=True)

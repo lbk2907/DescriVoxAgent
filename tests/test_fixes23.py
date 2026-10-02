@@ -17,6 +17,7 @@ the real API: with the transcript supplied, `ms_foreign` produced
 "Dia berkata keunikan gajah-gajah ini ialah belalai yang amat panjang"
 from English speech — the conveyance that had failed three runs running.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import inspect
 import io
@@ -115,11 +116,11 @@ def test_url_and_file_take_different_routes():
     vp = VideoProcessor()
     calls = []
 
-    async def fake_ytdlp(self, source):
+    async def fake_ytdlp(self, source, *args, **kwargs):  # v1.9.6: Cancel + progress
         calls.append(("ytdlp", source))
         return _segs((0.0, 1.0, "from subtitles"))
 
-    async def fake_embedded(self, source):
+    async def fake_embedded(self, source, *args, **kwargs):  # v1.9.6: Cancel + progress
         calls.append(("embedded", source))
         return _segs((0.0, 1.0, "from file"))
 
@@ -189,7 +190,8 @@ def test_transcript_only_goes_to_providers_that_take_one():
 def test_pipeline_fetches_the_transcript():
     src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(
         encoding="utf-8")
-    assert "vp.get_transcript(source" in src, \
+    import re
+    assert re.search(r"vp\.get_transcript\(\s*source", src), \
         "the pipeline no longer fetches a transcript"
     assert "local_path=resolved" in src, (
         "a URL with no published captions can no longer fall back to "
@@ -246,7 +248,7 @@ def test_auto_falls_back_to_whisper_when_no_key():
     vp = VideoProcessor(settings=_FakeSettings(backend="auto", xai_key=""))
     called = []
 
-    async def fake_whisper(self, path):
+    async def fake_whisper(self, path, *args, **kwargs):  # v1.9.6: Cancel + progress
         called.append(path)
         return _segs((0.0, 1.0, "local"))
 
@@ -264,11 +266,11 @@ def test_auto_prefers_grok_when_a_key_exists():
     vp = VideoProcessor(settings=_FakeSettings(backend="auto", xai_key="k"))
     order = []
 
-    async def fake_grok(self, path, key):
+    async def fake_grok(self, path, key, *args, **kwargs):
         order.append("grok")
         return _segs((0.0, 1.0, "from grok"))
 
-    async def fake_whisper(self, path):
+    async def fake_whisper(self, path, *args, **kwargs):  # v1.9.6: Cancel + progress
         order.append("whisper")
         return []
 
@@ -290,7 +292,7 @@ def test_grok_failure_falls_back_to_whisper_in_auto():
     async def boom(self, path, key):
         raise RuntimeError("HTTP 500")
 
-    async def fake_whisper(self, path):
+    async def fake_whisper(self, path, *args, **kwargs):  # v1.9.6: Cancel + progress
         return _segs((0.0, 1.0, "rescued locally"))
 
     real = (VideoProcessor._grok_transcribe, VideoProcessor._whisper_transcribe)
@@ -327,11 +329,11 @@ def test_subtitles_are_preferred_over_transcription():
     vp = VideoProcessor(settings=_FakeSettings())
     used = []
 
-    async def fake_ytdlp(self, source):
+    async def fake_ytdlp(self, source, *args, **kwargs):  # v1.9.6: Cancel + progress
         used.append("subtitles")
         return _segs((0.0, 1.0, "exact text"))
 
-    async def fake_stt(self, path):
+    async def fake_stt(self, path, *args, **kwargs):  # v1.9.6: Cancel + progress
         used.append("stt")
         return _segs((0.0, 1.0, "guessed text"))
 

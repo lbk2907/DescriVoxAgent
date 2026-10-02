@@ -11,6 +11,7 @@ Unlike the regression suites (which stub engines), this drives:
 Network note: edge TTS needs internet; if offline the engine's own
 fallback chain uses sapi5 (offline). Either way sound must be produced.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, time, tempfile, shutil, os, traceback
 from pathlib import Path
 
@@ -165,11 +166,14 @@ def test_gui_play_narrates():
             wx.CallAfter(app.ExitMainLoop)
 
         wx.CallLater(100, do_play)
-        wx.CallLater(4000, do_inspect)
-        wx.CallLater(4600, do_exit)
+        # v1.9.6: 8 s, not 4: the first description holds the video while
+        # it is spoken, and Edge TTS over the network took 3.4 s (2 Oct
+        # 2026) - the 4 s window measured the network, not playback.
+        wx.CallLater(8000, do_inspect)
+        wx.CallLater(8600, do_exit)
         app.MainLoop()
 
-        print(f"  position after ~4s: {result['position']:.1f}s (status: {result['status']})")
+        print(f"  position after ~8s: {result['position']:.1f}s (status: {result['status']})")
         print(f"  narration requests: {result['spoken']}")
         assert result["position"] >= 3.0, f"playback did not advance: {result['position']}"
         assert result["spoken"], "no description was narrated during playback"

@@ -3,6 +3,7 @@
 Real-path tests: parser is validated against lines captured from an ACTUAL
 yt-dlp download, and the end-to-end tests run the real yt-dlp binary.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil, time
 from pathlib import Path
 

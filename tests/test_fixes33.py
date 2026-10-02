@@ -24,6 +24,7 @@ on any machine, NVDA or not. The real-NVDA measurements live in round
      were reported as "no sound".
   3. Meter looked up AFTER speaking -> the same miss, from the order.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import time

@@ -13,6 +13,7 @@ What can go wrong, each pinned here:
   - Windows refuses some names ("CON", "a:b");
   - tests wrote into the owner's real projects folder (14 leftovers).
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sqlite3

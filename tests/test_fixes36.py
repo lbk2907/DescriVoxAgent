@@ -16,6 +16,7 @@ Audit findings (Sep 2026), each reproduced before the fix:
 
 Run: python tests/test_fixes36.py   (exits non-zero on any failure)
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

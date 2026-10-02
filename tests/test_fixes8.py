@@ -12,6 +12,7 @@ Real-path tests:
 4. Real MainFrame._process_video pipeline: frames copied into the project
    folder and temp dir cleaned only AFTER AI + save.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, traceback, tempfile, shutil, time
 from pathlib import Path
 
@@ -135,10 +136,14 @@ def test_dialog_phases_via_real_frame():
     try:
         frame._ensure_download_progress()
         dlg = frame._dl_dialog
+        # v1.9.6: the dialog says the phase (the bar is the progress);
+        # the counts are in the status bar, read on demand.
         frame._frame_count_tick(1234)
-        msgs["extract"] = dlg.GetMessage()
+        assert dlg.GetMessage() == t("status.extracting_frames"), dlg.GetMessage()
+        msgs["extract"] = frame.GetStatusBar().GetStatusText()
         frame._ai_progress_tick(7, 120)
-        msgs["ai"] = dlg.GetMessage()
+        assert dlg.GetMessage() == t("status.analyzing"), dlg.GetMessage()
+        msgs["ai"] = frame.GetStatusBar().GetStatusText()
         frame._download_progress_tick_text(t("download.saving"), -1)
         msgs["save"] = dlg.GetMessage()
         # User presses Cancel: wx Update() now returns False.

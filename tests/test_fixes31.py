@@ -31,6 +31,7 @@ Two kinds of invention, and only one is caught by the filter:
                   -> prevented instead by the VAD, which never lets
                      music reach the model
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import traceback

@@ -9,6 +9,7 @@ Covers:
 """
 from __future__ import annotations
 
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sqlite3
 import sys
 import tempfile

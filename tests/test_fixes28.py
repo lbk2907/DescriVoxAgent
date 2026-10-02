@@ -35,6 +35,7 @@ PLAY WHAT IS ALREADY DESCRIBED. The pieces existed but nothing joined
 them: importing an SRT made a project with no video, so the player
 opened with descriptions over silence.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sys

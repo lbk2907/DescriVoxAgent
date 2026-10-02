@@ -12,6 +12,7 @@
 (The long-video checks in test_fixes16 now make their own 10-minute
 video instead of borrowing the owner's project; that is tested there.)
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sqlite3

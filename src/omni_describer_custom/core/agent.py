@@ -29,6 +29,7 @@ import logging
 import re
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -70,6 +71,10 @@ COST_CAP = 0.02          # dollars per question before asking "continue?"
 MAX_WORDS = 12           # the app's audio-description rule
 PROPOSAL_WORD_LIMIT = 20  # hard refusal above this
 ACTIONS = ("keep", "move", "edit", "remove", "add")
+# Reply.error when a run is refused because another one is still going
+# on this Agent (v1.9.6): two runs on one self.messages would interleave.
+BUSY = "agent busy"
+CANCELLED = "cancelled"   # the same signal as ai_engine._run_cancellable
 ZOOM_AREAS = ("top-left", "top-right", "bottom-left", "bottom-right",
               "centre", "center")
 
@@ -216,10 +221,15 @@ class Frames:
     def __init__(self, video: str, length: float):
         self.video, self.length = video, length
         self.dir = Path(tempfile.mkdtemp(prefix="odc_agent_"))
+        # Set by Agent while a run that can be stopped is going (v1.9.6):
+        # a sheet is up to 12 ffmpeg grabs, each checked first.
+        self.is_cancelled: Callable[[], bool] | None = None
 
     def _grab(self, seconds: float, width: int = 640):
         from PIL import Image
         from .tools import find_tool
+        if self.is_cancelled is not None and self.is_cancelled():
+            raise RuntimeError(CANCELLED)
         seconds = max(0.0, min(seconds, max(0.0, self.length - 0.2)))
         out = self.dir / f"f_{seconds:09.2f}_{width}.jpg"
         if not out.exists():
@@ -306,6 +316,55 @@ class Agent:
         self._transcript: list | None = None
         self._looked = False
         self._pending: Reply | None = None
+        # v1.9.6: ON THE AGENT, not the window. Closing F2 and opening it
+        # again made a second window on the same Agent; its ask ran next
+        # to the old one on the same self.messages.
+        self._run_lock = threading.Lock()
+
+    @property
+    def busy(self) -> bool:
+        """True while an ask, resume or whole-video check is running."""
+        return self._run_lock.locked()
+
+    async def _guarded(self, make_coro, is_cancelled):
+        """Run one ask/resume/check_all at a time; a second is refused
+        with Reply(error=BUSY), never run alongside."""
+        if not self._run_lock.acquire(blocking=False):
+            return Reply(error=BUSY)
+        self.frames.is_cancelled = is_cancelled
+        try:
+            return await make_coro()
+        finally:
+            self.frames.is_cancelled = None
+            self._run_lock.release()
+
+    async def _send(self, payload: dict, is_cancelled) -> dict:
+        """One request, abandoned within 0.5 s of a Stop/Close (v1.9.6):
+        a request can take minutes (timeout 180 s, 3 attempts, waits)."""
+        from .ai_engine import _run_cancellable
+        return await _run_cancellable(self._post(payload), is_cancelled)
+
+    @staticmethod
+    def _error(e) -> str:
+        """An error kept for the window: "cancelled" as is, anything else
+        without JSON, URL or account id (the window turns it into words
+        with ai_engine.user_error_text)."""
+        from .ai_engine import short_error
+        text = str(e)
+        return text if text == CANCELLED else short_error(text, 300)
+
+    def _reply_error(self, err) -> str:
+        """An error that came INSIDE a reply (pitfall 72) as a sentence
+        user_error_text can recognise ("OpenRouter HTTP 429: ..."), not
+        the JSON it used to put in front of the person."""
+        label = "Gemini" if self.provider == "gemini" else "OpenRouter"
+        if isinstance(err, dict):
+            code = err.get("code") or err.get("status") or ""
+            message = str(err.get("message") or "error")
+            head = (f"{label} HTTP {code}" if isinstance(code, int)
+                    else f"{label} error {code}".rstrip())
+            return self._error(f"{head}: {message}")
+        return self._error(f"{label} error: {err}")
 
     # ── transport ────────────────────────────────────────────────
     async def _http_post(self, payload: dict) -> dict:
@@ -342,30 +401,55 @@ class Agent:
         return (tokens_in * self._price[0] + tokens_out * self._price[1]) / 1e6
 
     # ── the conversation ─────────────────────────────────────────
-    async def ask(self, question: str, cost_cap: float = COST_CAP) -> Reply:
-        """Answer one question; may stop at the cost cap for "continue?"."""
-        self._forget_old_images()
-        self._looked = False
-        self.messages.append({"role": "user", "content": question})
-        return await self._loop(Reply(), cost_cap)
+    async def ask(self, question: str, cost_cap: float = COST_CAP,
+                  is_cancelled: Callable[[], bool] | None = None) -> Reply:
+        """Answer one question; may stop at the cost cap for "continue?".
+        `is_cancelled` (v1.9.6) stops it within about half a second, with
+        Reply.error "cancelled" and the proposals found so far."""
+        async def run():
+            self._forget_old_images()
+            self._looked = False
+            # v1.9.6 (owner): every question carries where the player IS,
+            # read when it is asked, so "this moment" never depends on the
+            # model remembering to call current_position.
+            self.messages.append({"role": "user",
+                                  "content": self._with_position(question)})
+            return await self._loop(Reply(), cost_cap, is_cancelled)
+        return await self._guarded(run, is_cancelled)
 
-    async def resume(self, cost_cap: float = COST_CAP) -> Reply:
+    def _with_position(self, question: str) -> str:
+        try:
+            at = float(self.ctx.get_position())
+        except Exception:
+            return question
+        return (f"[The player is at {_clock(at)} ({at:.1f} s) of "
+                f"{_clock(self.ctx.length)}.]\n{question}")
+
+    async def resume(self, cost_cap: float = COST_CAP,
+                     is_cancelled: Callable[[], bool] | None = None) -> Reply:
         """The person said "continue": carry on from where it stopped."""
-        reply = self._pending or Reply()
-        reply.needs_confirmation = False
-        return await self._loop(reply, reply.cost + cost_cap)
+        async def run():
+            reply = self._pending or Reply()
+            reply.needs_confirmation = False
+            return await self._loop(reply, reply.cost + cost_cap, is_cancelled)
+        return await self._guarded(run, is_cancelled)
 
-    async def _loop(self, reply: Reply, cap: float) -> Reply:
+    async def _loop(self, reply: Reply, cap: float,
+                    is_cancelled: Callable[[], bool] | None = None) -> Reply:
         self._pending = None
+        stopped = is_cancelled or (lambda: False)
         for _turn in range(MAX_TURNS):
+            if stopped():
+                reply.error = CANCELLED
+                return reply
             try:
-                data = await self._post(self._payload(tools=True))
+                data = await self._send(self._payload(tools=True), is_cancelled)
             except Exception as e:
-                reply.error = str(e)[:300]
+                reply.error = self._error(e)
                 return reply
             reply.cost += self._cost(data)
             if "error" in data:
-                reply.error = json.dumps(data["error"])[:300]
+                reply.error = self._reply_error(data["error"])
                 return reply
             msg = (data.get("choices") or [{}])[0].get("message") or {}
             calls = msg.get("tool_calls") or []
@@ -377,7 +461,17 @@ class Agent:
                     return reply
                 break           # an empty answer: ask for one below
             images = []
-            for call in calls:
+            for k, call in enumerate(calls):
+                if stopped():
+                    # Every tool call needs its answer, or the next
+                    # question in this session is refused by the API.
+                    for rest in calls[k:]:
+                        self.messages.append({
+                            "role": "tool", "tool_call_id": rest.get("id", ""),
+                            "content": "Not run: the person stopped the agent."})
+                    self.messages.extend(images)
+                    reply.error = CANCELLED
+                    return reply
                 result, image = self._run_tool(call, reply)
                 self.messages.append({"role": "tool",
                                       "tool_call_id": call.get("id", ""),
@@ -390,18 +484,24 @@ class Agent:
                 self._pending = reply
                 return reply
         # Turn limit (or an empty answer): make it answer, no more tools.
+        if stopped():
+            reply.error = CANCELLED
+            return reply
         self.messages.append({"role": "user", "content": (
             "Stop using tools now and answer in one to three sentences: "
             "what you found and what you proposed, or that you could not "
             "decide.")})
         try:
-            data = await self._post(self._payload(tools=False))
+            data = await self._send(self._payload(tools=False), is_cancelled)
             reply.cost += self._cost(data)
+            if "error" in data:
+                reply.error = self._reply_error(data["error"])
+                return reply
             msg = (data.get("choices") or [{}])[0].get("message") or {}
             reply.answer = (msg.get("content") or "").strip()
             self.messages.append({"role": "assistant", "content": reply.answer})
         except Exception as e:
-            reply.error = str(e)[:300]
+            reply.error = self._error(e)
         return reply
 
     async def check_all(self, window: float = 60.0,
@@ -415,7 +515,16 @@ class Agent:
         session memory is left as it was, and requests stay small); the
         same guards apply: look before proposing, answer at the turn
         limit. Nothing is changed — the list is for the person to review.
+        `is_cancelled` is checked between stretches AND inside one (every
+        turn, frame and request, v1.9.6): one stretch is up to MAX_TURNS
+        paid requests, so checking only between stretches kept spending.
         """
+        return await self._guarded(
+            lambda: self._check_all(window, on_progress, is_cancelled,
+                                    batch_cap), is_cancelled)
+
+    async def _check_all(self, window, on_progress, is_cancelled,
+                         batch_cap) -> Reply:
         total_reply = Reply()
         descs = self.ctx.descriptions
         if not descs:
@@ -446,9 +555,12 @@ class Agent:
                     f"against the video. Look first. Propose only what is "
                     f"CLEARLY wrong or clearly placed at another moment; "
                     f"leave the rest.\n{lines}")})
-                reply = await self._loop(Reply(), batch_cap)
+                reply = await self._loop(Reply(), batch_cap, is_cancelled)
                 total_reply.cost += reply.cost
                 total_reply.proposals.extend(reply.proposals)
+                if reply.error == CANCELLED:
+                    total_reply.error = CANCELLED
+                    break
                 if reply.error and not total_reply.error:
                     total_reply.error = reply.error
         finally:
@@ -715,4 +827,5 @@ async def probe(api_key: str, model: str, post: Callable | None = None,
         shutil.rmtree(folder, ignore_errors=True)
 
 
-__all__ = ["Agent", "Context", "Proposal", "Reply", "TOOLS", "probe"]
+__all__ = ["Agent", "BUSY", "CANCELLED", "Context", "Proposal", "Reply",
+           "TOOLS", "probe"]

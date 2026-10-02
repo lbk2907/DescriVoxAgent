@@ -1,4 +1,5 @@
 """Regression tests round 4: video processor diagnostics + robustness."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil
 from pathlib import Path
 

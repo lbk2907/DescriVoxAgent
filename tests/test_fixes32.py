@@ -29,6 +29,7 @@ the similarity threshold. Loosening that threshold instead would undo
 deduplication everywhere, so the GAP is bounded rather than the
 comparison weakened.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import sys

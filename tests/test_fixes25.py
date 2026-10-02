@@ -16,6 +16,7 @@ The ffmpeg build is the GPL one because ai_engine encodes with libx264,
 which LGPL builds do not carry; that obligation is recorded in
 NOTICE.md, and a check here keeps that file honest.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import re

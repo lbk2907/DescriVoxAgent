@@ -17,6 +17,7 @@ Run: python tests\\test_fixes16.py
 """
 from __future__ import annotations
 
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import os
 import shutil
@@ -199,7 +200,7 @@ def _t_gui() -> None:
         check("7a player slider duration real (>=500s)", dur >= 500.0,
               f"dur={dur:.1f}")
         # simulate seek to slider end
-        win.position_slider.SetValue(1000)
+        win.position_slider.SetValue(win.position_slider.GetMax())  # v1.9.6: seconds
         win._on_seek(None)
         check("7b seek to end lands at duration",
               abs(win._position - dur) < 1.0,
@@ -224,7 +225,7 @@ def _t_gui() -> None:
     # 9: i18n keys exist (EN current language)
     from omni_describer_custom.i18n.strings import t, I18n
     keys = ["project.remove_btn", "project.dedupe_open", "log.video_saved_at",
-            "download.heartbeat", "process.complete_with_video"]
+            "download.loading_info", "process.complete_with_video"]
     check("9 i18n keys present", all(t(k) != k for k in keys))
 
     frame.Destroy()

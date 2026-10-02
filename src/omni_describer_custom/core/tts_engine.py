@@ -459,10 +459,11 @@ class TTSEngine:
         completion — there, speak_and_play returns when the sentence has
         actually finished, so the video can resume at the right moment.
 
-        An engine that hands text to a screen reader cannot answer that:
-        it returns as soon as the text is queued, which would resume the
-        video over the top of its own narration. Those engines get no
-        automatic hold, and the player says so rather than offering a
+        An engine that hands text to a screen reader returns as soon as
+        the text is queued. Since v1.7.1 it can still hold when the
+        reader's own audio can be listened to (`speech.can_report_speaking`,
+        core/audio_meter.py, pitfall 46); when it cannot, there is no
+        automatic hold and the player says so rather than offering a
         checkbox that does nothing.
         """
         name = engine or self._current_engine
@@ -481,8 +482,12 @@ class TTSEngine:
 
     # ── Real audio playback ─────────────────────────────────────
 
-    def _play_file(self, path: str) -> bool:
+    def _play_file(self, path: str, start_gen: int | None = None) -> bool:
         """Play an audio file and block until finished. Returns True if played.
+
+        start_gen (v1.9.6): the stop() generation the caller started
+        under; a stop() since then ends playback at once (speak_and_play
+        passes the one from BEFORE generating the speech).
 
         Playback chain (Windows-first):
         1. winsound for WAV files (built-in, reliable)
@@ -512,7 +517,9 @@ class TTSEngine:
                 # release it), and callers rely on this call blocking
                 # until the audio finishes (the narration hold).
                 with self._play_lock:
-                    gen = self._stop_gen
+                    gen = self._stop_gen if start_gen is None else start_gen
+                if self._stop_gen != gen:
+                    return True  # stopped before it began
                 winsound.PlaySound(
                     path, winsound.SND_FILENAME | winsound.SND_ASYNC
                     | winsound.SND_NODEFAULT)
@@ -541,7 +548,8 @@ class TTSEngine:
                     # the generation; this thread also closes it.
                     with self._play_lock:
                         self._mci_aliases.add(alias)
-                        gen = self._stop_gen
+                        gen = (self._stop_gen if start_gen is None
+                               else start_gen)
                     try:
                         if winmm.mciSendStringW(f"play {alias}", None, 0, 0) == 0:
                             buf = ctypes.create_unicode_buffer(64)
@@ -575,6 +583,10 @@ class TTSEngine:
                 )
                 with self._play_lock:
                     self._ffplay_procs.add(proc)
+                    stopped = (start_gen is not None
+                               and self._stop_gen != start_gen)
+                if stopped:
+                    proc.kill()  # stop() came before it was registered
                 try:
                     proc.wait(timeout=120)
                 except subprocess.TimeoutExpired:
@@ -613,6 +625,11 @@ class TTSEngine:
                 return False
             return chosen.speak_direct(text)
 
+        # v1.9.6: the stop() generation BEFORE generating. Edge TTS is a
+        # network round trip; a stop() pressed meanwhile was lost because
+        # _play_file only read the generation afterwards, so the whole
+        # clip still played (e.g. after closing the player).
+        start_gen = getattr(self, "_stop_gen", 0)
         audio_path = ""
         try:
             loop = asyncio.new_event_loop()
@@ -629,7 +646,12 @@ class TTSEngine:
             # the delay before "nothing played" (v1.5.4 fix).
             return False
         try:
-            played = self._play_file(audio_path)
+            if getattr(self, "_stop_gen", 0) != start_gen:
+                # Stopped while the speech was generated: a deliberate
+                # stop is not a failure (no retry, no "failed" message).
+                logger.info("Speech stopped before playback; not played")
+                return True
+            played = self._play_file(audio_path, start_gen)
         finally:
             try:
                 os.remove(audio_path)

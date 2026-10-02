@@ -8,6 +8,7 @@ compressed videos were already re-encoded; this closes the last path.
 Real clips are made with the bundled ffmpeg; only the AI call is
 replaced, so what is checked is the file that would actually be sent.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import os

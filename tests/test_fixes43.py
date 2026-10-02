@@ -15,6 +15,7 @@ The check found:
 
 These checks keep all four from coming back.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ast
 import io
 import json

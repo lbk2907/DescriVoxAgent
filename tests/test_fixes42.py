@@ -15,6 +15,7 @@ kept its value, which is all the old test (test_fixes2) checked, but:
 Now the same control is switched natively (EM_SETPASSWORDCHAR). These
 checks fail on the old code: position, size, Tab order, same object.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sys

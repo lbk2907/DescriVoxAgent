@@ -14,6 +14,7 @@ fake model, so every rule is checked on every gate run for free:
   - read/search/transcript/gaps/check_rules/characters/seek work;
   - "Test agent mode" judges behaviour, not the model's opinion.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json
@@ -188,7 +189,9 @@ def test_memory_keeps_words_not_old_pictures():
     asyncio.run(agent.ask("What is at 3 s?"))
     asyncio.run(agent.ask("And again?"))
     second = script.payloads[-1]["messages"]
-    assert any("What is at 3 s?" == m.get("content") for m in second), \
+    # v1.9.6: a question now starts with the player's position.
+    assert any(isinstance(m.get("content"), str)
+               and m["content"].endswith("What is at 3 s?") for m in second), \
         "the first question was forgotten"
     assert not any(isinstance(m.get("content"), list) for m in second), \
         "an old picture was sent again"
@@ -359,6 +362,133 @@ def test_agent_thinking_per_model():
         assert script.payloads[0]["reasoning"] == want, (model, script.payloads[0])
 
 
+class SlowPost:
+    """A request that hangs (a 180 s timeout with retries, in real life);
+    records whether it was abandoned."""
+
+    def __init__(self, seconds=30.0, answer="Late answer."):
+        self.seconds, self.answer = seconds, answer
+        self.started = self.cancelled = 0
+
+    async def __call__(self, payload):
+        self.started += 1
+        try:
+            await asyncio.sleep(self.seconds)
+        except asyncio.CancelledError:
+            self.cancelled += 1
+            raise
+        return turn(content=self.answer)
+
+
+def _after(seconds):
+    import time as _time
+    end = _time.monotonic() + seconds
+    return lambda: _time.monotonic() >= end
+
+
+def test_ask_stops_during_a_slow_request():
+    """v1.9.6 F5: Stop/Close during a request that hangs. The old ask had
+    no way to stop; it waited for the request (minutes) and kept paying."""
+    import time as _time
+    agent, _sc, _s, _st = make([])
+    slow = SlowPost(seconds=30)
+    agent._post = slow
+    began = _time.monotonic()
+    reply = asyncio.run(agent.ask("Is [1] right?", is_cancelled=_after(0.3)))
+    took = _time.monotonic() - began
+    assert reply.error == "cancelled", reply
+    assert took < 1.5, f"took {took:.1f} s to stop"
+    assert slow.started == 1 and slow.cancelled == 1, vars(slow)
+    assert not agent.busy, "the agent stayed busy after stopping"
+    agent.close()
+
+
+def test_stop_keeps_the_history_valid():
+    """Stopped between tool calls: every tool call still gets its answer,
+    or the next question in the session is refused by the API."""
+    flag = {"stop": False}
+    agent, script, _s, _st = make([])
+
+    async def post(payload):
+        flag["stop"] = True          # the person presses Stop meanwhile
+        return turn(call("look_at", seconds=3), call("look_at", seconds=4))
+    agent._post = post
+    reply = asyncio.run(agent.ask("q", is_cancelled=lambda: flag["stop"]))
+    assert reply.error == "cancelled", reply
+    ids = [c["id"] for m in agent.messages for c in (m.get("tool_calls") or [])]
+    answered = [m["tool_call_id"] for m in agent.messages if m.get("role") == "tool"]
+    assert ids and sorted(ids) == sorted(answered), (ids, answered)
+    agent.close()
+
+
+def test_check_all_stops_inside_a_stretch():
+    """v1.9.6 F4: one stretch is up to MAX_TURNS paid requests. "Stop
+    checking" was only looked at BETWEEN stretches."""
+    turns = [turn(call("look_at", seconds=3)),
+             turn(call("propose_change", action="edit", index=0,
+                       text="Colour bars and a clock.", reason="bars"))]
+    turns += [turn(call("look_at", seconds=i)) for i in range(20)]
+    agent, script, _s, steps = make(turns)
+    agent.ctx.length = 120.0
+    agent.ctx.descriptions = [(2.0, "A test pattern."), (70.0, "Late.")]
+    # Stop is pressed right after the first proposal, mid-stretch.
+    reply = asyncio.run(agent.check_all(
+        is_cancelled=lambda: "proposing" in steps))
+    assert reply.error == "cancelled", reply
+    assert len(script.payloads) == 2, \
+        f"{len(script.payloads)} requests after Stop checking (want 2)"
+    assert [(p.action, p.index) for p in reply.proposals] == [("edit", 0)], \
+        "the proposals found before Stop were lost"
+    agent.close()
+
+
+def test_a_second_run_is_refused():
+    """v1.9.6 F5: closing F2 left the ask running; F2 again started a
+    second ask on the same self.messages."""
+    agent, _sc, _s, _st = make([])
+    slow = SlowPost(seconds=0.5, answer="First.")
+    agent._post = slow
+
+    async def both():
+        first = asyncio.ensure_future(agent.ask("first"))
+        await asyncio.sleep(0.1)
+        assert agent.busy
+        second = await agent.ask("second")
+        checked = await agent.check_all()
+        return await first, second, checked
+    first, second, checked = asyncio.run(both())
+    busy = getattr(ag, "BUSY", "agent busy")
+    assert first.answer == "First.", first
+    assert second.error == busy and checked.error == busy, (second, checked)
+    assert slow.started == 1, f"{slow.started} requests ran at once"
+    assert not any(m.get("content") == "second" for m in agent.messages), \
+        "the refused question went into the conversation"
+    assert not agent.busy
+    agent.close()
+
+
+def test_error_inside_a_reply_has_no_json():
+    """v1.9.6 C: an error INSIDE a reply (pitfall 72) was shown as JSON."""
+    from omni_describer_custom.core.ai_engine import user_error_text
+    from omni_describer_custom.i18n.strings import t
+    body = {"error": {"code": 429, "message": "Rate limit exceeded",
+                      "metadata": {"raw": '{"detail": "user_2abcDEF123"}'}}}
+    agent, _sc, _s, _st = make([body])
+    reply = asyncio.run(agent.ask("q"))
+    assert reply.error and "{" not in reply.error, reply.error
+    assert user_error_text(reply.error) == t("error.ai_busy"), reply.error
+    agent.close()
+
+    async def raw(payload):
+        raise RuntimeError('GLM HTTP 400: {"error": {"message": "bad"}}')
+    agent, _sc, _s, _st = make([])
+    agent._post = raw
+    reply = asyncio.run(agent.ask("q"))
+    assert reply.error and "{" not in reply.error, reply.error
+    assert "{" not in user_error_text(reply.error)
+    agent.close()
+
+
 def main() -> int:
     check("no proposal before looking", test_no_proposal_before_looking)
     check("the turn limit forces an answer", test_turn_limit_forces_an_answer)
@@ -375,6 +505,16 @@ def main() -> int:
     check("Gemini direct: Google endpoint, cost from tokens", test_gemini_direct)
     check("Gemini price comes from the catalog", test_gemini_price_from_catalog)
     check("agent thinking is set per model", test_agent_thinking_per_model)
+    check("Stop ends an ask during a slow request",
+          test_ask_stops_during_a_slow_request)
+    check("Stop keeps the conversation history valid",
+          test_stop_keeps_the_history_valid)
+    check("Stop checking stops inside a stretch",
+          test_check_all_stops_inside_a_stretch)
+    check("a second run on the same agent is refused",
+          test_a_second_run_is_refused)
+    check("an error inside a reply is words, not JSON",
+          test_error_inside_a_reply_has_no_json)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

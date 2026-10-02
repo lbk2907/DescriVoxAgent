@@ -16,6 +16,7 @@ Covered here WITHOUT any network access:
    contains z-ai/glm-5.3-flash, config persists via SettingsStore with
    the OpenRouter base_url default.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json

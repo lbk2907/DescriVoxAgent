@@ -3,7 +3,7 @@
 Every accessibility check in this repo until now read the source and
 concluded. That is how v1.5.4 shipped three controls whose NVDA name
 was set with SetLabel(): the code looked right, the control lost its
-state, and the fault reached a real user (AGENTS.md pitfall 12).
+state, and the fault reached a real user (pitfall 12).
 
 This tabs through the real window and asks NVDA what it announced,
 through the local NVDA HTTP Bridge at 127.0.0.1:19281. It reads; it
@@ -77,16 +77,29 @@ def focus_object() -> dict:
     return data.get("data", data)
 
 
+def _sandbox_env() -> dict:
+    """v1.9.6: the app under test gets its own settings, projects and
+    languages, never the owner's (pitfall 19); this check only presses Tab."""
+    import os
+    import tempfile
+    box = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
+    return dict(os.environ, ODC_CONFIG_DIR=str(box / "config"),
+                ODC_PROJECTS_DIR=str(box / "projects"),
+                ODC_LOCALES_DIR=str(box / "locales"))
+
+
 def launch(frozen: bool):
     from pywinauto import Desktop
     if frozen:
         exe = REPO / "dist" / "OmniDescriber" / "OmniDescriber.exe"
         if not exe.exists():
             raise SystemExit(f"no build at {exe}; run build.bat first")
-        proc = subprocess.Popen([str(exe)], cwd=str(exe.parent))
+        proc = subprocess.Popen([str(exe)], cwd=str(exe.parent),
+                                env=_sandbox_env())
     else:
         log_file = open(REPO / "_a11y_app_log.txt", "w", encoding="utf-8")
         proc = subprocess.Popen([PY, "main.py"], cwd=str(REPO),
+                                env=_sandbox_env(),
                                 stdout=log_file, stderr=log_file)
     safe_keys.allow(proc.pid)
     desktop = Desktop(backend="uia")

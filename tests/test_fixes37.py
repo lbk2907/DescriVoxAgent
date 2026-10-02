@@ -24,6 +24,7 @@ Each check pins a defect found by running it, not by reading:
 
 No network. bin/ffmpeg.exe synthesises the one real video used.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import os
@@ -247,13 +248,22 @@ def _run_with_fake_exec(coro_factory, hang):
     async def short_wait_for(aw, timeout):
         return await real_wait_for(aw, timeout=min(timeout, 0.3))
 
+    # v1.9.6: the subtitle steps wait through _communicate_cancellable
+    # (Cancel-aware), not asyncio.wait_for; shorten its deadline the same way.
+    real_cc = VPM.VideoProcessor._communicate_cancellable
+
+    async def short_cc(self, proc, timeout, is_cancelled=None):
+        return await real_cc(self, proc, min(timeout, 0.3), is_cancelled)
+
     VPM.asyncio.create_subprocess_exec = fake_exec
     VPM.asyncio.wait_for = short_wait_for
+    VPM.VideoProcessor._communicate_cancellable = short_cc
     try:
         result = asyncio.run(coro_factory())
     finally:
         VPM.asyncio.create_subprocess_exec = real_exec
         VPM.asyncio.wait_for = real_wait_for
+        VPM.VideoProcessor._communicate_cancellable = real_cc
     return result, calls
 
 

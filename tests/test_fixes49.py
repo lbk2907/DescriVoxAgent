@@ -13,6 +13,7 @@ Found by the accuracy baseline (phase 16.2, 29 Sep 2026):
      50 MB for every OpenRouter model: Gemini 3.1 Flash-Lite, just marked
      "Recommended", failed on a 10-minute part with HTTP 413.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import subprocess
@@ -108,6 +109,48 @@ def test_an_unknown_limit_is_learned_and_the_part_retried():
     assert calls[1] < 20_000_000 * 0.75, "the retry was not made to fit"
 
 
+ALIBABA_413 = ('GLM HTTP 413: {"error":{"message":"Provider returned error",'
+               '"code":413,"metadata":{"raw":"Payload Too Large",'
+               '"provider_name":"Alibaba","is_byok":false}}}')
+
+
+def test_a_413_that_names_no_limit_is_answered_smaller():
+    """v1.9.6, the owner's log 1 Oct 2026: an upstream behind OpenRouter
+    refused a part with "Payload Too Large" and no number, so nothing was
+    learned and the job failed. Now each retry is 40% smaller than what
+    was refused, up to three times."""
+    assert GLMProvider.is_too_large_error(ALIBABA_413)
+    assert not GLMProvider.is_too_large_error("GLM HTTP 402: no credit")
+    prov = GLMProvider(api_key="k")
+    sent = []
+
+    async def part(path, prompt, model, **kw):
+        body = int(prov.MAX_VIDEO_BYTES / 0.72) if sent else 17_000_000
+        prov._last_body_bytes = body
+        sent.append(body)
+        if len(sent) < 3:
+            raise RuntimeError(ALIBABA_413)
+        return [(1.0, "a thing")]
+    prov._describe_one_part = part
+    pairs = asyncio.run(prov.describe_video_full(str(_clip(6)), "p",
+                                                 "qwen/qwen3.8-omni-flash"))
+    assert pairs == [(1.0, "a thing")], pairs
+    assert len(sent) == 3, sent
+    assert sent[0] > sent[1] > sent[2], f"each retry must be smaller: {sent}"
+
+    always = GLMProvider(api_key="k")
+
+    async def refuse(path, prompt, model, **kw):
+        always._last_body_bytes = 17_000_000
+        raise RuntimeError(ALIBABA_413)
+    always._describe_one_part = refuse
+    try:
+        asyncio.run(always.describe_video_full(str(_clip(6)), "p", "qwen/x"))
+        raise AssertionError("an endless 413 was swallowed")
+    except RuntimeError as e:
+        assert "413" in str(e)
+
+
 def test_a_refusal_that_cannot_be_helped_still_fails():
     prov = GLMProvider(api_key="k")
 
@@ -192,6 +235,8 @@ def main() -> int:
     check("a provider's limit is read from its 413", test_the_limit_is_read_from_a_refusal)
     check("an unknown limit is learned and the part retried",
           test_an_unknown_limit_is_learned_and_the_part_retried)
+    check("a 413 that names no limit is answered smaller",
+          test_a_413_that_names_no_limit_is_answered_smaller)
     check("other refusals still fail", test_a_refusal_that_cannot_be_helped_still_fails)
     check("a timeout inside a reply is retried", test_a_timeout_inside_a_reply_is_retried)
     check("parts default to five minutes, migrated once", test_parts_default_to_five_minutes_once)

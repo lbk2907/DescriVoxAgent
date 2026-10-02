@@ -5,6 +5,7 @@ default temperature GLM gave 51 correct / 24.2% wrong descriptions and
 wildly different runs (a news clip: 3, 15, 14 descriptions); with
 temperature 0, 83 correct / 16.8% wrong and half the spread.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import json
 import io

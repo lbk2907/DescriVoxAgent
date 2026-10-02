@@ -13,6 +13,7 @@
 7. HTTP API: /health, /parse, /describe with a real video.
 8. TTS (sapi, offline) synthesizes cue files when pyttsx3 is available.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import json

@@ -4,6 +4,7 @@ Real-path tests: they run the actual yt-dlp binary against an actual URL
 ("Me at the zoo", the first YouTube video, 19s — extremely stable and tiny).
 No mocks substitute for the real acceptance path.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil, time
 from pathlib import Path
 

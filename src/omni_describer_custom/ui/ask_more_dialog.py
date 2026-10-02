@@ -10,7 +10,7 @@ import logging
 import threading
 import wx
 
-from ..core.ai_engine import AIEngine
+from ..core.ai_engine import AIEngine, _run_cancellable, user_error_text
 from ..i18n.strings import I18n, t
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,9 @@ class AskMoreDialog(wx.Dialog):
         # idea which part of the video it was about.
         self._descriptions = list(descriptions or [])
         self._position = float(position or 0.0)
+        # v1.9.6: Cancel/Esc stops the question in flight; its reply
+        # used to land in a destroyed dialog (RuntimeError).
+        self._closed = False
 
         super().__init__(parent, title=t("askmore.title"), size=(500, 400))
 
@@ -126,6 +129,9 @@ class AskMoreDialog(wx.Dialog):
         context = self._scene_context()
         prompt = f"{context}\n\n{question}" if context else question
 
+        def closed() -> bool:
+            return self._closed
+
         def ask():
             import asyncio
             from ..core.ai_engine import apply_output_language
@@ -139,28 +145,35 @@ class AskMoreDialog(wx.Dialog):
                     past = "\n".join(
                         f"{h['role']}: {h['content']}" for h in history or [])
                     seen = (f"{past}\n\n{q}" if past else q)
-                    result = loop.run_until_complete(
-                        self.ai.ask_about_scene(frame, seen))
+                    result = loop.run_until_complete(_run_cancellable(
+                        self.ai.ask_about_scene(frame, seen), closed))
                 else:
-                    result = loop.run_until_complete(self.ai.ask(q, history))
+                    result = loop.run_until_complete(_run_cancellable(
+                        self.ai.ask(q, history), closed))
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})
-                wx.CallAfter(self.history_text.AppendText,
-                             t("ask.ai_prefix", result=result))
-                # Move focus to the history so NVDA reads the new reply.
-                wx.CallAfter(self.history_text.SetFocus)
-                wx.CallAfter(self.submit_btn.Enable)
+                wx.CallAfter(self._reply, t("ask.ai_prefix", result=result))
             except Exception as e:
-                wx.CallAfter(self.history_text.AppendText,
-                             t("ask.error", error=str(e)) + "\n\n")
-                wx.CallAfter(self.history_text.SetFocus)
-                wx.CallAfter(self.submit_btn.Enable)
+                if self._closed:
+                    return
+                logger.error("Ask More failed: %s", e)
+                wx.CallAfter(self._reply, t(
+                    "ask.error", error=user_error_text(str(e))) + "\n\n")
             finally:
                 loop.close()
 
         self._history.append({"role": "user", "content": question})
         threading.Thread(target=ask, daemon=True).start()
         self.question_text.SetValue("")
+
+    def _reply(self, text: str) -> None:
+        """Show a worker's answer — only while the dialog is alive."""
+        if not self or self._closed:
+            return
+        self.history_text.AppendText(text)
+        # Move focus to the history so NVDA reads the new reply.
+        self.history_text.SetFocus()
+        self.submit_btn.Enable()
 
     def _frame_at_position(self) -> str:
         """A JPEG of the video at the player's position, or "" when
@@ -205,6 +218,7 @@ class AskMoreDialog(wx.Dialog):
                  seconds=f"{window:g}") + "\n" + "\n".join(lines)
 
     def _on_cancel(self, event):
+        self._closed = True
         if self.IsModal():
             self.EndModal(wx.ID_CANCEL)
         else:

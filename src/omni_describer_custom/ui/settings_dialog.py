@@ -13,6 +13,7 @@ import sys
 import wx
 from typing import Any
 
+from ..core.ai_engine import user_error_text
 from ..i18n.strings import I18n, t
 
 logger = logging.getLogger(__name__)
@@ -323,6 +324,7 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(wx.StaticText(panel, label=t("settings.language"), name="general_lang_label"), 0, wx.ALL, 5)
         self.lang_choice = wx.Choice(panel, name="language")
         self.lang_choice.SetLabel(t("settings.language"))
+        sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)
         # Friendly labels on screen, raw ids stored (NVDA reads
         # "English", not "en").
         # v1.6.2: built from the locale files present, so a new
@@ -351,8 +353,10 @@ class SettingsDialog(wx.Dialog):
             (code, I18n.language_name(code))
             for code in I18n.available_languages()
         ])
+        # v1.9.6: on screen in CREATION order (= Tab order, pitfall 34),
+        # each box under its own label. The boxes were added in the
+        # opposite order, so "Language" sat below "Description language".
         sizer.Add(self.desc_lang_choice, 0, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Frame rate
         sizer.Add(wx.StaticText(panel, label=t("settings.frame_rate"), name="frame_rate_label"), 0, wx.ALL, 5)
@@ -556,7 +560,8 @@ class SettingsDialog(wx.Dialog):
         if provider == "custom":
             self._show_custom_fields()
             self.model_choice.Hide()
-            # OpenRouter-only buttons: heard by NVDA as live buttons that
+            # Buttons Custom cannot use (Fetch models, Test agent mode): heard
+            # by NVDA as live buttons that
             # did nothing for Custom (v1.9.2).
             self.fetch_models_btn.Disable()
             self.probe_model_btn.Enable()
@@ -597,7 +602,8 @@ class SettingsDialog(wx.Dialog):
             self._fill_models(
                 rows or [{"id": m} for m in PROVIDER_MODELS.get(provider, [])],
                 prov_config.get("model", ""))
-            # Video-only catalog filter + fetch button: OpenRouter only.
+            # Video-only list + Fetch models: OpenRouter and Gemini (v1.9.3);
+            # Test agent mode: the agent's providers (OpenRouter, Gemini).
             self.fetch_models_btn.Enable(provider in ("glm", "gemini"))
             self.probe_model_btn.Enable()
             self.test_agent_btn.Enable(provider in ("glm", "gemini"))
@@ -680,11 +686,12 @@ class SettingsDialog(wx.Dialog):
                     wx.CallAfter(self._show_test_result,
                                  t("settings.fetch_models_none"))
             except Exception as e:
+                logger.warning("Fetch models failed: %s", e)
                 wx.CallAfter(self._show_test_result,
                              t("settings.fetch_models_error",
-                               error=str(e)[:100]))
+                               error=user_error_text(str(e))))
             finally:
-                wx.CallAfter(self.fetch_models_btn.Enable)
+                wx.CallAfter(self._fetch_done)
 
         import threading
         threading.Thread(target=fetch, daemon=True).start()
@@ -712,10 +719,12 @@ class SettingsDialog(wx.Dialog):
                     wx.CallAfter(self._show_test_result,
                                  t("settings.fetch_models_none"))
             except Exception as e:
+                logger.warning("Fetch Gemini models failed: %s", e)
                 wx.CallAfter(self._show_test_result,
-                             t("settings.fetch_models_error", error=str(e)[:160]))
+                             t("settings.fetch_models_error",
+                               error=user_error_text(str(e))))
             finally:
-                wx.CallAfter(self.fetch_models_btn.Enable)
+                wx.CallAfter(self._fetch_done)
 
         import threading
         threading.Thread(target=fetch, daemon=True).start()
@@ -723,8 +732,14 @@ class SettingsDialog(wx.Dialog):
     def _apply_fetched_models(self, models):
         """Replace the dropdown with fetched video models (rows from
         core.model_catalog), keeping the current selection reachable."""
+        if not self:
+            return  # v1.9.6: Settings closed while the list was fetched
         current = self._choice_value(self.model_choice)
         self._fill_models(models, current)
+
+    def _fetch_done(self) -> None:
+        if self:
+            self.fetch_models_btn.Enable()
 
     def _model_label(self, row: dict) -> str:
         """What NVDA reads for a model: name, whether it hears the
@@ -840,7 +855,8 @@ class SettingsDialog(wx.Dialog):
                 result = loop.run_until_complete(
                     probe(api_key, model, provider=provider))
             except Exception as e:
-                result = {"ok": False, "error": str(e)[:200]}
+                logger.warning("Agent test failed: %s", e)
+                result = {"ok": False, "error": str(e)}
             finally:
                 loop.close()
             wx.CallAfter(self._test_agent_done, model, result)
@@ -859,7 +875,8 @@ class SettingsDialog(wx.Dialog):
             text = t("settings.agent_pass", model=model)
         else:
             passed = [m for m in passed if m != model]
-            text = (t("settings.agent_error", model=model, error=result["error"])
+            text = (t("settings.agent_error", model=model,
+                      error=user_error_text(result["error"]))
                     if result.get("error") else t("settings.agent_fail", model=model))
         self.settings.set("ai.agent_models", passed)
         self._show_test_result(text)
@@ -869,7 +886,9 @@ class SettingsDialog(wx.Dialog):
             return
         self.probe_model_btn.Enable()
         if result["error"]:
-            text = t("settings.probe_error", model=model, error=result["error"])
+            logger.warning("Probe of %s failed: %s", model, result["error"])
+            text = t("settings.probe_error", model=model,
+                     error=user_error_text(result["error"]))
         elif result.get("picture"):
             text = (t("settings.probe_sees_picture", model=model)
                     if result["sees"] else
@@ -963,6 +982,8 @@ class SettingsDialog(wx.Dialog):
     def _show_test_result(self, text):
         """Show the connection test result and move keyboard focus to it
         so screen readers announce it immediately."""
+        if not self:
+            return  # v1.9.6: a worker's result after Settings closed
         self.test_result.SetLabel(text)
         self.test_result.SetFocus()
 

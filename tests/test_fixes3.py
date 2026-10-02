@@ -1,4 +1,5 @@
 """Regression tests round 3: voice cache, ask-more history, apply close."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile
 from pathlib import Path
 

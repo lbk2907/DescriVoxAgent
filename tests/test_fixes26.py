@@ -27,6 +27,7 @@ must still not be duplicated through it. Each of those is checked below, and the
 no-screen-reader half is forced with ODC_PRISM_BACKEND because this
 machine runs NVDA and would otherwise only ever test one branch.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import os

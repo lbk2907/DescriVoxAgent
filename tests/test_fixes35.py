@@ -18,6 +18,7 @@ headlessly, not by reading code:
  11. VLC Pause during a narration hold toggled the video back ON.
  12. Settings voice list lost its "Default" entry.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import sys

@@ -12,6 +12,7 @@ helper cannot be caught by unit-testing the window it was supposed to
 open. So every entry point is invoked here for real, with only the modal
 dialogs replaced by canned answers, and real files written to temp dirs.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import tempfile
@@ -1026,7 +1027,7 @@ def test_the_dialog_title_stops_claiming_to_download():
     """A stand-in dialog, not a real wx.ProgressDialog.
 
     Building one here segfaulted the suite: its constructor pumps the
-    event loop (AGENTS.md pitfall 8), and the pending events then land
+    event loop (pitfall 8), and the pending events then land
     on a frame the test is tearing down. The title logic is what matters
     and it needs no real window.
     """
@@ -1053,9 +1054,12 @@ def test_the_dialog_title_stops_claiming_to_download():
             f"{fake.title!r}")
         assert fake.title.strip(), "the title went blank"
 
+        # v1.9.6: the title carries the ONE overall percentage of the job
+        # (the upload is the first half of the AI stage, 30-95).
         f._video_upload_tick(42.0)
-        assert "42%" in fake.title, \
-            f"upload progress is missing from the title: {fake.title!r}"
+        assert f._overall_pct() == 43, f._overall_pct()
+        assert "43%" in fake.title, \
+            f"overall progress is missing from the title: {fake.title!r}"
     finally:
         f._dl_dialog = None       # never let the frame destroy the stub
         _close(f)

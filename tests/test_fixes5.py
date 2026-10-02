@@ -1,4 +1,5 @@
 """Regression tests round 5: AIEngine first-run errors + SceneExplorer async loading."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil, time, asyncio
 from pathlib import Path
 

@@ -4,6 +4,7 @@ One process, 100 REAL failing-URL runs (yt-dlp SourceError path), handle
 count read every 25 runs. Linear growth = real leak; plateau = transient
 retention (subprocess/GC artifacts), not a user-facing leak.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ctypes, sys, io, tempfile, shutil
 from pathlib import Path
 

@@ -145,6 +145,9 @@ def launch(config_dir: Path):
         raise SystemExit(2)
     env = dict(os.environ)
     env["ODC_CONFIG_DIR"] = str(config_dir)
+    # v1.9.6: projects in a sandbox too; ProjectsGuard deletes the
+    # projects a run creates, which must never be the owner's folder.
+    env["ODC_PROJECTS_DIR"] = str(config_dir / "projects")
     proc = subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env)
     safe_keys.allow(proc.pid)
     desktop = Desktop(backend="uia")
@@ -319,11 +322,10 @@ def main() -> int:
     if not (config_dir / "settings.json").exists():
         print(f"No settings.json in {config_dir}; the run needs a real key")
         return 2
-    # ODC_CONFIG_DIR isolates settings.json ONLY. Projects live in the
-    # user's Documents folder either way, which the first run of this
-    # script did not know — it watched an empty directory while the job
-    # finished elsewhere and reported a timeout.
-    projects_dir = Path.home() / "Documents" / "OmniDescriber" / "projects"
+    # v1.9.6: projects go to a sandbox folder (ODC_PROJECTS_DIR, set in
+    # launch()); this watches the same folder.
+    projects_dir = config_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
 
     ready, detail = bridge_ready()
     if not ready:

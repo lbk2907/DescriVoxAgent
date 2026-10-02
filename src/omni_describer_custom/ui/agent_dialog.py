@@ -85,13 +85,19 @@ class AgentDialog(wx.Dialog):
 
         self.undo_btn.Enable(player.can_undo_agent())
         self.question.Bind(wx.EVT_TEXT_ENTER, lambda e: self.submit())
-        self.ask_btn.Bind(wx.EVT_BUTTON, lambda e: self.submit())
+        self.ask_btn.Bind(wx.EVT_BUTTON, lambda e: self.ask_or_stop())
         self.undo_btn.Bind(wx.EVT_BUTTON, lambda e: self.undo())
         self.check_all_btn.Bind(wx.EVT_BUTTON, lambda e: self.check_all())
         self._checking = False
-        self._stop_check = False
-        self.close_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CLOSE))
+        self._asking = False
+        # One stop flag per run (v1.9.6). A threading.Event, not an
+        # attribute read through `self`: the worker still reads it after
+        # the window is destroyed. Close, Esc, Stop and Stop checking all
+        # set it; the engine gives up within about half a second.
+        self._stop = threading.Event()
+        self.close_btn.Bind(wx.EVT_BUTTON, lambda e: self.close())
         self.SetEscapeId(wx.ID_CLOSE)
+        self.Bind(wx.EVT_CLOSE, lambda e: self.close())
         for line in getattr(player, "_agent_transcript", []):
             self.log.AppendText(line)
         self.question.SetFocus()
@@ -128,13 +134,47 @@ class AgentDialog(wx.Dialog):
         if not question:
             speak(t("agent.empty"))
             return
-        self._busy = True
-        self.ask_btn.Disable()
+        if self.agent.busy:
+            # An earlier window's run is still stopping (it shares this
+            # Agent): never start a second one next to it.
+            speak(t("agent.still_working"))
+            return
+        self._busy = self._asking = True
+        self._stop = stop = threading.Event()
+        self.ask_btn.SetLabel(t("agent.ask_stop_btn"))
+        self.check_all_btn.Disable()
         self.question.SetValue("")
         self._append(t("agent.you", text=question))
         self._last_step = ""
         speak(t("agent.thinking"))
-        self._run(lambda: self.agent.ask(question))
+        self._run(lambda: self.agent.ask(question, is_cancelled=stop.is_set))
+
+    def ask_or_stop(self) -> None:
+        """The Ask button; while an ask runs it is "Stop asking" (v1.9.6).
+        Enter in the question box only ever asks, so typing the next
+        question cannot stop the current one by accident."""
+        if self._asking:
+            self.stop()
+        else:
+            self.submit()
+
+    def stop(self) -> None:
+        """Stop asking / Stop checking: the engine gives up within about
+        half a second, keeping the proposals found so far."""
+        if not self._busy or self._stop.is_set():
+            return
+        self._stop.set()
+        speak(t("agent.check_all_stopping") if self._checking
+              else t("agent.stopping"))
+
+    def close(self) -> None:
+        """Close, Esc, Alt+F4: stop whatever is running first (v1.9.6) —
+        a run left going kept paying for requests nobody would hear."""
+        self._stop.set()
+        if self.IsModal():
+            self.EndModal(wx.ID_CLOSE)
+        else:
+            self.Hide()
 
     def _run(self, make_coro) -> None:
         def work():
@@ -144,15 +184,28 @@ class AgentDialog(wx.Dialog):
             except Exception as e:
                 logger.error("Agent failed: %s", e)
                 from ..core.agent import Reply
-                reply = Reply(error=str(e)[:300])
+                reply = Reply(error=str(e))
             finally:
                 loop.close()
             wx.CallAfter(self._done, reply)
         threading.Thread(target=work, daemon=True).start()
 
+    @staticmethod
+    def _error_text(error: str) -> str:
+        """Any failure in words (v1.9.6): the one translator, so no JSON,
+        URL or account id is read out."""
+        from ..core.agent import BUSY
+        if error == BUSY:
+            return t("agent.still_working")
+        from ..core.ai_engine import user_error_text
+        return user_error_text(error)
+
     def _done(self, reply) -> None:
         if not self:
             return
+        self._asking = False
+        self.ask_btn.SetLabel(t("agent.ask_btn"))
+        self.check_all_btn.Enable()
         if self._checking:
             self._checking = False
             self.check_all_btn.SetLabel(t("agent.check_all_btn"))
@@ -165,26 +218,33 @@ class AgentDialog(wx.Dialog):
                     t("agent.check_all_done", count=len(reply.proposals),
                       cost=f"{reply.cost:.3f}"))
             if reply.error and not stopped:
-                text += " " + t("agent.error", error=reply.error)
+                text += " " + self._error_text(reply.error)
             self._append(text)
             speak(text)
             if reply.proposals:
                 self.decide(reply.proposals)
             self.question.SetFocus()
             return
-        if reply.needs_confirmation:
+        if reply.needs_confirmation and not self._stop.is_set():
             from .dialogs import ask_yes_no
             if ask_yes_no(self, t("agent.over_budget", cost=f"{reply.cost:.3f}"),
                           t("agent.title")):
                 speak(t("agent.thinking"))
-                self._run(lambda: self.agent.resume())
+                self._asking = True
+                self._stop = stop = threading.Event()
+                self.ask_btn.SetLabel(t("agent.ask_stop_btn"))
+                self.check_all_btn.Disable()
+                self._run(lambda: self.agent.resume(is_cancelled=stop.is_set))
                 return
+        if reply.needs_confirmation:
             reply.answer = reply.answer or t("agent.stopped")
         self._busy = False
         self.ask_btn.Enable()
         self.SetTitle(t("agent.title"))
-        if reply.error:
-            text = t("agent.error", error=reply.error)
+        if reply.error == "cancelled":
+            text = t("agent.stopped")       # asked for, not a failure
+        elif reply.error:
+            text = self._error_text(reply.error)
         else:
             text = reply.answer or t("agent.no_answer")
         self._append(t("agent.said", text=text))
@@ -198,14 +258,16 @@ class AgentDialog(wx.Dialog):
         """Ask first (time and cost), then go through every description;
         pressing the same button again stops it."""
         if self._checking:
-            self._stop_check = True
-            speak(t("agent.check_all_stopping"))
+            self.stop()
             return
         if self._busy:
             return
         count = len(self.agent.ctx.descriptions)
         if not count:
             speak(t("agent.check_all_nothing"))
+            return
+        if self.agent.busy:
+            speak(t("agent.still_working"))
             return
         stretches = max(1, int(self.agent.ctx.length // 60) + 1)
         from .dialogs import ask_yes_no
@@ -215,7 +277,7 @@ class AgentDialog(wx.Dialog):
                           t("agent.title")):
             return
         self._busy = self._checking = True
-        self._stop_check = False
+        self._stop = stop = threading.Event()
         self.ask_btn.Disable()
         self.check_all_btn.SetLabel(t("agent.check_all_stop"))
         self._append(t("agent.check_all_started", count=count))
@@ -224,7 +286,7 @@ class AgentDialog(wx.Dialog):
             wx.CallAfter(self._status, t("agent.check_all_progress",
                                          n=n, total=total), True)
         self._run(lambda: self.agent.check_all(
-            on_progress=progress, is_cancelled=lambda: self._stop_check))
+            on_progress=progress, is_cancelled=stop.is_set))
 
     # ── approving ────────────────────────────────────────────────
     def decide(self, proposals) -> int:

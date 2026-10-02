@@ -1,4 +1,5 @@
 """Minimal repro: which window causes the shutdown RecursionError?"""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)

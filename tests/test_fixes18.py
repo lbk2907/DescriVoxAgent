@@ -15,6 +15,7 @@ Covers:
 5. Fast-mode batches beyond the first get a position note (no
    "starts with" mid-video), and the note uses expected_times.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import inspect
 import sys

@@ -15,6 +15,7 @@ one from the app. What must hold, each pinned here:
 No network: "downloads" are served from the real bundled yt-dlp.exe,
 so the checksum and version checks run against a real program.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import hashlib
 import io
 import os

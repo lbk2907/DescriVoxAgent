@@ -11,6 +11,7 @@ Left open by the v1.7.4 audit:
   3. Split parts got ~1/n of their upload budget: the budget was
      divided by the part count AND spread over the whole video.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
 import os

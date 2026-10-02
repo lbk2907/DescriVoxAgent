@@ -119,6 +119,8 @@ class EditorWindow(wx.Frame):
         message through Prism in exactly that case, and stays quiet
         when a reader is running so nothing is said twice.
         """
+        if not self:
+            return  # v1.9.6: a worker's CallAfter after the window closed
         self.status_text.SetLabel(msg)
         self.status_text.SetFocus()
         try:
@@ -260,11 +262,16 @@ class EditorWindow(wx.Frame):
             return
         # Generate AND play the audio in a background thread; a bare
         # speak() only writes a temp file and the user hears nothing.
+        # v1.9.6: a failure was only logged — the user heard nothing
+        # and was told nothing.
         def speak():
             try:
-                self.tts.speak_and_play(text)
+                ok = self.tts.speak_and_play(text)
             except Exception as e:
                 logger.error("TTS speak error: %s", e)
+                ok = False
+            if not ok:
+                wx.CallAfter(self._announce, t("editor.tts_failed"))
         threading.Thread(target=speak, daemon=True).start()
 
     def save_edits(self) -> None:

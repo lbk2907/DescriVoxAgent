@@ -1,6 +1,7 @@
 """Unit tests for chunked full-video mode (split long videos into
 parts, upload part by part, offset timestamps by part start).
 Run: python tests/test_chunked_video.py  → prints PASS lines."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import base64
 import io

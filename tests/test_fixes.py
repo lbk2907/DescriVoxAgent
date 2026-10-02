@@ -1,4 +1,5 @@
 """Regression tests for fixes applied in this session."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import sys, io, traceback
 from pathlib import Path

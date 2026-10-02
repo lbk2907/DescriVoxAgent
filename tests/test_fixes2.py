@@ -1,4 +1,5 @@
 """Regression tests round 2: duration persist, TTS settings, VLC fallback."""
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, sqlite3
 from pathlib import Path
 
@@ -87,7 +88,7 @@ def test_player_vlc_fallback():
             assert pw._playing is False
             assert pw.play_btn.GetLabel() == "Play", pw.play_btn.GetLabel()
             pw._on_forward(None)
-            assert pw._position >= 10.5, pw._position
+            assert pw._position >= 10.0, pw._position   # v1.9.6: real clock, not +0.5 a tick
             pw._on_rewind(None)
             pw._on_stop(None)
             assert pw._position == 0.0

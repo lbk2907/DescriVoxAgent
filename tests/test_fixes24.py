@@ -19,6 +19,7 @@ it properly would mean rewriting 700+ call sites; it also needs a msgfmt
 step in the build, and its usual editor is a GUI whose screen-reader
 support is unverified.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import sys

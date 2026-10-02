@@ -15,6 +15,7 @@ Covered here WITHOUT any network access:
 4. Settings dialog: the checkbox exists in the AI tab, is disabled for
    non-Gemini providers, enabled for Gemini, and persists ai.video_mode.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import ctypes
 import io
@@ -318,29 +319,22 @@ def test_video_ticks_on_main_frame():
         assert all(_video_phase_text(frame, p) for p in
                    ("uploading", "processing", "describing"))
 
-        # v1.4.1 regression: a REAL wx.ProgressDialog created during the
-        # download phase would auto-hide after Update(100) (PD_AUTO_HIDE)
-        # while the AI is still describing the video. The chunked-mode
-        # ticks cap the bar at 99 so the dialog STAYS VISIBLE until
+        # v1.4.1 regression: the dialog must stay VISIBLE until
         # _close_download_progress destroys it, and the bar moves with
-        # the overall percentage.
-        dlg = wx.ProgressDialog("Downloading video", "x", maximum=100,
-                                parent=frame,
-                                style=wx.PD_CAN_ABORT | wx.PD_SMOOTH
-                                | wx.PD_AUTO_HIDE)
+        # the overall percentage. v1.9.6: the dialog is
+        # AccessibleProgressDialog (a real progress bar NVDA reads), the
+        # bar is ONE percentage for the whole job (AI stage = 30-95 of
+        # it), and it never goes back.
+        from omni_describer_custom.ui.progress_dialog import (
+            AccessibleProgressDialog)
+        frame._progress_reset()
+        dlg = AccessibleProgressDialog("Downloading video", "x",
+                                       maximum=100, parent=frame)
         frame._dl_dialog = dlg
         try:
-            # wx quirk (probed empirically): dlg.IsShown() is always
-            # False for wx.ProgressDialog on MSW; the ground truth is
-            # the Win32 IsWindowVisible on the real HWND.
             user32 = ctypes.windll.user32
             visible = lambda: bool(
                 user32.IsWindowVisible(dlg.GetHandle()))
-            # MSW maps the window from the event loop, not from the
-            # constructor. Without this wait the check raced the dialog
-            # into existence and failed ("auto-hidden before completion")
-            # under gate load, while the auto-hide behaviour it guards
-            # was never actually broken.
             appear = time.time() + 5
             while time.time() < appear and not visible():
                 wx.GetApp().Yield()
@@ -348,21 +342,23 @@ def test_video_ticks_on_main_frame():
             assert visible(), "progress dialog never became visible"
             frame._video_part_tick(1, 2)
             assert visible(), "dialog auto-hidden before completion"
-            # v1.8.4: part N STARTS here, so part 1 of 2 is overall
-            # 10 + 90*0/2 = 10 (it used to say 55 before sending
-            # anything), and part 2 of 2 is 55.
-            assert dlg.GetValue() == 10, dlg.GetValue()
-            assert "10%" in dlg.GetMessage(), dlg.GetMessage()
+            # v1.8.4: part N STARTS here, so part 1 of 2 is 10% of the
+            # AI step (30 + 65*0.10 = 36 overall), part 2 of 2 is 55%
+            # (30 + 65*0.55 = 65 overall).
+            assert dlg.GetValue() == 36, dlg.GetValue()
+            assert t("video.part_start", part=1, total=2) in dlg.GetMessage(), (
+                dlg.GetMessage())
             frame._video_part_tick(2, 2)
-            assert dlg.GetValue() == 55, dlg.GetValue()
-            assert "55%" in dlg.GetMessage(), dlg.GetMessage()
-            # The end of the job (overall 100) is capped at 99: Update(100)
-            # auto-hides the dialog while saving still runs.
+            assert dlg.GetValue() == 65, dlg.GetValue()
+            assert t("video.part_start", part=2, total=2) in dlg.GetMessage(), (
+                dlg.GetMessage())
+            # The end of the AI step is the end of its stage (95), never
+            # 100 while saving still runs.
             frame._video_eta_tick(100.0, 0.0)
-            assert visible(), "dialog auto-hidden at 100"
-            assert dlg.GetValue() == 99, dlg.GetValue()
+            assert visible(), "dialog hidden at the end of the AI step"
+            assert dlg.GetValue() == 95, dlg.GetValue()
             frame._video_split_tick(9.9)
-            assert dlg.GetValue() == 9, dlg.GetValue()
+            assert dlg.GetValue() == 95, f"the bar went back: {dlg.GetValue()}"
             assert visible(), "dialog vanished after split tick"
         finally:
             frame._dl_dialog = None

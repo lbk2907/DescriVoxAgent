@@ -14,6 +14,7 @@ Skips cleanly (exit 0, marker PACKAGING_SKIPPED) when no build exists, so the
 gate stays usable from a fresh checkout. Prints PACKAGING_<CHECK> markers.
 Exits 0 on pass, 1 on failure.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import os
 import sys
 import tempfile

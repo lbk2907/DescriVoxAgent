@@ -11,6 +11,7 @@ Phase D of the agent plan (memory agent-coeditor-design):
   - Test agent mode records which models passed;
   - Ask More sends the frame at the player's position.
 """
+import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
 import subprocess
@@ -89,16 +90,54 @@ def player(model_passed=True, provider="glm"):
 
 
 def test_f2_and_the_fallback():
+    """Declining the offered test still gives Ask More."""
+    from omni_describer_custom.ui import dialogs
     w, _s, _p = player(model_passed=False)
+    real = dialogs.ask_yes_no
+    asked = []
+    dialogs.ask_yes_no = lambda *a, **k: asked.append(a[1]) or False
     try:
         opened = []
         w._on_ask = lambda e: opened.append("ask")
         ev = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
         ev.SetKeyCode(wx.WXK_F2)
         w._on_char_hook(ev)
+        assert asked, "an untested model was not offered the test"
         assert opened == ["ask"], "an untested model did not get Ask More"
         assert w.agent_available() == (False, "untested")
     finally:
+        dialogs.ask_yes_no = real
+        w.Destroy()
+        pump()
+
+
+def test_f2_offers_the_test_and_opens_the_agent():
+    """v1.9.6, owner: "agentic mode tidak work" — after changing model, F2
+    only said "not available". It now offers Test agent mode on the spot,
+    and a pass opens the agent."""
+    from omni_describer_custom.core import agent as ag
+    from omni_describer_custom.ui import dialogs
+    w, _s, _p = player(model_passed=False)
+    real_ask, real_probe = dialogs.ask_yes_no, ag.probe
+    dialogs.ask_yes_no = lambda *a, **k: True
+
+    async def passing(key, model, post=None, provider="glm"):
+        return {"ok": True, "error": ""}
+    ag.probe = passing
+    try:
+        opened = []
+        w._open_agent_dialog = lambda: opened.append("agent")
+        w._on_ask = lambda e: opened.append("ask")
+        w.open_agent()
+        for _ in range(100):
+            pump(2)
+            if opened:
+                break
+            time.sleep(0.05)
+        assert opened == ["agent"], opened
+        assert "z-ai/glm-5.3-flash" in w._settings.get("ai.agent_models", [])
+    finally:
+        dialogs.ask_yes_no, ag.probe = real_ask, real_probe
         w.Destroy()
         pump()
 
@@ -264,7 +303,7 @@ def test_transcript_works_inside_the_agents_loop():
     w, store, proj = player()
     real = video_processor.VideoProcessor.get_transcript
 
-    async def fake(self, source, local_path=""):
+    async def fake(self, source, local_path="", **kw):
         await asyncio.sleep(0)
         return [SimpleNamespace(start=1.0, end=2.0, text="Hello.")]
     video_processor.VideoProcessor.get_transcript = fake
@@ -304,6 +343,8 @@ def test_gemini_agent():
 
 def main() -> int:
     check("F2 and the Ask More fallback", test_f2_and_the_fallback)
+    check("F2 offers Test agent mode and opens the agent",
+          test_f2_offers_the_test_and_opens_the_agent)
     check("the agent works with Gemini direct", test_gemini_agent)
     check("the agent opens; the video pauses and resumes",
           test_agent_opens_and_video_resumes)
