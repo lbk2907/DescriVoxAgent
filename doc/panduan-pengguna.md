@@ -1,64 +1,70 @@
 # Panduan Pengguna Omni Describer Custom
 
 Alat penerangan audio yang mudah diakses untuk pengguna buta dan
-penglihatan terhad. Ia memuat turun atau membuka video, mengekstrak
-frame, menghantarnya kepada pembekal AI visi, dan memainkan video dalam
-pemain terbina dalam yang membacakan penerangan AI segerak dengan
-main balik.
+penglihatan terhad. Ia memuat turun atau membuka video, meminta AI
+menghuraikan apa yang DILIHAT pada setiap saat, dan memainkan video
+dalam pemain terbina dalam yang membacakan penerangan segerak dengan
+main balik. Semuanya boleh digunakan dengan papan kekunci dan
+diumumkan kepada pembaca skrin anda.
 
 Versi Inggeris penuh: `doc/user-guide.md` (ringkas: `README.md`).
+
+Label dalam panduan ini ialah label antara muka Bahasa Melayu. Jika
+app dalam Bahasa Inggeris, label Inggerisnya ada dalam
+`doc/user-guide.md`.
 
 ## Memasang versi exe (tanpa Python)
 
 Untuk komputer baharu tanpa Python, guna bungkusan siap bina:
 
 1. Dapatkan `OmniDescriber-<versi>-win64.zip` (contoh
-   `OmniDescriber-1.5.3-win64.zip`; nombor versi meningkat setiap
+   `OmniDescriber-1.9.5-win64.zip`; nombor versi meningkat setiap
    rilis baharu supaya mudah bezakan) dan nyahzip ke mana-mana
    folder, contohnya `C:\OmniDescriber`.
 2. Klik dua kali `OmniDescriber.exe` di dalamnya. Tiada pemasangan
-   diperlukan; dokumen panduan ini turut dibundel dalam folder `doc`.
-3. Mulai v1.6.5, tiada pemasangan lain diperlukan langsung. ffmpeg,
-   ffprobe, ffplay dan yt-dlp dibundel di dalam folder `_internal\bin`
-   aplikasi. Jangan padam folder itu — tanpanya muat turun YouTube,
+   diperlukan; dokumen panduan ini turut dibundel dalam folder
+   `_internal\doc`.
+3. Tiada pemasangan lain diperlukan langsung. ffmpeg, ffprobe, ffplay
+   dan yt-dlp dibundel di dalam folder `_internal\bin` aplikasi.
+   Jangan padam folder itu — tanpanya muat turun YouTube,
    pengekstrakan bingkai dan bunyi video semuanya berhenti berfungsi.
    Kalau salah satunya hilang (contohnya dibuang antivirus), aplikasi
    akan memberitahu anda semasa ia dibuka, bukan gagal senyap kemudian.
+4. Buka **Fail > Tetapan...**, pergi ke tab **Tetapan AI**, tampal
+   kunci API anda dan tekan **Uji model ini** (lihat Tetapan di bawah).
 
-Versi pembangun (skrip Python) masih boleh dimulakan dengan `run.bat`
-seperti di bawah.
+Versi pembangun (skrip Python) pula dimulakan dengan `run.bat` dalam
+folder `omni-describer-custom`.
 
-## Memulakan aplikasi
+## Fail log
 
-Klik dua kali `run.bat` dalam folder `omni-describer-custom`. Aplikasi
-akan dibuka dengan tetingkap utama. Fail log ditulis ke:
+Fail log ditulis ke:
 
-`C:\Users\USER\AppData\Local\OmniDescriber\logs\omni_describer.log`
+`%LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log`
 
-Jika sesuatu berlaku ganjil (contohnya penerangan gagal untuk sesetengah
-frame), log itu merekod sebab sebenar setiap kegagalan.
+Jika sesuatu berlaku ganjil (contohnya kerja gagal), log itu merekod
+sebab sebenar setiap kegagalan.
 
 ## Langkah demi langkah: menerangkan satu video
 
 1. Pada tetingkap utama, pilih sumber video dengan butang:
-   - **Local Video File**: fail video dalam komputer anda.
-   - **Direct Video URL**: pautan terus ke fail video.
-   - **YouTube Video URL**: pautan halaman YouTube.
-2. Pilih preset arahan (prompt) dari senarai juntai bawah "Preset
-   Arahan". Apabila anda memilih satu, teks penuh preset itu serta-merta
-   muncul dalam kotak "Arahan untuk dihantar" di bawah, dan pembaca
-   skrin mengumumkan "Preset dipilih: <nama>". Anda boleh membaca,
-   menyunting, atau menambah nota pada teks itu sebelum memproses.
-   Kemudian tekan butang **Open** untuk mula memproses dengan arahan
-   tersebut. Menukar teks dalam kotak itu tidak mengubah preset asal.
+   - **Fail Video Tempatan**: fail video dalam komputer anda.
+   - **URL Video Terus**: pautan terus ke fail video.
+   - **URL Video YouTube**: pautan halaman YouTube.
+2. Pilih preset arahan dari senarai **Preset Arahan**. Apabila anda
+   memilih satu, teks penuh preset itu serta-merta muncul dalam kotak
+   "Arahan untuk dihantar" di bawah, dan pembaca skrin mengumumkan
+   "Preset dipilih: <nama>". Anda boleh membaca, menyunting, atau
+   menambah nota pada teks itu sebelum memproses. Kemudian tekan butang
+   **Buka** untuk mula memproses dengan arahan tersebut. Menukar teks
+   dalam kotak itu tidak mengubah preset asal.
 
-   Mulai v1.6.0, preset ditulis mengikut piawaian penerangan audio
-   antarabangsa (DCMP Description Key, panduan gaya Netflix, W3C/WAI,
-   ADLAB). Maknanya penerangan sengaja **lebih sedikit dan lebih
-   pendek** daripada versi lama: ia tidak lagi menghuraikan semula latar
-   belakang yang tidak berubah, dan tidak menceritakan dialog atau bunyi
-   yang anda memang dengar sendiri. Senyap itu bukan kepincangan — ia
-   bermakna tiada apa yang baharu untuk dilihat.
+   Preset ditulis mengikut piawaian penerangan audio antarabangsa (DCMP
+   Description Key, panduan gaya Netflix, W3C/WAI, ADLAB). Maknanya
+   penerangan sengaja **sedikit dan pendek**: ia tidak menghuraikan
+   semula latar belakang yang tidak berubah, dan tidak menceritakan
+   dialog atau bunyi yang anda memang dengar sendiri. Senyap itu bukan
+   kepincangan — ia bermakna tiada apa yang baharu untuk dilihat.
 
    Pilih preset ikut jenis video, bukan ikut genre:
 
@@ -72,120 +78,60 @@ frame), log itu merekod sebab sebenar setiap kegagalan.
    | `children` | Kandungan kanak-kanak: perkataan mudah, ayat pendek. |
    | `onscreen_text` | Slaid, menu, kod, carta — teks pada skrin dibaca mengikut urutan. |
 
-   Setiap preset ada versi Bahasa Melayu; app pilih versi yang betul
-   mengikut bahasa penerangan dalam Tetapan.
-3. Satu dialog kemajuan akan mengiringi keseluruhan proses dan sentiasa
-   mengemas kini: muat turun (peratus sebenar, MB, kelajuan, ETA),
-   penggabungan, ekstraksi frame ("Extracting frames: N"), analisis AI
-   ("AI analysis: 7/120 frame"), dan penyimpanan.
-4. Anda boleh menekan **Cancel** pada bila-bila masa. Semasa analisis AI,
-   proses berhenti antara frame dan apa yang sudah siap akan disimpan.
+   Setiap preset ada versi Bahasa Melayu. Versi yang disenaraikan
+   mengikut bahasa app itu sendiri (**Tetapan > Am > Bahasa**); tetapan
+   **Bahasa huraian** hanya menentukan bahasa yang AI gunakan untuk
+   menulis.
+3. Satu dialog kemajuan mengiringi keseluruhan proses: muat turun
+   (peratus sebenar, MB, kelajuan, ETA), penggabungan, kemudian sama ada
+   muat naik dan AI menonton video, atau pengekstrakan dan analisis
+   gambar pegun, dan akhirnya penyimpanan.
+4. Anda boleh menekan butang **Batal** (atau Esc) dalam dialog itu pada
+   bila-bila masa, termasuk selepas muat turun selesai. Kerja itu
+   berhenti dalam beberapa saat, walau di langkah mana pun. Apa yang
+   disimpan:
+   - muat turun yang belum habis disimpan dan disambung kali seterusnya;
+   - dengan gambar pegun, penerangan yang sudah siap disimpan;
+   - dengan seluruh video, kerja yang dibatalkan tidak menyimpan
+     sebarang penerangan, tetapi transkrip pertuturan disimpan, jadi
+     percubaan seterusnya melangkaunya.
 5. Apabila siap, pemain video berpenerangan terbuka secara automatik
    dengan penerangan dimuatkan. Jika tiada penerangan, pemain akan
-   menyatakan "No descriptions available."
+   menyatakan "Tiada penerangan tersedia."
 
-## Import dan eksport penerangan (menu File)
+## Import dan eksport penerangan (menu Fail)
 
-Menu File kini ada empat fungsi timeline:
+Menu Fail ada empat fungsi garis masa:
 
-- **Import Penerangan dari fail SRT / VTT / teks**: pilih satu fail
+- **Import Penerangan dari fail SRT / VTT / teks...**: pilih satu fail
   `.srt`, `.vtt`, atau `.txt`. Setiap baris masa menjadi satu
   penerangan dalam **projek baharu** (nama projek = nama fail), jadi
   projek sedia ada tidak terjejas. Format fail teks mudah: satu
   penerangan satu baris, bermula dengan masa, contohnya
   `0:05 Seorang lelaki masuk ke bilik` atau `00:10 - 00:14 Dia duduk`.
   Baris bermula dengan `#` diabaikan. Masa boleh ditulis sebagai
-  `M:SS`, `H:MM:SS`, atau saat sahaja (contohnya `90.5`).
-- **Eksport sebagai SRT** dan **Eksport sebagai WebVTT**: simpan semua
-  penerangan projek terbuka sebagai fail sari kata bertambah waktu,
-  boleh dibuka semula di sini atau dipakai dengan pemain/penyunting
-  video lain.
-- **Eksport sebagai Audio (lisan, disegerak)**: jana satu fail MP3
+  `M:SS`, `H:MM:SS`, atau saat dengan titik perpuluhan atau `s`
+  (contohnya `90.5` atau `90s`). Nombor bulat sahaja seperti `90`
+  TIDAK dibaca sebagai masa, jadi baris yang bermula dengan tahun atau
+  bilangan diabaikan.
+- **Eksport sebagai SRT...** dan **Eksport sebagai WebVTT...**: simpan
+  semua penerangan projek terbuka sebagai fail sari kata bertambah
+  waktu, boleh dibuka semula di sini atau dipakai dengan
+  pemain/penyunting video lain.
+- **Eksport sebagai Audio (lisan, disegerak)...**: jana satu fail MP3
   (atau WAV) yang menyebut setiap penerangan dengan suara TTS anda
   pada masa yang betul. Fail ini boleh didengar bersebelahan video
   menggunakan mana-mana pemain media, tanpa perlu aplikasi ini.
-  Menggunakan ffmpeg yang dibundel. Kemajuan ditunjukkan semasa jana;
-  suara, kelajuan, dan enjin mengikut tetapan TTS anda.
+  Menggunakan ffmpeg yang dibundel. Kemajuan ditunjukkan semasa jana,
+  dengan butang **Batal** (eksport yang dibatalkan tidak meninggalkan
+  fail separuh siap); suara, kelajuan, dan enjin mengikut tetapan
+  Output Audio anda.
 
-Kegunaan biasa "describe by time": terima fail SRT penerangan yang
+Kegunaan biasa "huraikan ikut masa": terima fail SRT penerangan yang
 disediakan oleh orang lain (atau taip sendiri dalam format teks
 mudah), import ia, pilih video sumber yang sama, dan pemain akan
 membacakan penerangan itu segerak semasa main balik.
 
-## Tetapan (menu File > Settings..., atau butang Settings...)
-
-- **Tab General** (kini tab pertama):
-  - **Language**: `en` (Inggeris) atau `ms` (Melayu).
-  - **Frame Rate (FPS)**: berapa banyak frame per saat video yang
-    diekstrak untuk dianalisis (1, 2, 5, atau 10). FPS lebih tinggi =
-    lebih banyak penerangan tetapi lebih lambat dan lebih mahal.
-  - **Had Maksimum Frame Setiap Video (0 = tiada had)**: had kos untuk
-    video panjang. Lalai `0` bermakna tiada had: setiap frame yang
-    diekstrak dianalisis (kelakuan asal). Jika anda menetapkan contohnya
-    `100`, hanya 100 frame pertama dihantar kepada AI, dan log akan
-    mencatat "Had frame dicapai". Masa (timestamp) kekal pada garis masa
-    penuh video, jadi penerangan kekal segerak dengan main balik.
-    Contoh: video 17 minit pada 5 FPS bermakna kira-kira 5000 panggilan
-    AI tanpa had.
-  - **Output Directory**: lokasi eksport ditulis.
-- **Tab AI**: pembekal (Gemini, MiniMax, OpenAI, GLM, atau Custom),
-  kunci API, model. **GLM** berjalan melalui OpenRouter secara
-  lalai: pilih pembekal `glm`, model `z-ai/glm-5.3-flash`, dan tampal
-  kunci OpenRouter anda (bermula dengan `sk-or-v1-`); kunci terus
-  Zhipu juga boleh digunakan melalui pembekal Custom dengan URL asas
-  `https://open.bigmodel.cn/api/paas/v4`. **Uji model ini** menyemak kunci dan model dengan
-  klip sebenar untuk SEMUA pembekal: OpenRouter, Gemini dan MiniMax
-  menerima klip 6 saat (adakah ia melihat dan mendengar), OpenAI dan
-  Custom menerima satu gambar. **Uji mod ejen** untuk OpenRouter dan
-  Gemini. Keputusan dibaca terus oleh pembaca skrin. (Butang Uji Sambungan lama dibuang
-  dalam 1.9.2.) Bagi pembekal **Custom**, kotak **Nama model**
-  terletak di bawah senarai Model.
-  - **Hantar seluruh video kepada AI (disyorkan)** — dahulu "Mod video
-    penuh". Tidak ditanda = gambar pegun satu demi satu. Kotak ini hanya aktif
-    apabila pembekal **GLM (OpenRouter), Gemini atau MiniMax** dipilih.
-    Bila didayakan,
-    AI menerima **keseluruhan fail video** (audio + visual) dan AI
-    menontonnya sendiri, kemudian memulangkan senarai penerangan
-    ber-timestamp buatannya. Tiada frame diekstrak dan tiada satu
-    panggilan AI bagi setiap frame — satu muat naik dan satu panggilan
-    sahaja, jadi biasanya lebih pantas dan lebih murah untuk video
-    panjang, dan penerangan meliputi bunyi/perkataan juga, bukan
-    sekadar imej. Status diumumkan sepanjang proses: "Memuat naik
-    video ke penyedia AI...", "AI sedang menonton video
-    (pemprosesan)...", dan "AI sedang menulis penerangan...".
-  Pembekal **GLM** dipaparkan sebagai **OpenRouter** dalam senarai.
-  Untuk OpenRouter, senarai model hanya menunjukkan model yang
-  menyokong video, dan butang **Dapatkan model (Fetch models)**
-  memuat semula senarai itu dari katalog awam OpenRouter (percuma,
-  tanpa kunci atau kredit). Sejak 1.9.3 butang yang sama berfungsi
-  untuk **Gemini**: ia bertanya kepada Google model mana yang boleh
-  digunakan oleh kunci anda dan menyenaraikan model yang boleh menonton
-  video sahaja (percuma, tidak guna kuota). Model Gemini baharu muncul
-  tanpa perlu kemas kini app.
-  - **Mod pantas satu-request (Fast one-shot mode)**: kotak semak ini
-    hanya aktif apabila pembekal **OpenRouter (GLM)** dipilih. Frame diekstrak
-    secara lokal dengan **cap masa H:MM:SS tertera terbakar** pada
-    setiap frame (kotak gelap, penjuru kiri atas), kemudian **semua
-    frame dihantar kepada AI dalam SATU panggilan** (untuk video
-    panjang, pecahan automatik kepada pukal 150 imej setiap satu).
-    AI membaca cap masa yang tertera itu sendiri, dan aplikasi
-    melekatkan semula masa pada grid frame yang tepat — jadi walaupun
-    AI tersalah baca sesuatu cap, timestamp penerangan kekal segerak
-    dengan main balik. Satu muat turun, satu (atau sedikit) panggilan
-    AI, dan frame dianalisis secara lokal. Ini adalah cara paling
-    pantas dan paling jimat untuk GLM.
-  - **Mod video penuh turut tersedia untuk OpenRouter**: model yang
-    katalognya menyenaraikan input video (contoh `z-ai/glm-5.3-flash`)
-    boleh menerima **satu fail video penuh** dalam satu permintaan
-    (disahkan secara empirikal: video 60 saat guna kira-kira 9 ribu
-    token). AI menonton sendiri, termasuk bunyi dan pertuturan, dan
-    memberi timestamp sendiri. Video panjang dipecahkan kepada
-    beberapa bahagian (kira-kira 10 minit setiap satu) dan dihantar
-    bahagian demi bahagian; timestamp dicantum semula ke satu garis
-    masa. Bahagian besar (melebihi kira-kira 50 MB) dimampatkan
-    terlebih dahulu — disahkan terhadap OpenRouter: video 50.7 MB
-    berjaya dimuat naik, kira-kira 98 MB ditolak. Kedua-dua kotak
-    semak ini saling menolak.
 ### Main video yang sudah ada penerangan
 
 Butang **"Main Video dengan Penerangan Sedia Ada"** (kedua dalam
@@ -203,92 +149,214 @@ Tiada pemprosesan AI, tiada kos, tiada menunggu. Video itu disalin ke
 dalam folder projek, jadi ia masih boleh dimain walaupun fail asal
 dipindahkan atau pemacu USB dicabut.
 
+## Tetapan (Fail > Tetapan..., atau butang Tetapan...)
+
+Dialog ini ada tiga tab: **Am**, **Tetapan AI** dan **Output Audio**.
+
+### Tab Am
+
+- **Bahasa**: bahasa app itu sendiri (Inggeris, Melayu, atau fail
+  bahasa yang anda tambah).
+- **Bahasa huraian (jawapan AI)**: bahasa yang AI gunakan untuk menulis.
+- **Kadar Kerangka (FPS)** dan **Had Maksimum Frame Setiap Video (0 =
+  tiada had)**: hanya untuk gambar pegun (kotak seluruh video tidak
+  ditanda). FPS lebih tinggi = lebih banyak gambar, lebih lambat dan
+  lebih mahal; had itu mengehadkan kos video panjang tanpa mengalih
+  penerangan dari garis masa video.
+- **Jangan biarkan AI buta lebih lama daripada (saat, 0 = mati)**:
+  gambar pegun sahaja; memastikan syot panjang yang tidak berubah masih
+  diberi gambar sekali-sekala.
+- **Panjang bahagian video untuk analisis AI (saat setiap bahagian)**:
+  bila seluruh video dihantar, video panjang dihantar dalam bahagian
+  sepanjang ini. Lalai 300 saat (5 minit); bahagian lebih pendek diukur
+  meletakkan penerangan dengan lebih tepat.
+- **Semak penerangan dengan video (bila menghantar seluruh video)**:
+  lihat "Semak penerangan dengan video" di bawah. **Mati** secara lalai.
+- **Kekalkan resolusi penuh untuk video besar (pecah, bukan
+  kecilkan)**: untuk slaid dan tutorial, di mana video yang dikecilkan
+  menjadikan teks pada skrin tidak terbaca.
+- **Tukar pertuturan ke teks (bila video tiada sari kata)**: cara app
+  mendapatkan transkrip apa yang diperkatakan, supaya AI tahu dialognya
+  dan di mana ada senyap. **Automatik** guna Grok jika ada kunci xAI,
+  jika tidak **Whisper tempatan** (percuma, luar talian, lebih
+  perlahan). **Tutup** hanya menghuraikan gambar.
+- **Direktori Output**: folder tempat dialog Simpan untuk eksport (SRT,
+  WebVTT, audio) dibuka. Setiap eksport masih bertanya di mana mahu
+  disimpan.
+
+Kotak **Bahasa** berada di atas kotak **Bahasa huraian** (sebelum 1.9.6
+susunannya terbalik).
+
+### Tab Tetapan AI
+
+- **Pembekal**: **OpenRouter** (lalai untuk pengguna baharu, model
+  `z-ai/glm-5.3-flash`, kunci bermula dengan `sk-or-v1-`), **Gemini**
+  (kunci Google anda sendiri), **MiniMax**, **OpenAI**, atau
+  **Tersuai** (mana-mana titik akhir serasi OpenAI atau format
+  Anthropic: **URL Asas**, **Format API**, dan kotak **Nama model** di
+  bawah senarai Model).
+- **Model**: untuk OpenRouter dan Gemini, senarai hanya menunjukkan
+  model yang boleh menonton video. **Dapatkan model** memuat semula
+  senarai itu: dari katalog awam OpenRouter (percuma, tanpa kunci atau
+  kredit), atau untuk Gemini dengan bertanya kepada Google model mana
+  yang boleh digunakan oleh kunci anda (percuma, tidak guna kuota).
+  Senarai itu disimpan untuk kali seterusnya. Model yang disyorkan
+  disenarai dahulu dan dibaca "Disyorkan: ...". Setiap baris menyebut
+  nama model, kemudian (OpenRouter) "menonton dan mendengar video" atau
+  "menonton sahaja, guna transkrip", kemudian harga sejuta token.
+- **Uji model ini** (Alt+U): menyemak kunci dan model dengan klip
+  sebenar, untuk SEMUA pembekal. OpenRouter, Gemini dan MiniMax
+  menerima video ujian 6 saat (adakah ia melihat dan mendengarnya);
+  OpenAI dan Tersuai menerima satu gambar. Keputusan dibaca terus oleh
+  pembaca skrin, dan kosnya hanya sebahagian kecil satu sen. (Butang Uji
+  Sambungan lama dibuang dalam 1.9.2; Uji model ini menggantikannya.)
+- **Uji mod ejen** (Alt+E): OpenRouter dan Gemini sahaja. Menyemak sama
+  ada model itu boleh menjalankan ejen Player (F2); model mesti lulus
+  sebelum F2 menggunakannya.
+- **Hantar seluruh video kepada AI (disyorkan)** — dahulu "Mod video
+  penuh", ditanda secara lalai untuk pengguna baharu. Aktif untuk
+  OpenRouter, Gemini dan MiniMax. Ditanda: AI menonton seluruh video
+  dan meletakkan setiap penerangan sendiri. Tidak ditanda: app
+  menghantar gambar pegun satu demi satu (OpenAI dan Tersuai sentiasa
+  begini).
+- **Mod gambar pantas (OpenRouter): semua gambar dalam satu
+  permintaan**: hanya bila kotak di atas tidak ditanda. Masa `H:MM:SS`
+  dibakar pada setiap gambar (kotak gelap, penjuru kiri atas) dan semua
+  gambar dihantar kepada AI dalam satu permintaan (pukal maksimum 150);
+  app melekatkan semula masa pada grid gambar yang tepat. Kedua-dua
+  kotak ini saling menolak.
+
+### Tab Output Audio
+
+Enjin suara (**Enjin TTS**: Edge TTS, SAPI5 (Windows), OpenAI TTS atau
+**Pembaca skrin saya**), **Suara** dan **Kelajuan**.
+
+**"Pembaca skrin saya"** dilabel dengan pembaca yang dijumpai (contoh
+"Pembaca skrin saya (NVDA)") dan bercakap melalui NVDA, JAWS, ZDSR atau
+apa sahaja yang sedang berjalan. Bila pilihan ini dipilih, Suara dan
+Kelajuan dilumpuhkan — pembaca skrin anda yang menentukannya; ubah
+dalam tetapan pembaca skrin itu sendiri. Jeda automatik dalam Player
+masih berfungsi: sejak 1.7.1 app mendengar bunyi pembaca skrin itu
+sendiri untuk tahu bila penerangan sudah habis. Jika tidak dapat,
+Player memberitahu begitu dan tidak menawarkan kotak yang tidak
+berbuat apa-apa.
+
+Pada komputer yang **tiada** pembaca skrin langsung, aplikasi akan
+bercakap sendiri (SAPI/OneCore Windows) untuk mesej status. Kalau
+ada pembaca skrin, aplikasi diam supaya tiada yang dibaca dua kali.
+
+## Semasa video diproses
+
+Dialog kemajuan menunjukkan setiap fasa: "Memuatkan maklumat
+video...", muat turun (peratus, MB, kelajuan, ETA, strim video dan
+audio berasingan), "Menggabungkan video dan audio dengan ffmpeg...",
+kemudian:
+
+- seluruh video, mula-mula: "Mencari transkrip pertuturan..."; bila
+  perlu "Memecahkan video panjang kepada beberapa bahagian..." dan
+  "Menyediakan video untuk dimuat naik (memampat)...". Selepas itu
+  bergantung pada pembekal:
+  - **OpenRouter**: "Menyediakan video untuk dihantar...", "Memuat naik
+    video ke penyedia AI..." dengan peratus, "AI sedang menonton video
+    dan menulis penerangan..." dengan anggaran masa ("Lebih kurang 4
+    minit lagi.") yang dipelajari daripada kerja anda sebelum ini untuk
+    model yang sama, dan "Membaca jawapan AI...". Jika AI mengambil
+    masa lebih lama daripada jangkaan, app berkata "Lebih lama daripada
+    biasa; masih berjalan."
+  - **Gemini** dan **MiniMax**: "Memuat naik video ke penyedia AI: N%",
+    kemudian (Gemini) "AI sedang menonton video (pemprosesan)..." dan
+    "AI sedang menulis penerangan...". Tiada anggaran masa di sini.
+  - Jika semakan penerangan dihidupkan: "Menyemak penerangan dengan
+    video...".
+- gambar pegun: "Mengekstrak frame: N frame", "Analisis AI: N/M frame".
+
+dan akhirnya "Menyimpan projek...". **Setiap peralihan fasa dan bahagian
+dibaca secara automatik oleh pembaca skrin** (contoh: "Bahagian 2
+daripada 2. Memuat naik video ke penyedia AI..."), tanpa memotong apa
+yang sedang dibaca — anda tidak perlu menyemak dialog sendiri.
+
+Bila pemprosesan selesai, dialog memaparkan "Pemprosesan selesai! N
+penerangan dijana." Jika kerja gagal, kotak mesej bertajuk
+"Pemprosesan gagal" dibuka, supaya pembaca skrin terus membaca
+sebabnya. Sebab itu ditulis dalam perkataan biasa dalam bahasa app
+(lihat "Jika ada masalah" di bawah); projek kosong **tidak** disimpan
+senyap-senyap.
+
+Jika anda menutup tetingkap utama semasa kerja sedang berjalan, kerja
+itu dihentikan dengan selamat dan tetingkap Player serta Penyunting
+ditutup dengan betul, dengan suntingan anda disimpan.
+
+### Batal berhenti cepat, di mana-mana
+
+Sejak 1.9.6 tetingkap kemajuan mempunyai SATU bar kemajuan untuk seluruh
+kerja (muat turun, transkrip pertuturan, langkah AI, semakan). NVDA
+melaporkannya semasa ia bergerak - bunyi bip, peratus disebut, atau
+kedua-duanya, mengikut Tetapan NVDA > Object presentation > Progress bar
+output. Bar itu tidak pernah undur; untuk langkah tanpa peratus sendiri
+(Gemini menonton video) ia bergerak mengikut anggaran yang dipelajari
+daripada kerja terdahulu. Nama langkah disebut sekali bila ia bertukar,
+dan "Kira-kira N minit lagi" dipaparkan bila diketahui.
+
+Sejak 1.9.6, Batal berfungsi dalam setiap langkah dan tidak membuat
+anda menunggu:
+
+- butang **Batal** (atau Esc) dialog kemajuan, termasuk selepas muat
+  turun selesai;
+- transkrip pertuturan berhenti dalam beberapa saat;
+- muat naik atau permintaan kepada AI berhenti dalam kira-kira setengah
+  saat;
+- semakan penerangan dan analisis gambar pegun juga berhenti;
+- **Eksport sebagai Audio** ada butang **Batal** sendiri;
+- menutup **Penjelajah Adegan** menghentikan pemuatannya, dan **Batal**
+  dalam **Tanya Lagi** meninggalkan soalan itu;
+- dalam ejen Player, **Henti tanya**, **Henti semakan**, **Tutup** dan
+  Esc menghentikan kerjanya (lihat "Ejen dalam Player (F2)").
+
 ### Muat turun yang terputus
 
-Mulai v1.6.7 muat turun yang terputus **disambung dari tempat ia
-berhenti**, bukan dimulakan semula. Tekan Cancel, tutup aplikasi, atau
-putus internet — bila anda buka video yang sama sekali lagi, ia
-menyambung. Video yang sudah siap tidak disentuh langsung, dan projek
-yang sudah ada videonya tidak akan memuat turun semula.
+Muat turun yang terputus **disambung dari tempat ia berhenti**, bukan
+dimulakan semula. Tekan Cancel, tutup aplikasi, atau putus internet —
+bila anda buka video yang sama sekali lagi, ia menyambung. Video yang
+sudah siap tidak disentuh langsung, dan projek yang sudah ada videonya
+tidak akan memuat turun semula.
 
-Untuk muat naik: dengan Gemini ia memang boleh disambung. Dengan GLM
-tidak boleh — video dihantar dalam satu permintaan tunggal dan tiada
-cara untuk menyambungnya. Tetapi kerja mampatan sebelum muat naik kini
-disimpan, jadi percubaan semula tidak perlu mengekod semula video
-(kira-kira 2.7 minit dijimatkan untuk video 10 minit).
+**Muat naik** kepada AI yang terputus tidak disambung, dengan mana-mana
+pembekal. Muat naik Gemini yang gagal dicuba semula secara automatik,
+sehingga tiga kali kesemuanya, setiap kali dari mula. Jika app perlu
+memampatkan video sebelum menghantarnya (OpenRouter), salinan yang
+dimampatkan itu disimpan, jadi percubaan semula tidak perlu mengekod
+semula video.
 
-- **Tab TTS**: enjin suara, suara, kelajuan pertuturan.
-  Mulai v1.6.6 ada pilihan **"Pembaca skrin saya"**, dilabel dengan
-  pembaca yang dijumpai (contoh "Pembaca skrin saya (NVDA)"). Ia
-  bercakap melalui NVDA, JAWS, ZDSR atau apa sahaja yang sedang
-  berjalan. Bila pilihan ini dipilih, kotak Suara dan Kelajuan
-  dilumpuhkan — pembaca skrin anda yang menentukannya, bukan aplikasi
-  ini; ubah dalam tetapan pembaca skrin itu sendiri. Jeda automatik
-  semasa penerangan juga tidak tersedia, kerana pembaca skrin tidak
-  memberitahu bila ayat sudah habis dibaca.
+### Transkrip pertuturan dibuat sekali sahaja
 
-  Pada komputer yang **tiada** pembaca skrin langsung, aplikasi akan
-  bercakap sendiri (SAPI/OneCore Windows) untuk mesej status. Kalau
-  ada pembaca skrin, aplikasi diam supaya tiada yang dibaca dua kali.
-
-Notis pemprosesan: bila pemprosesan selesai, dialog memaparkan
-"Pemprosesan selesai! N penerangan dijana." Jika AI gagal atau tidak
-memulangkan teks yang boleh diguna, dialog ralat menjelaskan langkah
-susulan (semak kunci API dan model dalam Tetapan), projek kosong **tidak**
-disimpan senyap-senyap, dan membuka projek yang tiada penerangan
-memberi amaran dengan langkah susulan yang sama.
-
-Dialog kemajuan menunjukkan fasa secara jelas dari mula hingga akhir:
-"Memuatkan maklumat video..." (semak metadata, boleh ambil beberapa
-saat untuk URL), "Muat turun: peratusan, MB, kelajuan, ETA" (strim
-video dan audio berasingan), "Merging video and audio with ffmpeg...",
-"Extracting frames: N frames", "AI analysis: N/M frames", "Saving
-project...", dan "Muat turun selesai" selepas strim siap diambil.
-Dalam mod video penuh, fasa ekstraksi/analisis frame diganti dengan
-"Memuat naik video ke penyedia AI: peratus", "AI sedang menonton
-video (pemprosesan)...", dan "AI sedang menulis penerangan..." —
-tiada frasa frame diumumkan kerana tiada frame terlibat.
-
-Sejak v1.8.4 (OpenRouter/GLM): bar kemajuan bergerak semasa video
-dihantar (ikut bait sebenar), kemudian semasa AI menonton, dengan
-anggaran masa ("Lebih kurang 4 minit lagi"). Anggaran itu dipelajari
-daripada kerja anda sebelum ini untuk model yang sama, jadi ia makin
-tepat selepas beberapa video. Jika AI mengambil masa lebih lama, app
-berkata "Lebih lama daripada biasa; masih berjalan" dan bukan mengira
-di bawah sifar. **Setiap peralihan fasa dan bahagian dibaca secara
-automatik oleh pembaca skrin** (contoh: "Bahagian 2 daripada 2. Memuat
-naik video..."), tanpa memotong apa yang sedang dibaca — anda tidak
-perlu menyemak dialog sendiri.
+Transkrip pertuturan dibuat sekali bagi setiap projek dan disimpan
+dalam folder projek (`media\transcript.json`). Percubaan kedua pada
+video yang sama, selepas Batal atau kegagalan, menggunakannya semula
+dan tidak mentranskrip video sekali lagi.
 
 ## Bagaimana pemprosesan berfungsi (dan kenapa)
 
-- **Video dimuat turun sekali sahaja.** Aplikasi tidak pernah "muat
-  turun per frame". Satu muat turun penuh (strim video + audio
-  digabungkan oleh ffmpeg) cukup untuk keseluruhan penerangan.
-- **Mod frame (lalai):** frame diekstrak secara lokal dari video itu
-  mengikut tetapan FPS anda. Setiap frame membawa masa (timestamp)
-  sendiri, contohnya 0.0s, 0.2s, 0.4s pada 5 FPS. Hanya frame (imej),
-  bukan fail video penuh, dihantar kepada AI; aplikasi melekatkan
-  timestamp frame pada teks yang AI pulangkan.
-- **Mod video penuh (kotak "Hantar seluruh video kepada AI" dalam Tab
-  AI):** satu fail video penuh dihantar (dimuat naik ke Gemini atau
-  MiniMax Files API, atau dimasukkan sebagai base64 untuk GLM melalui
-  OpenRouter), AI menonton video (termasuk audio) sendiri, dan
-  timestamp datang daripada AI itu juga. Ini sesuai untuk penerangan
-  yang meliputi bunyi dan pertuturan, atau bila anda mahukan proses
-  satu langkah sahaja. Pembekal lain (OpenAI, Custom) tidak menerima
-  fail video tempatan, jadi mod ini tidak tersedia untuk mereka.
-- **Mod pantas satu-request (GLM, kotak semak dalam Tab AI):** frame
-  diekstrak secara lokal seperti mod frame, tetapi setiap frame
-  dibekalkan dengan cap masa `H:MM:SS` yang tertera di atas imej.
-  Semua frame pergi dalam satu panggilan AI (pukal maksimum 150 imej),
-  AI membaca cap itu, dan aplikasi betulkan masa ke grid frame yang
-  tepat sebelum disimpan. Sesuai bila anda mahukan kelajuan mod frame
-  dengan kos panggilan AI yang hampir dengan mod video penuh.
-- Ketiga-tiga mod menghasilkan penerangan ber-timestamp yang sama
-  segeraknya dengan main balik; bezanya hanya siapa yang menentukan
-  masa (proses ekstraksi berbanding AI) dan apa yang dihantar (imej
-  berbanding satu fail video).
+- **Video dimuat turun sekali sahaja.** Satu muat turun penuh (strim
+  video + audio digabungkan oleh ffmpeg) cukup untuk keseluruhan
+  penerangan.
+- **Seluruh video (lalai):** fail video dihantar (dimuat naik ke Files
+  API Gemini atau MiniMax, atau dihantar terus kepada OpenRouter) dan AI
+  menontonnya serta memberi timestamp sendiri. Video panjang dipecahkan
+  kepada bahagian (5 minit secara lalai) dan setiap bahagian membawa
+  konteks ke bahagian seterusnya (bahagian X daripada Y, masa mulanya,
+  dan ringkasan pendek apa yang berlaku sebelumnya), supaya nama watak
+  kekal konsisten. Bahagian yang besar dimampatkan dahulu. Kebanyakan
+  model tidak boleh mendengar video, jadi app memberi AI transkrip
+  pertuturan (daripada sari kata video, atau tukar pertuturan ke teks)
+  dan bilangan patah perkataan yang muat dalam setiap senyap.
+- **Gambar pegun:** frame diekstrak secara lokal mengikut tetapan FPS
+  anda, dan setiap satu dihuraikan dengan timestamp tepatnya sendiri,
+  paling banyak satu penerangan setiap 4 saat. Terbaik untuk slaid dan
+  rakaman skrin; untuk filem ia memberi lebih banyak penerangan yang
+  terputus-putus.
+- Semua mod menghasilkan penerangan ber-timestamp yang sama jenisnya;
+  bezanya hanya siapa yang menentukan masa (proses ekstraksi berbanding
+  AI) dan apa yang dihantar (gambar berbanding satu fail video).
 
 ## Projek
 
@@ -300,57 +368,51 @@ Projek disimpan dalam `Documents\OmniDescriber\projects`, satu folder
 setiap projek yang dinamakan ikut projek itu, contohnya
 `Sintel (48)`. Nombor dalam kurungan membezakan dua video yang sama
 tajuk. Di dalamnya: `project.db` (penerangan) dan folder `media`
-(video, `descriptions.srt`).
+(video, `descriptions.srt` dan, selepas kerja seluruh video,
+`transcript.json`, iaitu transkrip pertuturan).
 
-**File > Open Project...** membuka senarai semua projek, terbaru
+**Fail > Buka Projek...** membuka senarai semua projek, terbaru
 dahulu. Setiap baris menyebut nama, bilangan penerangan dan tarikh,
 contohnya "Sintel — 79 penerangan — 28/09/2026 11:30". Butang:
 
 - **Buka** (Alt+B) — muatkan projek itu untuk dimain, disunting atau
-  dieksport.
+  dieksport. (Dalam 1.7.6 hingga 1.9.5 ini ranap; sejak 1.9.6 ia
+  berfungsi semula.)
 - **Namakan semula** (Alt+N) — beri nama baharu; foldernya juga
   ditukar. Kalau video projek itu sedang dimain, folder ditukar pada
   kali seterusnya app dibuka.
 - **Buang** (Alt+A) — padam projek sepenuhnya, selepas pengesahan.
 
-## Memilih model OpenRouter (Tetapan > AI)
+## Semak penerangan dengan video (Tetapan > Am)
 
-Bila OpenRouter dipilih, **Dapatkan model** menyenaraikan model yang
-boleh menonton video, dan senarai itu disimpan. Model yang juga
-mendengar bunyi video disenarai dahulu; NVDA membacanya sebagai "nama —
-menonton dan mendengar video — harga". **Uji model ini** (Alt+U)
-menghantar klip 6 saat dan memberitahu sama ada model itu benar-benar
-nampak dan dengar (kos kurang sepersepuluh sen). Model yang hanya
-menonton diberi transkrip pertuturan sebagai ganti.
+Bila seluruh video dihantar, AI kadang-kadang menghurai peristiwa yang
+betul pada saat yang salah. **Semak penerangan dengan video** (**Mati**
+secara lalai) memeriksa setiap penerangan dengan bingkai di
+sekelilingnya, lalu mengalihnya ke saat sebenar atau membuangnya jika
+tiada langsung. Diukur pada dua filem: penerangan salah kira-kira
+separuh. Menambah beberapa minit dan kos kecil. Jika semakan gagal,
+penerangan asal disimpan.
 
-## Bahasa anda sendiri (Help > Laporan Terjemahan)
+- **Auto (app memilih)** — Paling tepat untuk video panjang, Kekalkan
+  semua untuk yang pendek.
+- **Paling tepat (mungkin buang sedikit)** — paling sedikit salah.
+- **Paling banyak penerangan** — paling banyak yang betul.
+- **Kekalkan semua, betulkan masa sahaja** — tiada yang dibuang.
+
+## Bahasa anda sendiri (Bantuan > Laporan Terjemahan)
 
 Fail bahasa yang anda buat atau betulkan disimpan dalam
 `%APPDATA%\OmniDescriber\locales\` dan tidak hilang semasa app
-dikemas kini. Selepas kemas kini, **Help > Laporan Terjemahan**
+dikemas kini. Selepas kemas kini, **Bantuan > Laporan Terjemahan...**
 memberitahu berapa baris bahasa anda yang belum diterjemah dan
 menyimpan baris-baris itu sahaja, bersama teks Inggerisnya, sebagai
 `<kod>.missing.json` dalam folder itu. Panduan penuh:
 `doc/menambah-bahasa.md`.
 
-## Semak penerangan dengan video (Settings)
-
-Dalam mod video penuh, AI kadang-kadang menghurai peristiwa yang betul
-pada saat yang salah. **Semak penerangan dengan video** (tab General,
-**Mati** secara lalai) memeriksa setiap penerangan dengan bingkai 20 saat
-sebelum dan selepasnya, lalu mengalihnya ke saat sebenar atau
-membuangnya jika tiada langsung. Diukur pada dua filem: penerangan salah
-kira-kira separuh. Menambah beberapa minit dan kos kecil.
-
-- **Paling tepat** — paling sedikit salah; mungkin membuang beberapa.
-- **Paling banyak penerangan** — paling banyak yang betul.
-- **Kekalkan semua, betulkan masa sahaja** — tiada yang dibuang.
-- **Auto** — Paling tepat untuk video panjang, Kekalkan semua untuk pendek.
-
-## Semak Kemas Kini (menu Help)
+## Semak Kemas Kini (menu Bantuan)
 
 YouTube kerap berubah, dan yt-dlp (program yang memuat turun video)
-versi lama boleh berhenti berfungsi. **Help > Semak Kemas Kini...**
+versi lama boleh berhenti berfungsi. **Bantuan > Semak Kemas Kini...**
 memberitahu versi yt-dlp yang digunakan dan sama ada versi lebih
 baharu tersedia; hasilnya dibacakan terus.
 
@@ -370,37 +432,67 @@ turun YouTube gagal, log akan mencadangkan menu ini.
 ## Pemain video berpenerangan
 
 - Pemain memaparkan tempoh sebenar video pada garis masa.
-- Semasa main balik, penerangan frame semasa dibacakan (TTS) dan
-  ditunjukkan sebagai teks.
-- Gunakan kawalan pemain untuk jeda, carian, dan navigasi penerangan.
+- Semasa main balik, penerangan semasa dibacakan dan ditunjukkan
+  sebagai teks, dengan penerangan seterusnya di bawahnya.
+- **Main**, **Henti**, **<< 10s** dan **10s >>** mengawal main balik;
+  **Baca Penerangan** membaca penerangan semasa sekali lagi.
+- **Jeda video semasa penerangan dibaca**: menahan video sehingga
+  penerangan habis, kemudian sambung semula — berguna untuk slaid,
+  tutorial dan video yang padat dialog.
+- **Penyunting Penerangan**, **Tanya Lagi...**, **Jelajah Adegan...**
+  dan **Ejen (F2)** membuka tetingkap yang diterangkan di bawah.
 
 ## Ejen dalam Player (F2)
 
-Dalam Player, tekan **F2** (atau butang **Ejen**) dan tanya apa-apa tentang
-video dalam bahasa anda sendiri: "adakah penerangan di sini betul?",
-"apa berlaku di jambatan?", "lelaki tua itu bernama Hans". Ejen melihat
-bingkai video, membaca penerangan dan dialog, mencari jurang senyap, dan
-boleh mengalih Player. Video dijeda semasa ejen dibuka.
+Dalam Player, tekan **F2** (atau butang **Ejen (F2)**) dan tanya
+apa-apa tentang video dalam bahasa anda sendiri: "adakah penerangan di
+sini betul?", "apa berlaku di jambatan?", "lelaki tua itu bernama
+Hans". Ejen melihat bingkai video, membaca penerangan dan dialog,
+mencari jurang senyap, dan boleh mengalih Player. Video dijeda semasa
+ejen dibuka.
 
 Ejen **tidak mengubah apa-apa sendiri**. Ia mencadangkan; anda mendengar
 ringkasan, kemudian pilih **Terima semua**, **Semak satu per satu** atau
 **Tolak semua** (Esc = tolak). Fail sari kata projek disalin dahulu
-sebelum perubahan pertama, dan **Buat asal** sentiasa ada. Setiap langkah
-disebut. Perbualan diingat sehingga Player ditutup; nama watak diingat
-untuk projek itu.
+sebelum perubahan pertama, dan **Buat asal perubahan terakhir**
+sentiasa ada. Setiap langkah disebut. Perbualan diingat sehingga Player
+ditutup; nama watak diingat untuk projek itu. Jika satu soalan menelan
+lebih daripada beberapa sen, ejen bertanya dahulu sebelum meneruskan.
 
-**Semak seluruh video** (butang dalam dialog ejen) menyemak setiap penerangan, seminit video pada satu masa, lalu memberi SATU senarai cadangan untuk anda terima, semak atau tolak. Masa dan kos disebut dahulu; butang yang sama menghentikannya.
+**Semak seluruh video** (butang dalam tetingkap ejen) menyemak setiap
+penerangan, seminit video pada satu masa, lalu memberi SATU senarai
+cadangan untuk anda terima, semak atau tolak. Masa dan kos disebut
+dahulu.
 
-Ejen berfungsi dengan model OpenRouter atau Gemini (kunci Gemini anda
-sendiri, sejak 1.9.2) yang lulus **Settings > Uji mod ejen**. Model yang belum lulus: F2 membuka **Tanya Lagi**, yang kini
-menghantar bingkai pada kedudukan Player bersama soalan anda.
+Anda boleh menghentikan ejen pada bila-bila masa:
 
-## Penjelajah scene
+- Semasa ejen menjawab soalan, butang **Tanya** menjadi **Henti tanya**
+  (Alt+T). Tekan untuk berhenti.
+- Semasa ejen menyemak seluruh video, butang itu menjadi **Henti
+  semakan**.
+- **Tutup** atau Esc juga menghentikan apa sahaja yang ejen sedang
+  buat, supaya tiada permintaan terus dibayar selepas tetingkap
+  ditutup.
 
-Dari pemain anda boleh membuka Scene Explorer untuk menyemak frame
-satu demi satu: kunci anak panah kiri/kanan untuk bergerak antara frame,
-`D` untuk penerangan penuh AI bagi frame semasa, `L` untuk senarai objek
-dalam frame, dan `Escape` untuk menutup.
+Ejen berfungsi dengan model **OpenRouter** dan model **Gemini** (kunci
+Gemini anda sendiri, sejak 1.9.2) yang sudah lulus **Tetapan > Uji mod
+ejen**. Jika anda menekan F2 dengan model yang belum lulus, Player
+menawarkan untuk menjalankan ujian itu terus di situ ("Ejen belum diuji
+dengan <model>. Uji sekarang? Ia mengambil kira-kira setengah minit dan
+kosnya sebahagian kecil satu sen."). Jika ujian lulus, ejen dibuka.
+Jika anda menjawab Tidak, ujian gagal, atau pembekal tiada ejen, F2
+membuka **Tanya Lagi** sebagai ganti, yang menghantar bingkai pada
+kedudukan Player bersama soalan anda. Dalam Tanya Lagi, **Batal** (atau
+Esc) meninggalkan soalan yang masih menunggu jawapan.
+
+## Penjelajah Adegan
+
+Dari pemain, **Jelajah Adegan...** membuka Penjelajah Adegan untuk
+menyemak frame satu demi satu: kunci anak panah kiri/kanan untuk
+bergerak antara frame, `D` untuk penerangan penuh AI bagi frame semasa,
+`L` untuk senarai objek dalam frame, Enter untuk menghuraikan objek
+terdekat, dan `Escape` untuk menutup. Menutup Penjelajah Adegan semasa
+ia masih memuatkan frame menghentikan pemuatan itu.
 
 ## Penerang video berdikari (baris perintah + API HTTP)
 
@@ -409,12 +501,22 @@ Selain aplikasi GUI, repositori ini memuat pakej berdikari
 `H:MM:SS` (kotak gelap, penjuru kiri atas) pada setiap frame yang
 diekstrak ffmpeg, menghantar SEMUA frame base64 dalam SATU permintaan
 `glm-5.3-flash`, membiarkan model MEMBACA cap masa yang tertera, kemudian
-mengekstrak baris `H:MM:SS - penerangan` menjadi `description.srt` dan
-`description.json` (batch automatik melebihi 150 frame; had 5 MB dan
-6000 px setiap frame).
+mengekstrak baris `H:MM:SS - penerangan` menjadi satu fail SRT dan satu
+fail JSON (batch automatik melebihi 150 frame; had 5 MB dan 6000 px
+setiap frame).
+
+Untuk `describe`, output diletakkan dalam folder yang dinamakan ikut
+video, di dalam folder video itu (`<folder video>\<nama video>\`), dan
+fail-failnya dinamakan ikut video: `<nama video>.srt` dan
+`<nama video>.json` (`--out` memilih folder lain).
+
+Secara lalai ia berhubung **terus dengan Zhipu**
+(`https://open.bigmodel.cn/api/paas/v4`, model `glm-5.3-flash`), jadi
+`GLM_API_KEY` mesti kunci Zhipu, bukan kunci OpenRouter `sk-or-v1-`.
+`--base-url` dan `--model` mengubahnya.
 
 ```bat
-:: Terangkan satu video tempatan (SRT + JSON ditulis di sebelahnya)
+:: Terangkan satu video tempatan (SRT + JSON dalam <folder video>\<nama video>\)
 set GLM_API_KEY=kunci-anda
 python -m video_describer describe video.mp4 --fps 1 --tts
 
@@ -431,15 +533,57 @@ Titik akhir API: `GET /health`, `POST /describe` (badan JSON
 `POST /parse` (parse sahaja). Kunci API diambil daripada badan
 permintaan, pengepala `X-API-Key`, atau pemboleh ubah persekitaran
 `GLM_API_KEY`. Narasi TTS (`--tts`) menggunakan edge-tts (lalai
-`ms-MY-OsmanNeural`) atau SAPI5 Windows (`--tts-engine sapi`); fail
-pemangkin audio dan audio gabungan diletakkan dalam folder `audio/`
-di sebelah output.
+`ms-MY-OsmanNeural`) atau SAPI5 Windows (`--tts-engine sapi`); satu
+fail audio bagi setiap penerangan diletakkan dalam folder `audio\` di
+dalam folder output (tiada fail audio gabungan dibuat).
+
+Alat berdikari ini lebih lama daripada enjin app sekarang; app itu
+sendiri tidak menggunakannya.
 
 ## Jika ada masalah
 
 1. Baca log di
-   `C:\Users\USER\AppData\Local\OmniDescriber\logs\omni_describer.log`;
-   setiap ralat frame direkod dengan sebab sebenar.
-2. Semak tetapan AI (kunci API, model, URL asas) dan tekan **Test**.
-3. Untuk video panjang, pertimbangkan FPS lebih rendah (contohnya 1)
-   atau tetapkan **Had Maksimum Frame Setiap Video**.
+   `%LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log`; setiap
+   kegagalan direkod dengan sebab sebenar.
+2. Semak tetapan AI (kunci API, model, URL asas) dan tekan **Uji model
+   ini**.
+3. Sejak 1.9.6 mesej ralat ditulis dalam perkataan biasa dalam bahasa
+   app, tanpa teks teknikal (butiran penuh ada dalam log). Maksudnya
+   dan apa yang perlu dibuat:
+   - **"Perkhidmatan AI sedang sibuk (terlalu banyak permintaan).
+     Tunggu beberapa minit dan cuba lagi, atau pilih model lain dalam
+     Tetapan > AI."** Pembekal sedang mengehadkan anda (HTTP 429).
+     Dengan setiap pembekal, termasuk OpenRouter, app sudah menunggu
+     selama yang diminta pembekal (sehingga kira-kira seminit) sebelum
+     mencuba semula. Jika mesej ini masih keluar, buat seperti yang
+     disebut.
+   - **"Kuota harian penyedia AI untuk model ini sudah habis. Ia
+     dipulihkan pada tengah malam waktu Pasifik (jam 3 hingga 4 petang
+     waktu Malaysia). ..."** Kunci anda sudah menghabiskan kuota
+     permintaan harian (contohnya peringkat percuma Gemini). Menunggu
+     beberapa minit tidak membantu: tunggu sehingga kuota dipulihkan,
+     pilih model atau pembekal lain, atau naikkan projek kunci itu ke
+     peringkat berbayar yang menaikkan hadnya.
+   - **"Penyedia AI menolak video kerana terlalu besar, walaupun
+     selepas app mengecilkannya. ..."** Dengan OpenRouter, app sudah
+     menghantar bahagian itu semula, lebih kecil setiap kali, sehingga
+     tiga kali. Pilih model lain, atau tetapkan **Panjang bahagian
+     video** yang lebih pendek dalam Tetapan > Am.
+   - **"Penyedia AI menolak kunci API ..."**: kunci tidak sah, atau
+     tidak dibenarkan untuk model ini. Semak dalam Tetapan > Tetapan AI
+     dan tekan **Uji model ini**.
+   - **"Penyedia AI mengatakan kredit akaun ini tidak mencukupi.
+     ..."**: tambah nilai di laman web penyedia, atau pilih pembekal
+     lain.
+   - **"Tidak dapat menghubungi penyedia AI (tiada sambungan, atau ia
+     tidak menjawab dalam masa). ..."**: semak sambungan internet dan
+     cuba lagi.
+   - **"Penyediaan video untuk AI gagal (...)"**: cuba lagi; jika
+     berulang, fail video mungkin rosak.
+   - **"Laman video menolak muat turun (HTTP 403), walaupun selepas
+     mencuba semula. ..."**: tunggu seminit dan cuba lagi; jika
+     berulang, kemas kini yt-dlp dengan **Bantuan > Semak Kemas
+     Kini**.
+4. Untuk video panjang yang dihantar sebagai gambar pegun, pertimbangkan
+   FPS lebih rendah (contohnya 1) atau tetapkan **Had Maksimum Frame
+   Setiap Video**.

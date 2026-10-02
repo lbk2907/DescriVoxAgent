@@ -121,7 +121,7 @@ label.
 
 ## 4. Rilis / Phase 4: Release (atas kebenaran: "1 commit, 1 rumusan, 1 rilis")
 
-- `doc/rumusan-v1.5.4.md` (dwibahasa) — rumusan fix pass.
+- `doc/arkib/rumusan-v1.5.4.md` (dwibahasa) — rumusan fix pass.
 - `__version__` 1.5.3 → **1.5.4** (sumber tunggal; pyproject dynamic).
 - README: seksyen "What's new in v1.5.4". AGENTS.md: status v1.5.4.
 - **Commit `c8a9916`** — `release: v1.5.4 audit fix pass (P1 id bug, a11y,

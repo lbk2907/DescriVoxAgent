@@ -2,7 +2,7 @@
 
 Dibuat 28 Sep 2026. Tanda `[x]` hanya bila ada bukti (output test/run).
 
-Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini: semua yang MASIH terbuka, dan fasa semasa.
+Fasa yang sudah siap dipindah ke `arkib/senarai-semak-fasa-1-18.md` (30 Sep 2026). Di sini: semua yang MASIH terbuka, dan fasa semasa.
 
 ## Masih terbuka (dari fasa lama)
 
@@ -12,7 +12,7 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
   _(dari: Fasa 5 — ciri baharu (tanya pemilik dahulu))_
 - [ ] 8.6 (tidak dibuat — pilihan pemilik) ffmpeg dalam menu Semak Kemas Kini
   _(dari: Fasa 8 — penambahbaikan kecil (diminta pemilik 28 Sep 2026))_
-- [ ] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings
+- [x] 15.7 (PEMILIK) Kunci Gemini ditolak Google — ganti dalam Settings — SELESAI 1 Okt 2026: kunci baharu, 25/25 permintaan berturut (23.5)
   _(dari: Fasa 15 — perbandingan model (diminta pemilik 29 Sep 2026, v1.8.5))_
 - [x] 18.1e suhu tetap, snap perubahan adegan — dibuat dalam 19.B1/19.B2
   _(dari: Fasa 18 — seterusnya (susunan pemilik 30 Sep 2026))_
@@ -21,7 +21,7 @@ Fasa yang sudah siap dipindah ke `senarai-semak-arkib.md` (30 Sep 2026). Di sini
 - [x] 19.E1 AGENTS.md: kedua jadi 57b; nota "jangan nombor semula" (nombor dirujuk dalam kod)
 - [x] 19.E2 README 1232 → 143 baris (fakta semasa; bahagian lapuk dibuang); 37 keluaran dalam
       CHANGELOG.md, 0 baris sejarah hilang
-- [x] 19.E3 18 fasa siap → senarai-semak-arkib.md; 5 item terbuka di atas; 0 baris hilang
+- [x] 19.E3 18 fasa siap → arkib/senarai-semak-fasa-1-18.md; 5 item terbuka di atas; 0 baris hilang
 - [x] 19.E4 doc/developer-guide.md
 - [x] 19.B1 Suhu 0: betul 51 → 83, salah 24.2% → 16.8% (Gemini), beza larian 21 → 11 — DIGUNAKAN
 - [x] 19.B2 Snap ke perubahan adegan: tiada kemajuan jelas (salah 39 → 44 Gemini) — TIDAK digunakan
@@ -93,3 +93,48 @@ paling murah/pantas. Catat masa dan kos setiap tahap.
 - [x] 23.7b Build 1.9.5 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.5, zip 1.9.4 dibuang
 - [ ] 23.8 (cadangan) Ejen: jawapan akhir kosong selepas had giliran, dan pembetulan yang disebut tanpa propose_change
 
+## Fasa 24 — kemas dokumen (pemilik 1 Okt 2026)
+
+- [x] 24.1 doc/plan.md dwibahasa: semua pelan dari v1.5.1 hingga fasa 24, kerja terbuka di atas
+- [x] 24.2 AGENTS.md dalam English (270 baris, aliran kerja + peraturan untuk semua agent); CLAUDE.md menunjuk ke AGENTS.md
+- [x] 24.3 doc/pitfalls.md: 88 entri (1–87 + 57b), nombor sama, diterjemah; komen kod "AGENTS.md pitfall N" → "pitfall N"
+- [x] 24.4 Fail lama ke doc/arkib/; senarai-semak-v1.7.5.md → senarai-semak.md; semua pautan dikemas kini
+- [ ] 24.5 Panduan pengguna, developer-guide, README disemak terhadap kod; gate x1
+
+
+## Fasa 25 — bug laporan pemilik 2 Okt 2026 ("jangan ada yang tertinggal lagi")
+
+Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn kod.
+
+- [x] 25.1 Tetapan SEBENAR pemilik tercemar: Gemini base_url = http://127.0.0.1:12144/v1beta (pelayan ujian) →
+      semua kerja Gemini "Cannot connect to host". DIPULIHKAN (izin pemilik). Punca: 13 fail ujian tanpa ODC_CONFIG_DIR sendiri
+- [x] 25.2 (tests/isolate.py diimport PERTAMA oleh 71 ujian; test_fixes58 menggagalkan gate jika tidak; 4 alat E2E dikotak-pasir) Setiap fail ujian mengasingkan tetapan/projek/locales SENDIRI + ujian pengawal (gagal jika ada fail tanpa)
+- [x] 25.3 (test_fixes58 menangkap EVT_DOUBLECLICK pada kod lama) Buka Projek RANAP setiap kali sejak 1.7.6: wx.EVT_DOUBLECLICK tidak wujud → EVT_LISTBOX_DCLICK;
+      ujian statik: setiap nama wx.* dalam src wujud
+- [x] 25.4 (test_fixes49) OpenRouter 413 "Payload Too Large" tanpa nombor (hulu Alibaba) tidak dipelajari → turunkan had & cuba semula
+- [x] 25.5 (test_fixes59: berhenti dalam 1 segmen; sari kata yt-dlp/ffmpeg juga) Cancel diabaikan semasa transkrip Whisper (1.5–6 min menunggu) → transkripsi boleh dibatalkan
+- [x] 25.6 (media/transcript.json, dikongsi dengan ejen) Transkrip dibuat SEMULA setiap larian (Jantan Miskin 4x, 3–6 min setiap kali) → simpan dalam projek
+- [x] 25.7 (perlumbaan pembaca stderr; kod keluar disertakan) "video split failed:" tanpa sebab → sebab sebenar + mesej jelas
+- [x] 25.8 (test_fixes60: _ui() + pengawal; Player/Editor ditutup dengan betul) Tutup tetingkap semasa memproses → ranap "MainFrame has been deleted"
+- [x] 25.9 (user_error_text pusat; muat naik Gemini cuba semula 3x) Ralat sambungan/Gemini mentah ("Cannot connect to host ...") → mesej jelas dwibahasa
+- [x] 25.10 (test_fixes54) Ejen F2 "tidak tersedia" bila model belum diuji → tawar uji sekarang; log sebab
+- [x] 25.11 (audit: Cancel dialog tidak dikesan SELEPAS muat turun dalam semua mod = punca utama; eksport audio, ejen, Tanya Lagi, Scene Explorer, semakan, mod bingkai/pantas — test_fixes60/61/62/59) Audit SEMUA butang Cancel (muat turun, proses, mampat, pecah, semak, ejen, kemas kini, eksport audio, uji model)
+- [x] 25.12 (30+ tempat; kegagalan kerja kini dalam kotak mesej yang dibaca NVDA) Audit semua ralat mentah yang sampai kepada pengguna
+- [x] 25.13 (output_dir = folder dialog eksport; lalai glm; ms.json; susunan kotak bahasa; 16 kesilapan dokumen) Semakan bebas (fasa 24): output_dir tidak digunakan; provider lalai "gemini" vs "glm"; OpenRouter 429/kuota
+      harian; perkataan English dalam ms.json; susunan kotak bahasa; 16 kesilapan panduan/README
+- [x] 25.15 Pemilik: ejen mesti terima masa SEMASA; slider "1:04" — kedudukan ikut jam sebenar (tanpa VLC
+      ia ketinggalan bila pemasa lewat), slider dalam saat (anak panah 5 s, Page 30 s) dibaca "1:04 daripada 24:30",
+      setiap soalan ejen membawa kedudukan (test_fixes63; kod lama 0/4)
+- [x] 25.16 Pemilik: "ada progress yang hanya dibaca saat sahaja" — fasa panjang disebut sekali, lalu teks
+      dialog berubah SETIAP SAAT dan NVDA membaca "46s" sahaja. Kini laporan ayat penuh setiap 30 s untuk semua
+      pembekal (fasa + % / masa lagi / masa berlalu), teks dialog berubah setiap 15 s — DIGANTI oleh 25.17
+- [x] 25.17 Pemilik memilih BAR % SAHAJA, tanpa suara berkala: AccessibleProgressDialog (wx.Gauge sebenar yang NVDA
+      kenal; dialog Windows lama DirectUI) dengan SATU peratus untuk seluruh kerja: muat turun 0-15, transkrip 15-30
+      (peratus Whisper sebenar), AI 30-95 (Gemini/MiniMax dianggar ikut masa), semakan 95-99; tidak pernah undur.
+      Pengumuman pertukaran fasa dikekalkan (test_fixes64 6/6; lama 0/6)
+- [x] 25.18 DITEMUI semasa mendengar: 'Play Video with Existing Descriptions' mencipta projek TANPA panjang video ->
+      slider 0.1 s, main balik tidak tamat (bug lama). Player kini mengukur dengan ffprobe (test_fixes63)
+- [x] 25.14a Gate 74 suite x2 GATE_ALL_PASS (sebelum 25.18); NVDA didengar: bar kemajuan "10 percent".."90 percent"
+      (tools/nvda_progress_check.py), slider "0:00 of 0:30", Settings (Language di atas), Tanya Lagi, tetingkap
+      utama 10/10, ejen sebenar (alat, cadangan, kotak keputusan, Esc)
+- [ ] 25.14b Gate x2 selepas 25.18, build, exe NVDA, tag v1.9.6

@@ -16,8 +16,8 @@ disentuh semasa app dikemas kini**:
 %APPDATA%\OmniDescriber\locales\
 ```
 
-Cara paling mudah ke sana: **Help > Laporan Terjemahan...**, kemudian
-jawab **Yes** untuk membuka folder itu.
+Cara paling mudah ke sana: **Bantuan > Laporan Terjemahan...** (Help > Translation Report...), kemudian
+jawab **Ya** untuk membuka folder itu.
 
 1. Salin `en.json` ke folder itu dan tukar namanya kepada kod bahasa
    anda, contohnya `id.json` untuk Bahasa Indonesia. (`en.json` ada
@@ -36,7 +36,7 @@ Versi baharu kadang-kadang menambah teks (contohnya menu baharu). Anda
 tidak perlu membandingkan fail sendiri:
 
 1. Pilih bahasa anda dalam Tetapan
-2. **Help > Laporan Terjemahan...** — app memberitahu berapa baris
+2. **Bantuan > Laporan Terjemahan...** (Help > Translation Report...) — app memberitahu berapa baris
    yang belum diterjemah, dan menyimpannya dalam
    `<kod>.missing.json` dalam folder yang sama, **setiap baris bersama
    teks Inggerisnya**

@@ -1,6 +1,6 @@
 # Arkib senarai semak (fasa 1–18)
 
-Dipindah dari `senarai-semak-v1.7.5.md` pada 30 Sep 2026, tanpa perubahan. Item terbuka disalin ke bahagian "Masih terbuka" di sana.
+Dipindah dari `senarai-semak-v1.7.5.md` (kini `doc/senarai-semak.md`) pada 30 Sep 2026, tanpa perubahan. Item terbuka disalin ke bahagian "Masih terbuka" di sana.
 
 ## Fasa 1 — pemilik (bukan agent)
 - [x] Padam `%APPDATA%\OmniDescriber\settings.json.v1.5.2.bak` (4 kunci XOR) — dipadam kekal atas

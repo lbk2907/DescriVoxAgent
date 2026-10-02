@@ -2,6 +2,52 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v1.9.6
+
+Fixes from the owner's own log of 1 October, checked by two independent
+audits so that nothing was left out.
+
+- **Cancel works.** The progress dialog's Cancel was only noticed during
+  the download; for a video already on the computer it did nothing for the
+  whole job. It now stops every step within seconds: the speech
+  transcript, compression, splitting, upload, waiting for the AI, the
+  description check, still pictures and fast mode. Audio export has a
+  Cancel button. In the Player agent, Ask becomes **Stop asking** while it
+  works, and Close/Esc stops its work too. Closing Ask More or the Scene
+  Explorer stops what they were doing.
+- **The speech transcript is made once per project** and kept, instead of
+  again on every attempt (3 to 6 minutes each time on a 24-minute video).
+- **File > Open Project works again** (it crashed on every use since 1.7.6).
+- **Errors are told in plain words** in the app language, with what to do,
+  instead of raw technical text, and a failed job opens a message box that
+  the screen reader reads. A provider that refuses the video as too large
+  without saying its limit (OpenRouter's Alibaba upstream) now gets a
+  smaller video, up to three times. Gemini uploads are retried after a
+  dropped connection. OpenRouter now also waits as long as asked after
+  "too many requests" and names a used-up daily limit.
+- **The Player's time is right.** Without VLC the position could fall
+  behind the sound; it now follows the real clock, and every question to
+  the agent carries the current position. The timeline slider moves in
+  seconds (arrows 5 s, Page Up/Down 30 s) and is read as "1:04 of 24:30";
+  times are written 1:04 (and 1:02:05 past an hour).
+- **One real progress bar for the whole job.** The screen reader used to
+  hear only a seconds counter ("46s") during long steps, and the old
+  Windows progress bar was not always reported. The progress window now
+  has a standard progress bar (NVDA beeps and/or says the percentage,
+  following NVDA's "Progress bar output" setting) with ONE percentage for
+  the whole job: download, speech transcript (real Whisper progress), the
+  AI step (Gemini's wait is estimated from earlier jobs) and the check. It
+  never goes backwards. The step name is still said once when it changes,
+  and the time left is shown when known.
+- **F2 offers Test agent mode on the spot** when the chosen model has not
+  passed it yet, and opens the agent if it passes.
+- Closing the main window during a job no longer crashes; open Player and
+  Editor windows close properly and keep their edits.
+- Settings > General > Output Directory is now where export Save dialogs
+  open. The Language box is shown above Description language.
+- Tests can no longer change your real settings: one did, and pointed
+  Gemini at a test address (repaired in your settings).
+
 ## What's new in v1.9.5
 
 - **Clearer, steadier handling of "too many requests" (HTTP 429).** When
@@ -1028,7 +1074,7 @@ since apparent age is ordinary description vocabulary.
   no longer cut off or empty.
 - **Security hardening**: Gemini API key removed from URLs, yt-dlp URL
   scheme validation, temp-file leaks closed, clearer HTTP errors.
-- Full audit fix pass — see `doc/rumusan-v1.5.4.md` for the complete
+- Full audit fix pass — see `doc/arkib/rumusan-v1.5.4.md` for the complete
   bilingual rumusan. Gate: 28/28 suites PASS.
 
 ## What's new in v1.5.3
