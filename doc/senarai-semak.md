@@ -154,5 +154,8 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
 - [x] 26.5 Kekunci Video picture diuji SEBENAR (tools/nvda_video_keys_check.py, PostMessage ke tetingkap Player sahaja):
       fokus kekal, kelantangan ikut setiap kekunci, NVDA baca setiap satu (3 Okt 2026). Punca bug pemilik: _announce
       mengalih fokus ke baris status; ffplay dimulakan semula setiap kekunci (pitfall 95-97; test_fixes65 11/11)
-- [ ] 26.3 Gate x2, NVDA Player (termasuk kekunci kawasan video), build, exe NVDA, tag v1.9.7
+- [x] 26.6 Tab dan F2 di Player (ujian pemilik 3 Okt): Tab/Shift+Tab keluar dari Video picture; F2 kini accelerator
+      tetingkap (berfungsi di mana-mana); sebab ejen tiada disebut selepas Ask More dibuka (ujian sebenar NVDA; test_fixes65 14/14)
+- [x] 26.3 Gate x2 (GATE_ALL_PASS dua kali berturut), kekunci Video picture diuji sebenar + oleh pemilik, build BUILD_ALL_OK,
+      exe NVDA 14/14, tag v1.9.7 (3 Okt 2026); zip 1.9.6 dipadam dengan izin pemilik
 
