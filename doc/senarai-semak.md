@@ -168,4 +168,7 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       `Documents\OmniDescriber`, log — tetapan, kunci API dan projek selamat
 - [x] 27.3 Gate x2 (GATE_ALL_PASS berturut), build BUILD_ALL_OK (DescriVox-Agent-2.0.0-win64.zip), exe NVDA 14/14 dan
       tetingkap ditemui dengan tajuk "DescriVox Agent", tag v2.0.0 (3 Okt 2026); build 1.9.7 dipadam dengan izin pemilik
+- [x] 27.4 Zip sumber sahaja untuk sandaran (pemilik): `Documents\DescriVox-source-backups\DescriVox-Agent-source-v2.0.0.zip`
+      (git archive, 182 fail teks, tiada exe/kunci). AUTOMATIK setiap keluaran: build.bat langkah [6/6]
+      `tools/make_source_zip.py` menyemak setiap fail dan gagal jika ada binari/kunci (test_fixes66)
 

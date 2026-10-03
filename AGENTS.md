@@ -162,7 +162,7 @@ src/omni_describer_custom/
     update_dialog.py        Check for Updates
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 75
+tests/                      one script per regression round; run_gate.bat lists 76
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -187,13 +187,15 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 75 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 76 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
 python -u tests\test_fixes21.py
 
-:: release build -> dist\DescriVox-Agent-<version>-win64.zip, BUILD_ALL_OK
+:: release build -> dist\DescriVox-Agent-<version>-win64.zip, then the source
+::   backup Documents\DescriVox-source-backups\DescriVox-Agent-source-v<version>.zip
+::   (tools/make_source_zip.py: committed files only, no binaries or keys), BUILD_ALL_OK
 build.bat
 ```
 
@@ -257,9 +259,9 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.0.0**, tag `v2.0.0`. Gate: compileall + 75 suites in
+- **Version 2.0.0**, tag `v2.0.0`. Gate: compileall + 76 suites in
   `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.0.0; build
-  `BUILD_ALL_OK`; frozen exe heard by NVDA 10/10 (checklist phase 27).
+  `BUILD_ALL_OK`; frozen exe heard by NVDA 14/14 (checklist phase 27).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom
