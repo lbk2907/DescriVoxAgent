@@ -159,3 +159,12 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
 - [x] 26.3 Gate x2 (GATE_ALL_PASS dua kali berturut), kekunci Video picture diuji sebenar + oleh pemilik, build BUILD_ALL_OK,
       exe NVDA 14/14, tag v1.9.7 (3 Okt 2026); zip 1.9.6 dipadam dengan izin pemilik
 
+## Fasa 27 — 2.0.0: nama baharu DescriVox Agent (pemilik 3 Okt 2026)
+
+- [x] 27.1 Nama dipilih pemilik selepas semakan web >80 nama: **DescriVox Agent** (tiada produk lain bernama sama;
+      paling hampir Scriptivox). Ejaan V besar, exe `DescriVox.exe`, zip `DescriVox-Agent-<versi>-win64.zip`, versi 2.0.0
+- [x] 27.2 Hanya nama yang dilihat ditukar (pilihan pemilik): tajuk, About (+ "dahulu Omni Describer Custom"), exe/zip,
+      build.bat + DescriVox.spec, dokumen. KEKAL: pakej `omni_describer_custom`, `%APPDATA%\OmniDescriber`,
+      `Documents\OmniDescriber`, log — tetapan, kunci API dan projek selamat
+- [ ] 27.3 Gate x2, NVDA (tajuk baharu dibaca), build, exe NVDA, tag v2.0.0, padam zip 1.9.7 (dengan izin)
+

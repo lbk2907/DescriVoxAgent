@@ -34,7 +34,7 @@ import safe_keys  # noqa: E402  (guards every keystroke; import first)
 REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable
 BRIDGE = "http://127.0.0.1:19281"
-APP_TITLE_HINT = "Omni Describer"
+APP_TITLE_HINT = "DescriVox Agent"
 
 # Controls whose announcement carries no information: a name that is
 # empty, or that is just the role over again, leaves a blind user
@@ -91,7 +91,7 @@ def _sandbox_env() -> dict:
 def launch(frozen: bool):
     from pywinauto import Desktop
     if frozen:
-        exe = REPO / "dist" / "OmniDescriber" / "OmniDescriber.exe"
+        exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
         if not exe.exists():
             raise SystemExit(f"no build at {exe}; run build.bat first")
         proc = subprocess.Popen([str(exe)], cwd=str(exe.parent),
@@ -234,7 +234,7 @@ def report(seen: list[dict]) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frozen", action="store_true",
-                        help="drive dist/OmniDescriber/OmniDescriber.exe")
+                        help="drive dist/DescriVox/DescriVox.exe")
     parser.add_argument("--steps", type=int, default=14,
                         help="how many Tab presses to record")
     args = parser.parse_args()

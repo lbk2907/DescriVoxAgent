@@ -1,6 +1,21 @@
-# Changelog — Omni Describer Custom
+# Changelog — DescriVox Agent (formerly Omni Describer Custom)
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
+
+## What's new in v2.0.0
+
+- **New name: DescriVox Agent** (formerly Omni Describer Custom). The
+  app does the same work; the name now says what it is: a voice that
+  describes (Descri + Vox), with an agent that can look at the video
+  and answer you. The window title, the About box, the program file
+  (`DescriVox.exe`) and the download (`DescriVox-Agent-<version>-win64.zip`)
+  carry the new name. Your settings, API keys and projects are kept:
+  their folders keep the old name (`%APPDATA%\OmniDescriber`,
+  `Documents\OmniDescriber`), so nothing has to be moved.
+- **Player keys, checked for real:** in the video picture, Up/Down
+  change the volume and the focus stays put (it used to jump to the
+  status line); Tab and Shift+Tab move on; F2 opens the agent from
+  anywhere in the Player and says why when it cannot.
 
 ## What's new in v1.9.7
 

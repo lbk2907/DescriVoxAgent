@@ -1,4 +1,4 @@
-# Developer guide — Omni Describer Custom
+# Developer guide — DescriVox Agent
 
 For people and coding agents changing the code. `AGENTS.md` holds the
 hard rules; the numbered pitfalls are in `doc/pitfalls.md`. Read both

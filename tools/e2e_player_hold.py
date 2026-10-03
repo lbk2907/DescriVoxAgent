@@ -44,7 +44,7 @@ LOG = Path(os.environ["LOCALAPPDATA"]) / "OmniDescriber" / "logs" / "omni_descri
 def main() -> int:
     clip = WORK / "hold_test.mp4"
     config = WORK / "cfg"
-    exe = REPO / "dist" / "OmniDescriber" / "OmniDescriber.exe"
+    exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
     for needed in (clip, config / "settings.json", exe):
         if not needed.exists():
             print(f"missing: {needed}")
@@ -65,7 +65,7 @@ def main() -> int:
     win = None
     for _ in range(120):
         try:
-            candidate = desktop.window(title_re=".*Omni Describer.*")
+            candidate = desktop.window(title_re=".*DescriVox Agent.*")
             if candidate.exists() and candidate.is_visible():
                 win = candidate
                 break

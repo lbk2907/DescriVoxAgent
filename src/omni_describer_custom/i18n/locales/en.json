@@ -117,7 +117,7 @@
   "main.source_url": "Direct Video URL",
   "main.source_youtube": "YouTube Video URL",
   "main.status_log": "Status Log",
-  "main.title": "Omni Describer Custom",
+  "main.title": "DescriVox Agent",
   "menu.about": "About",
   "menu.exit": "Exit",
   "menu.export_audio": "Export as Audio (spoken, synchronized)...",
@@ -462,5 +462,6 @@
   "progress.bar_label": "Overall progress",
   "progress.cancelling": "Cancelling...",
   "scene.still_loading": "Still loading the frames of this video. Try again in a moment.",
-  "player.volume": "Volume {pct}%"
+  "player.volume": "Volume {pct}%",
+  "about.formerly": "Formerly Omni Describer Custom."
 }

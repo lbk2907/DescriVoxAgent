@@ -1,6 +1,6 @@
 @echo off
 :: Build a distributable Windows bundle with PyInstaller.
-:: Output: dist\OmniDescriber\  (folder distribution - start with OmniDescriber.exe)
+:: Output: dist\DescriVox\  (folder distribution - start with DescriVox.exe)
 :: Full pipeline: compile check -> PyInstaller -> exe smoke test -> zip
 
 setlocal
@@ -19,14 +19,14 @@ echo === [2/5] compile check ===
 %PY% -m compileall -q src main.py >nul 2>&1 && (echo COMPILE_PASS) || (echo COMPILE_FAIL & exit /b 1)
 
 :: NOTE: the flags below are the source of truth. PyInstaller
-:: REGENERATES OmniDescriber.spec from them on every run, so editing
+:: REGENERATES DescriVox.spec from them on every run, so editing
 :: the spec by hand achieves nothing (learned the hard way, v1.6.1).
 :: faster_whisper + ctranslate2 + onnxruntime add ~110 MB: local,
 :: free speech-to-text for a provider that cannot hear the video.
 echo === [3/5] PyInstaller ===
 if not exist %PY% (echo NO_PYTHON & exit /b 1)
 %PY% -m PyInstaller --noconfirm --clean --onedir --windowed ^
-  --name OmniDescriber ^
+  --name DescriVox ^
   --paths src ^
   --add-data "doc;doc" ^
   --add-data "bin;bin" ^
@@ -66,7 +66,7 @@ echo PYINSTALLER_OK
 if errorlevel 1 (echo DEDUPE_FAIL & exit /b 1)
 
 echo === [4/5] exe smoke test ===
-if not exist "dist\OmniDescriber\OmniDescriber.exe" (echo EXE_MISSING & type "%TEMP%\pyinstaller_log" & exit /b 1)
+if not exist "dist\DescriVox\DescriVox.exe" (echo EXE_MISSING & type "%TEMP%\pyinstaller_log" & exit /b 1)
 %PY% -u tests\test_build_smoke.py
 if errorlevel 1 (echo SMOKE_FAIL & exit /b 1)
 echo SMOKE_OK
@@ -74,10 +74,10 @@ echo SMOKE_OK
 :: GPL compliance: the notice has to be where someone opening the
 :: folder will see it, not buried in _internal where PyInstaller puts
 :: --add-data. Copied next to the exe as well.
-copy /y NOTICE.md "dist\OmniDescriber\NOTICE.md" >nul
+copy /y NOTICE.md "dist\DescriVox\NOTICE.md" >nul
 if errorlevel 1 (echo NOTICE_COPY_FAIL & exit /b 1)
 
 echo === [5/5] zip ===
-%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/OmniDescriber-{v}-win64', 'zip', 'dist', 'OmniDescriber')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
-dir dist\OmniDescriber-*-win64.zip
+%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/DescriVox-Agent-{v}-win64', 'zip', 'dist', 'DescriVox')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
+dir dist\DescriVox-Agent-*-win64.zip
 echo BUILD_ALL_OK

@@ -117,7 +117,7 @@
   "main.source_url": "URL Video Terus",
   "main.source_youtube": "URL Video YouTube",
   "main.status_log": "Log Status",
-  "main.title": "Omni Describer Custom",
+  "main.title": "DescriVox Agent",
   "menu.about": "Perihal",
   "menu.exit": "Keluar",
   "menu.export_audio": "Eksport sebagai Audio (lisan, disegerak)...",
@@ -462,5 +462,6 @@
   "progress.bar_label": "Kemajuan keseluruhan",
   "progress.cancelling": "Membatalkan...",
   "scene.still_loading": "Bingkai video ini masih dimuatkan. Cuba lagi sebentar.",
-  "player.volume": "Kelantangan {pct}%"
+  "player.volume": "Kelantangan {pct}%",
+  "about.formerly": "Dahulu dikenali sebagai Omni Describer Custom."
 }

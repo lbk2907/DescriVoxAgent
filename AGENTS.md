@@ -1,4 +1,4 @@
-# AGENTS.md — Omni Describer Custom
+# AGENTS.md — DescriVox Agent (formerly Omni Describer Custom)
 
 Rules for every coding agent working in this repository (Claude Code, Codex,
 Gemini CLI, Cursor, jcode, Hermes, and others). Read this file before making
@@ -193,7 +193,7 @@ run_gate.bat
 :: one suite
 python -u tests\test_fixes21.py
 
-:: release build -> dist\OmniDescriber-<version>-win64.zip, BUILD_ALL_OK
+:: release build -> dist\DescriVox-Agent-<version>-win64.zip, BUILD_ALL_OK
 build.bat
 ```
 
@@ -257,9 +257,9 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 1.9.7**, tag `v1.9.7`. Gate: compileall + 75 suites in
-  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 1.9.7; build
-  `BUILD_ALL_OK`; frozen exe heard by NVDA 10/10 (checklist phase 26).
+- **Version 2.0.0**, tag `v2.0.0`. Gate: compileall + 75 suites in
+  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.0.0; build
+  `BUILD_ALL_OK`; frozen exe heard by NVDA 10/10 (checklist phase 27).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom

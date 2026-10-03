@@ -37,7 +37,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
 
 REPO = Path(r"C:\Users\USER\Documents\omni-describer-custom")
 PY = sys.executable
-APP_TITLE = "Omni Describer Custom"
+APP_TITLE = "DescriVox Agent"
 URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # "Me at the zoo" 19s
 # v1.9.6: a SANDBOX, never the owner's real data (pitfall 19). This tool
 # used to rewrite general.chunk_seconds in the real settings.json and

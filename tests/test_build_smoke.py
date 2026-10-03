@@ -2,7 +2,7 @@
 
 Run by build.bat against the SYSTEM python (not the bundle).
 Checks:
-1. dist\\OmniDescriber\\OmniDescriber.exe exists
+1. dist\\DescriVox\\DescriVox.exe exists
 2. bundled doc resources are present in _internal
 3. exe launches, stays alive, and the app log records a FRESH
    "Application started" line (appended after launch)
@@ -17,8 +17,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "dist" / "OmniDescriber" / "OmniDescriber.exe"
-INTERNAL = ROOT / "dist" / "OmniDescriber" / "_internal"
+EXE = ROOT / "dist" / "DescriVox" / "DescriVox.exe"
+INTERNAL = ROOT / "dist" / "DescriVox" / "_internal"
 LOG = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OmniDescriber" / "logs" / "omni_describer.log"
 
 
@@ -63,7 +63,7 @@ def main() -> None:
 
     size_before = LOG.stat().st_size if LOG.exists() else 0
 
-    proc = subprocess.Popen([str(EXE)], cwd=str(ROOT / "dist" / "OmniDescriber"))
+    proc = subprocess.Popen([str(EXE)], cwd=str(ROOT / "dist" / "DescriVox"))
     try:
         deadline = time.time() + 30
         started = False

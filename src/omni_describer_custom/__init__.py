@@ -1,3 +1,3 @@
-"""Omni Describer Custom — accessible audio description tool."""
+"""DescriVox Agent (formerly Omni Describer Custom) — accessible audio description tool."""
 
-__version__ = "1.9.7"
+__version__ = "2.0.0"

@@ -1,4 +1,8 @@
-# Omni Describer Custom — User Guide
+# DescriVox Agent — User Guide
+
+*Formerly **Omni Describer Custom** (renamed in v2.0.0). Settings,
+keys and projects keep their old folders (`%APPDATA%\OmniDescriber`,
+`Documents\OmniDescriber`), so nothing is lost or moved.*
 
 An accessible audio-description tool for blind and visually impaired
 users. It downloads or opens a video, has an AI describe what is SEEN
@@ -12,11 +16,11 @@ Versi Bahasa Melayu: `doc/panduan-pengguna.md`.
 
 On a new computer without Python, use the ready-built package:
 
-1. Get `OmniDescriber-<version>-win64.zip` (for example
-   `OmniDescriber-1.9.5-win64.zip`; the version number increases with
+1. Get `DescriVox-Agent-<version>-win64.zip` (for example
+   `DescriVox-Agent-2.0.0-win64.zip`; the version number increases with
    each release so builds are easy to tell apart) and unzip it to any
-   folder, for example `C:\OmniDescriber`.
-2. Double-click `OmniDescriber.exe` inside it. No installation is
+   folder, for example `C:\DescriVox`.
+2. Double-click `DescriVox.exe` inside it. No installation is
    needed; this guide is also bundled in the `_internal\doc` folder.
 3. Nothing else needs installing. ffmpeg, ffprobe, ffplay and yt-dlp
    are bundled in the app's `_internal\bin` folder. Do not delete it —

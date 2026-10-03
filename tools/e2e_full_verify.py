@@ -41,7 +41,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from e2e_projects import ProjectsGuard, all_dbs  # noqa: E402
 BRIDGE = "http://127.0.0.1:19281"
-APP_TITLE = "Omni Describer"
+APP_TITLE = "DescriVox Agent"
 
 results: list[tuple[str, bool, str]] = []
 
@@ -139,7 +139,7 @@ def focus_now() -> dict:
 
 def launch(config_dir: Path):
     from pywinauto import Desktop
-    exe = REPO / "dist" / "OmniDescriber" / "OmniDescriber.exe"
+    exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
     if not exe.exists():
         print(f"No build at {exe}; run build.bat first")
         raise SystemExit(2)

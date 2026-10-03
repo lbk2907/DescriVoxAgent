@@ -73,14 +73,14 @@ from pywinauto import Desktop
 # find app pid
 APP_PID = 0
 for h in tops():
-    if wtitle(h) == "Omni Describer Custom":
+    if wtitle(h) == "DescriVox Agent":
         APP_PID = wpid(h)
         break
 print("app pid:", APP_PID, flush=True)
 assert APP_PID
 
 desktop = Desktop(backend="uia")
-win = desktop.window(title="Omni Describer Custom", visible_only=False)
+win = desktop.window(title="DescriVox Agent", visible_only=False)
 win.set_focus()
 
 # open settings

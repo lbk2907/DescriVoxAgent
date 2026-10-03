@@ -142,7 +142,7 @@ def test_the_built_app_can_actually_import_prism():
     The v1.6.6 test read build.bat for "--collect-all prism" and
     passed while the shipped app had no screen-reader voice at all.
     """
-    internal = ROOT / "dist" / "OmniDescriber" / "_internal"
+    internal = ROOT / "dist" / "DescriVox" / "_internal"
     if not internal.is_dir():
         print("       (no build present — skipping)")
         return
@@ -215,7 +215,7 @@ def test_a_crafted_url_cannot_become_a_yt_dlp_option():
 
 def test_the_package_ships_no_settings_file():
     """A shipped settings.json would carry whoever built it's key."""
-    dist = ROOT / "dist" / "OmniDescriber"
+    dist = ROOT / "dist" / "DescriVox"
     if not dist.is_dir():
         print("       (no build present — skipping)")
         return

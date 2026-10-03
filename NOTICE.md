@@ -1,4 +1,4 @@
-# Third-party components shipped with Omni Describer Custom
+# Third-party components shipped with DescriVox Agent (formerly Omni Describer Custom)
 
 This app bundles programs written by other people. Their licences are
 listed here, with the obligations that come with passing the app on to

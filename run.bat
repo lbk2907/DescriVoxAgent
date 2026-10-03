@@ -1,5 +1,5 @@
 @echo off
-:: Omni Describer Custom launcher — uses Python 3.13 explicitly
+:: DescriVox Agent launcher — uses Python 3.13 explicitly
 :: This ensures aiohttp and all deps are found
 
 set PYTHON=C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe
@@ -10,7 +10,7 @@ if not exist "%PYTHON%" (
     exit /b 1
 )
 
-echo Starting Omni Describer Custom...
+echo Starting DescriVox Agent...
 "%PYTHON%" "%~dp0main.py"
 if errorlevel 1 (
     echo [ERROR] Application exited with error code %errorlevel%

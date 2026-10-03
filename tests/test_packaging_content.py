@@ -1,7 +1,7 @@
 """Packaging content test: verify the PyInstaller bundle really contains the
 new features by reading the PYZ archive inside the built exe.
 
-Checks (when dist/OmniDescriber/OmniDescriber.exe exists):
+Checks (when dist/DescriVox/DescriVox.exe exists):
 1. PYZ archive is extractable from the CArchive
 2. omni_describer_custom.core.timeline_io / ui.main_frame / core.tts_engine
    are bundled
@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = ROOT / "dist" / "OmniDescriber" / "OmniDescriber.exe"
+EXE = ROOT / "dist" / "DescriVox" / "DescriVox.exe"
 
 
 def fail(msg: str) -> None:

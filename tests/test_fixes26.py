@@ -379,7 +379,7 @@ def test_the_build_ships_prism():
         ROOT / "build.bat").read_text(encoding="utf-8"), (
         "the hooks directory is not passed to PyInstaller")
 
-    internal = ROOT / "dist" / "OmniDescriber" / "_internal"
+    internal = ROOT / "dist" / "DescriVox" / "_internal"
     if not internal.is_dir():
         print("       (no build present — skipping the on-disk check)")
         return

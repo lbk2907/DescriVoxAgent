@@ -1220,11 +1220,11 @@ class MainFrame(wx.Frame):
 
     def _on_about(self, event):
         info = wx.adv.AboutDialogInfo()
-        info.SetName("Omni Describer Custom")
+        info.SetName("DescriVox Agent")
         from omni_describer_custom import __version__
         info.SetVersion(__version__)
-        info.SetDescription(t("about.description"))
-        info.SetCopyright("(C) 2026 Omni Describer Custom")
+        info.SetDescription(t("about.description") + "\n\n" + t("about.formerly"))
+        info.SetCopyright("(C) 2026 DescriVox Agent")
         wx.adv.AboutBox(info)
 
     def _on_close_window(self, event):

@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-INTERNAL = ROOT / "dist" / "OmniDescriber" / "_internal"
+INTERNAL = ROOT / "dist" / "DescriVox" / "_internal"
 
 
 def _digest(path: Path) -> str:

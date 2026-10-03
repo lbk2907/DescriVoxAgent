@@ -1,4 +1,8 @@
-# Omni Describer Custom
+# DescriVox Agent
+
+*Formerly **Omni Describer Custom** (renamed in v2.0.0). Settings,
+keys and projects keep their old folders (`%APPDATA%\OmniDescriber`,
+`Documents\OmniDescriber`), so nothing is lost or moved.*
 
 An accessible audio-description tool for blind and visually impaired
 users, built around NVDA. It downloads or opens a video, has an AI
@@ -47,6 +51,21 @@ F2 for OpenRouter and Gemini models.
 
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
+
+## What's new in v2.0.0
+
+- **New name: DescriVox Agent** (formerly Omni Describer Custom). The
+  app does the same work; the name now says what it is: a voice that
+  describes (Descri + Vox), with an agent that can look at the video
+  and answer you. The window title, the About box, the program file
+  (`DescriVox.exe`) and the download (`DescriVox-Agent-<version>-win64.zip`)
+  carry the new name. Your settings, API keys and projects are kept:
+  their folders keep the old name (`%APPDATA%\OmniDescriber`,
+  `Documents\OmniDescriber`), so nothing has to be moved.
+- **Player keys, checked for real:** in the video picture, Up/Down
+  change the volume and the focus stays put (it used to jump to the
+  status line); Tab and Shift+Tab move on; F2 opens the agent from
+  anywhere in the Player and says why when it cannot.
 
 ## What's new in v1.9.7
 
@@ -113,22 +132,10 @@ audits so that nothing was left out.
 - Tests can no longer change your real settings: one did, and pointed
   Gemini at a test address (repaired in your settings).
 
-## What's new in v1.9.5
-
-- **Clearer, steadier handling of "too many requests" (HTTP 429).** When
-  a provider says how long to wait (Gemini does, per minute), the app now
-  waits that long instead of giving up after 5 and 15 seconds. When a
-  DAILY quota is used up, it stops at once and says so ("daily quota used
-  up ... resets at midnight Pacific time") instead of waiting for nothing.
-- Measured: for the Player agent (F2) with your own Gemini key, **Gemini
-  3.1 Flash-Lite** is the better choice. It fixed 4 of 4 wrong
-  descriptions at about $0.003 a question; Gemini 3.8 Flash fixed none
-  and cost about ten times more.
-
 ## Installing
 
-Unzip `OmniDescriber-<version>-win64.zip` (about 305 MB) anywhere and
-run `OmniDescriber.exe`. Nothing else is needed: ffmpeg, ffprobe,
+Unzip `DescriVox-Agent-<version>-win64.zip` (about 305 MB) anywhere and
+run `DescriVox.exe`. Nothing else is needed: ffmpeg, ffprobe,
 ffplay and yt-dlp are inside the app folder, and a newer yt-dlp can be
 installed from Help > Check for Updates. An API key is entered in
 File > Settings... > AI Settings; press **Test this model** to check it.
@@ -177,7 +184,7 @@ of the test gate; the app itself does not use it.
 ## Building
 
 `build.bat` checks the pinned binaries, compiles, runs PyInstaller,
-smoke-tests the real exe and writes `dist\OmniDescriber-<version>-win64.zip`,
+smoke-tests the real exe and writes `dist\DescriVox-Agent-<version>-win64.zip`,
 printing `BUILD_ALL_OK`. Before a release: `run_gate.bat` twice
 (`GATE_ALL_PASS`), then listen to the built exe with
 `python tools\nvda_accessibility_check.py --frozen`. See

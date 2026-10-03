@@ -1,5 +1,5 @@
 """
-Omni Describer Custom — Entry point.
+DescriVox Agent (formerly Omni Describer Custom) — Entry point.
 
 Accessible audio description tool for the blind and visually impaired.
 """
@@ -111,7 +111,7 @@ def main():
             from omni_describer_custom.i18n.strings import t
             text, title = t("startup.error", error=e), t("main.title")
         except Exception:
-            text, title = f"Error starting application:\n{e}", "Omni Describer Custom"
+            text, title = f"Error starting application:\n{e}", "DescriVox Agent"
         wx.MessageBox(text, title, wx.OK | wx.ICON_ERROR)
         return 1
 

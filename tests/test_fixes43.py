@@ -65,7 +65,7 @@ _NOT_SHOWN = {
 _ALLOWED = {
     "Say 'OK' in one word",   # the connection test's prompt to the AI
     "Error starting application:\n",   # last resort if i18n itself failed
-    "Omni Describer Custom",  # the product name
+    "DescriVox Agent",  # the product name (formerly Omni Describer Custom)
 }
 
 
