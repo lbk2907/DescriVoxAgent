@@ -166,5 +166,6 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
 - [x] 27.2 Hanya nama yang dilihat ditukar (pilihan pemilik): tajuk, About (+ "dahulu Omni Describer Custom"), exe/zip,
       build.bat + DescriVox.spec, dokumen. KEKAL: pakej `omni_describer_custom`, `%APPDATA%\OmniDescriber`,
       `Documents\OmniDescriber`, log — tetapan, kunci API dan projek selamat
-- [ ] 27.3 Gate x2, NVDA (tajuk baharu dibaca), build, exe NVDA, tag v2.0.0, padam zip 1.9.7 (dengan izin)
+- [x] 27.3 Gate x2 (GATE_ALL_PASS berturut), build BUILD_ALL_OK (DescriVox-Agent-2.0.0-win64.zip), exe NVDA 14/14 dan
+      tetingkap ditemui dengan tajuk "DescriVox Agent", tag v2.0.0 (3 Okt 2026); build 1.9.7 dipadam dengan izin pemilik
 
