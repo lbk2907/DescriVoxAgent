@@ -1,9 +1,9 @@
 """Minimal repro: which window causes the shutdown RecursionError?"""
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
+if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
+if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)
 sys.path.insert(0, "src")
 sys.path.insert(0, ".")

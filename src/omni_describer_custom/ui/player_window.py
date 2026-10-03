@@ -544,9 +544,13 @@ class PlayerWindow(wx.Frame):
         """Say msg after what the screen reader is saying now."""
         try:
             from ..core.speech import get_speech
-            get_speech().speak(msg, interrupt=False)
+            if get_speech().speak(msg, interrupt=False):
+                return
         except Exception:
             logger.debug("Prism speak failed", exc_info=True)
+        # Speech unavailable or refused: fall back to the focus-announcement
+        # path so a screen reader still hears the message (never silent).
+        self._announce(msg)
 
     def _load_descriptions(self):
         """Load descriptions from current project."""

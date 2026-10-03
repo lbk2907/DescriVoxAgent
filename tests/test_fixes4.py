@@ -3,9 +3,9 @@ import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
+if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
+if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)
 sys.path.insert(0, "src")
 
@@ -126,4 +126,4 @@ def test_corrupt_input():
 check("Corrupt input returns [] without crash", test_corrupt_input)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules: sys.exit(1 if fail else 0)

@@ -245,4 +245,4 @@ if FAIL_NAMES:
 
 # cleanup
 shutil.rmtree(tmp_store, ignore_errors=True)
-sys.exit(1 if FAIL else 0)
+if "pytest" not in sys.modules: sys.exit(1 if FAIL else 0)

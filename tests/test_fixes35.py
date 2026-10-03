@@ -28,9 +28,9 @@ import traceback
 from pathlib import Path
 
 os.environ["ODC_CONFIG_DIR"] = tempfile.mkdtemp(prefix="odc35_")
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
+if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
                               errors="replace", line_buffering=True)
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
+if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
                               errors="replace", line_buffering=True)
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "omni_describer_custom"

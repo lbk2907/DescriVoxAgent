@@ -273,3 +273,4 @@ historical double number, kept.) A pitfall may appear in more than one row.
   whole history to `~/OneDrive/backups/omni-describer-custom.bundle` after
   every commit. The hook is not in git; recreate it after a fresh clone.
   Restore with `git clone <bundle> <dir>`.
+rujuk folder .omh untuk graph code 

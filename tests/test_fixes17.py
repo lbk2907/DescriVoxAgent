@@ -186,4 +186,4 @@ print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
 if FAIL_NAMES:
     print("Failed:", ", ".join(FAIL_NAMES))
 shutil.rmtree(tmp, ignore_errors=True)
-sys.exit(1 if FAIL else 0)
+if "pytest" not in sys.modules: sys.exit(1 if FAIL else 0)

@@ -33,3 +33,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 omni_describer_custom = ["*.py"]
+
+[tool.pytest.ini_options]
+# tests/conftest.py collects each standalone gate script as ONE item run in a
+# subprocess. The default test_*.py module collector must never import these
+# scripts (they run their whole suite at import and os._exit the process).
+python_files = "gate_*.py"
