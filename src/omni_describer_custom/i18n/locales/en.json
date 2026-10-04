@@ -463,5 +463,16 @@
   "progress.cancelling": "Cancelling...",
   "scene.still_loading": "Still loading the frames of this video. Try again in a moment.",
   "player.volume": "Volume {pct}%",
-  "about.formerly": "Formerly Omni Describer Custom."
+  "about.formerly": "Formerly Omni Describer Custom.",
+  "impexp.exported:one": "Exported {count} description to:\n{path}",
+  "impexp.imported:one": "Imported {count} description into project: {name}",
+  "main.log_generated:one": "Generated {count} description",
+  "main.log_opened:one": "Opened: {name} ({count} description)",
+  "main.play_existing_ready:one": "Ready: {count} description loaded for {name}. Opening the player.",
+  "process.complete_with_video:one": "Processing complete! {count} description generated.\n\nVideo saved at:\n{path}",
+  "status.processing_complete:one": "Processing complete! {count} description generated.",
+  "project.list_item:one": "{name} — {count} description — {date}",
+  "video.parsed_count:one": "The AI returned {count} timestamped description",
+  "agent.check_all_confirm:one": "Check the {count} description against the video? About {minutes} min and about ${cost}. You review every proposed change afterwards.",
+  "agent.check_all_started:one": "Checking the {count} description..."
 }

@@ -180,5 +180,7 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       yang sama) guna `_after_project_opened` (test_fixes68 3/3, MainFrame + Player sebenar)
 - [x] 28.2 Semakan NVDA sebenar (5 Okt): "Open Project dialog" -> Enter -> "Described Video Player – Projek Ujian",
       fokus pada Video picture; tajuk utama dibaca "Descri Vox Agent" (sahkan 27.3)
+- [x] 28.4 "1 descriptions" -> "1 description" (11 ayat EN; BM sudah betul): `I18n.t()` guna `<kunci>:one` bila count = 1
+      (pitfall 98; test_fixes68 4/4, test_fixes43 7/7); panduan penterjemah dikemas kini
 - [ ] 28.3 Keluaran 2.0.2 (gate x2, build, exe NVDA, tag); v2.0.1 belum bertag
 

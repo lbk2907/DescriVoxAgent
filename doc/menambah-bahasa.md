@@ -109,6 +109,17 @@ Tiga peraturan:
    jatuh balik ke Bahasa Inggeris satu demi satu. App tidak akan
    membaca nama kunci mentah seperti "menu.file" kepada pengguna.
 
+### Kunci `:one` (sejak v2.0.2) / `:one` keys
+
+Sesetengah kunci ada pasangan `...:one`, contohnya `main.log_generated` dan
+`main.log_generated:one`. Yang kedua dipakai bila `{count}` ialah 1, supaya
+bahasa Inggeris menyebut "1 description", bukan "1 descriptions". Jika bahasa
+anda tiada bentuk tunggal/jamak (seperti bahasa Melayu), salin sahaja ayat
+yang sama ke dalam kedua-duanya. Kekalkan `{count}` dalam kedua-duanya.
+
+*Some keys have a `...:one` twin used when `{count}` is 1 ("1 description").
+If your language has no plural form, give both the same text; keep `{count}`.*
+
 ## Anda TIDAK perlu terjemah prompt AI
 
 Tujuh preset penerangan audio (`default`, `tight`, `extended`,

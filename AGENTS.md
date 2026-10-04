@@ -239,7 +239,7 @@ python tools\whisper_bench.py
 ## 8. Pitfalls by area
 
 Full text: `doc/pitfalls.md`. **Pitfall numbers are referenced from code
-comments: never renumber; add new ones at the end (next is 98).** (57b is a
+comments: never renumber; add new ones at the end (next is 99).** (57b is a
 historical double number, kept.) A pitfall may appear in more than one row.
 
 | Area | Pitfalls |

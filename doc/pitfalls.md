@@ -387,3 +387,12 @@ sees the key; posted keys are translated too, so it can be tested. When F2
 opens Ask More instead of the agent, the reason is spoken 0.9 s later
 (`_speak_queued`): a focus-move announcement is lost when a dialog takes
 the focus at once.
+
+### 98. Singular strings: `<key>:one`, never `<key>_one`
+"1 descriptions" (owner, 5 Oct 2026). `I18n.t()` uses `<key>:one` when
+`count == 1` and the language has it, else the normal key. The suffix is
+`:one` because `agent.accept_one`, `agent.skip_one` and `agent.review_one`
+are ordinary keys: a `_one` rule would have turned them into "singulars".
+Keep `{count}` in the `:one` text too (test_fixes43 compares placeholders
+between languages); a language without plurals repeats the same line.
+

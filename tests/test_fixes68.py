@@ -119,12 +119,32 @@ def test_both_ways_of_opening_use_it():
     assert src.count("self._after_project_opened(proj)") == 2
 
 
+def test_one_description_is_singular():
+    """Owner heard "Projek Ujian - 1 descriptions" in Open Project."""
+    from omni_describer_custom.i18n.strings import I18n, t
+    from omni_describer_custom.ui.main_frame import MainFrame
+    old = I18n._current_lang
+    try:
+        I18n.set_language("en")
+        row = {"name": "Clip", "count": 1, "updated_at": "2026-10-05 06:01:00"}
+        assert MainFrame._project_list_label(row) == "Clip — 1 description — 05/10/2026 06:01"
+        row["count"] = 3
+        assert "3 descriptions" in MainFrame._project_list_label(row)
+        assert t("main.log_generated", count=1) == "Generated 1 description"
+        assert t("main.log_generated", count=0) == "Generated 0 descriptions"
+        I18n.set_language("ms")
+        assert t("main.log_generated", count=1) == "1 penerangan dijana"
+    finally:
+        I18n.set_language(old)
+
+
 def main() -> int:
     app = wx.App(False)
     check("a described project opens the Player (one at a time)",
           test_opening_a_described_project_opens_the_player)
     check("an empty project says what to do", test_an_empty_project_says_what_to_do)
     check("both ways of opening a project use it", test_both_ways_of_opening_use_it)
+    check("one description is singular", test_one_description_is_singular)
     del app
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

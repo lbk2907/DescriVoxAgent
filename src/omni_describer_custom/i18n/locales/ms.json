@@ -463,5 +463,16 @@
   "progress.cancelling": "Membatalkan...",
   "scene.still_loading": "Bingkai video ini masih dimuatkan. Cuba lagi sebentar.",
   "player.volume": "Kelantangan {pct}%",
-  "about.formerly": "Dahulu dikenali sebagai Omni Describer Custom."
+  "about.formerly": "Dahulu dikenali sebagai Omni Describer Custom.",
+  "impexp.exported:one": "{count} penerangan dieksport ke:\n{path}",
+  "impexp.imported:one": "{count} penerangan diimport ke projek: {name}",
+  "main.log_generated:one": "{count} penerangan dijana",
+  "main.log_opened:one": "Dibuka: {name} ({count} penerangan)",
+  "main.play_existing_ready:one": "Sedia: {count} penerangan dimuatkan untuk {name}. Membuka pemain.",
+  "process.complete_with_video:one": "Pemprosesan selesai! {count} penerangan dijana.\n\nVideo disimpan di:\n{path}",
+  "status.processing_complete:one": "Pemprosesan selesai! {count} penerangan dijana.",
+  "project.list_item:one": "{name} — {count} penerangan — {date}",
+  "video.parsed_count:one": "AI pulangkan {count} penerangan ber-timestamp",
+  "agent.check_all_confirm:one": "Semak kesemua {count} penerangan dengan video? Kira-kira {minutes} minit dan kira-kira ${cost}. Anda menyemak setiap perubahan yang dicadangkan selepas itu.",
+  "agent.check_all_started:one": "Menyemak kesemua {count} penerangan..."
 }

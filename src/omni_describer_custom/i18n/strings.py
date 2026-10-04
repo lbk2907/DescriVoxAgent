@@ -179,7 +179,13 @@ class I18n:
         shows English for the missing lines instead of raw key names.
         """
         strings = cls._translations.get(cls._current_lang, EN_STRINGS)
-        text = strings.get(key) or EN_STRINGS.get(key, key)
+        # v2.0.2: "1 descriptions" (owner heard it in Open Project). With
+        # count == 1 a "<key>:one" line is used when the language has one;
+        # a language without plurals simply keeps its one line. (":one",
+        # not "_one": agent.accept_one etc. are ordinary keys.)
+        one = key + ":one" if kwargs.get("count") in (1, "1") else None
+        text = ((one and strings.get(one)) or strings.get(key)
+                or (one and EN_STRINGS.get(one)) or EN_STRINGS.get(key, key))
         if kwargs:
             try:
                 text = text.format(**kwargs)

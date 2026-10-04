@@ -126,9 +126,11 @@ def test_every_key_is_used():
     code = " ".join(p.read_text(encoding="utf-8")
                     for p in list(SRC.rglob("*.py")) + [ROOT / "main.py"])
     dynamic = set(re.findall(r't\(\s*f["\']([a-z_]+\.[a-z0-9_-]*)\{', code))
+    # v2.0.2: "<key>:one" is the singular of <key>, used through it.
+    base = lambda k: k[:-4] if k.endswith(":one") else k  # noqa: E731
     unused = [k for k in _locale("en")
-              if f'"{k}"' not in code and f"'{k}'" not in code
-              and not any(k.startswith(d) for d in dynamic)]
+              if f'"{base(k)}"' not in code and f"'{base(k)}'" not in code
+              and not any(base(k).startswith(d) for d in dynamic)]
     assert not unused, (f"{len(unused)} keys nothing uses — a translator "
                         f"would translate them for nothing: {unused[:10]}")
 
