@@ -178,5 +178,7 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       projek dengan penerangan -> Player dibuka; Player projek lain ditutup dulu (tiada dua video serentak); projek
       kosong -> mesej apa perlu dibuat. Kedua-dua laluan (File > Open Project, dan pilih projek sedia ada untuk video
       yang sama) guna `_after_project_opened` (test_fixes68 3/3, MainFrame + Player sebenar)
-- [ ] 28.2 Semakan NVDA sebenar (Open Project -> Player dibaca), keluaran 2.0.2
+- [x] 28.2 Semakan NVDA sebenar (5 Okt): "Open Project dialog" -> Enter -> "Described Video Player – Projek Ujian",
+      fokus pada Video picture; tajuk utama dibaca "Descri Vox Agent" (sahkan 27.3)
+- [ ] 28.3 Keluaran 2.0.2 (gate x2, build, exe NVDA, tag); v2.0.1 belum bertag
 
