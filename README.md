@@ -189,3 +189,15 @@ printing `BUILD_ALL_OK`. Before a release: `run_gate.bat` twice
 (`GATE_ALL_PASS`), then listen to the built exe with
 `python tools\nvda_accessibility_check.py --frozen`. See
 `doc/developer-guide.md`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the test gate and
+conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Licence
+
+DescriVox Agent is free software under the GNU General Public License
+version 3 (GPL-3.0-only) — see [LICENSE](LICENSE). Bundled third-party
+programs (FFmpeg, VLC, ...) keep their own licences, listed in
+[NOTICE.md](NOTICE.md).

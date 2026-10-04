@@ -1,0 +1,50 @@
+name: CI (light)
+
+# Light checks only: lint, compile, and the gate scripts proven to pass
+# without a GUI or network. This is NOT the release gate — run_gate.bat
+# (or `pytest tests`) on a Windows desktop stays mandatory before commit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  light:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . ruff pytest
+
+      - name: Ruff (bug-catching rules only)
+        run: python -m ruff check .
+
+      - name: Compile everything
+        run: python -m compileall -q src tools tests video_describer main.py hooks
+
+      # test_fixes25 is left out on purpose: it needs the bundled ffmpeg in
+      # bin/ (~217 MB, fetched by tools/fetch_binaries.py, not in git).
+      - name: Headless gate scripts (no GUI, no network)
+        env:
+          PYTHONPATH: ${{ github.workspace }}\.github\ci
+        run: >
+          python -m pytest -q -p no:cacheprovider
+          tests/run_checks.py
+          tests/test_fixes22.py tests/test_fixes24.py
+          tests/test_fixes26.py tests/test_fixes29.py tests/test_fixes30.py
+          tests/test_fixes31.py tests/test_fixes32.py tests/test_fixes33.py
+          tests/test_fixes36.py tests/test_fixes41.py tests/test_fixes50.py
+          tests/test_fixes66.py tests/test_no_console.py
+          tests/test_v130_player_srt.py

@@ -15,14 +15,16 @@ sistem ada dalam `doc/developer-guide.md`.
 ## 2. Setup
 
 ```bat
-git clone <repo>
-cd omni-describer-custom
+git clone https://github.com/lbk2907/DescriVoxAgent
+cd DescriVoxAgent
 py -3.13 -m venv .venv
 .venv\Scripts\pip install -e .[dev]
 ```
 
-Keperluan: **Windows**, Python 3.11+, ffmpeg dalam PATH (guna
-`tools/find ffmpeg` helper dalam kod — jangan hardcode path).
+Keperluan: **Windows**, Python 3.11+ (gate diuji pada 3.13). Binari
+luaran (ffmpeg, ffprobe, ...) diambil dengan `python tools\fetch_binaries.py`
+ke `bin\`; dalam kod, cari binari dengan `find_tool("ffmpeg")`
+(`src/omni_describer_custom/core/tools.py`) — jangan hardcode path.
 Aplikasi ini wxPython + NVDA-first: setiap perubahan UI mesti
 kekal boleh diakses pembaca skrin.
 
@@ -43,10 +45,13 @@ py -3.13 -m pytest tests
 
 rem 3. Satu skrip pantas semasa membangun:
 py -3.13 -m pytest tests\test_fixes65.py
-py -3.13 -m tests\test_fixes65.py     :: atau terus jalan skrip
+rem    atau jalan skrip terus:
+py -3.13 tests\test_fixes65.py
 ```
 
-- Gate penuh mengambil ~15 minit (GUI sebenar, video sebenar).
+- Gate penuh mengambil ~10 minit (GUI sebenar, video sebenar, rangkaian).
+- CI GitHub hanya jalan semakan ringan (ruff, compile, test tanpa GUI);
+  ia BUKAN pengganti gate penuh tempatan.
 - Menambah ujian baru: salin pola fail sedia ada (import `isolate`
   dahulu — pitfall 19, jangan sentuh data pemilik!), akhiri dengan
   `RESULT: N passed, M failed` + exit code.
@@ -74,3 +79,9 @@ py -3.13 -m tests\test_fixes65.py     :: atau terus jalan skrip
 Branch → commit → lari gate penuh → PR dengan output gate
 (`GATE_ALL_PASS`) dilekat. PR tanpa gate lulus tidak akan
 diterima.
+
+## 7. Lesen dan kelakuan
+
+Dengan menghantar sumbangan, anda setuju ia diterbitkan di bawah
+GPL-3.0-only (lihat `LICENSE`). Semua penyumbang tertakluk kepada
+`CODE_OF_CONDUCT.md`.

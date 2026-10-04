@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
@@ -10,6 +10,8 @@ name = "omni-describer-custom"
 dynamic = ["version"]
 description = "Accessible audio description tool for blind and visually impaired users"
 requires-python = ">=3.11"
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "NOTICE.md"]
 dependencies = [
     "wxpython>=4.2",
     "pillow>=10.0",
@@ -39,3 +41,13 @@ omni_describer_custom = ["*.py"]
 # subprocess. The default test_*.py module collector must never import these
 # scripts (they run their whole suite at import and os._exit the process).
 python_files = "gate_*.py"
+
+[tool.ruff]
+# Lint only (no `ruff format`): keeps git blame intact.
+target-version = "py311"
+extend-exclude = ["build", "dist", "bin", "projects"]
+
+[tool.ruff.lint]
+# Bug-catching rules only: syntax errors, invalid comparisons, misplaced
+# statements and undefined names. Style rules are deliberately off.
+select = ["E9", "F63", "F7", "F82"]

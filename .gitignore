@@ -54,3 +54,7 @@ bin/*.dll
 
 # Accessibility check run log
 _a11y_app_log.txt
+
+# Local OMH artefacts (plans, UML scratch) and pytest cache
+.omh/
+.pytest_cache/

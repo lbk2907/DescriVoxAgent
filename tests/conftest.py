@@ -5,15 +5,17 @@ STANDALONE program that runs its whole suite at import time and exits with
 sys.exit()/os._exit(). Import-based pytest collection can never work here
 (a script would run its suite during collection and kill the runner).
 
-VERIFIED BEHAVIOUR (3 Oct 2026): per-file runs work, e.g.
-`pytest tests/test_fixes65.py` = one item, runs the script standalone.
-Whole-directory collection dies SILENTLY on this machine (exit 0, no
-output, ~30 s) - cause not root-caused; run_gate.bat stays the
-authoritative full gate. This conftest makes per-file pytest runs work: each script is
+This conftest makes `pytest tests` equivalent to the gate: each script is
 collected as ONE pytest item and executed in a fresh subprocess, exactly
 like run_gate.bat does. A script passes when its process exits 0.
-
 Fast iteration works the same way: `pytest tests/test_fixes65.py`.
+
+Two guards keep pytest from importing a script in-process:
+- pyproject `python_files = "gate_*.py"` stops directory discovery from
+  handing test_*.py to the default Module collector;
+- `pytest_pycollect_makemodule` below blocks the Module collector for
+  files named on the command line (those bypass `python_files`).
+Verified on pytest 8.4 and 9.1.
 
 test_build_smoke.py is excluded: it needs the PyInstaller bundle, so the
 bat gate does not run it either. probe_*.py and audit_i18n.py are manual
@@ -64,11 +66,32 @@ class GateFile(pytest.File):
         yield GateItem.from_parent(self, name=self.path.name)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_collect_file(file_path, path, parent):
+def _is_gate_script(file_path) -> bool:
     name = file_path.name
-    if name == "run_checks.py" or (
+    return name == "run_checks.py" or (
         name.startswith("test_") and name.endswith(".py") and name != "test_build_smoke.py"
-    ):
+    )
+
+
+class _NoImport(pytest.File):
+    """Stand-in for the default Module collector: collects nothing, so a
+    gate script is never imported in-process (it would run its suite and
+    exit the runner)."""
+
+    def collect(self):
+        return []
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pycollect_makemodule(module_path, parent):
+    # Files named on the command line bypass `python_files`, so the default
+    # Module collector would import them too (double collection). Block it.
+    if _is_gate_script(module_path):
+        return _NoImport.from_parent(parent, path=module_path)
+    return None
+
+
+def pytest_collect_file(file_path, parent):
+    if _is_gate_script(file_path):
         return GateFile.from_parent(parent, path=file_path)
     return None

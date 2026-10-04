@@ -269,8 +269,11 @@ historical double number, kept.) A pitfall may appear in more than one row.
   Flash-Lite; change only with new `model_bench.py` measurements.
 - **Player agent** works with OpenRouter and Gemini (`AGENT_PROVIDERS`).
 - **Open work:** `doc/senarai-semak.md` is the only source.
-- **Backup:** the repo has no remote. `.git/hooks/post-commit` bundles the
+- **Remote:** `origin` = https://github.com/lbk2907/DescriVoxAgent (public).
+- **Backup:** `.git/hooks/post-commit` also bundles the
   whole history to `~/OneDrive/backups/omni-describer-custom.bundle` after
   every commit. The hook is not in git; recreate it after a fresh clone.
   Restore with `git clone <bundle> <dir>`.
-rujuk folder .omh untuk graph code 
+- **Code graph:** UML package + module views are in `doc/diagrams/`
+  (PlantUML sources; regenerate with `omh codegraph uml`).
+ 
