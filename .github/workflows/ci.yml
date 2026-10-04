@@ -36,6 +36,8 @@ jobs:
 
       # test_fixes25 is left out on purpose: it needs the bundled ffmpeg in
       # bin/ (~217 MB, fetched by tools/fetch_binaries.py, not in git).
+      # test_fixes26 is left out too: it needs real SAPI voices and NVDA
+      # installed (passes locally, fails on a bare GitHub runner).
       - name: Headless gate scripts (no GUI, no network)
         shell: bash
         env:
@@ -43,7 +45,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           set +e
-          python -m pytest -q -p no:cacheprovider -rf tests/run_checks.py tests/test_fixes22.py tests/test_fixes24.py tests/test_fixes26.py tests/test_fixes29.py tests/test_fixes30.py tests/test_fixes31.py tests/test_fixes32.py tests/test_fixes33.py tests/test_fixes36.py tests/test_fixes41.py tests/test_fixes50.py tests/test_fixes66.py tests/test_no_console.py tests/test_v130_player_srt.py > pytest_out.txt 2>&1
+          python -m pytest -q -p no:cacheprovider -rf tests/run_checks.py tests/test_fixes22.py tests/test_fixes24.py tests/test_fixes29.py tests/test_fixes30.py tests/test_fixes31.py tests/test_fixes32.py tests/test_fixes33.py tests/test_fixes36.py tests/test_fixes41.py tests/test_fixes50.py tests/test_fixes66.py tests/test_no_console.py tests/test_v130_player_srt.py > pytest_out.txt 2>&1
           rc=$?
           cat pytest_out.txt
           if [ $rc -ne 0 ]; then
