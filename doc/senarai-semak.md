@@ -172,3 +172,11 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       (git archive, 182 fail teks, tiada exe/kunci). AUTOMATIK setiap keluaran: build.bat langkah [6/6]
       `tools/make_source_zip.py` menyemak setiap fail dan gagal jika ada binari/kunci (test_fixes66)
 
+## Fasa 28 — 2.0.2: Open Project (pemilik 5 Okt 2026)
+
+- [x] 28.1 "Selepas buka projek, tiada apa berlaku" — hanya satu baris log. Kini (pilihan pemilik: terus buka Player):
+      projek dengan penerangan -> Player dibuka; Player projek lain ditutup dulu (tiada dua video serentak); projek
+      kosong -> mesej apa perlu dibuat. Kedua-dua laluan (File > Open Project, dan pilih projek sedia ada untuk video
+      yang sama) guna `_after_project_opened` (test_fixes68 3/3, MainFrame + Player sebenar)
+- [ ] 28.2 Semakan NVDA sebenar (Open Project -> Player dibaca), keluaran 2.0.2
+

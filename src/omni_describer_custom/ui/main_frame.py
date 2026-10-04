@@ -1094,12 +1094,34 @@ class MainFrame(wx.Frame):
             if proj_row:
                 proj = self.project_store.open_project(proj_row["id"])
                 if proj:
-                    self._log(t("main.log_opened", name=proj.name,
-                                count=len(proj.descriptions)))
-                    if not proj.descriptions:
-                        wx.MessageBox(t("project.opened_empty", name=proj.name),
-                                      t("project.dialog_title"),
-                                      wx.OK | wx.ICON_WARNING)
+                    self._after_project_opened(proj)
+
+    def _after_project_opened(self, proj) -> None:
+        """v2.0.2 (owner, 5 Oct 2026): "after opening, nothing happens" -
+        only a log line. With descriptions the Player opens, as it does
+        after describing; a Player still showing another project is
+        closed first so two videos never play at once. Without
+        descriptions the user is told what to do instead."""
+        self._log(t("main.log_opened", name=proj.name,
+                    count=len(proj.descriptions)))
+        if not proj.descriptions:
+            wx.MessageBox(t("project.opened_empty", name=proj.name),
+                          t("project.dialog_title"),
+                          wx.OK | wx.ICON_WARNING)
+            return
+        self._close_players()
+        self._log(t("main.log_opening_player"))
+        wx.CallAfter(self._open_player)
+
+    def _close_players(self) -> None:
+        """Close every open Player (each stops its own sound on close)."""
+        from .player_window import PlayerWindow
+        for child in list(self.GetChildren()):
+            if isinstance(child, PlayerWindow):
+                try:
+                    child.Close(force=True)
+                except Exception:
+                    logger.debug("Player close failed", exc_info=True)
 
     def _remove_project_files(self, project_id: int):
         """Delete a project's DB file + media folder. Returns (ok, error)."""
@@ -1343,13 +1365,8 @@ class MainFrame(wx.Frame):
             if choice == wx.ID_YES:
                 proj = self.project_store.open_project(existing["id"])
                 if proj:
-                    self._log(t("main.log_opened", name=proj.name,
-                                count=len(proj.descriptions)))
                     self.SetStatusText(t("main.log_project", name=proj.name))
-                    if not proj.descriptions:
-                        wx.MessageBox(t("project.opened_empty", name=proj.name),
-                                      t("project.dialog_title"),
-                                      wx.OK | wx.ICON_WARNING)
+                    self._after_project_opened(proj)
                 return
             if choice == wx.ID_CANCEL:
                 return
