@@ -2,6 +2,18 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v2.0.1
+
+- **Contributor-ready:** `pytest tests/` now runs the whole standalone
+  gate (76/76 scripts) through a pytest bridge; CONTRIBUTING.md documents
+  setup, the three equivalent gate commands and the repo conventions.
+- **Accessibility fix:** queued speech that fails now falls back to the
+  focus-announcement path, so a screen reader never misses a message.
+- **Diagrams:** UML package + module views (PlantUML sources) live in
+  `doc/diagrams/`; rendered PNGs stay out of the source zip.
+- Setup files, API keys and projects are untouched — this is a
+  developer-facing release.
+
 ## What's new in v2.0.0
 
 - **New name: DescriVox Agent** (formerly Omni Describer Custom). The
