@@ -542,15 +542,18 @@ class PlayerWindow(wx.Frame):
 
     def _speak_queued(self, msg: str) -> None:
         """Say msg after what the screen reader is saying now."""
+        if not self:
+            return  # a CallLater after the window closed
         try:
             from ..core.speech import get_speech
             if get_speech().speak(msg, interrupt=False):
                 return
         except Exception:
             logger.debug("Prism speak failed", exc_info=True)
-        # Speech unavailable or refused: fall back to the focus-announcement
-        # path so a screen reader still hears the message (never silent).
-        self._announce(msg)
+        # Speech unavailable or refused: only show it on the status line.
+        # _announce would move the focus or speak with interrupt=True and
+        # cut off what the reader is saying, breaking the queued promise.
+        self.status_text.SetLabel(msg)
 
     def _load_descriptions(self):
         """Load descriptions from current project."""
