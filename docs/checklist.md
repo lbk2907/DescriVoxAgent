@@ -266,3 +266,23 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
 - [ ] 33.6 First release judged by the contract (next version); player and settings accessibility contracts (need a
       listening run)
 
+## Phase 34 — ideas from Watch Skill (owner 6 Oct 2026; release 2.1.3 waits for them)
+
+Each idea: design → freeze a measurement contract (`contracts/measure-<id>.json`) BEFORE measuring → build →
+measure → the owner decides. Nothing ships on by default without a VERIFIED measurement.
+
+- [ ] 34.1 Honest floor for the agent (F2) and Ask More: say "I cannot see that clearly" (with the nearest moments it
+      looked at) instead of guessing. Measure: questions about things NOT in the video (must abstain) and things that
+      ARE (must still answer); Gemini 3.1 Flash-Lite agent, no video credit needed
+- [ ] 34.2 OCR of on-screen text: a local OCR engine (onnxruntime is already bundled) reads text in sampled frames and
+      gives it to the AI like the transcript. Measure on the Excel tutorial, NASA and news clips: wrong rate of
+      descriptions about text, cost, time, exe size
+- [ ] 34.3 Scene detection for frame selection (frame mode and the agent's search_video): frames at scene changes plus
+      near-duplicate removal instead of a fixed interval. Measure: wrong rate, description count, time. (Different
+      from the rejected 19.B2, which moved description TIMES to scene cuts.)
+- [ ] 34.4 Lessons from the owner's corrections: Editor edits and accepted agent proposals are recorded (old → new) and
+      the relevant ones are given to the AI on the next video. Measure: re-describe corrected videos, does the same
+      mistake come back less often? (Needs the most design; done last.)
+- [ ] 34.5 OpenRouter credit ≥ 1 USD for the GLM measurements (owner; the GLM judge on pictures works without it)
+- [ ] 34.6 Release 2.1.3 with the adopted ideas, judged by the release contract (tag only on VERIFIED)
+
