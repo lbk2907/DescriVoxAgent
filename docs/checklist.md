@@ -234,5 +234,9 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
 - [x] 31.2 Now: name → source (Local / YouTube / Direct URL, the same dialogs as the buttons) → "Project X: video chosen"
       spoken, focus to the preset list; Open creates the project with that name (`_pending_project_name`, only for that
       video); a cancel at any step changes nothing (test_fixes72 3/3)
-- [ ] 31.3 Gate; NVDA check of the two dialogs; release
+- [x] 31.3 Gate GATE_ALL_PASS (test_fixes21 updated: it asserted the empty project and hung the gate on the new
+      source list). Posted-key run: the flow works, focus ends on the presets, "Project X: video chosen" spoken
+      (the dialogs were not heard: the test window opened behind). The owner tried it with their own keyboard
+      and NVDA (6 Oct): all fine
+- [ ] 31.4 Release 2.1.2
 
