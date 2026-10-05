@@ -10,6 +10,7 @@ frozen first, so it cannot be bent to fit the numbers afterwards.
      "metrics": {"wrong_rate": {"on": 14.6, "off": 12.5}, ...}}
 
 Each metric in the contract compares "on" with "off":
+    on             on itself, within [min, max]
     on_minus_off   on - off, within [min, max]
     on_over_off    on / off, within [min, max]
 Results created before the contract was frozen are INCONCLUSIVE: a rule
@@ -46,7 +47,9 @@ def judge(contract: dict, digest: str, results: dict, frozen_at: str) -> C.Verdi
             v.results.append(C.Result(m["id"], C.UNKNOWN, f"{m['metric']} not measured", req))
             continue
         on, off = float(got["on"]), float(got["off"])
-        if m["compare"] == "on_minus_off":
+        if m["compare"] == "on":
+            value = on
+        elif m["compare"] == "on_minus_off":
             value = on - off
         elif m["compare"] == "on_over_off":
             if off == 0:

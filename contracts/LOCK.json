@@ -4,6 +4,16 @@
     "sha256": "5214e7455c7683eacd7adc469013b00addcf39f43973ece8cecfee9c6d211ce1",
     "version": 1
   },
+  "measure-honest-floor": {
+    "frozen_at": "2026-10-06T05:46:34",
+    "sha256": "54a81f564f5d000cfdd0e0488304105d4a82d79869c5e4127afe012c86569fb5",
+    "version": 1
+  },
+  "measure-honest-floor-2": {
+    "frozen_at": "2026-10-06T06:09:49",
+    "sha256": "8f9849ff0c574e5630d95cbac9084b7a78cb39a71dba6c46676fc7951ebf7869",
+    "version": 1
+  },
   "measure-template": {
     "frozen_at": "2026-10-06T04:52:32",
     "sha256": "4df5192368ad085ff77acfd1b00fb82f6a24dc1b9829ecb18e18b2d4360c3f5d",

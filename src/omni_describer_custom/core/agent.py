@@ -109,6 +109,23 @@ SYSTEM = (
     "When you are done, answer in one to three short sentences, in "
     "{language}.")
 
+# 34.1 (owner, 6 Oct 2026; idea from Watch Skill's "honest floor"): a blind
+# person cannot check an answer, so a guess is worse than "I cannot see it".
+# Measured before it is switched on for good (contracts/measure-honest-floor).
+HONEST_FLOOR = True
+HONEST_FLOOR_TEXT = (
+    " If you looked and still cannot clearly see what the person asks about, "
+    "say so plainly, beginning with \"I cannot see that clearly\", and give "
+    "the times you looked at. Never guess, and never fill the gap from the "
+    "descriptions, the dialogue or general knowledge: the person cannot see "
+    "the screen to check you.")
+
+
+def system_prompt(language: str) -> str:
+    text = SYSTEM.format(language=language)
+    return text + HONEST_FLOOR_TEXT if HONEST_FLOOR else text
+
+
 TOOLS: list[dict] = [
     {"name": "current_position",
      "description": "The player's current position in seconds.",
@@ -337,7 +354,7 @@ class Agent:
         self.on_step = on_step or (lambda code, args: None)
         self._post = post or self._http_post
         self.messages: list[dict] = [{"role": "system", "content":
-                                      SYSTEM.format(language=ctx.language)}]
+                                      system_prompt(ctx.language)}]
         self._transcript: list | None = None
         self._looked = False
         self._pending: Reply | None = None

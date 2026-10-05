@@ -271,9 +271,13 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
 Each idea: design → freeze a measurement contract (`contracts/measure-<id>.json`) BEFORE measuring → build →
 measure → the owner decides. Nothing ships on by default without a VERIFIED measurement.
 
-- [ ] 34.1 Honest floor for the agent (F2) and Ask More: say "I cannot see that clearly" (with the nearest moments it
-      looked at) instead of guessing. Measure: questions about things NOT in the video (must abstain) and things that
-      ARE (must still answer); Gemini 3.1 Flash-Lite agent, no video credit needed
+- [x] 34.1 Honest floor for the agent (F2): `agent.HONEST_FLOOR`, "I cannot see that clearly" + the times looked at.
+      Two frozen contracts, both VERIFIED (tools/honest_bench.py, Gemini 3.1 Flash-Lite, 2 runs each):
+      easy (absent objects): declined 100% → 100%, correct 75% → 75%; HARD (plausible but unreadable details in Tears
+      of Steel and Sintel, truth checked on the frames): declined 100% → 100%, correct 100% → 100%. Today's agent was
+      already honest, so the advisory "helps" failed; an apparent +12.5 was a scorer error found by reading the answers
+      and fixed (it REMOVED the gain). Owner: keep it, for the one consistent phrase (test_fixes75 4/4)
+- [ ] 34.1b The GLM (OpenRouter) agent on the hard set; Ask More (not measured yet, unchanged)
 - [ ] 34.2 OCR of on-screen text: a local OCR engine (onnxruntime is already bundled) reads text in sampled frames and
       gives it to the AI like the transcript. Measure on the Excel tutorial, NASA and news clips: wrong rate of
       descriptions about text, cost, time, exe size

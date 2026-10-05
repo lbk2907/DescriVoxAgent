@@ -492,6 +492,12 @@ you say No, or the test fails, or the provider has no agent, F2 opens
 with your question. In Ask More, **Cancel** (or Esc) abandons a question
 that is still waiting for its answer.
 
+When the agent cannot see what you ask about clearly — a blurred number
+plate, writing too small to read, a face in the dark — it says so,
+beginning with "I cannot see that clearly", and tells you the times it
+looked at, instead of guessing (measured before it was kept; see
+docs/model-comparison.md, phase 34.1).
+
 Since 2.1.0: if the agent describes a fix in words but proposes nothing,
 it is asked once to make it a proposal you can accept (or to say the
 description is right). If it ends without a summary but has proposals,

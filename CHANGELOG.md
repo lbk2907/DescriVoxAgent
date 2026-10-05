@@ -4,6 +4,10 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
 
 ## Unreleased
 
+- **The agent says when it cannot see something.** When a detail is not there or not
+  readable, the agent (F2) now always begins with "I cannot see that clearly" and names the
+  times it looked at, instead of guessing. Measured first on known clips and on Tears of Steel
+  and Sintel: no answers were lost.
 - **Frozen contracts for releases, accessibility and measurements** (`contracts/`). A
   release is tagged only when `tools/release_check.py` says VERIFIED, judged on evidence the
   gate, the build and the NVDA check record themselves; the main window's accessibility is

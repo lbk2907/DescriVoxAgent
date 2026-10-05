@@ -354,3 +354,21 @@ misses). Owner's decision: ON by default, with a Settings > AI switch "Recognise
 by name". Found while measuring and fixed: the cast update came back empty when GLM spent
 its budget thinking (now capped), and names came back in CAPITALS (now normalised; NVDA may
 spell capitals).
+
+## Phase 34.1 — the honest floor for the agent (6 Oct 2026)
+
+Idea from Watch Skill: when the agent cannot see what is asked, it should say so instead of
+guessing. `tools/honest_bench.py` runs the app's own agent (Gemini 3.1 Flash-Lite) with the
+floor off and on, 2 runs each, judged by contracts frozen before each run.
+
+| Round | Questions | Declined when not there: off → on | Correct when there: off → on |
+|---|---|---|---|
+| 1 (`measure-honest-floor`) | the truth clip + Sintel dialogue: 8 absent objects, 4 visible facts | 100% → 100% | 75% → 75% |
+| 2 (`measure-honest-floor-2`) | Tears of Steel and Sintel at given moments: 8 plausible but unreadable or absent details (blurred plate, carton brand, T-shirt writing, eye colour in the dark...), 8 visible ones; truth checked on the frames | 100% → 100% | 100% → 100% |
+
+Both VERIFIED; the advisory "it helps by 10 points" failed both times, because today's agent
+was already honest. Round 2 first showed +12.5 points: reading the answers showed the scorer
+had missed "it is not possible to determine" as a refusal; fixed, the gain disappeared. The
+owner kept the floor for the one consistent phrase ("I cannot see that clearly" + the times
+looked at). Not measured yet: the GLM agent, and Ask More. Cost: about $0.15 of Gemini credit.
+

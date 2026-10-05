@@ -1,0 +1,22 @@
+{
+  "contract_id": "measure-honest-floor",
+  "title": "34.1 Honest floor: the agent says it cannot see something instead of guessing",
+  "kind": "measure",
+  "feature": "honest-floor",
+  "notes": "Frozen 6 Oct 2026 BEFORE the feature or the bench exists. The app's own agent (core/agent.py), Gemini 3.1 Flash-Lite, on clips whose content is known: questions about things that are NOT in the video (the agent must abstain) and things that ARE (it must still answer correctly). Percentages of questions. Bench: tools/honest_bench.py.",
+  "metrics": [
+    {"id": "abstains_when_absent", "metric": "abstain_absent", "compare": "on",
+     "min": 80.0, "required": true,
+     "why": "with the honest floor on, at least 80% of questions about things not in the video get 'I cannot see that' instead of a guess"},
+    {"id": "still_answers", "metric": "correct_present", "compare": "on",
+     "min": 75.0, "required": true,
+     "why": "at least 75% of questions about things that ARE in the video are still answered correctly"},
+    {"id": "answers_not_lost", "metric": "correct_present", "compare": "on_minus_off",
+     "min": -10.0, "required": true,
+     "why": "the floor may cost at most 10 points of correct answers compared with today"},
+    {"id": "helps", "metric": "abstain_absent", "compare": "on_minus_off",
+     "min": 10.0, "required": false,
+     "why": "advisory: if today's agent already abstains, the change matters little"}
+  ],
+  "min_runs": 2
+}
