@@ -406,3 +406,11 @@ in capitals (NVDA may spell them; `parse_cast` normalises). A test that
 asserts on "the last request" now sees the cast request, not the video
 (test_chunked_video records the last VIDEO request).
 
+### 100. "Could not check" is not a pass
+Several times a check that could not run was read as success: an NVDA run with
+the window behind another (silence everywhere), a gate result read off the
+screen, a measurement judged by a rule chosen after the numbers. Contracts
+(`contracts/`) now answer INCONCLUSIVE for those, and a release is tagged only
+on VERIFIED, from evidence the tools record themselves (`tools/evidence.py`).
+When a check cannot run, say INCONCLUSIVE and find out why; never round it up.
+

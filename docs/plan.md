@@ -75,7 +75,7 @@ Before 28 Sep 2026 there was no numbered checklist; each release was its own pla
 | 1.6.8–1.7.1 | 23 Sep | Word budget per gap; deterministic Whisper (0/7); 30 s frame coverage floor; NVDA pause via audio meter |
 | 1.7.2–1.7.4 | 27–28 Sep | Gemini upload fixed; `gemini-3.8-flash` default; audit + 15-min Sintel E2E (no consoles) |
 
-### 3.2 Phases 1–32
+### 3.2 Phases 1–33
 
 Phases 1–18 are in [archive/checklist-phases-1-18.md](archive/checklist-phases-1-18.md);
 phases 19 onwards in the [checklist](checklist.md). "—" = no release.
@@ -114,6 +114,7 @@ phases 19 onwards in the [checklist](checklist.md). "—" = no release.
 | 30 | Documentation to GitHub standard | 2.1.1 | English only; `doc/` → `docs/`; SECURITY.md, issue and pull request templates |
 | 31 | File > New Project | 2.1.2 | New Project asks for a name and the video; no more empty projects |
 | 32 | Documents updated automatically | — | `tools/check_docs.py` in the gate and the build |
+| 33 | Frozen contracts | — | Release, accessibility and measurement contracts; releases tagged only on VERIFIED |
 
 Every release phase closed with gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, the exe heard
 through NVDA, a tag, and the old zip deleted.
@@ -166,6 +167,7 @@ known.
 | 5 Oct | Characters on by default after measuring, with a Settings switch |
 | 5 Oct | Every document in English; `docs/`; GitHub community files |
 | 6 Oct | New Project: name, then video; the project is created with that name |
+| 6 Oct | Frozen contracts (release, accessibility, measurement); an agent may change one only with a recorded reason, reported to the owner |
 
 Declined by the owner without measuring (agent design choices): a `listen` tool (sound
 identification) and a "hear before accept" preview.
@@ -200,9 +202,9 @@ Things tried and NOT adopted, with the number. Do not retry without a new measur
 
 ## 6. How to add a plan
 
-1. A new phase continues the numbering: the next one is **Phase 33**. Never renumber.
+1. A new phase continues the numbering: the next one is **Phase 34**. Never renumber.
 2. Write a short entry here (phase, name, reason, date, who asked) and the detailed items
-   in the [checklist](checklist.md) (`33.1`, `33.2`, ...).
+   in the [checklist](checklist.md) (`34.1`, `34.2`, ...).
 3. Tick `[x]` only with evidence: test output, numbers, a real run, or NVDA heard.
 4. Measure before adopting: a new setting or model goes in only when the numbers are better
    (independent judge, several different clips, several runs). Record the numbers in

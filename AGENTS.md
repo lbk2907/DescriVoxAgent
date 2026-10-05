@@ -116,9 +116,20 @@ How work is actually done here, step by step.
      all of this automatically").
    - `run_gate.bat` twice in a row → `GATE_ALL_PASS`.
    - `build.bat` in the foreground or watched → `BUILD_ALL_OK`.
-   - Listen to the frozen exe: `tools/nvda_accessibility_check.py --frozen`.
-   - `git tag vX.Y.Z`; delete the previous zip in `dist/` so only the newest
-     remains; tick the checklist; commit.
+   - Listen to the frozen exe: `tools/nvda_accessibility_check.py --frozen`
+     (judged against `contracts/a11y-main.json`).
+   - Tick the checklist and commit, then `python tools/release_check.py`
+     must say **VERIFIED**, and tag ONLY with `python tools/tag_release.py`
+     (never `git tag` by hand). The gate, the build and the NVDA check record
+     their own evidence; INCONCLUSIVE is not a pass (contracts/README.md).
+   - Delete the previous zip in `dist/` (ask the owner) and push (ask).
+10. **Contracts** (`contracts/`, owner 6 Oct 2026). What "done" means is
+    frozen before the work. You may change a contract only with
+    `python tools/contracts.py freeze <id> --why "..."`, which records it in
+    `contracts/CHANGES.md` — and you MUST tell the owner in the same reply.
+    Before measuring a change, copy `contracts/measure-template.json` to
+    `measure-<feature>.json`, set the thresholds, and freeze it FIRST;
+    `tools/measure_check.py` refuses results older than the freeze.
 
 ### Background jobs on Windows
 
@@ -169,7 +180,7 @@ src/omni_describer_custom/
     update_dialog.py        Check for Updates
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 83
+tests/                      one script per regression round; run_gate.bat lists 84
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -194,7 +205,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 83 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 84 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -243,6 +254,7 @@ python tools\whisper_bench.py
 | `docs/archive/` | History: old summaries, checklist phases 1–18 |
 | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | GitHub community files (setup, private security reports, conduct) |
 | `.github/` | CI (light), issue templates, pull request template |
+| `contracts/` | Frozen contracts (release, accessibility, measurement), their lock and change log |
 
 Every document is in English (owner's decision, 5 Oct 2026); `doc/` was renamed
 `docs/` with English file names, and the Malay user guide was removed.
@@ -250,7 +262,7 @@ Every document is in English (owner's decision, 5 Oct 2026); `doc/` was renamed
 ## 8. Pitfalls by area
 
 Full text: `docs/pitfalls.md`. **Pitfall numbers are referenced from code
-comments: never renumber; add new ones at the end (next is 100).** (57b is a
+comments: never renumber; add new ones at the end (next is 101).** (57b is a
 historical double number, kept.) A pitfall may appear in more than one row.
 
 | Area | Pitfalls |
@@ -270,7 +282,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.2**, tag `v2.1.2`. Gate: compileall + 83 suites in
+- **Version 2.1.2**, tag `v2.1.2`. Gate: compileall + 84 suites in
   `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.2; build
   `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 31).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);

@@ -1,0 +1,25 @@
+{
+  "contract_id": "release",
+  "title": "A DescriVox Agent release is ready to tag",
+  "kind": "release",
+  "notes": "Owner, 6 Oct 2026: a release is judged on recorded evidence, not on a summary. Every check reads the evidence log or the files themselves.",
+  "checks": [
+    {"id": "contracts_frozen", "type": "contracts_ok", "required": true,
+     "why": "every contract matches its lock and every version has a recorded reason"},
+    {"id": "docs_current", "type": "docs_ok", "required": true,
+     "why": "tools/check_docs.py: CHANGELOG, README, AGENTS and the plan follow the version"},
+    {"id": "gate_twice", "type": "gate_runs", "required": true,
+     "params": {"min_passes": 2, "consecutive": true},
+     "why": "run_gate.bat passed twice in a row on the code being released"},
+    {"id": "build_ok", "type": "build", "required": true,
+     "why": "build.bat produced this version's zip from the released code, and the zip on disk is that zip"},
+    {"id": "exe_heard", "type": "nvda_frozen", "required": true,
+     "params": {"contract": "a11y-main"},
+     "why": "NVDA heard the built exe and the a11y-main contract was VERIFIED on that exact exe"},
+    {"id": "source_backup", "type": "source_backup", "required": true,
+     "why": "the source zip for this version exists and contains only source"},
+    {"id": "tag_free", "type": "tag_free", "required": true,
+     "why": "the version's tag does not exist yet, or already points at this commit"}
+  ],
+  "allowed_after_test": ["*.md", "docs/*", "contracts/CHANGES.md", "DescriVox.spec"]
+}

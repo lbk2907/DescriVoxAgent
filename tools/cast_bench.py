@@ -23,7 +23,7 @@ Uses the bench folder and the bench's copy of the keys (model_bench.py).
 Results are saved after every run, so a stopped run resumes.
 
     python tools/cast_bench.py run [--runs 1]
-    python tools/cast_bench.py score
+    python tools/cast_bench.py score [--json summary.json]
     python tools/cast_bench.py judge [--sample 40]   # share judged WRONG
 
 The judge is model_bench's validated one (GLM, four frames around the
@@ -130,8 +130,49 @@ def score(cues: list, names: list[str]) -> dict:
             "labels": len(labels), "other_names": sorted(others)[:12]}
 
 
-def cmd_score(_args) -> int:
+def summary(results: dict) -> dict:
+    """On vs off over every film and provider, for tools/measure_check.py:
+    name_rate and wrong_rate in percent, labels and lines as averages."""
+    import datetime
+    judged = {}
+    store = mb.BENCH / "cast_judgements.json"
+    if store.exists():
+        judged = json.loads(store.read_text(encoding="utf-8"))
+    agg = {"on": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0},
+           "off": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0}}
+    runs = set()
+    for key, r in results.items():
+        if r.get("error"):
+            continue
+        provider, clip, mode, run = key.split("|")
+        runs.add(run)
+        s = score(r["cues"], CLIPS[clip])
+        a = agg[mode]
+        a["n"] += 1
+        a["name"] += s["name_rate"] * 100
+        a["labels"] += s["labels"]
+        a["lines"] += s["lines"]
+        for jk, jv in judged.items():
+            if jk.startswith(key + "|"):
+                a["j"] += 1
+                a["wrong"] += jv.get("verdict") == "wrong"
+    metrics = {}
+    for name, field in (("name_rate", "name"), ("labels", "labels"), ("lines", "lines")):
+        if agg["on"]["n"] and agg["off"]["n"]:
+            metrics[name] = {m: round(agg[m][field] / agg[m]["n"], 3) for m in ("on", "off")}
+    if agg["on"]["j"] and agg["off"]["j"]:
+        metrics["wrong_rate"] = {m: round(100 * agg[m]["wrong"] / agg[m]["j"], 3)
+                                 for m in ("on", "off")}
+    newest = max((p.stat().st_mtime for p in (RESULTS, store) if p.exists()), default=0)
+    return {"created": datetime.datetime.fromtimestamp(newest).isoformat(timespec="seconds"),
+            "runs": len(runs), "metrics": metrics}
+
+
+def cmd_score(args) -> int:
     results = load()
+    if getattr(args, "json", None):
+        Path(args.json).write_text(json.dumps(summary(results), indent=2), encoding="utf-8")
+        print(f"summary written to {args.json}")
     rows = {}
     for key, r in results.items():
         provider, clip, mode, run = key.split("|")
@@ -201,7 +242,8 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     run = sub.add_parser("run")
     run.add_argument("--runs", type=int, default=1)
-    sub.add_parser("score")
+    sc = sub.add_parser("score")
+    sc.add_argument("--json", help="also write the on/off summary for tools/measure_check.py")
     judge = sub.add_parser("judge")
     judge.add_argument("--sample", type=int, default=40)
     args = ap.parse_args()

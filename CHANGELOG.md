@@ -4,6 +4,11 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
 
 ## Unreleased
 
+- **Frozen contracts for releases, accessibility and measurements** (`contracts/`). A
+  release is tagged only when `tools/release_check.py` says VERIFIED, judged on evidence the
+  gate, the build and the NVDA check record themselves; the main window's accessibility is
+  judged against a list of what NVDA must hear; and the rule for adopting a measured change
+  is frozen before the numbers exist. "Could not check" is never counted as a pass.
 - **Documents can no longer fall behind a release.** `tools/check_docs.py` checks that the
   CHANGELOG, README, AGENTS.md and the plan match the version and the checklist, and that
   no link is broken; the test gate and `build.bat` stop when they do not.

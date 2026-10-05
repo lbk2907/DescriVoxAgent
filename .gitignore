@@ -58,3 +58,6 @@ _a11y_app_log.txt
 # Local OMH artefacts (plans, UML scratch) and pytest cache
 .omh/
 .pytest_cache/
+
+# The owner's personal note - never tracked, never touched (AGENTS.md)
+VEDIO DESCRIBER.PY.txt

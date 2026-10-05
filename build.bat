@@ -90,4 +90,7 @@ echo === [6/6] source backup ===
 :: committed files only (git archive), checked for binaries and keys.
 %PY% tools\make_source_zip.py
 if errorlevel 1 (echo SOURCE_ZIP_FAIL & exit /b 1)
+:: v2.1.3 (owner): the build is recorded for the release contract.
+for /f "delims=" %%V in ('%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; print(v)"') do set ODC_VER=%%V
+%PY% tools\evidence.py build "dist\DescriVox-Agent-%ODC_VER%-win64.zip"
 echo BUILD_ALL_OK

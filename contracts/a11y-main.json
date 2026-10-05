@@ -1,0 +1,21 @@
+{
+  "contract_id": "a11y-main",
+  "title": "The main window is fully readable by NVDA",
+  "kind": "a11y",
+  "window": "main",
+  "notes": "Taken from what NVDA actually said on the 2.1.2 exe (6 Oct 2026, 14/14). Every control below must be reached by Tab, have this role, and be spoken with its name. A missing bridge or a silent run is INCONCLUSIVE, never a pass.",
+  "required": [
+    {"role": "button", "name": "Local Video File"},
+    {"role": "button", "name": "Play Video with Existing Descriptions"},
+    {"role": "button", "name": "Direct Video URL"},
+    {"role": "button", "name": "YouTube Video URL"},
+    {"role": "combo box", "name": "Prompt preset"},
+    {"role": "button", "name": "Open"},
+    {"role": "edit", "name": "Prompt to send"},
+    {"role": "edit", "name": "Status Log"},
+    {"role": "button", "name": "Settings..."},
+    {"role": "button", "name": "Exit"}
+  ],
+  "no_unnamed_controls": true,
+  "no_silent_controls": true
+}

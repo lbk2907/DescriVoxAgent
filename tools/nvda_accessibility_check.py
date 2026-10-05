@@ -244,16 +244,64 @@ def report(seen: list[dict]) -> int:
     return 0
 
 
+def evaluate_contract(seen: list[dict], contract: dict, digest: str):
+    """v2.1.3 (owner, 6 Oct 2026): judge the run against the frozen
+    a11y contract - every required control reached, with its role, named
+    and spoken. A run where NVDA said nothing at all is INCONCLUSIVE."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import contracts as C
+    v = C.Verdict(contract["contract_id"], digest)
+    if not any(e["spoken"] for e in seen):
+        v.results.append(C.Result("anything_heard", C.UNKNOWN,
+                                  "NVDA said nothing at all (window not in front?)"))
+        return v
+    for want in contract.get("required", []):
+        hit = [e for e in seen if e["role"] == want["role"]
+               and (e["name"] or "").strip().startswith(want["name"])]
+        if not hit:
+            v.results.append(C.Result(f"{want['role']}:{want['name']}", C.FAIL,
+                                      "never reached by Tab"))
+        elif not any(e["spoken"] for e in hit):
+            v.results.append(C.Result(f"{want['role']}:{want['name']}", C.FAIL,
+                                      "reached but NVDA said nothing"))
+        else:
+            v.results.append(C.Result(f"{want['role']}:{want['name']}", C.PASS, "heard"))
+    if contract.get("no_unnamed_controls"):
+        bad = [e["step"] for e in seen if (e["name"] or "").strip().lower() in _USELESS_NAMES]
+        v.results.append(C.Result("no_unnamed_controls", C.FAIL if bad else C.PASS,
+                                  f"steps {bad}" if bad else "every control named"))
+    if contract.get("no_silent_controls"):
+        bad = [e["step"] for e in seen if not e["spoken"]]
+        v.results.append(C.Result("no_silent_controls", C.FAIL if bad else C.PASS,
+                                  f"silent at steps {bad}" if bad else "every control spoken"))
+    return v
+
+
+def _record(frozen: bool, contract_id: str, digest: str, verdict: str, problems: int) -> None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import evidence as E
+    exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
+    E.record("nvda", frozen=frozen, contract=contract_id, contract_digest=digest,
+             verdict=verdict, problems=problems,
+             exe_sha256=E.sha256_file(exe) if frozen and exe.exists() else "")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frozen", action="store_true",
                         help="drive dist/DescriVox/DescriVox.exe")
     parser.add_argument("--steps", type=int, default=14,
                         help="how many Tab presses to record")
+    parser.add_argument("--contract", default="a11y-main",
+                        help="the frozen contract in contracts/ to judge the run by")
     args = parser.parse_args()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import contracts as C
+    contract, digest = C.load(args.contract)
 
     alive, detail = bridge_alive()
     if not alive:
+        _record(args.frozen, args.contract, digest, C.INCONCLUSIVE, 0)
         print(f"NVDA HTTP Bridge is not answering on {BRIDGE}: {detail}")
         print("Start NVDA with the nvdaHttpBridge plugin loaded, then "
               "run this again. Refusing to report a pass without it.")
@@ -263,7 +311,13 @@ def main() -> int:
     proc, win = launch(args.frozen)
     try:
         seen = walk_controls(win, args.steps)
-        return report(seen)
+        rc = report(seen)
+        v = evaluate_contract(seen, contract, digest)
+        print("\n" + "\n".join(v.lines()))
+        verdict = v.verdict if rc == 0 or v.verdict != C.VERIFIED else C.FAILED
+        _record(args.frozen, args.contract, digest, verdict, rc)
+        print(f"CONTRACT {args.contract}: {verdict}")
+        return 0 if verdict == C.VERIFIED else (2 if verdict == C.INCONCLUSIVE else 1)
     finally:
         try:
             proc.terminate()

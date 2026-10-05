@@ -70,6 +70,7 @@ docs/                       every document (English); shipped inside the exe
 | `docs/archive/` | Archive: finished checklist phases 1-18, v1.5.x summaries |
 | `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | GitHub community files |
 | `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md` | Forms for issues and pull requests |
+| `contracts/` | Frozen contracts: release, accessibility, measurement (`contracts/README.md`) |
 
 All documents are written in English (owner's decision, 5 Oct 2026). The app's
 interface stays in English and Malay.
@@ -125,7 +126,9 @@ owner's chat program). Ask the owner before any run that types.
   list help (name rate, labels, wrong rate)?
 
 Keep a change only when the numbers improve, measured with a judge other
-than the model being judged. Results and methods: `docs/model-comparison.md`.
+than the model being judged. Write the rule first: copy
+`contracts/measure-template.json`, set the thresholds, freeze it, then run
+the bench and judge with `tools/measure_check.py`. Results and methods: `docs/model-comparison.md`.
 
 ## Rate limits & keys
 
@@ -169,7 +172,10 @@ than the model being judged. Results and methods: `docs/model-comparison.md`.
    source code (`tools/make_source_zip.py`, committed files only, refused if
    anything looks like a binary or a key) into
    `Documents\DescriVox-source-backups\`.
-5. Listen to the frozen exe: `python tools\nvda_accessibility_check.py --frozen`.
-6. Tag `vX.Y.Z` on the release commit; push `main` and the tag only with the
-   owner's permission.
+5. Listen to the frozen exe: `python tools\nvda_accessibility_check.py --frozen`
+   (judged against the frozen `contracts/a11y-main.json`).
+6. `python tools\release_check.py` must say VERIFIED (the release contract,
+   judged on evidence the gate, build and NVDA check recorded themselves);
+   tag with `python tools\tag_release.py`, never by hand. Push `main` and
+   the tag only with the owner's permission. See `contracts/README.md`.
 7. Keep only the newest zip in `dist/` (ask the owner before deleting).

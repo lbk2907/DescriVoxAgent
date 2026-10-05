@@ -1,0 +1,16 @@
+{
+  "contract_id": "measure-template",
+  "title": "TEMPLATE - copy to measure-<feature>.json and freeze it BEFORE running the bench",
+  "kind": "measure",
+  "feature": "example",
+  "notes": "Owner, 6 Oct 2026: the rule for adopting a change is written and frozen before the numbers exist, so it cannot be bent to fit them. tools/measure_check.py refuses results older than the freeze.",
+  "metrics": [
+    {"id": "accuracy_not_worse", "metric": "wrong_rate", "compare": "on_minus_off",
+     "max": 3.0, "required": true, "why": "the share judged wrong may rise by at most 3 points"},
+    {"id": "feature_helps", "metric": "name_rate", "compare": "on_minus_off",
+     "min": 10.0, "required": true, "why": "the feature must actually help by at least 10 points"},
+    {"id": "coverage_kept", "metric": "lines", "compare": "on_over_off",
+     "min": 0.8, "required": false, "why": "advisory: not fewer than 80% of the descriptions"}
+  ],
+  "min_runs": 2
+}

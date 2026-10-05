@@ -1,0 +1,17 @@
+{
+  "a11y-main": {
+    "frozen_at": "2026-10-06T04:52:32",
+    "sha256": "5214e7455c7683eacd7adc469013b00addcf39f43973ece8cecfee9c6d211ce1",
+    "version": 1
+  },
+  "measure-template": {
+    "frozen_at": "2026-10-06T04:52:32",
+    "sha256": "4df5192368ad085ff77acfd1b00fb82f6a24dc1b9829ecb18e18b2d4360c3f5d",
+    "version": 1
+  },
+  "release": {
+    "frozen_at": "2026-10-06T04:52:32",
+    "sha256": "88aa5a2498b30d1d22c9306e93d60bd53385352d1a150c2a47de0cf37634aaa8",
+    "version": 1
+  }
+}

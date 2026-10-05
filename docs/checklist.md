@@ -248,3 +248,21 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
 - [x] 32.2 In the gate (test_fixes73 5/5 — it catches the real 2.1.2 miss from git history) and first in `build.bat`;
       AGENTS release rule + developer guide updated
 
+## Phase 33 — frozen contracts (owner 6 Oct 2026, after reviewing Watch Skill)
+
+- [x] 33.1 `tools/contracts.py`: SHA-256 lock (`contracts/LOCK.json`), versions with reasons (`contracts/CHANGES.md`),
+      verdicts VERIFIED / FAILED / INCONCLUSIVE (inconclusive is never a pass). Owner's choice: an agent may change a
+      contract only through `freeze`, which records why, and must report it
+- [x] 33.2 A. Release contract: `tools/evidence.py` — the gate, the build and the NVDA check record their own results with
+      the git tree they ran on; `tools/release_check.py` judges `contracts/release.json`; `tools/tag_release.py` tags only
+      on VERIFIED (writes an evidence bundle with its SHA-256). First run: FAILED (v2.1.2 already tagged) with the
+      gate/build/NVDA checks INCONCLUSIVE — no evidence recorded yet, as it should be
+- [x] 33.3 B. Accessibility contract `contracts/a11y-main.json` (10 controls, from the 2.1.2 exe heard 14/14);
+      `nvda_accessibility_check.py` judges every run by it and records the verdict
+- [x] 33.4 C. Measurement contract template; `tools/measure_check.py`; `cast_bench.py score --json`. On the characters
+      results it says INCONCLUSIVE — the results (5 Oct) are older than any rule (6 Oct), which is the point
+- [x] 33.5 test_fixes74 8/8 (weakened contract caught, freeze needs a reason, evidence must be on this code, a11y and
+      measure verdicts); `VEDIO DESCRIBER.PY.txt` added to .gitignore so the tree record never includes it
+- [ ] 33.6 First release judged by the contract (next version); player and settings accessibility contracts (need a
+      listening run)
+
