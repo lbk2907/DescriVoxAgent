@@ -229,6 +229,16 @@ susunannya terbalik).
   gambar dihantar kepada AI dalam satu permintaan (pukal maksimum 150);
   app melekatkan semula masa pada grid gambar yang tepat. Kedua-dua
   kotak ini saling menolak.
+- **Kenal watak dengan nama** (ditanda secara lalai, sejak 2.1.0):
+  setiap orang diberi SATU nama, dipakai dari awal hingga akhir video.
+  Nama itu didengar dalam dialog atau tertulis pada skrin; sebelum nama
+  diketahui, AI memakai satu label tetap ("wanita bertudung biru") dan
+  memperkenalkan nama sekali bila ia didengar. Video panjang yang
+  dihantar dalam bahagian 5 minit membawa senarai itu dari satu bahagian
+  ke bahagian seterusnya. Senarai disimpan bersama projek (Player >
+  **Watak...**). Diukur pada dua filem sebelum dihidupkan: lebih banyak
+  ayat memakai nama yang betul; buang tanda jika anda dengar penerangan
+  menjadi kurang tepat.
 
 ### Tab Output Audio
 
@@ -499,6 +509,31 @@ Jika anda menjawab Tidak, ujian gagal, atau pembekal tiada ejen, F2
 membuka **Tanya Lagi** sebagai ganti, yang menghantar bingkai pada
 kedudukan Player bersama soalan anda. Dalam Tanya Lagi, **Batal** (atau
 Esc) meninggalkan soalan yang masih menunggu jawapan.
+
+Sejak 2.1.0: jika ejen menerangkan pembetulan dengan kata-kata tetapi
+tidak mencadangkannya, ia diminta sekali supaya membuat cadangan yang
+boleh anda terima (atau berkata penerangan itu betul). Jika ia berhenti
+tanpa ringkasan tetapi ada cadangan, tetingkap menyebut berapa perubahan
+menunggu, bukan "tiada jawapan".
+
+## Watak (Player > Watak...)
+
+Orang dalam video ini: nama atau label, dan cara mengecamnya (pakaian,
+umur, peranan). Senarai dibuat semasa video diterangkan dan ejen turut
+memakainya.
+
+- **Sunting / beri nama...** (Alt+S): tukar nama atau cara mengecam
+  seseorang. Beri nama sebenar kepada orang yang AI hanya dapat
+  terangkan: "lelaki berkot kelabu" menjadi "Encik Rahim". App kemudian
+  bertanya "Tukar "lelaki berkot kelabu" kepada "Encik Rahim" dalam 5
+  penerangan?"; Ya menukar semua penerangan sekaligus.
+- **Tambah...** (Alt+T): tambah seseorang sebelum menerangkan semula,
+  supaya AI memakai nama itu dari awal.
+- **Buang** (Alt+B): keluarkan seseorang dari senarai; penerangan tidak
+  diubah.
+
+Nama yang anda beri atau ubah di sini tidak akan diubah atau dibuang
+oleh AI pada larian seterusnya.
 
 ## Penjelajah Adegan
 

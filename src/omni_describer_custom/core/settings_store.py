@@ -228,6 +228,9 @@ class SettingsStore:
         "ai": {
             "default_provider": "",
             "fast_mode": False,
+            # v2.1.0: one name per person (core/characters.py), measured
+            # 5 Oct 2026 (tools/cast_bench.py); on unless switched off.
+            "characters": True,
             # v1.8.7: whole-video mode for new users. Frame mode, the old
             # default, described each frame separately — 147-204 lines a
             # minute on films (doc/perbandingan-model.md). A mode already

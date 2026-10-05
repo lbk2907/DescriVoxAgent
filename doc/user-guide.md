@@ -213,6 +213,15 @@ the other way round before 1.9.6).
   time burned in (dark box, top-left corner) and all pictures go to the
   AI in one request (batches of at most 150); the app snaps the times
   back onto the exact picture grid. The two boxes exclude each other.
+- **Recognise characters by name** (ticked by default, since 2.1.0):
+  each person gets ONE name, used from the start of the video to the
+  end. The name is one heard in the dialogue or shown on screen; until a
+  name is known the AI uses one fixed label ("the woman in the blue
+  headscarf") and introduces the name once when it is heard. A long
+  video sent in 5-minute parts carries the list from part to part. The
+  list is kept with the project (Player > **Characters...**). Measured on
+  two films before it was turned on: far more lines use the right name;
+  untick it if you hear the descriptions get less accurate.
 
 ### Audio Output tab
 
@@ -470,6 +479,31 @@ you say No, or the test fails, or the provider has no agent, F2 opens
 **Ask More** instead, which sends the frame at the Player's position
 with your question. In Ask More, **Cancel** (or Esc) abandons a question
 that is still waiting for its answer.
+
+Since 2.1.0: if the agent describes a fix in words but proposes nothing,
+it is asked once to make it a proposal you can accept (or to say the
+description is right). If it ends without a summary but has proposals,
+the window says how many changes are waiting instead of "no answer".
+
+## Characters (Player > Characters...)
+
+The people in this video: a name or a label, and how to recognise them
+(clothes, age, role). The list is made while the video is described and
+the agent uses it too.
+
+- **Edit / give a name...** (Alt+E): change the name or how to recognise
+  someone. Give a real name to someone the AI could only describe: "the
+  man in the grey coat" becomes "Encik Rahim". The app then asks
+  "Replace "the man in the grey coat" with "Encik Rahim" in 5
+  descriptions?"; Yes changes every description at once ("The man in the
+  grey coat nods" becomes "Encik Rahim nods").
+- **Add...** (Alt+A): add someone before describing again, so the AI
+  uses that name from the start.
+- **Remove** (Alt+R): takes someone off the list; the descriptions are
+  not changed.
+
+Names you give or change here are never changed or dropped by the AI on
+a later run.
 
 ## Scene Explorer
 

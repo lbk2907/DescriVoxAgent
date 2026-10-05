@@ -67,6 +67,19 @@ def gemini_price(model: str) -> tuple[float, float]:
         pass
     return FALLBACK_PRICE
 MAX_TURNS = 10
+# 23.8 (v2.1.0): an answer that names a fix but proposed nothing. The
+# person can only accept a change that is PROPOSED; words alone left them
+# to make the edit by hand. Such an answer is sent back once.
+_FIX_WORDS = re.compile(
+    r"\b(should (?:say|read|be)|change (?:it|this|that)? ?to|replace|instead of|"
+    r"i (?:would )?(?:suggest|recommend|propose)|better(?: as| to say)?|"
+    r"sepatutnya|tukar(?:kan)?|ganti(?:kan)?|cadang(?:kan)?|lebih baik)\b",
+    re.IGNORECASE)
+NUDGE_PROPOSE = (
+    "Your answer describes a change, but you proposed nothing, so the "
+    "person cannot accept it. If a description is CLEARLY wrong, call "
+    "propose_change now (look first if you have not). If it is not clearly "
+    "wrong, say so in one sentence and propose nothing.")
 COST_CAP = 0.02          # dollars per question before asking "continue?"
 MAX_WORDS = 12           # the app's audio-description rule
 PROPOSAL_WORD_LIMIT = 20  # hard refusal above this
@@ -438,6 +451,7 @@ class Agent:
                     is_cancelled: Callable[[], bool] | None = None) -> Reply:
         self._pending = None
         stopped = is_cancelled or (lambda: False)
+        nudged = False
         for _turn in range(MAX_TURNS):
             if stopped():
                 reply.error = CANCELLED
@@ -457,6 +471,12 @@ class Agent:
                                   if k in ("role", "content", "tool_calls")})
             if not calls:
                 reply.answer = (msg.get("content") or "").strip()
+                if (reply.answer and not nudged and not reply.proposals
+                        and _FIX_WORDS.search(reply.answer)
+                        and _turn < MAX_TURNS - 1):
+                    nudged = True
+                    self.messages.append({"role": "user", "content": NUDGE_PROPOSE})
+                    continue
                 if reply.answer:
                     return reply
                 break           # an empty answer: ask for one below
@@ -492,13 +512,23 @@ class Agent:
             "what you found and what you proposed, or that you could not "
             "decide.")})
         try:
-            data = await self._send(self._payload(tools=False), is_cancelled)
-            reply.cost += self._cost(data)
-            if "error" in data:
-                reply.error = self._reply_error(data["error"])
-                return reply
-            msg = (data.get("choices") or [{}])[0].get("message") or {}
-            reply.answer = (msg.get("content") or "").strip()
+            # 23.8: the forced answer came back EMPTY now and then (a
+            # reasoning model spending the reply on thinking). Ask once
+            # more, shorter; an answer still empty is left empty and the
+            # window says what was found (agent_dialog, no_answer_*).
+            for attempt in range(2):
+                data = await self._send(self._payload(tools=False), is_cancelled)
+                reply.cost += self._cost(data)
+                if "error" in data:
+                    reply.error = self._reply_error(data["error"])
+                    return reply
+                msg = (data.get("choices") or [{}])[0].get("message") or {}
+                reply.answer = (msg.get("content") or "").strip()
+                if reply.answer or attempt or stopped():
+                    break
+                self.messages.append({"role": "assistant", "content": ""})
+                self.messages.append({"role": "user", "content": (
+                    "Your answer was empty. Write one short sentence now.")})
             self.messages.append({"role": "assistant", "content": reply.answer})
         except Exception as e:
             reply.error = self._error(e)
@@ -712,21 +742,20 @@ class Agent:
         return "\n".join(lines)
 
     def _characters(self, args: dict) -> str:
-        path = Path(self.ctx.characters_file) if self.ctx.characters_file else None
-        known = {}
-        if path and path.exists():
-            try:
-                known = json.loads(path.read_text(encoding="utf-8"))
-            except ValueError:
-                known = {}
+        # v2.1.0: the same characters.json the describing run builds and
+        # the Characters window edits (core/characters.py).
+        from . import characters as ch
+        folder = (Path(self.ctx.characters_file).parent
+                  if self.ctx.characters_file else None)
+        cast = ch.load_cast(folder)
         if args.get("action") == "remember" and args.get("name"):
-            known[str(args["name"])[:60]] = str(args.get("description", ""))[:200]
-            if path:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(json.dumps(known, ensure_ascii=False, indent=1),
-                                encoding="utf-8")
-            return f"Remembered {args['name']}."
-        return ("\n".join(f"{k}: {v}" for k, v in known.items())
+            name = str(args["name"]).strip()[:60]
+            look = str(args.get("description", "")).strip()[:200]
+            cast = [c for c in cast if c["name"].casefold() != name.casefold()]
+            cast.insert(0, {"name": name, "look": look, "by_user": True})
+            ch.save_cast(folder, cast[:ch.MAX_CAST])
+            return f"Remembered {name}."
+        return ("\n".join(f"{c['name']}: {c.get('look', '')}" for c in cast)
                 or "No characters remembered yet.")
 
     def _propose(self, args: dict, reply: Reply) -> str:

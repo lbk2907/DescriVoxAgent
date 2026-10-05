@@ -1835,6 +1835,8 @@ class GLMProvider(AIProvider):
         transcript: list | None = None,
         preserve_resolution: bool = False,
         on_eta: Callable[[float, float | None], None] | None = None,
+        cast: list | None = None,
+        on_cast: Callable[[list], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Upload a video file as base64 via OpenRouter video_url.
 
@@ -1942,6 +1944,11 @@ class GLMProvider(AIProvider):
             merged: list[tuple[float, str]] = []
             done_parts = 0
             prev_summary = ""
+            # v2.1.0: the cast travels through EVERY part (characters.py);
+            # the last six lines alone let part 3 rename part 1's people.
+            from . import characters as _ch
+            # None = no cast work at all (the engine's CHARACTERS off).
+            cast_now = list(cast) if cast is not None else None
             # v1.8.4: one bar for the whole job. Splitting is the first
             # 10%, each part's share of the rest follows its length.
             from . import timing_store
@@ -1970,12 +1977,14 @@ class GLMProvider(AIProvider):
                 if on_part:
                     on_part(i + 1, total)
                 part_len = part_lens[i] if i < len(part_lens) else 0.0
+                part_prompt = prompt + ("\n" + _ch.cast_block(cast_now)
+                                        if cast_now else "")
                 # v1.5.3: pass a short summary of the previous part so
                 # the model keeps its bearings (no "the video starts
                 # with" at minute 20) and keeps one name per character.
                 try:
                     pairs = await self._describe_one_part(
-                        part, prompt, model, on_status=on_status,
+                        part, part_prompt, model, on_status=on_status,
                         is_cancelled=is_cancelled, offset=offset,
                         part_index=i + 1, part_total=total,
                         prev_summary=prev_summary, transcript=transcript,
@@ -2001,7 +2010,7 @@ class GLMProvider(AIProvider):
                         self._set_upload_limits(limit)
                         try:
                             pairs = await self._describe_one_part(
-                                part, prompt, model, on_status=on_status,
+                                part, part_prompt, model, on_status=on_status,
                                 is_cancelled=is_cancelled, offset=offset,
                                 part_index=i + 1, part_total=total,
                                 prev_summary=prev_summary, transcript=transcript,
@@ -2020,7 +2029,7 @@ class GLMProvider(AIProvider):
                         "part %d/%d returned no cues; retrying once",
                         i + 1, total)
                     pairs = await self._describe_one_part(
-                        part, prompt, model, on_status=on_status,
+                        part, part_prompt, model, on_status=on_status,
                         is_cancelled=is_cancelled, offset=offset,
                         part_index=i + 1, part_total=total,
                         prev_summary=prev_summary, transcript=transcript,
@@ -2028,6 +2037,25 @@ class GLMProvider(AIProvider):
                 if pairs:
                     prev_summary = "; ".join(
                         txt for _, txt in pairs[-6:])
+                if pairs and cast_now is not None:
+                    # v2.1.0: one text-only request brings the cast up to
+                    # date; a failure keeps the cast as it was.
+                    spoken_part = ""
+                    if transcript:
+                        spoken_part = build_transcript_block(
+                            transcript, start=offset,
+                            end=(offset + part_len) if part_len else None,
+                            offset=offset,
+                            words_per_second=self.words_per_second)
+                    cast_now = await _ch.update_cast(
+                        lambda q: _run_cancellable(
+                            self._ask_capped(q, model), is_cancelled),
+                        cast_now, [txt for _, txt in pairs], spoken_part)
+                    if on_cast:
+                        try:
+                            on_cast(list(cast_now))
+                        except Exception:
+                            logger.debug("on_cast raised", exc_info=True)
                 merged.extend(pairs)
                 done_parts += 1
                 if on_split_progress:
@@ -2775,6 +2803,15 @@ class GLMProvider(AIProvider):
         payload = {"model": model, "max_tokens": 6000, "messages": messages}
         return _strip_think(await self._chat(payload, timeout=120))
 
+    async def _ask_capped(self, question: str, model: str = "") -> str:
+        """A text request with the thinking capped as for descriptions.
+        The cast update through ask_text came back EMPTY once (5 Oct
+        2026): 6,358 reasoning tokens, no answer (pitfall 7)."""
+        payload = {"model": model or self.models[0], "max_tokens": 4000,
+                   "reasoning": {"max_tokens": self._REASONING_BUDGET},
+                   "messages": [{"role": "user", "content": question}]}
+        return _strip_think(await self._chat(payload, timeout=120))
+
     async def describe_video_frames_batch(
         self, frames: list[str], prompt: str, model: str = "",
         on_status: Callable[[str], None] | None = None,
@@ -3147,6 +3184,9 @@ class CustomProvider(AIProvider):
 
 
 class AIEngine:
+    # v2.1.0: name rules + cast in full-video prompts. False = the prompt
+    # as before (tools/model_bench.py measures both).
+    CHARACTERS = True
     """
     High-level AI engine with provider management and auto-fallback.
     Usage:
@@ -3362,6 +3402,8 @@ class AIEngine:
         transcript: list | None = None,
         preserve_resolution: bool = False,
         on_eta: Callable[[float, float | None], None] | None = None,
+        cast: list | None = None,
+        on_cast: Callable[[list], None] | None = None,
     ) -> list[tuple[float, str]]:
         """Watch the WHOLE video (Gemini native video understanding).
 
@@ -3377,6 +3419,15 @@ class AIEngine:
                 f"Provider '{prov.name}' does not support full-video mode. "
                 "Use Gemini, or switch back to frame mode.")
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
+        # v2.1.0: one name per person (core/characters.py). A provider
+        # that splits the video carries the cast from part to part
+        # itself; one that watches it whole gets the known cast here.
+        carries = "cast" in inspect.signature(fn).parameters
+        if self.CHARACTERS:
+            from .characters import CHARACTER_RULES, cast_block
+            prompt = prompt + "\n" + CHARACTER_RULES
+            if cast and not carries:
+                prompt += "\n" + cast_block(cast)
         return await fn(
             video_path, prompt, model,
             on_status=on_status,
@@ -3398,6 +3449,8 @@ class AIEngine:
             **({"on_eta": on_eta}
                if on_eta and "on_eta" in
                inspect.signature(fn).parameters else {}),
+            **({"cast": list(cast or []), "on_cast": on_cast}
+               if carries and self.CHARACTERS else {}),
         )
 
     async def describe_video_frames_batch(

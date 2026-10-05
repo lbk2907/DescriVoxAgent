@@ -245,8 +245,13 @@ class AgentDialog(wx.Dialog):
             text = t("agent.stopped")       # asked for, not a failure
         elif reply.error:
             text = self._error_text(reply.error)
+        elif reply.answer:
+            text = reply.answer
+        elif reply.proposals:
+            # 23.8: no words, but changes to review - say so.
+            text = t("agent.no_answer_proposals", count=len(reply.proposals))
         else:
-            text = reply.answer or t("agent.no_answer")
+            text = t("agent.no_answer")
         self._append(t("agent.said", text=text))
         speak(text)
         if reply.proposals:

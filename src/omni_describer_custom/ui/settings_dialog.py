@@ -266,6 +266,16 @@ class SettingsDialog(wx.Dialog):
                                 name="fast_mode_hint"), 0, wx.ALL, 5)
         self.fast_mode_cb.Bind(wx.EVT_CHECKBOX, self._on_fast_mode_toggle)
 
+        # v2.1.0 (owner, 5 Oct 2026): names for the people, one each
+        # (core/characters.py). On by default after measuring; this is
+        # the way back if accuracy is heard to drop.
+        self.characters_cb = wx.CheckBox(
+            panel, label=t("settings.characters"), name="characters")
+        self.characters_cb.SetValue(bool(self.settings.get("ai.characters", True)))
+        sizer.Add(self.characters_cb, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("settings.characters_hint"),
+                                name="characters_hint"), 0, wx.ALL, 5)
+
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
         return panel
@@ -1021,6 +1031,7 @@ class SettingsDialog(wx.Dialog):
         self.settings.set(
             "ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
         self.settings.set("ai.fast_mode", bool(self.fast_mode_cb.GetValue()))
+        self.settings.set("ai.characters", bool(self.characters_cb.GetValue()))
 
         # Update TTS
         tts_engine = self._choice_value(self.tts_engine_choice)
@@ -1114,6 +1125,7 @@ class SettingsDialog(wx.Dialog):
         self._on_provider_changed(None)  # Refresh model list + fields
         self.fast_mode_cb.SetValue(
             bool(self.settings.get("ai.fast_mode", False)))
+        self.characters_cb.SetValue(bool(self.settings.get("ai.characters", True)))
 
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")

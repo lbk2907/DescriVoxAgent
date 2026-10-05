@@ -396,3 +396,13 @@ are ordinary keys: a `_one` rule would have turned them into "singulars".
 Keep `{count}` in the `:one` text too (test_fixes43 compares placeholders
 between languages); a language without plurals repeats the same line.
 
+### 99. The cast is a SEPARATE text request, and it can come back empty
+v2.1.0 keeps the description request and its parser untouched: after
+each part a text-only request updates the cast (`characters.update_cast`);
+any failure keeps the old cast. Two things seen on the first run: GLM spent
+6,000 tokens thinking and returned nothing (cap it: `_ask_capped`, pitfall
+7), and the cast came back in CAPITALS when the answer format was written
+in capitals (NVDA may spell them; `parse_cast` normalises). A test that
+asserts on "the last request" now sees the cast request, not the video
+(test_chunked_video records the last VIDEO request).
+

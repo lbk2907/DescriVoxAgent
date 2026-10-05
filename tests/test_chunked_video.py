@@ -43,8 +43,11 @@ class _Loopback(HTTPServer):
 class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
-        _Loopback.last_body = json.loads(
-            self.rfile.read(n).decode("utf-8"))
+        body_in = json.loads(self.rfile.read(n).decode("utf-8"))
+        # v2.1.0: after each part a text-only cast update follows; the
+        # assertions below are about the last VIDEO request.
+        if isinstance(body_in["messages"][0]["content"], list):
+            _Loopback.last_body = body_in
         # Reply with lines at part-local times 0:01 and 0:03.
         body = {
             "id": "x", "choices": [{"message": {

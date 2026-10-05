@@ -2228,11 +2228,19 @@ class MainFrame(wx.Frame):
                 except Exception:
                     self._wait_basis = None
 
+                # v2.1.0: the project's cast (names the user gave, or
+                # the last run's) goes in; the updated cast comes out.
+                # Settings > AI can turn it off (ai.characters).
+                self.ai_engine.CHARACTERS = bool(
+                    self.settings.get("ai.characters", True))
+                cast_out: dict = {}
                 try:
                     pairs = loop.run_until_complete(
                         self.ai_engine.describe_video_full(
                             resolved, prompt,
                             transcript=transcript,
+                            cast=self._load_cast(),
+                            on_cast=lambda c: cast_out.__setitem__("cast", c),
                             preserve_resolution=bool(self.settings.get(
                                 "general.preserve_resolution", False)),
                             on_status=vstatus, on_upload_progress=vprogress,
@@ -2287,6 +2295,7 @@ class MainFrame(wx.Frame):
                     self.project_store.persist_video_file(
                         self._pending_local_video)
                     self._pending_local_video = ""
+                self._finish_cast(loop, pairs, transcript, cast_out.get("cast"))
                 self._save_descriptions_and_finish(
                     desc_objects, loop, None)
                 return
@@ -3354,6 +3363,40 @@ class MainFrame(wx.Frame):
         if names:
             self.prompt_choice.SetSelection(0)
             self._preview_preset(names[0])
+
+    def _cast_dir(self):
+        cur = self.project_store.current
+        if cur is None:
+            return None
+        try:
+            return self.project_store.project_dir(cur.id)
+        except Exception:
+            return None
+
+    def _load_cast(self) -> list:
+        from ..core.characters import load_cast
+        return load_cast(self._cast_dir())
+
+    def _finish_cast(self, loop, pairs, transcript, cast) -> None:
+        """v2.1.0: save the cast with the project. A provider that split
+        the video already built it part by part; for one that watched it
+        whole (Gemini, MiniMax) one text-only request builds it from the
+        descriptions. Never fails the run: no cast is only a lost extra."""
+        from ..core import characters as ch
+        try:
+            if cast is None and pairs and self.ai_engine.CHARACTERS:
+                spoken = ""
+                if transcript:
+                    from ..core.ai_engine import build_transcript_block
+                    spoken = build_transcript_block(transcript, limit=400)
+                cast = loop.run_until_complete(ch.update_cast(
+                    lambda q: self.ai_engine.ask(q),
+                    self._load_cast(), [txt for _, txt in pairs], spoken))
+            if cast:
+                ch.save_cast(self._cast_dir(), cast)
+                self._ui(self._log, t("cast.saved", count=len(cast)))
+        except Exception as e:
+            logger.info("cast not built: %s", e)
 
     def _transcript_cache_path(self):
         """media/transcript.json of the project being processed (shared

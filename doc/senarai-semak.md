@@ -91,7 +91,7 @@ paling murah/pantas. Catat masa dan kos setiap tahap.
 - [x] 23.6 Tetapan pemilik: model Gemini → 3.1 Flash-Lite, Test agent mode lulus (pilihan pemilik)
 - [x] 23.7a Gate 67 suite x2 berturut GATE_ALL_PASS
 - [x] 23.7b Build 1.9.5 (BUILD_ALL_OK), exe didengar NVDA 10/10, tag v1.9.5, zip 1.9.4 dibuang
-- [ ] 23.8 (cadangan) Ejen: jawapan akhir kosong selepas had giliran, dan pembetulan yang disebut tanpa propose_change
+- [x] 23.8 Ejen: jawapan akhir kosong selepas had giliran, dan pembetulan yang disebut tanpa propose_change — selesai 5 Okt (fasa 29.5)
 
 ## Fasa 24 — kemas dokumen (pemilik 1 Okt 2026)
 
@@ -185,4 +185,20 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
 - [x] 28.3 Keluaran 2.0.2 (5 Okt): gate x2 GATE_ALL_PASS, build BUILD_ALL_OK + sandaran sumber automatik pertama
       (DescriVox-Agent-source-v2.0.2.zip, 195 fail), exe NVDA 14/14; tag v2.0.1 (1baa764) dan v2.0.2.
       Alat NVDA dibetulkan: NVDA tidak lagi sebut "multi line", semakan kotak prompt beri amaran palsu
+
+## Fasa 29 — 2.1.0: Senarai Watak + ejen 23.8 (pemilik 5 Okt 2026)
+
+- [x] 29.1 Peraturan nama dalam setiap prompt video penuh (core/characters.py CHARACTER_RULES): nama yang didengar/tertulis,
+      satu label tetap sebelum nama diketahui, perkenal nama sekali, jangan reka nama
+- [x] 29.2 Senarai watak dibawa ke SETIAP bahagian (GLM): permintaan teks berasingan selepas setiap bahagian (pemikiran
+      dihadkan; gagal = senarai kekal); Gemini/MiniMax: satu permintaan di hujung. Disimpan `characters.json` folder projek —
+      fail yang sama dengan ejen (format lama {nama: huraian} dibaca)
+- [x] 29.3 Player > Watak...: Sunting/beri nama (tukar dalam semua penerangan, tanya dulu), Tambah, Buang; nama pengguna
+      tidak diubah AI (by_user)
+- [x] 29.4 Ukur dulu (tools/cast_bench.py, Tears of Steel + Sintel, GLM + Gemini): kadar nama Gemini/Sintel 1%->99%,
+      GLM/Tears 0%->31%; label kurang; salah (hakim GLM, 480 sampel) 12.5%->14.6% — dalam hingar, tiada salah kerana nama.
+      GLM pusingan 2 gagal: kredit OpenRouter < 1 USD. Pemilik: hidup + suis Settings > AI "Kenal watak dengan nama"
+- [x] 29.5 Ejen 23.8: jawapan "sepatutnya/should say" tanpa propose_change dihantar balik sekali; jawapan akhir kosong
+      diminta semula; masih kosong dengan cadangan -> "N perubahan menunggu" (test_fixes70 5/5)
+- [ ] 29.6 GLM pusingan 2 selepas pemilik tambah kredit; NVDA: Player > Watak..., Settings suis; keluaran 2.1.0
 

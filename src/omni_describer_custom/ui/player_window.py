@@ -437,6 +437,8 @@ class PlayerWindow(wx.Frame):
         action_row = wx.BoxSizer(wx.HORIZONTAL)
 
         self.edit_btn = wx.Button(panel, label=t("editor.title"), name="edit_descriptions")
+        # v2.1.0 (owner): the people in the video, one name each.
+        self.cast_btn = wx.Button(panel, label=t("player.characters"), name="characters")
         self.ask_btn = wx.Button(panel, label=t("player.ask_more"), name="ask_more")
         self.explore_btn = wx.Button(panel, label=t("player.explore"), name="explore")
         self.agent_btn = wx.Button(panel, label=t("player.agent"), name="agent")
@@ -446,6 +448,7 @@ class PlayerWindow(wx.Frame):
             name="speak_desc")
 
         action_row.Add(self.edit_btn, 0, wx.ALL, 5)
+        action_row.Add(self.cast_btn, 0, wx.ALL, 5)
         action_row.Add(self.ask_btn, 0, wx.ALL, 5)
         action_row.Add(self.agent_btn, 0, wx.ALL, 5)
         action_row.Add(self.explore_btn, 0, wx.ALL, 5)
@@ -464,6 +467,7 @@ class PlayerWindow(wx.Frame):
         self.forward_btn.Bind(wx.EVT_BUTTON, self._on_forward)
         self.position_slider.Bind(wx.EVT_SLIDER, self._on_seek)
         self.edit_btn.Bind(wx.EVT_BUTTON, self._on_edit)
+        self.cast_btn.Bind(wx.EVT_BUTTON, self._on_characters)
         self.ask_btn.Bind(wx.EVT_BUTTON, self._on_ask)
         self.explore_btn.Bind(wx.EVT_BUTTON, self._on_explore)
         self.agent_btn.Bind(wx.EVT_BUTTON, lambda e: self.open_agent())
@@ -978,6 +982,7 @@ class PlayerWindow(wx.Frame):
         self._desc_box.SetLabel(t("player.current_desc"))
         self._upcoming_label.SetLabel(t("player.upcoming"))
         self.edit_btn.SetLabel(t("editor.title"))
+        self.cast_btn.SetLabel(t("player.characters"))
         self.ask_btn.SetLabel(t("player.ask_more"))
         self.explore_btn.SetLabel(t("player.explore"))
         self.agent_btn.SetLabel(t("player.agent"))
@@ -1005,6 +1010,17 @@ class PlayerWindow(wx.Frame):
         elif self._audio_backend == "ffplay":
             self._start_ffplay(self._position)
         self._update_desc_display()
+
+    def _on_characters(self, event):
+        """v2.1.0: Characters window; a rename there reaches the display."""
+        from .characters_dialog import CharactersDialog
+        if not self.project or self.store.current is None:
+            return
+        dlg = CharactersDialog(self, self.store,
+                               on_descriptions_changed=self._load_descriptions)
+        dlg.ShowModal()
+        dlg.Destroy()
+        self.cast_btn.SetFocus()
 
     def _on_edit(self, event):
         """Open description editor."""
