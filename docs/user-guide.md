@@ -10,7 +10,6 @@ at each moment, and plays the video in a built-in player that speaks
 the descriptions in sync with playback. Everything works from the
 keyboard and is announced to your screen reader.
 
-Versi Bahasa Melayu: `doc/panduan-pengguna.md`.
 
 ## Installing the exe version (no Python needed)
 
@@ -21,7 +20,7 @@ On a new computer without Python, use the ready-built package:
    each release so builds are easy to tell apart) and unzip it to any
    folder, for example `C:\DescriVox`.
 2. Double-click `DescriVox.exe` inside it. No installation is
-   needed; this guide is also bundled in the `_internal\doc` folder.
+   needed; this guide is also bundled in the `_internal\docs` folder.
 3. Nothing else needs installing. ffmpeg, ffprobe, ffplay and yt-dlp
    are bundled in the app's `_internal\bin` folder. Do not delete it —
    without it YouTube downloads, frame extraction and the video's sound
@@ -392,7 +391,7 @@ Language files you make or correct live in
 update, **Help > Translation Report...** says how many lines of your
 language are still untranslated and saves exactly those, with the
 English text, as `<code>.missing.json` in that folder. Full guide (in
-Malay): `doc/menambah-bahasa.md`.
+Malay): `docs/adding-a-language.md`.
 
 ## Check for Updates (Help menu)
 

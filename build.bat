@@ -28,7 +28,7 @@ if not exist %PY% (echo NO_PYTHON & exit /b 1)
 %PY% -m PyInstaller --noconfirm --clean --onedir --windowed ^
   --name DescriVox ^
   --paths src ^
-  --add-data "doc;doc" ^
+  --add-data "docs;docs" ^
   --add-data "bin;bin" ^
   --add-data "NOTICE.md;." ^
   --add-data "src/omni_describer_custom/i18n/locales;omni_describer_custom/i18n/locales" ^

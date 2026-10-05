@@ -39,7 +39,7 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
     "glm": [
         "z-ai/glm-5.3-flash",
-        # v1.8.5: the best of those that hear (doc/perbandingan-model.md).
+        # v1.8.5: the best of those that hear (docs/model-comparison.md).
         "google/gemini-3.1-flash-lite",
         # v1.8.1: these also HEAR the video (probed 28 Sep 2026).
         "qwen/qwen3.8-omni-flash",

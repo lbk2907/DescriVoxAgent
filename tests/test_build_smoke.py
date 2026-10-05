@@ -32,7 +32,7 @@ def main() -> None:
         fail(f"exe missing: {EXE}")
     print("SMOKE_EXE_OK", flush=True)
 
-    guide = INTERNAL / "doc" / "panduan-pengguna.md"
+    guide = INTERNAL / "docs" / "user-guide.md"
     if not guide.exists():
         fail(f"bundled doc missing: {guide}")
     print("SMOKE_DOCS_OK", flush=True)

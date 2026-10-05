@@ -186,7 +186,7 @@ def test_compressed_upload_keeps_sound_only_for_a_model_that_hears():
 
 
 def test_recommended_models_come_first_and_say_so():
-    """v1.8.5: measured (doc/perbandingan-model.md). The old order put
+    """v1.8.5: measured (docs/model-comparison.md). The old order put
     the two worst models of seven at the top of the list."""
     from omni_describer_custom.i18n.strings import t
     from omni_describer_custom.ui.settings_dialog import SettingsDialog

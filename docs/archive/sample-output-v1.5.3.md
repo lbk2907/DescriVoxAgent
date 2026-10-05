@@ -1,24 +1,15 @@
-# Contoh output sebenar v1.5.3 (bukti real test) / Real output example v1.5.3 (real-test evidence)
+# Real output example v1.5.3 (real-test evidence)
 
-**BM:** Video: 9.9 minit (project_27), dipecah 3 bahagian (chunk 240
-saat), provider GLM `z-ai/glm-5.3-flash` via OpenRouter, prompt Bahasa
-Melayu. Tarikh ujian: 2026-09-05. 52 cues; timestamp monoton
-00:00 -> 09:25; nama watak konsisten ("Hantu Berserban", "Ocung");
-tiada frasa "starts with / bermula dengan" di tengah video. Bahagian 1
-gagal parse sekali dan berjaya pada retry (mekanisme retry v1.5.0
-terbukti).
+Video: 9.9 minutes (project_27), split into 3 parts (240-second chunks), provider GLM
+`z-ai/glm-5.3-flash` via OpenRouter, Malay prompt. Test date: 2026-09-05. 52 cues;
+timestamps monotonic 00:00 -> 09:25; character names stay consistent ("Hantu Berserban",
+"Ocung"); no "starts with" phrases in the middle of the video. Part 1 failed parsing once
+and succeeded on retry (the v1.5.0 retry mechanism proven).
 
-**EN:** Video: 9.9 minutes (project_27), split into 3 parts (240-second
-chunks), provider GLM `z-ai/glm-5.3-flash` via OpenRouter, Malay
-prompt. Test date: 2026-09-05. 52 cues; timestamps monotonic
-00:00 -> 09:25; character names stay consistent ("Hantu Berserban",
-"Ocung"); no "starts with" phrases in the middle of the video. Part 1
-failed parsing once and succeeded on retry (the v1.5.0 retry mechanism
-proven). The 52 cues below are quoted exactly as the AI produced them
-(Malay prompt, Malay output) — they are the raw evidence and are
-intentionally not translated.
+The 52 cues below are quoted exactly as the AI produced them (Malay prompt, Malay output).
+They are the raw evidence of a Malay run, so they are intentionally NOT translated.
 
-Output penuh / Full output (52 cues):
+Full output (52 cues):
 
 [00:00] Kawasan perkuburan kartun pada waktu malam dengan bulan purnama di langit. Terdapat dua buah katil kayu gantung yang tergantung pada dahan pokok dan paparan teks "REAL AKUN" berserta alamat media sosial "indonesiaonechannel" dipaparkan di tengah skrin.
 [00:15] Hantu Berserban muncul dari sebalik batu nisan bertulis "OCANG" sambil teks besar "INDONESIA ONE CHANNEL" dipaparkan di skrin.

@@ -1,0 +1,89 @@
+name: Bug report
+description: Something does not work, or is not announced by the screen reader.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting. Please do not paste API keys anywhere in this form.
+        Security problems go to the Security tab instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: DescriVox Agent version
+      description: Help > About, or the zip name (for example 2.1.0).
+      placeholder: "2.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: How do you run it?
+      options:
+        - The exe (DescriVox.exe from the zip)
+        - From source (run.bat)
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 23H2"
+  - type: input
+    id: screen-reader
+    attributes:
+      label: Screen reader and version
+      description: For example NVDA 2026.2, JAWS 2026, Narrator, or none.
+      placeholder: "NVDA 2026.2"
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider
+      options:
+        - OpenRouter
+        - Gemini
+        - MiniMax
+        - OpenAI
+        - Custom
+        - Not related to the AI
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you heard or saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The keys you pressed and the windows you were in, one step per line.
+      placeholder: |
+        1. Open the Player
+        2. Press Tab until "Video picture"
+        3. Press Up
+    validations:
+      required: true
+  - type: textarea
+    id: speech
+    attributes:
+      label: What the screen reader said (if relevant)
+      description: Exact words help most. NVDA's speech viewer can copy them.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines
+      description: |
+        From %LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log, around the time it happened.
+        Check that no API key is in what you paste.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I am on the latest version.
+          required: true
+        - label: I removed any API keys and personal data from this report.
+          required: true

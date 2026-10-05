@@ -1,6 +1,6 @@
 """Regression round 50: frame mode stops describing every frame (v1.8.6).
 
-Measured in phase 16.2 (doc/perbandingan-model.md): frame mode, the
+Measured in phase 16.2 (docs/model-comparison.md): frame mode, the
 default for new users, saved every frame that survived deduplication
 as its own one-second description — 147-204 descriptions a MINUTE on
 Sintel, AWANI news and Tears of Steel, two or three a second, with

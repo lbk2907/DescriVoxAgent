@@ -2,6 +2,15 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## Unreleased
+
+- **Documentation to GitHub standard, all in English.** `doc/` is now `docs/` with English
+  file names (`checklist.md`, `model-comparison.md`, `adding-a-language.md`, `archive/`);
+  every document was translated to English and the Malay user guide removed. New:
+  `SECURITY.md`, issue templates (bug report, feature request) and a pull request template.
+  The README gained badges, contents, requirements and a quick start. The app's interface
+  is unchanged and stays in English and Malay.
+
 ## What's new in v2.1.0
 
 - **One name for every person.** Before, the same person could be "a
@@ -40,7 +49,7 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
 - **Accessibility fix:** queued speech that fails now falls back to the
   focus-announcement path, so a screen reader never misses a message.
 - **Diagrams:** UML package + module views (PlantUML sources) live in
-  `doc/diagrams/`; rendered PNGs stay out of the source zip.
+  `docs/diagrams/`; rendered PNGs stay out of the source zip.
 - Setup files, API keys and projects are untouched — this is a
   developer-facing release.
 
@@ -249,7 +258,7 @@ Player, and remembers character names for the project.
 ## What's new in v1.8.6
 
 **Found by measuring accuracy across genres and long videos**
-(`doc/perbandingan-model.md`, phase 16.2).
+(`docs/model-comparison.md`, phase 16.2).
 
 - **Long videos are described twice as accurately.** Full-video mode now
   sends 5-minute parts instead of 10-minute ones. Measured on two films:
@@ -282,7 +291,7 @@ Player, and remembers character names for the project.
 ## What's new in v1.8.5
 
 **Found by comparing seven video models on five different clips**
-(`doc/perbandingan-model.md`).
+(`docs/model-comparison.md`).
 
 - **Speech in cartoons and dialogue was sometimes thrown away.** A
   character repeating a sound ("Bra, bra, bra") made the transcriber's
@@ -390,7 +399,7 @@ Player, and remembers character names for the project.
   shows. A test now fails if English is written into the UI again or a
   string stops being used.
 
-Guide: `doc/menambah-bahasa.md`.
+Guide: `docs/adding-a-language.md`.
 
 ## What's new in v1.7.9
 
@@ -955,7 +964,7 @@ and all three failed silently.
   (in its own language, since NVDA reads it aloud), the language name
   the AI is told to write in, and a default TTS voice — so the Settings
   pickers build themselves from whatever files are present.
-  See [doc/menambah-bahasa.md](doc/menambah-bahasa.md).
+  See [docs/adding-a-language.md](docs/adding-a-language.md).
 - **The seven prompt presets stay in English on purpose.** The engine
   appends "write every description in <language>", so a new language
   does not mean translating seven long audio-description prompts.
@@ -1150,7 +1159,7 @@ since apparent age is ordinary description vocabulary.
   no longer cut off or empty.
 - **Security hardening**: Gemini API key removed from URLs, yt-dlp URL
   scheme validation, temp-file leaks closed, clearer HTTP errors.
-- Full audit fix pass — see `doc/arkib/rumusan-v1.5.4.md` for the complete
+- Full audit fix pass — see `docs/archive/summary-v1.5.4.md` for the complete
   bilingual rumusan. Gate: 28/28 suites PASS.
 
 ## What's new in v1.5.3

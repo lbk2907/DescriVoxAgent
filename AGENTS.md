@@ -2,7 +2,7 @@
 
 Rules for every coding agent working in this repository (Claude Code, Codex,
 Gemini CLI, Cursor, jcode, Hermes, and others). Read this file before making
-any change. Detailed lessons live in `doc/pitfalls.md`; this file is the index.
+any change. Detailed lessons live in `docs/pitfalls.md`; this file is the index.
 
 ## 1. What this project is
 
@@ -76,8 +76,8 @@ How work is actually done here, step by step.
 
 1. **Understand and ask.** Restate the request, propose a plan, ask the
    decisions (choices, recommended first).
-2. **Write it down.** Plan into `doc/plan.md`; checklist items into
-   `doc/senarai-semak.md`. Tick `[x]` only with evidence written next to it.
+2. **Write it down.** Plan into `docs/plan.md`; checklist items into
+   `docs/checklist.md`. Tick `[x]` only with evidence written next to it.
 3. **Measure first** for any accuracy, model, prompt or cost question:
    - `tools/model_bench.py run` / `measure` (with a judge that is NOT the model
      being judged), also `review`, `snap`, `@think<level>` variants;
@@ -85,7 +85,7 @@ How work is actually done here, step by step.
    - `tools/whisper_bench.py` for transcription (use genuinely different
      videos, pitfall 44).
    Keep a change only if the numbers improve. Record numbers and method in
-   `doc/perbandingan-model.md`.
+   `docs/model-comparison.md`.
 4. **Implement** in the surrounding style (worker threads touch the UI only via
    `wx.CallAfter`; external programs only via `core/tools.find_tool()`; project
    paths only via `ProjectStore`; new temp prefixes `odc_*` registered in
@@ -101,9 +101,9 @@ How work is actually done here, step by step.
    `tools/nvda_agent_check.py <video> [--check-all]`, `tools/nvda_progress_check.py`
    (the progress bar's percentages are heard). Without NVDA and its HTTP
    bridge (127.0.0.1:19281) these exit 2, which means "not verified".
-8. **Docs.** User guides (`doc/panduan-pengguna.md` Malay, `doc/user-guide.md`
-   English), a new pitfall at the end of `doc/pitfalls.md`, the checklist, the
-   plan.
+8. **Docs.** Every document is in English (owner, 5 Oct 2026): the user guide
+   `docs/user-guide.md`, a new pitfall at the end of `docs/pitfalls.md`, the
+   checklist, the plan. Talk to the owner in Malay; write the repository in English.
 9. **Release.**
    - Bump `__version__`; add "What's new" to `README.md` (keep the newest 3)
      and to `CHANGELOG.md`; update section 9 of this file.
@@ -225,20 +225,24 @@ python tools\whisper_bench.py
 |---|---|
 | `README.md` | What the app does, newest 3 "What's new", install, build |
 | `CHANGELOG.md` | Every release |
-| `doc/plan.md` | All plans (bilingual) |
-| `doc/senarai-semak.md` | Live checklist and open work. Never write "no open bugs" anywhere else. |
-| `doc/pitfalls.md` | The numbered pitfalls (full text) |
-| `doc/developer-guide.md` | Developer orientation, isolation variables, rules easy to break |
-| `doc/perbandingan-model.md` | Model measurements, methods, decisions |
-| `doc/panduan-pengguna.md` | User guide (Malay), shipped with the app |
-| `doc/user-guide.md` | User guide (English), shipped with the app |
-| `doc/menambah-bahasa.md` | How to add a UI language |
+| `docs/plan.md` | All plans |
+| `docs/checklist.md` | Live checklist and open work. Never write "no open bugs" anywhere else. |
+| `docs/pitfalls.md` | The numbered pitfalls (full text) |
+| `docs/developer-guide.md` | Developer orientation, isolation variables, rules easy to break |
+| `docs/model-comparison.md` | Model measurements, methods, decisions |
+| `docs/user-guide.md` | The user guide, shipped with the app (`_internal\docs`) |
+| `docs/adding-a-language.md` | How to add a UI language |
 | `NOTICE.md` | Third-party licences (ffmpeg GPL obligations) |
-| `doc/arkib/` | History: old summaries, checklist phases 1–18 |
+| `docs/archive/` | History: old summaries, checklist phases 1–18 |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | GitHub community files (setup, private security reports, conduct) |
+| `.github/` | CI (light), issue templates, pull request template |
+
+Every document is in English (owner's decision, 5 Oct 2026); `doc/` was renamed
+`docs/` with English file names, and the Malay user guide was removed.
 
 ## 8. Pitfalls by area
 
-Full text: `doc/pitfalls.md`. **Pitfall numbers are referenced from code
+Full text: `docs/pitfalls.md`. **Pitfall numbers are referenced from code
 comments: never renumber; add new ones at the end (next is 100).** (57b is a
 historical double number, kept.) A pitfall may appear in more than one row.
 
@@ -268,12 +272,12 @@ historical double number, kept.) A pitfall may appear in more than one row.
   OpenAI-compatible. `model_catalog.RECOMMENDED` = GLM 5.3 Flash, Gemini 3.1
   Flash-Lite; change only with new `model_bench.py` measurements.
 - **Player agent** works with OpenRouter and Gemini (`AGENT_PROVIDERS`).
-- **Open work:** `doc/senarai-semak.md` is the only source.
+- **Open work:** `docs/checklist.md` is the only source.
 - **Remote:** `origin` = https://github.com/lbk2907/DescriVoxAgent (public).
 - **Backup:** `.git/hooks/post-commit` also bundles the
   whole history to `~/OneDrive/backups/omni-describer-custom.bundle` after
   every commit. The hook is not in git; recreate it after a fresh clone.
   Restore with `git clone <bundle> <dir>`.
-- **Code graph:** UML package + module views are in `doc/diagrams/`
+- **Code graph:** UML package + module views are in `docs/diagrams/`
   (PlantUML sources; regenerate with `omh codegraph uml`).
  

@@ -1,123 +1,166 @@
 # DescriVox Agent
 
-*Formerly **Omni Describer Custom** (renamed in v2.0.0). Settings,
-keys and projects keep their old folders (`%APPDATA%\OmniDescriber`,
-`Documents\OmniDescriber`), so nothing is lost or moved.*
+[![CI (light)](https://github.com/lbk2907/DescriVoxAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/lbk2907/DescriVoxAgent/actions/workflows/ci.yml)
+[![Latest tag](https://img.shields.io/github/v/tag/lbk2907/DescriVoxAgent?label=version)](https://github.com/lbk2907/DescriVoxAgent/tags)
+[![Licence: GPL-3.0-only](https://img.shields.io/badge/licence-GPL--3.0--only-blue.svg)](LICENSE)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
+![Screen reader: NVDA first](https://img.shields.io/badge/screen%20reader-NVDA%20first-green.svg)
 
-An accessible audio-description tool for blind and visually impaired
-users, built around NVDA. It downloads or opens a video, has an AI
-describe what is SEEN at each moment, and plays the video with the
-descriptions spoken in sync. Everything is operated by keyboard and
-announced to the screen reader; the interface is in English and Malay.
+**AI audio description for blind and visually impaired people.** DescriVox Agent downloads
+or opens a video, has an AI describe what is SEEN at each moment, and plays the video with
+the descriptions spoken in sync. Everything is operated by keyboard and announced to the
+screen reader; the interface is in English and Malay.
 
-- **Send the whole video to the AI** (default; Settings > AI): the AI
-  watches the video in parts (5 minutes each) and places its own
-  descriptions, given a transcript of the speech so it uses the gaps
-  instead of describing what you can already hear. Optionally each
-  description is then checked against the frames around it (Settings >
-  General, Off by default).
-- **Still pictures** (the box unticked): frames are extracted locally
-  and described one by one, at most one description every 4 seconds;
-  exact timing, suited to slides and screen recordings.
-- **The Player agent (F2)**: ask about what you are watching; it looks
-  at the video and proposes fixes that you accept or reject. **Check
-  the whole video** goes through every description and gives one list
-  of proposals.
-- **Projects, import and export**: every job is saved as a project;
-  descriptions can be imported from SRT, WebVTT or timed text, and
-  exported to SRT or WebVTT, or as one spoken audio file. A video that
-  already has descriptions plays at once, with no AI pass.
+*Formerly **Omni Describer Custom** (renamed in v2.0.0). Settings, keys and projects keep
+their old folders (`%APPDATA%\OmniDescriber`, `Documents\OmniDescriber`), so nothing is lost
+or moved.*
 
-Providers: **OpenRouter** (GLM 5.3 Flash by default; any video-capable
-model, listed with Fetch models), **Gemini** with your own key (Fetch
-models works here too), MiniMax, OpenAI (still pictures) and any
-OpenAI-compatible endpoint (Custom). **Test this model** checks any
-provider's key and model with a real clip; **Test agent mode** unlocks
-F2 for OpenRouter and Gemini models.
+## Contents
 
-## Documentation
+- [Features](#features)
+- [Accessibility](#accessibility)
+- [Requirements](#requirements)
+- [Installing](#installing)
+- [Quick start](#quick-start)
+- [Documentation](#documentation)
+- [What's new](#whats-new-in-v210)
+- [Standalone video describer (CLI + HTTP API)](#standalone-video-describer-cli--http-api)
+- [Building from source](#building-from-source)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Licence](#licence)
 
-- [User guide (English)](doc/user-guide.md) and
-  [Panduan pengguna (Melayu)](doc/panduan-pengguna.md) — also shipped
-  inside the app folder (`_internal\doc`).
-- [Developer guide](doc/developer-guide.md) and [AGENTS.md](AGENTS.md)
-  (hard rules); the numbered pitfalls are in
-  [doc/pitfalls.md](doc/pitfalls.md) and are required reading.
-- [Plans](doc/plan.md) and the open checklist
-  [doc/senarai-semak.md](doc/senarai-semak.md).
-- What changed in each release: [CHANGELOG.md](CHANGELOG.md).
-- Model measurements: [doc/perbandingan-model.md](doc/perbandingan-model.md).
-- Adding a language: [doc/menambah-bahasa.md](doc/menambah-bahasa.md).
+## Features
 
-Version numbers: the last digit stops at 9, so 1.6.9 is followed by
-1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
+- **Send the whole video to the AI** (default; Settings > AI): the AI watches the video in
+  parts (5 minutes each) and places its own descriptions, given a transcript of the speech
+  so it uses the gaps instead of describing what you can already hear. Optionally each
+  description is then checked against the frames around it (Settings > General, Off by
+  default).
+- **Still pictures** (the box unticked): frames are extracted locally and described one by
+  one, at most one description every 4 seconds; exact timing, suited to slides and screen
+  recordings.
+- **One name for every person:** names heard in the dialogue or shown on screen are used
+  from start to end; **Player > Characters...** gives someone a real name in every
+  description at once.
+- **The Player agent (F2):** ask about what you are watching; it looks at the video and
+  proposes fixes that you accept or reject. **Check the whole video** goes through every
+  description and gives one list of proposals. Nothing changes without your approval, and
+  every batch can be undone.
+- **Projects, import and export:** every job is saved as a project; descriptions can be
+  imported from SRT, WebVTT or timed text, and exported to SRT or WebVTT, or as one spoken
+  audio file. A video that already has descriptions plays at once, with no AI pass.
+- **Providers:** **OpenRouter** (GLM 5.3 Flash by default; any video-capable model, listed
+  with Fetch models), **Gemini** with your own key (Fetch models works here too), MiniMax,
+  OpenAI (still pictures) and any OpenAI-compatible endpoint (Custom). **Test this model**
+  checks any provider's key and model with a real clip; **Test agent mode** unlocks F2 for
+  OpenRouter and Gemini models.
 
-## What's new in v2.1.0
+## Accessibility
 
-- **One name for every person.** Before, the same person could be "a
-  man", then "the man in red", then "he", and names heard in the
-  dialogue were not used. Now the AI uses a name heard or shown on
-  screen, keeps ONE label until the name is known, and a long video
-  carries the list of people from part to part. Measured on two films
-  first: with Gemini on Sintel, 99% of the lines about people use the
-  right name (1% before). Settings > AI > **Recognise characters by
-  name** turns it off.
-- **Player > Characters...** lists the people: give someone a real name
-  and it is put into every description at once ("The man in the grey
-  coat nods" becomes "Encik Rahim nods"). Names you give are never
-  changed by the AI.
-- **The agent (F2) can rename too:** "the man in the grey coat is Encik
-  Rahim" gives ONE proposal for all the descriptions; accept or reject.
-- **The agent no longer leaves you with a fix in words only** - it is
-  asked to make it a proposal - and an empty answer is asked again.
+The main user is blind and uses NVDA, so accessibility is the first requirement, not a
+feature:
 
-## What's new in v2.0.2
+- every control has a name a screen reader can read, and every status change is announced;
+- long jobs show one progress bar with a single percentage that never goes back;
+- the Player's video area has its own keys (Space, arrows, Ctrl and Ctrl+Shift for longer
+  jumps) and F2 works anywhere in the Player;
+- accessibility is verified by **listening** through NVDA with the tools in `tools/`, never
+  only by reading the code.
 
-- **Opening a project opens the Player.** File > Open Project (and
-  opening the existing project when you pick the same video again) used
-  to only write a line in the Status Log. Now, when the project has
-  descriptions, the Player opens with the focus on the video picture; a
-  Player still showing another project is closed first, so two videos
-  never play at once. An empty project still tells you what to do.
-- **"1 description", not "1 descriptions"** in the project list and the
-  ten other English messages that count descriptions.
+## Requirements
 
-## What's new in v2.0.1
-
-- **Contributor-ready:** `pytest tests/` now runs the whole standalone
-  gate (76/76 scripts) through a pytest bridge; CONTRIBUTING.md documents
-  setup, the three equivalent gate commands and the repo conventions.
-- **Accessibility fix:** queued speech that fails now falls back to the
-  focus-announcement path, so a screen reader never misses a message.
-- **Diagrams:** UML package + module views (PlantUML sources) live in
-  `doc/diagrams/`; rendered PNGs stay out of the source zip.
-- Setup files, API keys and projects are untouched — this is a
-  developer-facing release.
+- Windows 10 or 11 (64-bit).
+- A screen reader is recommended (built and tested with NVDA); the app also speaks through
+  SAPI when no screen reader is running.
+- An API key for at least one provider (OpenRouter or Gemini recommended). OpenRouter needs
+  a balance of at least 1 USD for video requests.
+- About 750 MB of disk space for the app folder.
 
 ## Installing
 
-Unzip `DescriVox-Agent-<version>-win64.zip` (about 305 MB) anywhere and
-run `DescriVox.exe`. Nothing else is needed: ffmpeg, ffprobe,
-ffplay and yt-dlp are inside the app folder, and a newer yt-dlp can be
-installed from Help > Check for Updates. An API key is entered in
-File > Settings... > AI Settings; press **Test this model** to check it.
+1. Download `DescriVox-Agent-<version>-win64.zip` (about 305 MB).
+2. Unzip it anywhere and run `DescriVox.exe`. Nothing else is needed: ffmpeg, ffprobe,
+   ffplay and yt-dlp are inside the app folder, and a newer yt-dlp can be installed from
+   **Help > Check for Updates**.
 
-To run from source instead: Python 3.13 on Windows, then
-`python tools\fetch_binaries.py` once (the binaries are not in git and
-are checked against pinned SHA-256 hashes), then `run.bat`. The log is
-`%LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log`.
+The log is `%LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log`.
+
+## Quick start
+
+1. **File > Settings... > AI Settings:** choose a provider, paste your API key, press
+   **Test this model** (Alt+T).
+2. In the main window choose **Local Video File**, **YouTube Video URL** or **Direct Video
+   URL**, pick a prompt preset, and press **Open**.
+3. When the descriptions are ready the **Player** opens: Space plays and pauses, the arrows
+   move through the video, and **F2** opens the agent.
+
+The full walkthrough is in the [user guide](docs/user-guide.md).
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [User guide](docs/user-guide.md) | Every window, setting and shortcut (also shipped inside the app folder) |
+| [Developer guide](docs/developer-guide.md) | Architecture, isolation variables, rules that are easy to break |
+| [AGENTS.md](AGENTS.md) | Hard rules for every contributor and coding agent |
+| [Pitfalls](docs/pitfalls.md) | Numbered lessons from real bugs — required reading |
+| [Plan](docs/plan.md) and [checklist](docs/checklist.md) | Plans, decisions, and open work |
+| [Model comparison](docs/model-comparison.md) | Measurements behind every default |
+| [Adding a language](docs/adding-a-language.md) | Translating the interface |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+
+Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
+were first tagged 1.6.10 and 1.6.11).
+
+## What's new in v2.1.0
+
+- **One name for every person.** Before, the same person could be "a man", then "the man in
+  red", then "he", and names heard in the dialogue were not used. Now the AI uses a name
+  heard or shown on screen, keeps ONE label until the name is known, and a long video
+  carries the list of people from part to part. Measured on two films first: with Gemini on
+  Sintel, 99% of the lines about people use the right name (1% before). Settings > AI >
+  **Recognise characters by name** turns it off.
+- **Player > Characters...** lists the people: give someone a real name and it is put into
+  every description at once ("The man in the grey coat nods" becomes "Encik Rahim nods").
+  Names you give are never changed by the AI.
+- **The agent (F2) can rename too:** "the man in the grey coat is Encik Rahim" gives ONE
+  proposal for all the descriptions; accept or reject.
+- **The agent no longer leaves you with a fix in words only** — it is asked to make it a
+  proposal — and an empty answer is asked again.
+
+## What's new in v2.0.2
+
+- **Opening a project opens the Player.** File > Open Project (and opening the existing
+  project when you pick the same video again) used to only write a line in the Status Log.
+  Now, when the project has descriptions, the Player opens with the focus on the video
+  picture; a Player still showing another project is closed first, so two videos never play
+  at once. An empty project still tells you what to do.
+- **"1 description", not "1 descriptions"** in the project list and the ten other English
+  messages that count descriptions.
+
+## What's new in v2.0.1
+
+- **Contributor-ready:** `pytest tests/` runs the whole standalone gate through a pytest
+  bridge; CONTRIBUTING.md documents setup, the three equivalent gate commands and the repo
+  conventions.
+- **Accessibility fix:** queued speech that fails now falls back to the focus-announcement
+  path, so a screen reader never misses a message.
+- **Diagrams:** UML package + module views (PlantUML sources) live in `docs/diagrams/`;
+  rendered PNGs stay out of the source zip.
+
+Older releases: [CHANGELOG.md](CHANGELOG.md).
 
 ## Standalone video describer (CLI + HTTP API)
 
-`video_describer/` is an independent, headless pipeline that shares no
-code with the GUI. It burns an `H:MM:SS` timestamp (dark box, top-left)
-into every extracted frame, sends ALL frames base64-encoded in ONE
-`glm-5.3-flash` request, trusts the model to READ the on-screen stamps,
-then regex-parses the reply into an SRT and a JSON file named after the
-video, in a folder `<video folder>\<video name>\` (`--out` overrides;
-auto-batches above 150 frames; guards 5 MB / 6000 px per frame). Its
-default endpoint is Zhipu direct (`https://open.bigmodel.cn/api/paas/v4`),
-so `GLM_API_KEY` must be a Zhipu key, not an OpenRouter `sk-or-v1-` key.
+`video_describer/` is an independent, headless pipeline that shares no code with the GUI.
+It burns an `H:MM:SS` timestamp (dark box, top-left) into every extracted frame, sends ALL
+frames base64-encoded in ONE `glm-5.3-flash` request, trusts the model to READ the on-screen
+stamps, then regex-parses the reply into an SRT and a JSON file named after the video, in a
+folder `<video folder>\<video name>\` (`--out` overrides; auto-batches above 150 frames;
+guards 5 MB / 6000 px per frame). Its default endpoint is Zhipu direct
+(`https://open.bigmodel.cn/api/paas/v4`), so `GLM_API_KEY` must be a Zhipu key, not an
+OpenRouter `sk-or-v1-` key.
 
 ```bat
 :: describe a local video (SRT + JSON in <video folder>\<video name>\)
@@ -132,34 +175,46 @@ python -m video_describer serve --port 8765
 ```
 
 Endpoints: `GET /health`, `POST /describe` (JSON body
-`{"video_path": "...", "fps": 1, "tts": false}`),
-`POST /describe/upload?name=v.mp4` (raw video bytes), and
-`POST /parse` (parse only). The API key comes from the request body,
-the `X-API-Key` header, or the `GLM_API_KEY` environment variable.
-TTS narration (`--tts`) uses edge-tts (default `ms-MY-OsmanNeural`)
-or Windows SAPI5 (`--tts-engine sapi`); one audio file per cue lands in
-an `audio\` folder inside the output folder (no combined audio file).
+`{"video_path": "...", "fps": 1, "tts": false}`), `POST /describe/upload?name=v.mp4` (raw
+video bytes), and `POST /parse` (parse only). The API key comes from the request body, the
+`X-API-Key` header, or the `GLM_API_KEY` environment variable. TTS narration (`--tts`) uses
+edge-tts (default `ms-MY-OsmanNeural`) or Windows SAPI5 (`--tts-engine sapi`); one audio file
+per cue lands in an `audio\` folder inside the output folder (no combined audio file).
 
-This standalone tool predates the app's current engine and is not part
-of the test gate; the app itself does not use it.
+This standalone tool predates the app's current engine and is not part of the test gate;
+the app itself does not use it.
 
-## Building
+## Building from source
 
-`build.bat` checks the pinned binaries, compiles, runs PyInstaller,
-smoke-tests the real exe and writes `dist\DescriVox-Agent-<version>-win64.zip`,
-printing `BUILD_ALL_OK`. Before a release: `run_gate.bat` twice
-(`GATE_ALL_PASS`), then listen to the built exe with
-`python tools\nvda_accessibility_check.py --frozen`. See
-`doc/developer-guide.md`.
+Python 3.13 on Windows:
+
+```bat
+git clone https://github.com/lbk2907/DescriVoxAgent
+cd DescriVoxAgent
+py -3.13 -m pip install -e .[dev]
+python tools\fetch_binaries.py
+run.bat
+```
+
+The binaries are not in git; `tools\fetch_binaries.py` downloads them and checks pinned
+SHA-256 hashes. `build.bat` checks the binaries, compiles, runs PyInstaller, smoke-tests the
+real exe, writes `dist\DescriVox-Agent-<version>-win64.zip`, backs up the source code and
+prints `BUILD_ALL_OK`. Before a release: `run_gate.bat` twice (`GATE_ALL_PASS`), then listen
+to the built exe with `python tools\nvda_accessibility_check.py --frozen`. See the
+[developer guide](docs/developer-guide.md).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the test gate and
-conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) (setup, the test
+gate, conventions) and [AGENTS.md](AGENTS.md). Use the issue templates for bug reports and
+feature requests. Everyone is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Please do not report security problems in public issues. See [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-DescriVox Agent is free software under the GNU General Public License
-version 3 (GPL-3.0-only) — see [LICENSE](LICENSE). Bundled third-party
-programs (FFmpeg, VLC, ...) keep their own licences, listed in
-[NOTICE.md](NOTICE.md).
+DescriVox Agent is free software under the GNU General Public License version 3
+(GPL-3.0-only) — see [LICENSE](LICENSE). Bundled third-party programs (FFmpeg, VLC, ...) keep
+their own licences, listed in [NOTICE.md](NOTICE.md).

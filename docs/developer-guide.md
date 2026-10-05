@@ -1,7 +1,7 @@
 # Developer guide — DescriVox Agent
 
 For people and coding agents changing the code. `AGENTS.md` holds the
-hard rules; the numbered pitfalls are in `doc/pitfalls.md`. Read both
+hard rules; the numbered pitfalls are in `docs/pitfalls.md`. Read both
 first. Pitfall numbers are referenced from code comments, so they are
 never renumbered.
 
@@ -24,6 +24,7 @@ src/omni_describer_custom/
                             429 handling
     review.py               "Check descriptions against the video" (v1.8.8)
     agent.py                the Player agent: tools, guards, probe, check_all (v1.9.0)
+    characters.py           one name per person: rules, cast list, rename (v2.1.0)
     model_catalog.py        OpenRouter + Gemini model lists, RECOMMENDED,
                             "Test this model" results
     video_processor.py      download (yt-dlp), frames, transcript (Whisper/Grok)
@@ -42,6 +43,7 @@ src/omni_describer_custom/
     settings_dialog.py      General / AI Settings / Audio Output tabs
     player_window.py        player, narration, F2
     agent_dialog.py         the agent window (F2), "Check the whole video"
+    characters_dialog.py    Player > Characters... (v2.1.0)
     editor_window.py, ask_more_dialog.py, scene_explorer.py,
     update_dialog.py, dialogs.py (Yes/No in the app's language)
   i18n/strings.py           t() and the loader
@@ -49,6 +51,8 @@ src/omni_describer_custom/
 tests/                      one script per regression round; run_gate.bat runs all
 tools/                      measurement, listening checks, E2E drivers, build helpers
 bin/                        bundled binaries (not in git; tools/fetch_binaries.py)
+docs/                       every document (English); shipped inside the exe
+.github/                    CI (light), issue templates, pull request template
 ```
 
 ## Documentation
@@ -56,14 +60,19 @@ bin/                        bundled binaries (not in git; tools/fetch_binaries.p
 | File | What it is |
 |---|---|
 | `AGENTS.md` | Hard rules for anyone changing the code |
-| `doc/pitfalls.md` | The numbered pitfalls (referenced from code comments) |
-| `doc/plan.md` | All plans, in one place (EN + BM) |
-| `doc/senarai-semak.md` | The open checklist — the source for open work |
-| `doc/perbandingan-model.md` | Model measurements and methods |
-| `doc/user-guide.md`, `doc/panduan-pengguna.md` | User guides (EN, BM), shipped with the app |
-| `doc/menambah-bahasa.md` | Adding a language (BM) |
+| `docs/pitfalls.md` | The numbered pitfalls (referenced from code comments) |
+| `docs/plan.md` | All plans, in one place |
+| `docs/checklist.md` | The open checklist — the source for open work |
+| `docs/model-comparison.md` | Model measurements and methods |
+| `docs/user-guide.md` | The user guide, shipped with the app |
+| `docs/adding-a-language.md` | Adding a UI language |
 | `CHANGELOG.md` | Every release |
-| `doc/arkib/` | Archive: finished checklist phases 1-18, v1.5.x summaries |
+| `docs/archive/` | Archive: finished checklist phases 1-18, v1.5.x summaries |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | GitHub community files |
+| `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md` | Forms for issues and pull requests |
+
+All documents are written in English (owner's decision, 5 Oct 2026). The app's
+interface stays in English and Malay.
 
 ## Running and testing
 
@@ -112,9 +121,11 @@ owner's chat program). Ask the owner before any run that types.
   — does more thinking make the Player agent better?
 - `tools/agent_bench.py` — can a model drive the agent's tools at all?
 - `tools/whisper_bench.py` — transcription settings across different videos.
+- `tools/cast_bench.py run|score|judge` — do the character rules and the cast
+  list help (name rate, labels, wrong rate)?
 
 Keep a change only when the numbers improve, measured with a judge other
-than the model being judged. Results and methods: `doc/perbandingan-model.md`.
+than the model being judged. Results and methods: `docs/model-comparison.md`.
 
 ## Rate limits & keys
 
@@ -136,7 +147,7 @@ than the model being judged. Results and methods: `doc/perbandingan-model.md`.
   unused-key test can see them.
 - New widgets need an NVDA name: a StaticText created right before the
   control, or `SetName` on a TextCtrl — never `SetLabel` on a TextCtrl or
-  Choice (pitfall 12 in `doc/pitfalls.md`).
+  Choice (pitfall 12 in `docs/pitfalls.md`).
 - Long work runs on a worker thread; the UI is touched only via
   `wx.CallAfter`. A progress text that changes every second is re-read by
   NVDA every second — write it only when it changes.
@@ -151,8 +162,12 @@ than the model being judged. Results and methods: `doc/perbandingan-model.md`.
 2. Bump `__version__` in `src/omni_describer_custom/__init__.py` (last
    digit stops at 9: 1.6.9 → 1.7.0, never 1.6.10).
 3. Add "What's new" to `README.md` (keep exactly three) and the entry to
-   `CHANGELOG.md`; update the `AGENTS.md` status and `doc/senarai-semak.md`.
-4. `build.bat` in the foreground → `BUILD_ALL_OK`.
+   `CHANGELOG.md`; update the `AGENTS.md` status and `docs/checklist.md`.
+4. `build.bat` in the foreground → `BUILD_ALL_OK`. Its last step backs up the
+   source code (`tools/make_source_zip.py`, committed files only, refused if
+   anything looks like a binary or a key) into
+   `Documents\DescriVox-source-backups\`.
 5. Listen to the frozen exe: `python tools\nvda_accessibility_check.py --frozen`.
-6. Tag `vX.Y.Z` on the release commit.
-7. Keep only the newest zip in `dist/`.
+6. Tag `vX.Y.Z` on the release commit; push `main` and the tag only with the
+   owner's permission.
+7. Keep only the newest zip in `dist/` (ask the owner before deleting).

@@ -36,7 +36,7 @@ CACHE_NAME = "openrouter_models.json"
 
 # Measured best on the app's own engine: 7 models x 5 different clips,
 # every description checked against the frame at its time (29 Sep 2026,
-# doc/perbandingan-model.md). GLM is the default; Gemini 3.1 Flash-Lite
+# docs/model-comparison.md). GLM is the default; Gemini 3.1 Flash-Lite
 # is the best of the models that hear. Listed first and marked in
 # Settings, because the plain "hears first, then cheapest" order put the
 # two WORST at the top: Nemotron (free; 3 of 8 runs failed) and Gemini

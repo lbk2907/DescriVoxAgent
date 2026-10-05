@@ -1,6 +1,6 @@
 """Regression round 55: whole-video requests use temperature 0 (v1.9.1).
 
-Measured (doc/perbandingan-model.md, phase 19.B1): with the server's
+Measured (docs/model-comparison.md, phase 19.B1): with the server's
 default temperature GLM gave 51 correct / 24.2% wrong descriptions and
 wildly different runs (a news clip: 3, 15, 14 descriptions); with
 temperature 0, 83 correct / 16.8% wrong and half the spread.

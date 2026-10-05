@@ -6,7 +6,7 @@ Covers:
 2. Default chunk_seconds is 300 (5 minutes) everywhere. It was 600
    until v1.8.6; measured on two long films, 10-minute parts put
    24.5% / 27.5% of descriptions at the wrong moment, 5-minute
-   parts 12.9% / 11.8% (doc/perbandingan-model.md).
+   parts 12.9% / 11.8% (docs/model-comparison.md).
 3. GLM full-video mode threads part position + previous-part summary
    into every _describe_one_part call (continuity context), and the
    part payload really contains the position/continuity text.

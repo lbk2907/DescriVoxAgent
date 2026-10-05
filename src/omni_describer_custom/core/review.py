@@ -1,6 +1,6 @@
 """Check descriptions against the picture after the AI writes them (v1.8.8).
 
-Measured in phase 16.3 (doc/perbandingan-model.md): in full-video mode
+Measured in phase 16.3 (docs/model-comparison.md): in full-video mode
 most wrong descriptions are the RIGHT event at the WRONG moment. A second
 look — 12 frames from 20 s before to 20 s after each description — finds
 where it really happens, or that it happens nowhere. On two long films,

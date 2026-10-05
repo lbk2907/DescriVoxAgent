@@ -1,8 +1,8 @@
 # CLAUDE.md
 
 Read `AGENTS.md` first — it is the single source of rules for every agent in
-this repo. Pitfalls (full text) are in `doc/pitfalls.md`; open work is in
-`doc/senarai-semak.md`.
+this repo. Pitfalls (full text) are in `docs/pitfalls.md`; open work is in
+`docs/checklist.md`.
 
 The five most critical hard rules (details in AGENTS.md section 3):
 

@@ -233,7 +233,7 @@ class SettingsStore:
             "characters": True,
             # v1.8.7: whole-video mode for new users. Frame mode, the old
             # default, described each frame separately — 147-204 lines a
-            # minute on films (doc/perbandingan-model.md). A mode already
+            # minute on films (docs/model-comparison.md). A mode already
             # saved in settings.json is kept.
             "video_mode": "full",
             "providers": {
@@ -279,7 +279,7 @@ class SettingsStore:
             # v1.8.6: 300, not 600. Measured on two long films with the
             # accuracy ruler: 10-minute parts put 24.5% / 27.5% of the
             # descriptions at the wrong moment, 5-minute parts 12.9% /
-            # 11.8% — and finished sooner (doc/perbandingan-model.md).
+            # 11.8% — and finished sooner (docs/model-comparison.md).
             "chunk_seconds": 300,
             "output_dir": str(Path.home() / "Documents" / "OmniDescriber" / "output"),
             "chunk_long_videos": True,
