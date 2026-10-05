@@ -263,9 +263,9 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.0**, tag `v2.1.0`. Gate: compileall + 81 suites in
-  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.0; build
-  `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 29).
+- **Version 2.1.1**, tag `v2.1.1`. Gate: compileall + 81 suites in
+  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.1; build
+  `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 30).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom

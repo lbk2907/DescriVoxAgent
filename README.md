@@ -23,7 +23,7 @@ or moved.*
 - [Installing](#installing)
 - [Quick start](#quick-start)
 - [Documentation](#documentation)
-- [What's new](#whats-new-in-v210)
+- [What's new](#whats-new-in-v211)
 - [Standalone video describer (CLI + HTTP API)](#standalone-video-describer-cli--http-api)
 - [Building from source](#building-from-source)
 - [Contributing](#contributing)
@@ -113,6 +113,15 @@ The full walkthrough is in the [user guide](docs/user-guide.md).
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.1
+
+- **Documentation to GitHub standard, all in English.** The guide shipped inside the app
+  folder is now in `_internal\docs`. On GitHub: `docs/` with English file names, a
+  security policy (`SECURITY.md`), issue forms for bug reports (with screen-reader fields)
+  and feature requests, and a pull request template. The README has badges, contents,
+  requirements and a quick start. The Malay user guide was removed; the app's interface
+  is unchanged and stays in English and Malay.
+
 ## What's new in v2.1.0
 
 - **One name for every person.** Before, the same person could be "a man", then "the man in
@@ -138,16 +147,6 @@ were first tagged 1.6.10 and 1.6.11).
   at once. An empty project still tells you what to do.
 - **"1 description", not "1 descriptions"** in the project list and the ten other English
   messages that count descriptions.
-
-## What's new in v2.0.1
-
-- **Contributor-ready:** `pytest tests/` runs the whole standalone gate through a pytest
-  bridge; CONTRIBUTING.md documents setup, the three equivalent gate commands and the repo
-  conventions.
-- **Accessibility fix:** queued speech that fails now falls back to the focus-announcement
-  path, so a screen reader never misses a message.
-- **Diagrams:** UML package + module views (PlantUML sources) live in `docs/diagrams/`;
-  rendered PNGs stay out of the source zip.
 
 Older releases: [CHANGELOG.md](CHANGELOG.md).
 

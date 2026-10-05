@@ -2,13 +2,13 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
-## Unreleased
+## What's new in v2.1.1
 
-- **Documentation to GitHub standard, all in English.** `doc/` is now `docs/` with English
-  file names (`checklist.md`, `model-comparison.md`, `adding-a-language.md`, `archive/`);
-  every document was translated to English and the Malay user guide removed. New:
-  `SECURITY.md`, issue templates (bug report, feature request) and a pull request template.
-  The README gained badges, contents, requirements and a quick start. The app's interface
+- **Documentation to GitHub standard, all in English.** The guide shipped inside the app
+  folder is now in `_internal\docs`. On GitHub: `docs/` with English file names, a
+  security policy (`SECURITY.md`), issue forms for bug reports (with screen-reader fields)
+  and feature requests, and a pull request template. The README has badges, contents,
+  requirements and a quick start. The Malay user guide was removed; the app's interface
   is unchanged and stays in English and Malay.
 
 ## What's new in v2.1.0
