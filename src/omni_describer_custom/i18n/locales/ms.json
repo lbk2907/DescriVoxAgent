@@ -499,5 +499,8 @@
   "agent.no_answer_proposals": "Ejen tidak memberi ringkasan, tetapi mencadangkan {count} perubahan: semak sekarang.",
   "agent.no_answer_proposals:one": "Ejen tidak memberi ringkasan, tetapi mencadangkan {count} perubahan: semak sekarang.",
   "settings.characters": "Kenal watak dengan nama",
-  "settings.characters_hint": "Setiap orang diberi satu nama (didengar dalam dialog atau tertulis pada skrin) atau satu label, sama dari awal hingga akhir. Senarai disimpan bersama projek: Player > Watak..."
+  "settings.characters_hint": "Setiap orang diberi satu nama (didengar dalam dialog atau tertulis pada skrin) atau satu label, sama dari awal hingga akhir. Senarai disimpan bersama projek: Player > Watak...",
+  "agent.proposal_rename": "Nama {new}: tukar \"{old}\" dalam {count} penerangan. {reason}",
+  "agent.proposal_rename:one": "Nama {new}: tukar \"{old}\" dalam {count} penerangan. {reason}",
+  "agent.kind_rename": "{n} ditukar nama"
 }

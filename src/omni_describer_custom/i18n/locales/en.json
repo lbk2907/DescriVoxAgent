@@ -499,5 +499,8 @@
   "agent.no_answer_proposals": "The agent gave no summary, but proposed {count} changes: review them now.",
   "agent.no_answer_proposals:one": "The agent gave no summary, but proposed {count} change: review it now.",
   "settings.characters": "Recognise characters by name",
-  "settings.characters_hint": "Each person gets one name (heard in the dialogue or shown on screen) or one label, the same from start to end. The list is kept with the project: Player > Characters..."
+  "settings.characters_hint": "Each person gets one name (heard in the dialogue or shown on screen) or one label, the same from start to end. The list is kept with the project: Player > Characters...",
+  "agent.proposal_rename": "Name {new}: replace \"{old}\" in {count} descriptions. {reason}",
+  "agent.proposal_rename:one": "Name {new}: replace \"{old}\" in {count} description. {reason}",
+  "agent.kind_rename": "{n} renamed"
 }

@@ -1412,6 +1412,23 @@ class PlayerWindow(wx.Frame):
                 target.edited = True
             elif p.action == "remove" and target is not None:
                 remove.add(id(target))
+            elif p.action == "rename" and p.old and p.text:
+                # v2.1.0: one proposal, every description; the name goes
+                # into the cast too, as the person's (never changed by AI).
+                from ..core import characters as ch
+                texts, changed = ch.rename_in_texts([d.text for d in descs],
+                                                    p.old, p.text)
+                if not changed:
+                    continue
+                for d, new_text in zip(descs, texts):
+                    if d.text != new_text:
+                        d.text, d.edited = new_text, True
+                folder = self.store.project_dir(proj.id)
+                cast = [c for c in ch.load_cast(folder)
+                        if c["name"].casefold() not in (p.old.casefold(), p.text.casefold())]
+                look = next((c.get("look", "") for c in ch.load_cast(folder)
+                             if c["name"].casefold() == p.old.casefold()), "")
+                ch.save_cast(folder, [{"name": p.text, "look": look, "by_user": True}] + cast)
             elif p.action == "add" and p.time is not None and p.text:
                 from ..core.timeline_io import WORDS_PER_SECOND_AT_1X
                 words = len(p.text.split())

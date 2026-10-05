@@ -52,6 +52,25 @@ F2 for OpenRouter and Gemini models.
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by
 1.7.0 (1.7.0 and 1.7.1 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.0
+
+- **One name for every person.** Before, the same person could be "a
+  man", then "the man in red", then "he", and names heard in the
+  dialogue were not used. Now the AI uses a name heard or shown on
+  screen, keeps ONE label until the name is known, and a long video
+  carries the list of people from part to part. Measured on two films
+  first: with Gemini on Sintel, 99% of the lines about people use the
+  right name (1% before). Settings > AI > **Recognise characters by
+  name** turns it off.
+- **Player > Characters...** lists the people: give someone a real name
+  and it is put into every description at once ("The man in the grey
+  coat nods" becomes "Encik Rahim nods"). Names you give are never
+  changed by the AI.
+- **The agent (F2) can rename too:** "the man in the grey coat is Encik
+  Rahim" gives ONE proposal for all the descriptions; accept or reject.
+- **The agent no longer leaves you with a fix in words only** - it is
+  asked to make it a proposal - and an empty answer is asked again.
+
 ## What's new in v2.0.2
 
 - **Opening a project opens the Player.** File > Open Project (and
@@ -74,21 +93,6 @@ Version numbers: the last digit stops at 9, so 1.6.9 is followed by
   `doc/diagrams/`; rendered PNGs stay out of the source zip.
 - Setup files, API keys and projects are untouched — this is a
   developer-facing release.
-
-## What's new in v2.0.0
-
-- **New name: DescriVox Agent** (formerly Omni Describer Custom). The
-  app does the same work; the name now says what it is: a voice that
-  describes (Descri + Vox), with an agent that can look at the video
-  and answer you. The window title, the About box, the program file
-  (`DescriVox.exe`) and the download (`DescriVox-Agent-<version>-win64.zip`)
-  carry the new name. Your settings, API keys and projects are kept:
-  their folders keep the old name (`%APPDATA%\OmniDescriber`,
-  `Documents\OmniDescriber`), so nothing has to be moved.
-- **Player keys, checked for real:** in the video picture, Up/Down
-  change the volume and the focus stays put (it used to jump to the
-  status line); Tab and Shift+Tab move on; F2 opens the agent from
-  anywhere in the Player and says why when it cannot.
 
 ## Installing
 

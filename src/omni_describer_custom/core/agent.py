@@ -104,6 +104,8 @@ SYSTEM = (
     "precise word, or a detail one frame cannot confirm is NOT a reason. "
     "Before deciding, look at several moments around it, not a single "
     "frame. Use the character names you have been told (characters). "
+    "When the person gives someone a name, remember it (characters) and "
+    "call propose_rename so every description uses it. "
     "When you are done, answer in one to three short sentences, in "
     "{language}.")
 
@@ -174,6 +176,15 @@ TOOLS: list[dict] = [
          "name": {"type": "string"},
          "description": {"type": "string"}},
          "required": ["action"]}},
+    {"name": "propose_rename",
+     "description": "Propose giving a person a name in EVERY description at "
+                    "once: old = the label or name used now (for example "
+                    "'the man in the grey coat'), new = the name. One "
+                    "proposal; the person approves it.",
+     "parameters": {"type": "object", "properties": {
+         "old": {"type": "string"}, "new": {"type": "string"},
+         "reason": {"type": "string"}},
+         "required": ["old", "new", "reason"]}},
     {"name": "propose_change",
      "description": "Propose a change for the person to approve. action: "
                     "keep, move (index + time), edit (index + text), "
@@ -196,6 +207,7 @@ class Proposal:
     index: int | None = None
     time: float | None = None
     text: str = ""
+    old: str = ""          # "rename" (v2.1.0): the label replaced by text
 
 
 @dataclass
@@ -698,6 +710,8 @@ class Agent:
                                      self._num(args, "time")), None
         if name == "characters":
             return self._characters(args), None
+        if name == "propose_rename":
+            return self._propose_rename(args, reply), None
         if name == "propose_change":
             return self._propose(args, reply), None
         return f"There is no tool called {name}.", None
@@ -757,6 +771,23 @@ class Agent:
             return f"Remembered {name}."
         return ("\n".join(f"{c['name']}: {c.get('look', '')}" for c in cast)
                 or "No characters remembered yet.")
+
+    def _propose_rename(self, args: dict, reply: Reply) -> str:
+        """v2.1.0 (owner): a name for someone, in every description, as ONE
+        proposal. No frames needed: the name comes from the person."""
+        from .characters import rename_in_texts
+        old = str(args.get("old", "")).strip()
+        new = str(args.get("new", "")).strip()[:60]
+        if not old or not new:
+            return "Refused: give both old (the label used now) and new (the name)."
+        _texts, count = rename_in_texts([d for _, d in self.ctx.descriptions], old, new)
+        if not count:
+            return (f"Refused: no description says '{old}'. Use read_descriptions "
+                    "or search_descriptions to find the exact words used.")
+        reply.proposals.append(Proposal(action="rename", old=old, text=new,
+                                        reason=str(args.get("reason", ""))[:300]))
+        self.on_step("proposing", {"action": "rename"})
+        return f"Proposal recorded: '{old}' -> '{new}' in {count} descriptions."
 
     def _propose(self, args: dict, reply: Reply) -> str:
         if not self._looked:

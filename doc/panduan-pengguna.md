@@ -535,6 +535,12 @@ memakainya.
 Nama yang anda beri atau ubah di sini tidak akan diubah atau dibuang
 oleh AI pada larian seterusnya.
 
+Ejen (F2) boleh membuat perkara yang sama: beritahu ia "lelaki berkot
+kelabu itu ialah Encik Rahim" dan ia mencadangkan SATU perubahan, "Nama
+Encik Rahim: tukar "lelaki berkot kelabu" dalam 3 penerangan", yang anda
+terima atau tolak seperti cadangan lain (Buat asal perubahan terakhir
+juga berfungsi).
+
 ## Penjelajah Adegan
 
 (Sejak 1.9.7 video panjang memuatkan kira-kira 600 bingkai, jadi

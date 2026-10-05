@@ -505,6 +505,11 @@ the agent uses it too.
 Names you give or change here are never changed or dropped by the AI on
 a later run.
 
+The agent (F2) can do the same: tell it "the man in the grey coat is Encik
+Rahim" and it proposes ONE change, "Name Encik Rahim: replace "the man in
+the grey coat" in 3 descriptions", which you accept or reject like any
+other (Undo last changes works too).
+
 ## Scene Explorer
 
 (Since 1.9.7 a long video loads about 600 frames, so the explorer is

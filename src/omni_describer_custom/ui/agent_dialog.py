@@ -44,6 +44,11 @@ def describe_proposal(p, descriptions) -> str:
     old = ""
     if p.index is not None and 0 <= p.index < len(descriptions):
         old = descriptions[p.index][1]
+    if p.action == "rename":
+        from ..core.characters import rename_in_texts
+        _texts, count = rename_in_texts([d for _, d in descriptions], p.old, p.text)
+        return t("agent.proposal_rename", old=p.old, new=p.text, count=count,
+                 reason=p.reason)
     when = _clock(p.time if p.time is not None else
                   (descriptions[p.index][0] if old else 0))
     return t(f"agent.proposal_{p.action}", old=old, new=p.text, when=when,

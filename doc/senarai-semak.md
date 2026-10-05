@@ -204,5 +204,9 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       pertama, Down -> orang kedua, Tab -> "Edit / give a name... button Alt+E", Enter -> "Character dialog" + medan nama;
       Settings: "AI Settings tab selected", "Recognise characters by name check box checked". Esc tidak boleh diuji
       dengan kekunci yang dihantar (pitfall 97) — perlu pemilik cuba
-- [ ] 29.7 GLM pusingan 2 selepas pemilik tambah kredit OpenRouter; pemilik cuba Watak... (termasuk Esc); keluaran 2.1.0
+- [x] 29.7 Pemilik cuba Watak... dengan papan kekunci sendiri (tukar nama, soalan N penerangan, Esc): semua berfungsi
+- [x] 29.8 Soalan pemilik "boleh ejen tukar watak?": alat propose_rename — SATU cadangan "Nama X: tukar 'label' dalam N
+      penerangan", terima/tolak/buat asal seperti biasa; nama masuk senarai watak sebagai milik pengguna (test_fixes71 3/3)
+- [ ] 29.9 GLM pusingan 2 selepas pemilik tambah kredit OpenRouter
+- [ ] 29.10 Keluaran 2.1.0 (gate x2, build + sandaran sumber, exe NVDA, tag, push)
 
