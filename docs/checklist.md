@@ -238,5 +238,6 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
       source list). Posted-key run: the flow works, focus ends on the presets, "Project X: video chosen" spoken
       (the dialogs were not heard: the test window opened behind). The owner tried it with their own keyboard
       and NVDA (6 Oct): all fine
-- [ ] 31.4 Release 2.1.2
+- [x] 31.4 Release 2.1.2 (6 Oct): gate x2 GATE_ALL_PASS (82 suites), build BUILD_ALL_OK + backup
+      DescriVox-Agent-source-v2.1.2.zip (206 files), exe NVDA 14/14, tag v2.1.2, push; 2.1.1 zip deleted with permission
 
