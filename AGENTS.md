@@ -162,7 +162,7 @@ src/omni_describer_custom/
     update_dialog.py        Check for Updates
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 81
+tests/                      one script per regression round; run_gate.bat lists 82
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -187,7 +187,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 81 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 82 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -263,9 +263,9 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.1**, tag `v2.1.1`. Gate: compileall + 81 suites in
-  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.1; build
-  `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 30).
+- **Version 2.1.2**, tag `v2.1.2`. Gate: compileall + 82 suites in
+  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.2; build
+  `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 31).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom

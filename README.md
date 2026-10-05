@@ -23,7 +23,7 @@ or moved.*
 - [Installing](#installing)
 - [Quick start](#quick-start)
 - [Documentation](#documentation)
-- [What's new](#whats-new-in-v211)
+- [What's new](#whats-new-in-v212)
 - [Standalone video describer (CLI + HTTP API)](#standalone-video-describer-cli--http-api)
 - [Building from source](#building-from-source)
 - [Contributing](#contributing)
@@ -113,6 +113,13 @@ The full walkthrough is in the [user guide](docs/user-guide.md).
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.2
+
+- **File > New Project is useful now.** It used to make an EMPTY project that nothing used
+  (describing a video made another one) and that stayed in Open Project as "0
+  descriptions". Now it asks for a name, then for the video (local file, YouTube or a
+  direct URL); choose a preset and press Open, and the project gets your name.
+
 ## What's new in v2.1.1
 
 - **Documentation to GitHub standard, all in English.** The guide shipped inside the app
@@ -137,16 +144,6 @@ were first tagged 1.6.10 and 1.6.11).
   proposal for all the descriptions; accept or reject.
 - **The agent no longer leaves you with a fix in words only** — it is asked to make it a
   proposal — and an empty answer is asked again.
-
-## What's new in v2.0.2
-
-- **Opening a project opens the Player.** File > Open Project (and opening the existing
-  project when you pick the same video again) used to only write a line in the Status Log.
-  Now, when the project has descriptions, the Player opens with the focus on the video
-  picture; a Player still showing another project is closed first, so two videos never play
-  at once. An empty project still tells you what to do.
-- **"1 description", not "1 descriptions"** in the project list and the ten other English
-  messages that count descriptions.
 
 Older releases: [CHANGELOG.md](CHANGELOG.md).
 

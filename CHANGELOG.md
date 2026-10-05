@@ -2,7 +2,7 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
-## Unreleased
+## What's new in v2.1.2
 
 - **File > New Project is useful now.** It used to make an EMPTY project that nothing used
   (describing a video made another one) and that stayed in Open Project as "0
