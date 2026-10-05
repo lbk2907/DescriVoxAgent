@@ -2,6 +2,17 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v2.0.2
+
+- **Opening a project opens the Player.** File > Open Project (and
+  opening the existing project when you pick the same video again) used
+  to only write a line in the Status Log. Now, when the project has
+  descriptions, the Player opens with the focus on the video picture; a
+  Player still showing another project is closed first, so two videos
+  never play at once. An empty project still tells you what to do.
+- **"1 description", not "1 descriptions"** in the project list and the
+  ten other English messages that count descriptions.
+
 ## What's new in v2.0.1
 
 - **Contributor-ready:** `pytest tests/` now runs the whole standalone
