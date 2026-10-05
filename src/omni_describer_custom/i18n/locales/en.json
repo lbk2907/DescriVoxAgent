@@ -89,7 +89,6 @@
   "main.log_opening_player": "Opening Player Window...",
   "main.log_preset": "Preset: {name}",
   "main.log_project": "Project: {name}",
-  "main.log_project_created": "Project created: {name}",
   "main.log_project_saved": "Project saved",
   "main.log_selected": "Selected: {path}",
   "main.log_url": "URL: {url}",
@@ -502,5 +501,7 @@
   "settings.characters_hint": "Each person gets one name (heard in the dialogue or shown on screen) or one label, the same from start to end. The list is kept with the project: Player > Characters...",
   "agent.proposal_rename": "Name {new}: replace \"{old}\" in {count} descriptions. {reason}",
   "agent.proposal_rename:one": "Name {new}: replace \"{old}\" in {count} description. {reason}",
-  "agent.kind_rename": "{n} renamed"
+  "agent.kind_rename": "{n} renamed",
+  "project.new_pick_source": "Project {name}: where is the video?",
+  "project.new_ready": "Project {name}: video chosen. Choose a preset and press Open to describe it."
 }

@@ -351,6 +351,18 @@ Every video you process is saved as a **project**: the video, the AI's
 descriptions and the SRT file. Opening a project again does NOT call
 the AI again, which saves time and cost.
 
+A project is created for you when you describe a video, named after the
+video. To choose the name yourself, use **File > New Project...**: type
+a name, then choose where the video is (Local Video File, YouTube Video
+URL or Direct Video URL) and pick it. The app says "Project <name>: video
+chosen" and moves to the preset list; choose a preset and press **Open**,
+and the project is created with your name. Cancelling at any step
+changes nothing. (Before 2.1.2, New Project made an empty project that
+nothing used.)
+
+Also inside each project folder: `characters.json`, the list of people
+(Player > Characters...).
+
 Projects live in `Documents\OmniDescriber\projects`, one folder per
 project, named after it, for example `Sintel (48)`. The number tells
 apart two videos with the same title. Inside: `project.db` (the
@@ -361,8 +373,9 @@ and, after a whole-video job, `transcript.json`, the speech transcript).
 gives the name, how many descriptions it has and the date, for example
 "Sintel — 79 descriptions — 28/09/2026 11:30". Buttons:
 
-- **Open** (Alt+O): load it to play, edit or export. (In 1.7.6 to
-  1.9.5 this crashed; it works again since 1.9.6.)
+- **Open** (Alt+O): load it; if it has descriptions, the Player opens
+  (since 2.0.2). (In 1.7.6 to 1.9.5 this crashed; it works again since
+  1.9.6.)
 - **Rename** (Alt+N): give it a new name; its folder is renamed too. If
   its video is playing at that moment, the folder follows the next time
   the app starts.

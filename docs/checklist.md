@@ -227,3 +227,12 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
       DescriVox-Agent-source-v2.1.1.zip (205 files), exe NVDA 14/14 (first run lost focus at start-up, second clean),
       tag v2.1.1, push; 2.1.0 zip deleted with permission
 
+## Phase 31 — File > New Project (owner 6 Oct 2026: "what is New Project for?")
+
+- [x] 31.1 Found: New Project made an EMPTY project nothing used (describing made another; Import made its own); it
+      stayed in Open Project as "0 descriptions". Owner's choice: make it useful
+- [x] 31.2 Now: name → source (Local / YouTube / Direct URL, the same dialogs as the buttons) → "Project X: video chosen"
+      spoken, focus to the preset list; Open creates the project with that name (`_pending_project_name`, only for that
+      video); a cancel at any step changes nothing (test_fixes72 3/3)
+- [ ] 31.3 Gate; NVDA check of the two dialogs; release
+

@@ -941,15 +941,40 @@ class MainFrame(wx.Frame):
         self.Close()
 
     def _on_new_project(self, event):
+        """v2.1.2 (owner, 6 Oct 2026): New Project made an EMPTY project
+        that nothing used - describing a video made another one, and so
+        did Import - and it stayed in Open Project as "0 descriptions".
+        Now: a name, then the video (the same three sources as the main
+        window's buttons); the project is created with that name when
+        Open starts the work (_ensure_project_for)."""
         name_dlg = wx.TextEntryDialog(self, t("main.project_name"),
                                       t("main.new_project"))
-        if name_dlg.ShowModal() == wx.ID_OK:
-            name = name_dlg.GetValue().strip()
-            if name:
-                self.project_store.create_project(name, "")
-                self._log(t("main.log_project_created", name=name))
-                self.SetStatusText(t("main.log_project", name=name))
+        ok = name_dlg.ShowModal() == wx.ID_OK
+        name = name_dlg.GetValue().strip() if ok else ""
         name_dlg.Destroy()
+        if not name:
+            return
+        choices = [t("main.source_local"), t("main.source_youtube"),
+                   t("main.source_url")]
+        pick = wx.SingleChoiceDialog(self, t("project.new_pick_source", name=name),
+                                     t("main.new_project"), choices)
+        chosen = pick.GetSelection() if pick.ShowModal() == wx.ID_OK else -1
+        pick.Destroy()
+        if chosen < 0:
+            return
+        before = getattr(self, "_current_source", "")
+        self._current_source = ""
+        (self._on_local_file, self._on_youtube_url, self._on_direct_url)[chosen](None)
+        source = getattr(self, "_current_source", "")
+        if not source:
+            self._current_source = before      # cancelled: nothing changes
+            return
+        self._pending_project_name = (source, name)
+        msg = t("project.new_ready", name=name)
+        self._log(msg)
+        self.SetStatusText(t("main.log_project", name=name))
+        self.prompt_choice.SetFocus()
+        wx.CallLater(400, self._speak_progress, msg)
 
     @staticmethod
     def _project_list_label(p: dict) -> str:
@@ -1911,6 +1936,12 @@ class MainFrame(wx.Frame):
             if not owns_it:
                 name = (self._project_display_name(source)
                         if not Path(source).exists() else Path(source).stem)
+                # v2.1.2: the name given in File > New Project, if it was
+                # for this very video.
+                pending = getattr(self, "_pending_project_name", None)
+                if pending and pending[0] == source:
+                    name = pending[1]
+                    self._pending_project_name = None
                 self.project_store.create_project(name, source)
                 current = self.project_store.current
                 self._project_created_by_run = True

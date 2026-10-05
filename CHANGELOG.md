@@ -2,6 +2,13 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## Unreleased
+
+- **File > New Project is useful now.** It used to make an EMPTY project that nothing used
+  (describing a video made another one) and that stayed in Open Project as "0
+  descriptions". Now it asks for a name, then for the video (local file, YouTube or a
+  direct URL); choose a preset and press Open, and the project gets your name.
+
 ## What's new in v2.1.1
 
 - **Documentation to GitHub standard, all in English.** The guide shipped inside the app

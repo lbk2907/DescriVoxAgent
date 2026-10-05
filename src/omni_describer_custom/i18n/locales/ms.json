@@ -89,7 +89,6 @@
   "main.log_opening_player": "Membuka Tetingkap Pemain...",
   "main.log_preset": "Preset: {name}",
   "main.log_project": "Projek: {name}",
-  "main.log_project_created": "Projek dicipta: {name}",
   "main.log_project_saved": "Projek disimpan",
   "main.log_selected": "Dipilih: {path}",
   "main.log_url": "URL: {url}",
@@ -502,5 +501,7 @@
   "settings.characters_hint": "Setiap orang diberi satu nama (didengar dalam dialog atau tertulis pada skrin) atau satu label, sama dari awal hingga akhir. Senarai disimpan bersama projek: Player > Watak...",
   "agent.proposal_rename": "Nama {new}: tukar \"{old}\" dalam {count} penerangan. {reason}",
   "agent.proposal_rename:one": "Nama {new}: tukar \"{old}\" dalam {count} penerangan. {reason}",
-  "agent.kind_rename": "{n} ditukar nama"
+  "agent.kind_rename": "{n} ditukar nama",
+  "project.new_pick_source": "Projek {name}: di mana videonya?",
+  "project.new_ready": "Projek {name}: video dipilih. Pilih preset dan tekan Buka untuk menerangkannya."
 }

@@ -227,13 +227,37 @@ def test_cancelled_dialog_leaves_source_untouched():
 # ── Project handlers ─────────────────────────────────────────────
 
 def test_new_project_creates_it():
+    """v2.1.2 (owner): New Project no longer makes an EMPTY project; it
+    asks for the video too, and the project gets the name when the work
+    starts (test_fixes72 covers the whole flow)."""
     f = _frame()
+
+    class PickLocal:
+        def __init__(self, *a, **k):
+            pass
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def GetSelection(self):
+            return 0
+
+        def Destroy(self):
+            pass
+
+    real_choice = wx.SingleChoiceDialog
+    wx.SingleChoiceDialog = PickLocal
     try:
-        with stub_modals(text="My New Project"):
+        with stub_modals(text="My New Project", path=str(Path(tempfile.gettempdir()) / "nv.mp4")):
             f._on_new_project(None)
+        assert f.project_store.list_projects() == [], "an empty project was made"
+        source, name = f._pending_project_name
+        assert name == "My New Project", name
+        f._ensure_project_for(source)
         names = [p["name"] for p in f.project_store.list_projects()]
         assert "My New Project" in names, names
     finally:
+        wx.SingleChoiceDialog = real_choice
         _close(f)
 
 
