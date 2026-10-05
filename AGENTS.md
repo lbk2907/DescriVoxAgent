@@ -106,7 +106,14 @@ How work is actually done here, step by step.
    checklist, the plan. Talk to the owner in Malay; write the repository in English.
 9. **Release.**
    - Bump `__version__`; add "What's new" to `README.md` (keep the newest 3)
-     and to `CHANGELOG.md`; update section 9 of this file.
+     and to `CHANGELOG.md`; update section 9 of this file; add the phase to
+     the table in `docs/plan.md` and move "the next one is Phase N".
+   - Every change, not only a release: update every document it touches in
+     the SAME commit (user guide, checklist, plan, CHANGELOG "Unreleased").
+     `tools/check_docs.py` enforces the release part: it fails the gate
+     (test_fixes73) and stops `build.bat` when a document is behind the
+     version or the checklist, or a link is broken (owner, 6 Oct 2026: "do
+     all of this automatically").
    - `run_gate.bat` twice in a row → `GATE_ALL_PASS`.
    - `build.bat` in the foreground or watched → `BUILD_ALL_OK`.
    - Listen to the frozen exe: `tools/nvda_accessibility_check.py --frozen`.
@@ -162,7 +169,7 @@ src/omni_describer_custom/
     update_dialog.py        Check for Updates
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 82
+tests/                      one script per regression round; run_gate.bat lists 83
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -187,7 +194,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 82 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 83 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -263,7 +270,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.2**, tag `v2.1.2`. Gate: compileall + 82 suites in
+- **Version 2.1.2**, tag `v2.1.2`. Gate: compileall + 83 suites in
   `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.2; build
   `BUILD_ALL_OK` (+ source backup); frozen exe heard by NVDA (checklist phase 31).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);

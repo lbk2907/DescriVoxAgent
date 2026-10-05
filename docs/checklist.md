@@ -241,3 +241,10 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
 - [x] 31.4 Release 2.1.2 (6 Oct): gate x2 GATE_ALL_PASS (82 suites), build BUILD_ALL_OK + backup
       DescriVox-Agent-source-v2.1.2.zip (206 files), exe NVDA 14/14, tag v2.1.2, push; 2.1.1 zip deleted with permission
 
+## Phase 32 — documents updated automatically (owner 6 Oct 2026: "next time do all of this automatically")
+
+- [x] 32.1 `tools/check_docs.py`: CHANGELOG/README/AGENTS follow `__version__`; README keeps 3 "What's new"; the plan
+      has the release row, every checklist phase, and the right "next phase"; no broken relative links
+- [x] 32.2 In the gate (test_fixes73 5/5 — it catches the real 2.1.2 miss from git history) and first in `build.bat`;
+      AGENTS release rule + developer guide updated
+

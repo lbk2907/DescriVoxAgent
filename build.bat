@@ -7,6 +7,11 @@ setlocal
 cd /d "C:\Users\USER\Documents\omni-describer-custom"
 set PY=C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe
 
+:: Owner, 6 Oct 2026: never build a release with documents left behind
+:: (version, CHANGELOG, README, AGENTS, plan, checklist, links).
+%PY% tools\check_docs.py
+if errorlevel 1 (echo DOCS_FAIL & exit /b 1)
+
 echo === [1/6] external binaries ===
 :: ffmpeg/ffprobe/ffplay/yt-dlp are shipped inside the bundle (v1.6.5).
 :: They are ~217 MB so they are not in git; this fetches them into bin\

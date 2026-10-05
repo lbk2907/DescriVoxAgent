@@ -162,7 +162,9 @@ than the model being judged. Results and methods: `docs/model-comparison.md`.
 2. Bump `__version__` in `src/omni_describer_custom/__init__.py` (last
    digit stops at 9: 1.6.9 → 1.7.0, never 1.6.10).
 3. Add "What's new" to `README.md` (keep exactly three) and the entry to
-   `CHANGELOG.md`; update the `AGENTS.md` status and `docs/checklist.md`.
+   `CHANGELOG.md`; update the `AGENTS.md` status, `docs/checklist.md` and the
+   phase table in `docs/plan.md`. `python tools/check_docs.py` must print
+   `DOCS_OK` — the gate (test_fixes73) and `build.bat` run it too.
 4. `build.bat` in the foreground → `BUILD_ALL_OK`. Its last step backs up the
    source code (`tools/make_source_zip.py`, committed files only, refused if
    anything looks like a binary or a key) into

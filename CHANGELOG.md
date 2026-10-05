@@ -2,6 +2,12 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## Unreleased
+
+- **Documents can no longer fall behind a release.** `tools/check_docs.py` checks that the
+  CHANGELOG, README, AGENTS.md and the plan match the version and the checklist, and that
+  no link is broken; the test gate and `build.bat` stop when they do not.
+
 ## What's new in v2.1.2
 
 - **File > New Project is useful now.** It used to make an EMPTY project that nothing used
