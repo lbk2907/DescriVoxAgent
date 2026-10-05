@@ -223,5 +223,7 @@ Sources: the owner's log (omni_describer.log, 1–2 Oct) + an independent review
       docs, AGENTS, CLAUDE, CHANGELOG, code comments, tests; build.bat/DescriVox.spec bundle `docs`; the smoke test checks
       `docs/user-guide.md`
 - [x] 30.3 Gate GATE_ALL_PASS (5 Oct); 0 broken relative links in the documents; pushed. The next build ships `_internal\docs`
-- [ ] 30.4 Release 2.1.1 (owner's choice): gate x2, build (ships `_internal\docs`), exe NVDA, tag, push
+- [x] 30.4 Release 2.1.1 (6 Oct): gate x2 GATE_ALL_PASS, build BUILD_ALL_OK (ships `_internal\docs`) + backup
+      DescriVox-Agent-source-v2.1.1.zip (205 files), exe NVDA 14/14 (first run lost focus at start-up, second clean),
+      tag v2.1.1, push; 2.1.0 zip deleted with permission
 
