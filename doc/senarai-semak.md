@@ -182,5 +182,7 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       fokus pada Video picture; tajuk utama dibaca "Descri Vox Agent" (sahkan 27.3)
 - [x] 28.4 "1 descriptions" -> "1 description" (11 ayat EN; BM sudah betul): `I18n.t()` guna `<kunci>:one` bila count = 1
       (pitfall 98; test_fixes68 4/4, test_fixes43 7/7); panduan penterjemah dikemas kini
-- [ ] 28.3 Keluaran 2.0.2 (gate x2, build, exe NVDA, tag); v2.0.1 belum bertag
+- [x] 28.3 Keluaran 2.0.2 (5 Okt): gate x2 GATE_ALL_PASS, build BUILD_ALL_OK + sandaran sumber automatik pertama
+      (DescriVox-Agent-source-v2.0.2.zip, 195 fail), exe NVDA 14/14; tag v2.0.1 (1baa764) dan v2.0.2.
+      Alat NVDA dibetulkan: NVDA tidak lagi sebut "multi line", semakan kotak prompt beri amaran palsu
 

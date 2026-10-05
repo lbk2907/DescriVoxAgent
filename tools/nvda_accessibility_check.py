@@ -178,10 +178,23 @@ def _check_pitfall_12(seen: list[dict]) -> list[str]:
     else:
         said = " ".join(prompt["spoken"])
         label = prompt["name"].rstrip(":").strip()
-        body = said.split("multi line", 1)[-1].strip()
+        # NVDA reads "<name>: edit [multi line] <text>". The words between
+        # depend on NVDA's verbosity settings: on 5 Oct 2026 "multi line"
+        # was no longer said and the old split on it read the NAME as the
+        # text, a false "contains its own label". Strip the name and the
+        # role words instead.
+        body = said
+        if label and body.startswith(label):
+            body = body[len(label):]
+        body = body.lstrip(" :")
+        for word in ("edit", "multi line", "read only"):
+            body = body.strip()
+            if body.startswith(word):
+                body = body[len(word):]
+        body = body.strip()
         if not body:
             found.append("the prompt box is empty — no preset text was "
-                         "loaded, so Open would send nothing")
+                         f"loaded, so Open would send nothing (NVDA said: {said[:120]!r})")
         elif label and body.startswith(label):
             found.append(
                 f"the prompt box contains its own label ({label!r}) — "
