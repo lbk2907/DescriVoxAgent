@@ -200,5 +200,9 @@ Sumber: log pemilik (omni_describer.log, 1–2 Okt) + semakan bebas dokumen lwn 
       GLM pusingan 2 gagal: kredit OpenRouter < 1 USD. Pemilik: hidup + suis Settings > AI "Kenal watak dengan nama"
 - [x] 29.5 Ejen 23.8: jawapan "sepatutnya/should say" tanpa propose_change dihantar balik sekali; jawapan akhir kosong
       diminta semula; masih kosong dengan cadangan -> "N perubahan menunggu" (test_fixes70 5/5)
-- [ ] 29.6 GLM pusingan 2 selepas pemilik tambah kredit; NVDA: Player > Watak..., Settings suis; keluaran 2.1.0
+- [x] 29.6 NVDA sebenar (kekunci dihantar ke tetingkap ujian sahaja): "Characters in this video dialog", senarai + orang
+      pertama, Down -> orang kedua, Tab -> "Edit / give a name... button Alt+E", Enter -> "Character dialog" + medan nama;
+      Settings: "AI Settings tab selected", "Recognise characters by name check box checked". Esc tidak boleh diuji
+      dengan kekunci yang dihantar (pitfall 97) — perlu pemilik cuba
+- [ ] 29.7 GLM pusingan 2 selepas pemilik tambah kredit OpenRouter; pemilik cuba Watak... (termasuk Esc); keluaran 2.1.0
 
