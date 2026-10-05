@@ -1,0 +1,5 @@
+{
+  "extraPaths": ["src", "tools", "tests"],
+  "exclude": ["build", "dist", "**/__pycache__", ".venv"],
+  "pythonVersion": "3.13"
+}

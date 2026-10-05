@@ -95,6 +95,11 @@ interface stays in English and Malay.
 | `ODC_LOCALES_DIR` | user language files |
 | `ODC_PRISM_BACKEND` | forces a speech backend (SAPI, NVDA, OneCore) |
 
+- Type checking is optional and not part of the gate: `pyrightconfig.json`
+  tells pyright (and editors or agents that use it as a language server)
+  that tests and tools import from `src`, `tools` and `tests`, because the
+  scripts add those folders to `sys.path` when they run.
+
 ## Accessibility is verified by listening
 
 - `tools/nvda_accessibility_check.py [--frozen]` — the main window.
