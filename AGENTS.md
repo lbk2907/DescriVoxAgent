@@ -94,7 +94,13 @@ How work is actually done here, step by step.
    the `src/` change, run the test, see it fail, restore). Add the suite to the
    list in `run_gate.bat`. A new menu/button handler needs a check in
    `tests/test_fixes21.py`. Test output must be line-buffered (pitfall 9).
-6. **Run the suite, then the full gate** (`GATE_ALL_PASS`).
+   For a **bug fix, write that test FIRST** and see it fail before touching
+   `src/` (owner, 6 Oct 2026, from the ECC workflow); a new feature may write
+   its tests alongside the code.
+6. **Review, then the gate.** Before every commit of a code change, run the
+   ECC review agent on the diff (`ecc:python-reviewer`; `ecc:code-reviewer`
+   for non-Python) and fix its CRITICAL and HIGH findings (owner, 6 Oct
+   2026). Then run the suite, then the full gate (`GATE_ALL_PASS`).
 7. **Listen with NVDA** (after asking the owner, rule 9):
    `tools/nvda_accessibility_check.py [--frozen]`,
    `tools/nvda_window_check.py --window player|editor|ask|updates|explorer|settings [--provider X]`,
