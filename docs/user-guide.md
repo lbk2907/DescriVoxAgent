@@ -408,8 +408,37 @@ Malay): `docs/adding-a-language.md`.
 
 ## Check for Updates (Help menu)
 
+**Help > Check for Updates...** checks whether a newer DescriVox Agent
+is published and reads the answer at once; when there is one, the
+"What's new" box under it has the release notes.
+
+- **Download and install** (Alt+D): downloads the new version from the
+  project's GitHub Releases, with progress read out every quarter. It
+  is installed ONLY if its fingerprint (SHA-256) matches the one
+  published with that release; otherwise nothing changes. You are then
+  asked before anything happens: the app closes, the new version is put
+  in place of the old one, and it opens again by itself in a few
+  seconds. Your settings and projects are kept, and the old version is
+  kept next to it as `DescriVox.previous`. If the swap fails, the old
+  version is put back and opened, and the app says so.
+- **Open download page** (Alt+P): the release page in your browser,
+  for installing by hand.
+- **Skip this version** (Alt+S): that version is no longer offered when
+  the app opens (this menu still shows it).
+
+Every time the app opens it checks quietly; it speaks only when a newer
+version exists, and opens this window only when the app is in front and
+nothing else is open. Turn it off in **Settings > General > Check for
+DescriVox Agent updates every time the app starts**. The app never
+installs while a video is being processed. It cannot replace itself
+when run from source, or from a folder Windows does not let it change
+(for example under Program Files); it then says so and offers the
+download page. This works from the release after 2.1.2.
+
+## Update YouTube downloader (Help menu)
+
 YouTube changes often, and an older yt-dlp (the program that downloads
-videos) can stop working. **Help > Check for Updates...** says which
+videos) can stop working. **Help > Update YouTube downloader...** says which
 yt-dlp is in use and whether a newer one exists; the result is read out
 at once.
 
@@ -626,6 +655,6 @@ does not use it.
      it repeats, the video file may be damaged.
    - **"The video site refused the download (HTTP 403), even after
      trying again. ..."**: wait a minute and try again; if it keeps
-     happening, update yt-dlp with **Help > Check for Updates**.
+     happening, update yt-dlp with **Help > Update YouTube downloader**.
 4. For long videos sent as still pictures, consider a lower FPS (for
    example 1) or set **Max frames per video**.

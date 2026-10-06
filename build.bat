@@ -85,6 +85,10 @@ if errorlevel 1 (echo NOTICE_COPY_FAIL & exit /b 1)
 echo === [5/6] zip ===
 %PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/DescriVox-Agent-{v}-win64', 'zip', 'dist', 'DescriVox')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
 dir dist\DescriVox-Agent-*-win64.zip
+:: 2.1.3: the in-app updater needs SHA256SUMS.txt beside the zip in the
+:: GitHub Release, and uses the CHANGELOG section as "What's new".
+%PY% tools\release_files.py
+if errorlevel 1 (echo RELEASE_FILES_FAIL & exit /b 1)
 echo === [6/6] source backup ===
 :: Owner, 3 Oct 2026: every release also backs up its source code -
 :: committed files only (git archive), checked for binaries and keys.

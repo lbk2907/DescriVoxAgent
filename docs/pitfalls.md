@@ -414,3 +414,19 @@ screen, a measurement judged by a rule chosen after the numbers. Contracts
 on VERIFIED, from evidence the tools record themselves (`tools/evidence.py`).
 When a check cannot run, say INCONCLUSIVE and find out why; never round it up.
 
+### 101. A cmd script must call Windows programs by full path
+The update's swap script (`core/app_update.write_apply_script`) waited for
+the app with `tasklist | find`. On the author's PC Git's `usr\bin` comes
+before `System32` on PATH, so `find` was Git's find: it never matched, the
+script decided the app had already closed, and it moved the folder while
+the app was still running. Found only by running the script against a real
+waiting process (test_fixes76). Every Windows command in a generated script
+is now `"%SystemRoot%\System32\<name>.exe"`.
+
+### 102. Windows will not delete a running program's working folder
+The swap script ran from the update folder and started the new app from
+there, so the new app's working folder was the update folder, and removing
+that folder after a successful update silently failed (`rmtree` with
+`ignore_errors`). The script now runs from `%SystemRoot%` and starts the app
+from its own folder, as Explorer does.
+

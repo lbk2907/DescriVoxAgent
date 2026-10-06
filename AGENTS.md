@@ -158,7 +158,9 @@ src/omni_describer_custom/
                             "Test this model" probes
     video_processor.py      download (yt-dlp), frames, transcript (Whisper)
     tools.py                the ONLY place that finds ffmpeg/ffprobe/ffplay/yt-dlp
-    updater.py              Help > Check for Updates (user-installed yt-dlp)
+    updater.py              Help > Update YouTube downloader (user-installed yt-dlp)
+    app_update.py           Help > Check for Updates: the app updates itself from
+                            GitHub Releases (SHA256SUMS.txt, folder swap) (2.1.3)
     housekeeping.py         sweeps old odc_* temp folders at startup
     settings_store.py       settings.json, DPAPI keys, one shared state per process
     project_store.py        "<Name> (id)/project.db" + media/
@@ -177,10 +179,11 @@ src/omni_describer_custom/
     editor_window.py        per-cue editor
     ask_more_dialog.py      Ask More
     scene_explorer.py       browse frames and descriptions
-    update_dialog.py        Check for Updates
+    update_dialog.py        Update YouTube downloader (yt-dlp)
+    app_update_dialog.py    Check for Updates (the app itself)
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 85
+tests/                      one script per regression round; run_gate.bat lists 86
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -205,7 +208,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 85 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 86 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -279,6 +282,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 | Player agent | 79, 82, 84, 86, 87 |
 | Testing, gate, GUI automation | 3, 5, 6, 9, 10, 18, 19, 40, 44, 55, 60, 64, 88, 91, 94 |
 | Build and packaging | 17, 21, 22, 23, 36, 49 |
+| Self-update (cmd script) | 101, 102 |
 
 ## 9. Current status (update at each release)
 

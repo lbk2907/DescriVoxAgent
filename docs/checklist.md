@@ -290,3 +290,20 @@ measure → the owner decides. Nothing ships on by default without a VERIFIED me
 - [ ] 34.5 OpenRouter credit ≥ 1 USD for the GLM measurements (owner; the GLM judge on pictures works without it)
 - [ ] 34.6 Release 2.1.3 with the adopted ideas, judged by the release contract (tag only on VERIFIED)
 
+## Phase 35 — the app updates itself (owner 6 Oct 2026)
+
+Owner's choices: download and install by itself; source GitHub Releases; check every time the app opens; two
+menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
+
+- [x] 35.1 `core/app_update.py`: `releases/latest`, zip checked against `SHA256SUMS.txt`, unpacked next to the app
+      (zip slip, other folders and a missing exe refused), folder swap by a cmd script after the app exits, rollback,
+      `DescriVox.previous` kept; result said on the next start (`finish_pending`)
+- [x] 35.2 `ui/app_update_dialog.py` (named controls, status box takes focus, progress spoken every 25%, notes box,
+      Skip this version, download page); start-up offer only when in front and idle; never while processing;
+      Settings switch `updates.check_app_at_start`
+- [x] 35.3 `tools/release_files.py` in build.bat: `SHA256SUMS.txt` + release notes from the CHANGELOG
+- [x] 35.4 test_fixes76 (10/10), the swap run for real against a waiting process (found pitfalls 101 and 102)
+- [ ] 35.5 Listen to the dialog with NVDA (needs the PC left alone)
+- [ ] 35.6 End-to-end on two real builds (old exe updates itself to a new one from a local test release)
+- [ ] 35.7 Owner publishes the first GitHub Release with the zip + SHA256SUMS.txt (2.1.3)
+

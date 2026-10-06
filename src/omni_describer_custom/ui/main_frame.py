@@ -286,8 +286,12 @@ class MainFrame(wx.Frame):
 
         # Help — dropdown
         help_menu = wx.Menu()
+        # 2.1.3: "Check for Updates" is the app itself (owner, 6 Oct
+        # 2026); the yt-dlp updater keeps its own item.
+        self._id_check_app_updates = wx.NewIdRef()
+        help_menu.Append(self._id_check_app_updates, t("menu.check_updates"))
         self._id_check_updates = wx.NewIdRef()
-        help_menu.Append(self._id_check_updates, t("menu.check_updates"))
+        help_menu.Append(self._id_check_updates, t("menu.update_ytdlp"))
         self._id_language_report = wx.NewIdRef()
         help_menu.Append(self._id_language_report, t("menu.language_report"))
         help_menu.Append(wx.ID_ABOUT, t("menu.about"))
@@ -365,7 +369,8 @@ class MainFrame(wx.Frame):
             (self._id_export_vtt, "menu.export_vtt"),
             (self._id_export_audio, "menu.export_audio"),
             (wx.ID_EXIT, "menu.exit"),
-            (self._id_check_updates, "menu.check_updates"),
+            (self._id_check_app_updates, "menu.check_updates"),
+            (self._id_check_updates, "menu.update_ytdlp"),
             (self._id_language_report, "menu.language_report"),
             (wx.ID_ABOUT, "menu.about"),
         ):
@@ -410,6 +415,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_export_vtt, id=self._id_export_vtt)
         self.Bind(wx.EVT_MENU, self._on_export_audio, id=self._id_export_audio)
         self.Bind(wx.EVT_MENU, self._on_about, id=wx.ID_ABOUT)
+        self.Bind(wx.EVT_MENU, self._on_check_app_updates,
+                  id=self._id_check_app_updates)
         self.Bind(wx.EVT_MENU, self._on_check_updates,
                   id=self._id_check_updates)
         self.Bind(wx.EVT_MENU, self._on_language_report,
@@ -1181,8 +1188,119 @@ class MainFrame(wx.Frame):
         self.project_store.save_descriptions(self.project_store.current.descriptions)
         self._log(t("main.log_project_saved"))
 
+    # ── 2.1.3: updates of the app itself (core/app_update.py) ─────
+
+    def _on_check_app_updates(self, event):
+        """Help > Check for Updates: a newer DescriVox Agent."""
+        self._show_app_update(None)
+
+    def _show_app_update(self, release) -> None:
+        from .app_update_dialog import AppUpdateDialog
+        dlg = AppUpdateDialog(self, self.settings, release=release)
+        try:
+            accepted = dlg.ShowModal() == wx.ID_OK and dlg.staged is not None
+            chosen, staged = dlg.release, dlg.staged
+        finally:
+            dlg.Destroy()
+        if accepted and chosen is not None:
+            self._install_app_update(chosen.version, staged)
+
+    def _install_app_update(self, version: str, staged) -> bool:
+        """Close, swap folders, start the new version. False if refused.
+
+        Never while a video is being processed: the swap script waits
+        for this process to exit, and closing now would lose that work.
+        """
+        from ..core import app_update
+        if self._processing:
+            wx.MessageBox(t("app_update.busy"), t("app_update.title"),
+                          wx.OK | wx.ICON_INFORMATION, self)
+            return False
+        import os as _os
+        folder = app_update.app_dir()
+        if folder is None:
+            return False
+        try:
+            script = app_update.write_apply_script(folder, staged, _os.getpid())
+            app_update.mark_pending(self.settings, version)
+            app_update.launch_apply_script(script)
+        except Exception as e:
+            logger.error("Could not start the update: %s", e)
+            self.settings.set("updates.app_pending", "")
+            wx.MessageBox(t("app_update.failed", error=str(e)),
+                          t("app_update.title"), wx.OK | wx.ICON_ERROR, self)
+            return False
+        msg = t("app_update.restarting", version=version)
+        self._log(msg)
+        try:
+            from ..core.speech import announce
+            announce(msg)
+        except Exception:
+            pass
+        logger.info("Closing for the update to %s", version)
+        self.Close()
+        return True
+
+    def check_app_update_at_start(self) -> None:
+        """Every start (owner's choice): offer a newer DescriVox Agent.
+
+        Silent when up to date, offline, switched off in Settings, or
+        when the newer version is one the user chose to skip. Opens the
+        update dialog only when this window is in front and idle;
+        otherwise says it on the status bar and in the log.
+        """
+        if not self.settings.get("updates.check_app_at_start", True):
+            return
+        from ..core import app_update
+
+        def work():
+            try:
+                release = app_update.newer_release()
+            except Exception as e:
+                logger.info("App update check at start skipped: %s", e)
+                return
+            skipped = str(self.settings.get("updates.skipped_version", "") or "")
+            if release is not None and release.version != skipped:
+                self._ui(self._offer_app_update, release)
+
+        import threading as _threading
+        _threading.Thread(target=work, daemon=True).start()
+
+    def _offer_app_update(self, release) -> None:
+        msg = t("app_update.startup_notice", version=release.version)
+        self._log(msg)
+        self.SetStatusText(msg)
+        busy = self._processing or not self.IsActive() or any(
+            isinstance(w, wx.Dialog) and w.IsShown()
+            for w in wx.GetTopLevelWindows())
+        if busy:
+            return
+        self._show_app_update(release)
+
+    def report_app_update_result(self) -> None:
+        """After a restart for an update: did it take?"""
+        from .. import __version__
+        from ..core import app_update
+        result = app_update.finish_pending(self.settings, __version__)
+        if result is None:
+            return
+        version, ok = result
+        if ok:
+            msg = t("app_update.done_ok", version=version)
+        else:
+            msg = t("app_update.done_failed", version=version,
+                    current=__version__,
+                    log=app_update.update_dir() / "apply.log")
+        self._log(msg)
+        self.SetStatusText(msg)
+        try:
+            from ..core.speech import announce
+            announce(msg)
+        except Exception:
+            pass
+
     def _on_check_updates(self, event):
-        """Help > Check for Updates (v1.7.7): a newer yt-dlp, verified."""
+        """Help > Update YouTube downloader (v1.7.7): a newer yt-dlp."""
         from .update_dialog import UpdateDialog
         dlg = UpdateDialog(self, self.settings)
         try:

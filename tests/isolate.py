@@ -15,6 +15,7 @@ for _name, _prefix in (("ODC_CONFIG_DIR", "odc_tcfg_"),
                        ("ODC_PROJECTS_DIR", "odc_tproj_"),
                        ("ODC_LOCALES_DIR", "odc_tloc_"),
                        ("ODC_TOOLS_DIR", "odc_ttools_"),
-                       ("ODC_EVIDENCE_DIR", "odc_tevid_")):
+                       ("ODC_EVIDENCE_DIR", "odc_tevid_"),
+                       ("ODC_UPDATE_DIR", "odc_tupd_")):
     if not os.environ.get(_name):
         os.environ[_name] = tempfile.mkdtemp(prefix=_prefix)

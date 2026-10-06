@@ -415,6 +415,13 @@ class SettingsDialog(wx.Dialog):
                                 label=t("settings.preserve_resolution_hint"),
                                 name="preserve_resolution_hint"), 0, wx.ALL, 5)
 
+        # 2.1.3: offer a newer DescriVox Agent at every start (owner's
+        # choice); Help > Check for Updates works either way.
+        self.app_update_check_cb = wx.CheckBox(
+            panel, label=t("settings.check_app_updates"),
+            name="check_app_updates")
+        sizer.Add(self.app_update_check_cb, 0, wx.ALL, 5)
+
         # v1.6.1: speech-to-text. The default AI provider cannot hear the
         # video, so this is what lets it know what was said when there
         # are no published or embedded subtitles.
@@ -1074,6 +1081,8 @@ class SettingsDialog(wx.Dialog):
 
         self.settings.set("general.preserve_resolution",
                           bool(self.preserve_res_check.GetValue()))
+        self.settings.set("updates.check_app_at_start",
+                          bool(self.app_update_check_cb.GetValue()))
 
         review_modes = ["off", "auto", "accurate", "most", "keep"]
         idx = self.review_choice.GetSelection()
@@ -1180,6 +1189,8 @@ class SettingsDialog(wx.Dialog):
 
         self.preserve_res_check.SetValue(bool(self.settings.get(
             "general.preserve_resolution", False)))
+        self.app_update_check_cb.SetValue(bool(self.settings.get(
+            "updates.check_app_at_start", True)))
 
         backends = ["auto", "whisper", "grok", "off"]
         current = str(self.settings.get(

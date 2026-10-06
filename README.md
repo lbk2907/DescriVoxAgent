@@ -82,7 +82,8 @@ feature:
 1. Download `DescriVox-Agent-<version>-win64.zip` (about 305 MB).
 2. Unzip it anywhere and run `DescriVox.exe`. Nothing else is needed: ffmpeg, ffprobe,
    ffplay and yt-dlp are inside the app folder, and a newer yt-dlp can be installed from
-   **Help > Check for Updates**.
+   **Help > Update YouTube downloader**. From the release after 2.1.2 the app updates
+   itself: **Help > Check for Updates** (it also checks each time it opens).
 
 The log is `%LOCALAPPDATA%\OmniDescriber\logs\omni_describer.log`.
 

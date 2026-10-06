@@ -101,6 +101,10 @@ def main():
         frame.Show(True)
         frame.Maximize(True)
         logger.info("Application started")
+        # 2.1.3: after a restart for an update, say whether it took; then,
+        # every start, offer a newer DescriVox Agent (owner's choice).
+        wx.CallLater(3000, frame.report_app_update_result)
+        wx.CallLater(6000, frame.check_app_update_at_start)
         # v1.7.7: once a week, say if a newer yt-dlp exists. Late, so it
         # never competes with the window's own start-up announcements.
         wx.CallLater(8000, frame.check_updates_in_background)

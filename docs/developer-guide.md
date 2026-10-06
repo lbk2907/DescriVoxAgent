@@ -32,7 +32,8 @@ src/omni_describer_custom/
     prompt_manager.py       DEFAULT_PROMPTS — the one source of the AD presets
     settings_store.py       settings.json, DPAPI keys, one shared state
     tools.py                the ONLY place that finds ffmpeg/ffprobe/ffplay/yt-dlp
-    updater.py              Help > Check for Updates (yt-dlp)
+    updater.py              Help > Update YouTube downloader (yt-dlp)
+    app_update.py           Help > Check for Updates: the app itself (GitHub Releases)
     housekeeping.py         sweeps old odc_* temp folders at start-up
     timing_store.py         learned "about N min left" estimates per model
     no_console.py           no console windows for child programs (frozen exe)
@@ -92,6 +93,7 @@ interface stays in English and Malay.
 | `ODC_CONFIG_DIR` | settings.json |
 | `ODC_PROJECTS_DIR` | the projects folder |
 | `ODC_TOOLS_DIR` | user-installed yt-dlp updates |
+| `ODC_UPDATE_DIR` | downloaded app updates and the swap script's log |
 | `ODC_LOCALES_DIR` | user language files |
 | `ODC_PRISM_BACKEND` | forces a speech backend (SAPI, NVDA, OneCore) |
 
@@ -173,7 +175,9 @@ the bench and judge with `tools/measure_check.py`. Results and methods: `docs/mo
    `CHANGELOG.md`; update the `AGENTS.md` status, `docs/checklist.md` and the
    phase table in `docs/plan.md`. `python tools/check_docs.py` must print
    `DOCS_OK` — the gate (test_fixes73) and `build.bat` run it too.
-4. `build.bat` in the foreground → `BUILD_ALL_OK`. Its last step backs up the
+4. `build.bat` in the foreground → `BUILD_ALL_OK`. After the zip it writes
+   `dist/SHA256SUMS.txt` and `dist/release-notes-<v>.md` (`tools/release_files.py`),
+   which the in-app updater needs. Its last step backs up the
    source code (`tools/make_source_zip.py`, committed files only, refused if
    anything looks like a binary or a key) into
    `Documents\DescriVox-source-backups\`.
@@ -183,4 +187,10 @@ the bench and judge with `tools/measure_check.py`. Results and methods: `docs/mo
    judged on evidence the gate, build and NVDA check recorded themselves);
    tag with `python tools\tag_release.py`, never by hand. Push `main` and
    the tag only with the owner's permission. See `contracts/README.md`.
+   Then the owner (outward-facing, so never an agent) publishes a GitHub
+   Release for that tag on `lbk2907/DescriVoxAgent`: title `DescriVox Agent
+   <v>`, text = `dist/release-notes-<v>.md`, files = the zip AND
+   `SHA256SUMS.txt`, not a pre-release. The in-app updater
+   (`core/app_update.py`) reads `releases/latest` and refuses a release
+   without both files or whose zip does not match.
 7. Keep only the newest zip in `dist/` (ask the owner before deleting).

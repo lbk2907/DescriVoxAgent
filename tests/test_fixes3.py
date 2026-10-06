@@ -36,9 +36,13 @@ def test_edge_voice_cache():
     call_count = {"n": 0}
     real_list_voices = None
 
+    # A fixed list, not Microsoft's server: one dropped request made the
+    # engine (rightly) not cache the failure and ask again, and the gate
+    # failed on 6 Oct 2026 for a network blip, not a bug.
     async def counting_list_voices(*args, **kwargs):
         call_count["n"] += 1
-        return await real_list_voices(*args, **kwargs)
+        return [{"ShortName": "en-US-AriaNeural", "Locale": "en-US",
+                 "Gender": "Female", "FriendlyName": "Aria"}]
 
     import edge_tts
     real_list_voices = edge_tts.list_voices

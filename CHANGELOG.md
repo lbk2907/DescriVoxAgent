@@ -4,6 +4,16 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
 
 ## Unreleased
 
+- **DescriVox Agent updates itself.** **Help > Check for Updates** now checks for a newer
+  DescriVox Agent (the yt-dlp updater moved to **Help > Update YouTube downloader**). Every
+  time the app opens it checks GitHub quietly and, when a newer version is published, says
+  so and shows what is new. **Download and install** downloads it, installs it only if it
+  matches the published checksum, closes the app, swaps the folder and opens the new
+  version; the old one is kept as `DescriVox.previous` and put back if the swap fails.
+  Settings and projects are not touched. Never while a video is being processed. A
+  Settings switch turns the start-up check off; **Skip this version** stops one version
+  from being offered again. Works from the release after 2.1.2: 2.1.2 itself has to be
+  updated by hand once.
 - **The agent says when it cannot see something.** When a detail is not there or not
   readable, the agent (F2) now always begins with "I cannot see that clearly" and names the
   times it looked at, instead of guessing. Measured first on known clips and on Tears of Steel
