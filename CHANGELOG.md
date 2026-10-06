@@ -16,6 +16,8 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
   updated by hand once.
   Reviewed before release: the installer never starts a second copy, never leaves the old
   version nested or the unpacked copy behind, and downloads only this project's GitHub files.
+  Every release is **signed** with the author's own key, and the app installs only a release
+  whose signature checks out, so even a stolen GitHub login cannot push a fake update.
 - **The agent says when it cannot see something.** When a detail is not there or not
   readable, the agent (F2) now always begins with "I cannot see that clearly" and names the
   times it looked at, instead of guessing. Measured first on known clips and on Tears of Steel

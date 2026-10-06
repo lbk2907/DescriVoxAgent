@@ -171,7 +171,7 @@ src/omni_describer_custom/
     tools.py                the ONLY place that finds ffmpeg/ffprobe/ffplay/yt-dlp
     updater.py              Help > Update YouTube downloader (user-installed yt-dlp)
     app_update.py           Help > Check for Updates: the app updates itself from
-                            GitHub Releases (SHA256SUMS.txt, folder swap) (2.1.3)
+                            GitHub Releases (signed SHA256SUMS.txt, folder swap) (2.1.3)
     housekeeping.py         sweeps old odc_* temp folders at startup
     settings_store.py       settings.json, DPAPI keys, one shared state per process
     project_store.py        "<Name> (id)/project.db" + media/

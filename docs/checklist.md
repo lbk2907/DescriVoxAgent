@@ -315,7 +315,12 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       a `.previous` it cannot remove, removes the empty `DescriVox.new`, reports a failed rollback; downloads only
       this repo's release URLs, a plain version tag, no more bytes than GitHub says; one install at a time; the update
       folder checked for unsafe characters. test_fixes76: 17/17
-- [ ] 35.10 Signed releases (owner to decide): today SHA256SUMS.txt detects a damaged download, not a release
-      published by someone who stole the GitHub login
+- [x] 35.10 Signed releases (owner chose it, 6 Oct 2026): `tools/release_key.py` made the owner's Ed25519 key (secret in
+      `%USERPROFILE%\.descrivox\release-signing.key`, never in the repo); build.bat signs SHA256SUMS.txt into
+      `SHA256SUMS.txt.sig`; the app (`RELEASE_PUBLIC_KEY`, PyNaCl) installs only a release whose checksum list verifies,
+      checked before anything is downloaded; publish_release.py uploads the .sig and checks it. Tests use a temp key
+      (`ODC_RELEASE_KEY` in isolate.py). test_fixes76: 18/18
+- [ ] 35.11 Owner backs up the release key somewhere offline (without it no copy accepts another update)
+- [ ] 35.12 Next build: confirm PyNaCl (`nacl/_sodium.pyd`) is inside `dist/DescriVox/_internal`
 - [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
 

@@ -44,6 +44,7 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess:
 def files(dist: Path, version: str) -> dict[str, Path]:
     return {"zip": dist / app_update.zip_name(version),
             "sums": dist / app_update.SUMS_NAME,
+            "sig": dist / app_update.SIG_NAME,
             "notes": dist / f"release-notes-{version}.md"}
 
 
@@ -54,6 +55,8 @@ def check_files(dist: Path, version: str) -> list[str]:
     if missing:
         return [f"missing {m} (run build.bat)" for m in missing]
     try:
+        # The app refuses an unsigned or wrongly signed release: so do we.
+        app_update.verify_signature(f["sums"].read_bytes(), f["sig"].read_bytes())
         expected = app_update.expected_sha256(
             f["sums"].read_text(encoding="utf-8"), f["zip"].name)
     except app_update.UpdateError as e:
@@ -93,7 +96,7 @@ def plan(version: str, dist: Path) -> list[list[str]]:
     return [
         ["git", "push", "origin", "main"],
         ["git", "push", "origin", tag],
-        ["gh", "release", "create", tag, str(f["zip"]), str(f["sums"]),
+        ["gh", "release", "create", tag, str(f["zip"]), str(f["sums"]), str(f["sig"]),
          "--repo", app_update.REPO, "--title", f"DescriVox Agent {version}",
          "--notes-file", str(f["notes"]), "--verify-tag", "--latest"],
     ]

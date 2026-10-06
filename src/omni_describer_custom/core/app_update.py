@@ -51,6 +51,12 @@ RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 APP_FOLDER = "DescriVox"
 EXE_NAME = "DescriVox.exe"
 SUMS_NAME = "SHA256SUMS.txt"
+SIG_NAME = SUMS_NAME + ".sig"
+# Ed25519 public key of the owner's release key (tools/release_key.py,
+# made 6 Oct 2026; the secret half never leaves the owner's PC).
+# SHA256SUMS.txt must carry a valid signature by it, so a release
+# published with a stolen GitHub login is refused (review, HIGH).
+RELEASE_PUBLIC_KEY = "024569f63cd6d1f9e0ea5c32de162eb440cb4224059bf449924ead8ee061d560"
 PREVIOUS_SUFFIX = ".previous"
 STAGED_SUFFIX = ".new"
 # cmd.exe cannot carry these safely inside a quoted SET; such a folder
@@ -71,6 +77,7 @@ class Release:
     zip_url: str
     zip_size: int
     sums_url: str
+    sig_url: str = ""
 
 
 def update_dir() -> Path:
@@ -129,12 +136,14 @@ def parse_release(data: dict) -> Release:
     assets = {a.get("name"): a for a in data.get("assets") or []}
     zip_asset = assets.get(zip_name(version))
     sums_asset = assets.get(SUMS_NAME)
-    if not zip_asset or not sums_asset:
-        raise UpdateError(
-            f"release {tag} has no {zip_name(version)} and {SUMS_NAME}")
+    sig_asset = assets.get(SIG_NAME)
+    if not zip_asset or not sums_asset or not sig_asset:
+        raise UpdateError(f"release {tag} lacks {zip_name(version)}, "
+                          f"{SUMS_NAME} or {SIG_NAME}")
     zip_url = zip_asset.get("browser_download_url") or ""
     sums_url = sums_asset.get("browser_download_url") or ""
-    for url in (zip_url, sums_url):
+    sig_url = sig_asset.get("browser_download_url") or ""
+    for url in (zip_url, sums_url, sig_url):
         if not url.startswith(_ASSET_PREFIX):
             raise UpdateError(f"release {tag} points outside {REPO}: {url}")
     return Release(
@@ -143,7 +152,7 @@ def parse_release(data: dict) -> Release:
         page_url=data.get("html_url") or RELEASES_PAGE,
         zip_url=zip_url,
         zip_size=int(zip_asset.get("size") or 0),
-        sums_url=sums_url)
+        sums_url=sums_url, sig_url=sig_url)
 
 
 def latest_release(fetch: Callable[[str], bytes] = _fetch) -> Release:
@@ -194,6 +203,26 @@ def expected_sha256(sums_text: str, name: str) -> str:
     raise UpdateError(f"{name} is not listed in {SUMS_NAME}")
 
 
+def verify_signature(data: bytes, sig_text: bytes,
+                     public_key: str | None = None) -> None:
+    """UpdateError unless `sig_text` (hex) is the release key's Ed25519
+    signature of `data`. No crypto library -> refused, never skipped."""
+    try:
+        from nacl.exceptions import BadSignatureError
+        from nacl.signing import VerifyKey
+    except ImportError as e:
+        raise UpdateError("cannot check the release signature (PyNaCl is "
+                          "missing); nothing was installed") from e
+    try:
+        signature = bytes.fromhex(sig_text.decode("ascii").strip())
+        VerifyKey(bytes.fromhex(public_key or RELEASE_PUBLIC_KEY)).verify(
+            data, signature)
+    except (BadSignatureError, ValueError, UnicodeDecodeError) as e:
+        raise UpdateError("the release signature is not valid: it was not "
+                          "published with the owner's key; nothing was "
+                          "installed") from e
+
+
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as f:
@@ -208,10 +237,16 @@ def download(release: Release, fetch: Callable[[str], bytes] = _fetch,
     """Download the release zip and check it. Returns its path.
 
     Raises UpdateError (and deletes the file) on a checksum mismatch.
+    The checksum list itself is trusted only with a valid signature by
+    the owner's release key, checked BEFORE anything else is fetched.
     """
-    expected = expected_sha256(
-        fetch(release.sums_url).decode("utf-8", errors="replace"),
-        zip_name(release.version))
+    sums = fetch(release.sums_url)
+    if not release.sig_url:
+        raise UpdateError(f"release {release.tag} is not signed; "
+                          f"nothing was installed")
+    verify_signature(sums, fetch(release.sig_url))
+    expected = expected_sha256(sums.decode("utf-8", errors="replace"),
+                               zip_name(release.version))
     folder = update_dir()
     folder.mkdir(parents=True, exist_ok=True)
     dest = folder / zip_name(release.version)
@@ -432,4 +467,5 @@ __all__ = ["APP_FOLDER", "EXE_NAME", "RELEASES_PAGE", "Release", "SUMS_NAME",
            "expected_sha256", "finish_pending", "install_lock", "latest_release",
            "launch_apply_script", "mark_pending", "newer_release",
            "parse_release", "sha256_of", "stage", "update_dir",
+           "verify_signature",
            "write_apply_script", "zip_name"]

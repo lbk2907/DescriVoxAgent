@@ -19,3 +19,9 @@ for _name, _prefix in (("ODC_CONFIG_DIR", "odc_tcfg_"),
                        ("ODC_UPDATE_DIR", "odc_tupd_")):
     if not os.environ.get(_name):
         os.environ[_name] = tempfile.mkdtemp(prefix=_prefix)
+
+# The release signing key: a test key in a temp folder, never the owner's
+# real one in ~/.descrivox (tools/release_key.py reads this variable).
+if not os.environ.get("ODC_RELEASE_KEY"):
+    os.environ["ODC_RELEASE_KEY"] = os.path.join(
+        tempfile.mkdtemp(prefix="odc_tkey_"), "test-release.key")

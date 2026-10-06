@@ -25,6 +25,9 @@ dependencies = [
     # JAWS, ZDSR, ...) and falls back to SAPI/OneCore when none is, so
     # the app has a voice on a computer that has no screen reader.
     "prismatoid>=0.18.2",
+    # 2.1.3: Ed25519 check of the release signature before the app
+    # installs an update of itself (core/app_update.verify_signature).
+    "pynacl>=1.5",
 ]
 
 [project.optional-dependencies]

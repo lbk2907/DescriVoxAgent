@@ -33,6 +33,13 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from omni_describer_custom.core import app_update as au  # noqa: E402
 from omni_describer_custom.core.updater import UpdateError  # noqa: E402
+import release_key  # noqa: E402
+
+# A throwaway signing key (isolate.py points ODC_RELEASE_KEY at a temp
+# file): the app under test trusts it instead of the owner's real key.
+assert "odc_tkey_" in str(release_key.KEY_FILE), release_key.KEY_FILE
+REAL_PUBLIC_KEY = au.RELEASE_PUBLIC_KEY
+au.RELEASE_PUBLIC_KEY = release_key.generate()
 
 results: list[tuple[str, bool]] = []
 WHERE = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "where.exe"
@@ -50,7 +57,7 @@ def check(name, fn):
 
 
 def release_json(version="2.1.3", assets=True):
-    names = [au.zip_name(version), au.SUMS_NAME] if assets else []
+    names = [au.zip_name(version), au.SUMS_NAME, au.SIG_NAME] if assets else []
     return {"tag_name": f"v{version}", "body": "- New: it updates itself.",
             "html_url": f"https://github.com/{au.REPO}/releases/tag/v{version}",
             "assets": [{"name": n, "size": 1234,
@@ -99,10 +106,21 @@ def test_parse_and_compare():
 
 # ── Download and unpack ──────────────────────────────────────────
 
-def _fake_net(zip_bytes: bytes, sums_line: str):
+def _sign(data: bytes) -> bytes:
+    tmp = Path(tempfile.mkdtemp(prefix="odc_t76_sig_")) / "sums"
+    tmp.write_bytes(data)
+    return release_key.sign(tmp).read_bytes()
+
+
+def _fake_net(zip_bytes: bytes, sums_line: str, sig: bytes | None = None):
+    sums = sums_line.encode()
+    sig = _sign(sums) if sig is None else sig
+
     def fetch(url):
+        if url.endswith(au.SIG_NAME):
+            return sig
         assert url.endswith(au.SUMS_NAME), url
-        return sums_line.encode()
+        return sums
 
     def download_to(url, dest, on_progress=None, max_bytes=0):
         Path(dest).write_bytes(zip_bytes)
@@ -131,6 +149,45 @@ def test_download_verifies_checksum():
     except UpdateError as e:
         assert "checksum" in str(e)
     assert not list(au.update_dir().glob("*.zip*")), "a refused download was kept"
+
+
+def test_signature_required():
+    """Review HIGH: whoever can publish a release can publish matching
+    checksums; only a SHA256SUMS.txt signed by the release key counts."""
+    import dataclasses
+    tmp = Path(tempfile.mkdtemp(prefix="odc_t76_"))
+    data = make_zip(tmp / "src.zip", good_members()).read_bytes()
+    rel = dataclasses.replace(au.parse_release(release_json()), zip_size=len(data))
+    line = f"{hashlib.sha256(data).hexdigest()}  {au.zip_name('2.1.3')}\n"
+    from nacl.signing import SigningKey
+    forged = SigningKey.generate().sign(line.encode()).signature.hex().encode()
+    for label, sig in (("signed by another key", forged),
+                       ("garbage signature", b"zz"),
+                       ("signature of other text", _sign(b"something else"))):
+        fetch, dl = _fake_net(data, line, sig=sig)
+        try:
+            au.download(rel, fetch=fetch, download_to=dl)
+            raise AssertionError(f"{label}: installed")
+        except UpdateError as e:
+            assert "signature" in str(e), e
+    unsigned = dataclasses.replace(rel, sig_url="")
+    fetch, dl = _fake_net(data, line)
+    try:
+        au.download(unsigned, fetch=fetch, download_to=dl)
+        raise AssertionError("an unsigned release was installed")
+    except UpdateError:
+        pass
+    no_sig = release_json()
+    no_sig["assets"] = [a for a in no_sig["assets"] if a["name"] != au.SIG_NAME]
+    try:
+        au.parse_release(no_sig)
+        raise AssertionError("a release without SHA256SUMS.txt.sig was offered")
+    except UpdateError:
+        pass
+    assert not list(au.update_dir().glob("*.zip*")), "a refused download was kept"
+    # The key built into the app is a real Ed25519 public key.
+    from nacl.signing import VerifyKey
+    VerifyKey(bytes.fromhex(REAL_PUBLIC_KEY))
 
 
 def test_stage_refuses_bad_zips():
@@ -343,6 +400,7 @@ def test_release_files():
     sums, notes = rf.write(dist, "9.9.9", log)
     line = sums.read_text(encoding="utf-8")
     assert au.expected_sha256(line, archive.name) == au.sha256_of(archive)
+    au.verify_signature(sums.read_bytes(), (dist / au.SIG_NAME).read_bytes())
     assert notes.read_text(encoding="utf-8") == "- Updates itself.\n"
     # The real CHANGELOG must carry the section the build will ask for.
     from omni_describer_custom import __version__
@@ -358,9 +416,13 @@ def test_publish_preflight():
     archive = make_zip(dist / au.zip_name("9.9.9"), good_members())
     (dist / au.SUMS_NAME).write_text(f"{au.sha256_of(archive)}  {archive.name}\n",
                                      encoding="utf-8")
+    release_key.sign(dist / au.SUMS_NAME)
     (dist / "release-notes-9.9.9.md").write_text("- Updates itself.\n", encoding="utf-8")
     assert pr.check_files(dist, "9.9.9") == []
     (dist / au.SUMS_NAME).write_text(f"{'0' * 64}  {archive.name}\n", encoding="utf-8")
+    assert any("signature" in p for p in pr.check_files(dist, "9.9.9")), \
+        "a changed SHA256SUMS.txt kept its old signature and passed"
+    release_key.sign(dist / au.SUMS_NAME)
     assert pr.check_files(dist, "9.9.9"), "a zip not matching its checksum passed"
 
     class Out:
@@ -379,7 +441,8 @@ def test_publish_preflight():
     create = steps[2]
     assert create[:4] == ["gh", "release", "create", "v9.9.9"]
     assert str(dist / au.zip_name("9.9.9")) in create and \
-        str(dist / au.SUMS_NAME) in create and au.REPO in create
+        str(dist / au.SUMS_NAME) in create and \
+        str(dist / au.SIG_NAME) in create and au.REPO in create
 
 
 # ── The window (accessibility + wiring) ──────────────────────────
@@ -528,6 +591,7 @@ def test_settings_switch():
 def main() -> int:
     check("release parsed, newer only when newer", test_parse_and_compare)
     check("download kept only when the checksum matches", test_download_verifies_checksum)
+    check("only a release signed by the release key installs", test_signature_required)
     check("unpack refuses zip slip, other folders, no exe", test_stage_refuses_bad_zips)
     check("self-install only from a writable DescriVox folder", test_can_self_install)
     check("swap waits for the app to exit, then replaces (real)", test_swap_waits_then_replaces)

@@ -414,8 +414,9 @@ is published and reads the answer at once; when there is one, the
 
 - **Download and install** (Alt+D): downloads the new version from the
   project's GitHub Releases, with progress read out every quarter. It
-  is installed ONLY if its fingerprint (SHA-256) matches the one
-  published with that release; otherwise nothing changes. You are then
+  is installed ONLY if it is signed with the author's own key and its
+  fingerprint (SHA-256) matches the signed list; otherwise nothing
+  changes. You are then
   asked before anything happens: the app closes, the new version is put
   in place of the old one, and it opens again by itself in a few
   seconds. Your settings and projects are kept, and the old version is

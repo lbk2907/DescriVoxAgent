@@ -94,6 +94,7 @@ interface stays in English and Malay.
 | `ODC_PROJECTS_DIR` | the projects folder |
 | `ODC_TOOLS_DIR` | user-installed yt-dlp updates |
 | `ODC_UPDATE_DIR` | downloaded app updates and the swap script's log |
+| `ODC_RELEASE_KEY` | the release signing key (tests use a temp test key) |
 | `ODC_LOCALES_DIR` | user language files |
 | `ODC_PRISM_BACKEND` | forces a speech backend (SAPI, NVDA, OneCore) |
 
@@ -176,8 +177,14 @@ the bench and judge with `tools/measure_check.py`. Results and methods: `docs/mo
    phase table in `docs/plan.md`. `python tools/check_docs.py` must print
    `DOCS_OK` — the gate (test_fixes73) and `build.bat` run it too.
 4. `build.bat` in the foreground → `BUILD_ALL_OK`. After the zip it writes
-   `dist/SHA256SUMS.txt` and `dist/release-notes-<v>.md` (`tools/release_files.py`),
-   which the in-app updater needs. Its last step backs up the
+   `dist/SHA256SUMS.txt`, signs it into `dist/SHA256SUMS.txt.sig` and writes
+   `dist/release-notes-<v>.md` (`tools/release_files.py`), which the in-app
+   updater needs. Signing uses the owner's Ed25519 key in
+   `%USERPROFILE%\.descrivox\release-signing.key` (`tools/release_key.py`;
+   made once, never committed, backed up offline). The app holds its public
+   half (`core/app_update.RELEASE_PUBLIC_KEY`) and refuses any release whose
+   checksum list does not verify; a lost key means users must update by hand
+   once to a build with a new public key. Its last step backs up the
    source code (`tools/make_source_zip.py`, committed files only, refused if
    anything looks like a binary or a key) into
    `Documents\DescriVox-source-backups\`.
@@ -195,6 +202,6 @@ the bench and judge with `tools/measure_check.py`. Results and methods: `docs/mo
    `python tools\publish_release.py --yes`: pushes `main` and the tag,
    creates the GitHub Release on `lbk2907/DescriVoxAgent` (title
    `DescriVox Agent <v>`, text = `dist/release-notes-<v>.md`, files = the
-   zip AND `SHA256SUMS.txt`) and reads `releases/latest` back the way the
+   zip, `SHA256SUMS.txt` and `SHA256SUMS.txt.sig`) and reads `releases/latest` back the way the
    in-app updater (`core/app_update.py`) does.
 8. Keep only the newest zip in `dist/` (ask the owner before deleting).

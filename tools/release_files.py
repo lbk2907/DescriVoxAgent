@@ -23,6 +23,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(REPO / "tools"))
 
 from omni_describer_custom import __version__  # noqa: E402
 from omni_describer_custom.core.app_update import (  # noqa: E402
@@ -45,6 +46,10 @@ def write(dist: Path, version: str, changelog: str) -> tuple[Path, Path]:
     sums = dist / SUMS_NAME
     sums.write_text(f"{sha256_of(archive)}  {archive.name}\n", encoding="utf-8",
                     newline="\n")
+    # Signed with the owner's release key (tools/release_key.py): the app
+    # installs nothing whose SHA256SUMS.txt does not verify.
+    import release_key
+    release_key.sign(sums)
     notes = dist / f"release-notes-{version}.md"
     notes.write_text(notes_for(changelog, version), encoding="utf-8",
                      newline="\n")
