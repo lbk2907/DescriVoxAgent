@@ -320,7 +320,8 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       `SHA256SUMS.txt.sig`; the app (`RELEASE_PUBLIC_KEY`, PyNaCl) installs only a release whose checksum list verifies,
       checked before anything is downloaded; publish_release.py uploads the .sig and checks it. Tests use a temp key
       (`ODC_RELEASE_KEY` in isolate.py). test_fixes76: 18/18
-- [ ] 35.11 Owner backs up the release key somewhere offline (without it no copy accepts another update)
+- [x] 35.11 Owner backed up the release key offline (7 Oct 2026). One key only (owner's choice: no reserve key);
+      if it and the backup are lost, users update by hand once to a build with a new public key
 - [ ] 35.12 Next build: confirm PyNaCl (`nacl/_sodium.pyd`) is inside `dist/DescriVox/_internal`
 - [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
 
