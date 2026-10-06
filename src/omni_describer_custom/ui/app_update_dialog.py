@@ -197,9 +197,10 @@ class AppUpdateDialog(wx.Dialog):
 
         def work():
             try:
-                zip_path = app_update.download(release, on_progress=progress)
-                wx.CallAfter(self._announce, t("app_update.unpacking"), False)
-                staged = app_update.stage(zip_path, folder)
+                with app_update.install_lock():
+                    zip_path = app_update.download(release, on_progress=progress)
+                    wx.CallAfter(self._announce, t("app_update.unpacking"), False)
+                    staged = app_update.stage(zip_path, folder)
                 wx.CallAfter(self._ready, release, staged)
             except Exception as e:
                 logger.error("App update failed: %s", e)

@@ -1252,6 +1252,8 @@ class MainFrame(wx.Frame):
         if not self.settings.get("updates.check_app_at_start", True):
             return
         from ..core import app_update
+        # Read on the UI thread, not in the worker (review, 6 Oct 2026).
+        skipped = str(self.settings.get("updates.skipped_version", "") or "")
 
         def work():
             try:
@@ -1259,7 +1261,6 @@ class MainFrame(wx.Frame):
             except Exception as e:
                 logger.info("App update check at start skipped: %s", e)
                 return
-            skipped = str(self.settings.get("updates.skipped_version", "") or "")
             if release is not None and release.version != skipped:
                 self._ui(self._offer_app_update, release)
 
@@ -1281,7 +1282,8 @@ class MainFrame(wx.Frame):
         """After a restart for an update: did it take?"""
         from .. import __version__
         from ..core import app_update
-        result = app_update.finish_pending(self.settings, __version__)
+        result = app_update.finish_pending(self.settings, __version__,
+                                           app_update.app_dir())
         if result is None:
             return
         version, ok = result

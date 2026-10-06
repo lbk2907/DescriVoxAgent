@@ -28,11 +28,14 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.request
 import zipfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable
@@ -88,7 +91,8 @@ def _fetch(url: str, timeout: float = 30.0) -> bytes:
 
 
 def _download(url: str, dest: Path,
-              on_progress: Callable[[int, int], None] | None = None) -> None:
+              on_progress: Callable[[int, int], None] | None = None,
+              max_bytes: int = 0) -> None:
     request = urllib.request.Request(
         url, headers={"User-Agent": "DescriVox-update-check"})
     with urllib.request.urlopen(request, timeout=60) as response, \
@@ -99,33 +103,47 @@ def _download(url: str, dest: Path,
             chunk = response.read(256 * 1024)
             if not chunk:
                 break
-            out.write(chunk)
             done += len(chunk)
+            if max_bytes and done > max_bytes:
+                raise UpdateError("the download is bigger than the release "
+                                  "says; nothing was installed")
+            out.write(chunk)
             if on_progress:
                 on_progress(done, total)
 
 
 # ── Checking ─────────────────────────────────────────────────────
 
+# Review (6 Oct 2026): fetch only this repo's release files, and only a
+# plain version tag, whatever the API answer says.
+_ASSET_PREFIX = f"https://github.com/{REPO}/releases/download/"
+_VERSION_RE = re.compile(r"^\d+(\.\d+){1,3}$")
+
+
 def parse_release(data: dict) -> Release:
     """A GitHub release (API JSON) -> Release; UpdateError if unusable."""
     tag = (data.get("tag_name") or "").strip()
     version = tag.lstrip("vV")
-    if not version:
-        raise UpdateError("GitHub did not report a DescriVox release")
+    if not _VERSION_RE.match(version):
+        raise UpdateError(f"GitHub did not report a usable release ({tag!r})")
     assets = {a.get("name"): a for a in data.get("assets") or []}
     zip_asset = assets.get(zip_name(version))
     sums_asset = assets.get(SUMS_NAME)
     if not zip_asset or not sums_asset:
         raise UpdateError(
             f"release {tag} has no {zip_name(version)} and {SUMS_NAME}")
+    zip_url = zip_asset.get("browser_download_url") or ""
+    sums_url = sums_asset.get("browser_download_url") or ""
+    for url in (zip_url, sums_url):
+        if not url.startswith(_ASSET_PREFIX):
+            raise UpdateError(f"release {tag} points outside {REPO}: {url}")
     return Release(
         version=version, tag=tag,
         notes=(data.get("body") or "").strip(),
         page_url=data.get("html_url") or RELEASES_PAGE,
-        zip_url=zip_asset.get("browser_download_url") or "",
+        zip_url=zip_url,
         zip_size=int(zip_asset.get("size") or 0),
-        sums_url=sums_asset.get("browser_download_url") or "")
+        sums_url=sums_url)
 
 
 def latest_release(fetch: Callable[[str], bytes] = _fetch) -> Release:
@@ -155,7 +173,7 @@ def can_self_install(folder: Path | None) -> tuple[bool, str]:
     if folder.name.lower() != APP_FOLDER.lower() or \
             not (folder / EXE_NAME).exists():
         return False, "unknown_layout"
-    if _UNSAFE_PATH_CHARS & set(str(folder)):
+    if _UNSAFE_PATH_CHARS & (set(str(folder)) | set(str(update_dir()))):
         return False, "path_chars"
     probe = folder.parent / f".descrivox-write-test-{os.getpid()}"
     try:
@@ -198,7 +216,17 @@ def download(release: Release, fetch: Callable[[str], bytes] = _fetch,
     folder.mkdir(parents=True, exist_ok=True)
     dest = folder / zip_name(release.version)
     partial = folder / (zip_name(release.version) + ".part")
-    download_to(release.zip_url, partial, on_progress)
+    try:
+        download_to(release.zip_url, partial, on_progress,
+                    max_bytes=release.zip_size)
+        size = partial.stat().st_size
+        if release.zip_size and size != release.zip_size:
+            raise UpdateError(
+                f"the download is {size} bytes, the release says "
+                f"{release.zip_size}; nothing was installed")
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     actual = sha256_of(partial)
     if actual != expected:
         partial.unlink(missing_ok=True)
@@ -222,7 +250,27 @@ def _safe_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     names = {m.filename.replace("\\", "/") for m in members}
     if f"{APP_FOLDER}/{EXE_NAME}" not in names:
         raise UpdateError(f"the update has no {EXE_NAME}; nothing was installed")
+    if sum(m.file_size for m in members) > MAX_UNPACKED_BYTES:
+        raise UpdateError("the update unpacks to more than 4 GB; nothing "
+                          "was installed")
     return members
+
+
+MAX_UNPACKED_BYTES = 4 * 1024 ** 3   # the real app unpacks to about 900 MB
+_install_lock = threading.Lock()
+
+
+@contextmanager
+def install_lock():
+    """One download-and-unpack at a time (review, 6 Oct 2026): a dialog
+    closed mid-download keeps its worker running, and a second install
+    would unpack into the same DescriVox.new."""
+    if not _install_lock.acquire(blocking=False):
+        raise UpdateError("an update is already being downloaded")
+    try:
+        yield
+    finally:
+        _install_lock.release()
 
 
 def stage(zip_path: Path, folder: Path) -> Path:
@@ -234,7 +282,11 @@ def stage(zip_path: Path, folder: Path) -> Path:
     shutil.rmtree(staged_root, ignore_errors=True)
     with zipfile.ZipFile(zip_path) as archive:
         members = _safe_members(archive)
-        staged_root.mkdir(parents=True)
+        try:
+            staged_root.mkdir(parents=True)
+        except OSError as e:
+            raise UpdateError(f"could not clear the previous unpacked "
+                              f"update ({staged_root}): {e}") from e
         archive.extractall(staged_root, members)
     staged = staged_root / APP_FOLDER
     if not (staged / EXE_NAME).exists():
@@ -245,14 +297,23 @@ def stage(zip_path: Path, folder: Path) -> Path:
 # ── The swap ─────────────────────────────────────────────────────
 
 def write_apply_script(folder: Path, staged: Path, pid: int,
-                       exe_name: str = EXE_NAME) -> Path:
+                       exe_name: str = EXE_NAME,
+                       wait_seconds: int = 120) -> Path:
     """The cmd script that swaps the folders once process `pid` exits.
 
-    Waits at most ~2 minutes for the app to close; if it does not, or
-    the old folder cannot be moved, it starts the old version again.
+    Each way out writes its own line to apply.log. If the app has not
+    exited after `wait_seconds`, it changes and starts NOTHING: the old
+    app is still running, and starting it again would make two (review,
+    6 Oct 2026). If the old folder cannot be moved, the old version is
+    started again; if the new one cannot, the old one is moved back.
     """
     previous = folder.parent / f"{folder.name}{PREVIOUS_SUFFIX}"
+    staged_root = staged.parent
     work = update_dir()
+    unsafe = _UNSAFE_PATH_CHARS & set(f"{folder}{staged}{work}")
+    if unsafe:
+        raise UpdateError(f"a folder path contains {''.join(sorted(unsafe))}, "
+                          f"which the installer cannot handle")
     work.mkdir(parents=True, exist_ok=True)
     log = work / "apply.log"
     script = work / "apply_update.cmd"
@@ -265,6 +326,7 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
         "setlocal",
         f'set "APP={folder}"',
         f'set "NEW={staged}"',
+        f'set "NEWROOT={staged_root}"',
         f'set "OLD={previous}"',
         f'set "LOG={log}"',
         f'set "EXE={exe_name}"',
@@ -274,12 +336,17 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
         rf'"%SYS%\tasklist.exe" /FI "PID eq {pid}" /NH 2>nul | "%SYS%\find.exe" " {pid} " >nul',
         "if errorlevel 1 goto gone",
         "set /a N+=1",
-        "if %N% GEQ 120 goto start_old",
+        f"if %N% GEQ {max(1, int(wait_seconds))} goto timed_out",
         r'"%SYS%\ping.exe" -n 2 127.0.0.1 >nul',
         "goto wait",
+        ":timed_out",
+        f'echo timed out: process {pid} did not exit; nothing changed >> "%LOG%"',
+        "goto end",
         ":gone",
         r'"%SYS%\ping.exe" -n 2 127.0.0.1 >nul',
         'if exist "%OLD%" rmdir /s /q "%OLD%"',
+        # If it is still there, "move" would put the app INSIDE it.
+        'if exist "%OLD%" goto cannot_move_old',
         # An antivirus scan can hold a file for a moment: try a few times.
         "set /a T=0",
         ":move_old",
@@ -296,6 +363,7 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
         'move "%NEW%" "%APP%" >nul 2>&1',
         "if errorlevel 1 goto rollback",
         'echo updated >> "%LOG%"',
+        'rmdir "%NEWROOT%" >nul 2>&1',
         # Started from its own folder, as Explorer would: a working
         # folder inside update_dir() would stop finish_pending()
         # removing it (Windows will not delete a process's cwd).
@@ -305,6 +373,9 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
         ":rollback",
         'echo could not move the new version, rolling back >> "%LOG%"',
         'move "%OLD%" "%APP%" >nul 2>&1',
+        "if not errorlevel 1 goto start_old",
+        'echo ROLLBACK FAILED: the old version is in "%OLD%" >> "%LOG%"',
+        "goto end",
         ":start_old",
         'echo started the old version >> "%LOG%"',
         'cd /d "%APP%"',
@@ -333,10 +404,13 @@ def mark_pending(settings, version: str) -> None:
     settings.set("updates.app_pending", version)
 
 
-def finish_pending(settings, current: str = __version__) -> tuple[str, bool] | None:
+def finish_pending(settings, current: str = __version__,
+                   folder: Path | None = None) -> tuple[str, bool] | None:
     """(version, ok) if an update was just attempted, else None.
 
-    Removes the downloaded zip once the new version is running.
+    Removes the downloaded zip once the new version is running; when it
+    did not take, removes the unpacked copy left next to `folder` (the
+    log in update_dir() is kept, it says why).
     """
     pending = str(settings.get("updates.app_pending", "") or "")
     if not pending:
@@ -345,12 +419,17 @@ def finish_pending(settings, current: str = __version__) -> tuple[str, bool] | N
     ok = not is_newer(pending, current)
     if ok:
         shutil.rmtree(update_dir(), ignore_errors=True)
+    elif folder is not None:
+        leftover = folder.parent / f"{folder.name}{STAGED_SUFFIX}"
+        shutil.rmtree(leftover, ignore_errors=True)
+        if leftover.exists():
+            logger.warning("Could not remove the unpacked update %s", leftover)
     return pending, ok
 
 
 __all__ = ["APP_FOLDER", "EXE_NAME", "RELEASES_PAGE", "Release", "SUMS_NAME",
            "UpdateError", "app_dir", "can_self_install", "download",
-           "expected_sha256", "finish_pending", "latest_release",
+           "expected_sha256", "finish_pending", "install_lock", "latest_release",
            "launch_apply_script", "mark_pending", "newer_release",
            "parse_release", "sha256_of", "stage", "update_dir",
            "write_apply_script", "zip_name"]

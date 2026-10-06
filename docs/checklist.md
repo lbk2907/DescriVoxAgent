@@ -310,5 +310,12 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
 - [ ] 35.6 End-to-end on two real builds (old exe updates itself to a new one from a local test release)
 - [x] 35.7 `tools/publish_release.py`: refuses unless VERIFIED, tag at HEAD, zip matches its checksum, gh logged in;
       the agent publishes after ONE yes from the owner per version (owner delegated it, 6 Oct 2026); gh logged in
+- [x] 35.9 Reviewed by `ecc:python-reviewer` (6 Oct 2026): no CRITICAL. Fixed test-first (6 new tests, each seen
+      failing): the swap no longer starts a second copy when the app does not exit (HIGH), never nests the old app in
+      a `.previous` it cannot remove, removes the empty `DescriVox.new`, reports a failed rollback; downloads only
+      this repo's release URLs, a plain version tag, no more bytes than GitHub says; one install at a time; the update
+      folder checked for unsafe characters. test_fixes76: 17/17
+- [ ] 35.10 Signed releases (owner to decide): today SHA256SUMS.txt detects a damaged download, not a release
+      published by someone who stole the GitHub login
 - [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
 
