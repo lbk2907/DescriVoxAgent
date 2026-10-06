@@ -93,7 +93,7 @@ def _fetch(url: str, timeout: float = 30.0) -> bytes:
     request = urllib.request.Request(
         url, headers={"User-Agent": "DescriVox-update-check",
                       "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with _open(request, timeout) as response:
         return response.read()
 
 
@@ -102,8 +102,7 @@ def _download(url: str, dest: Path,
               max_bytes: int = 0) -> None:
     request = urllib.request.Request(
         url, headers={"User-Agent": "DescriVox-update-check"})
-    with urllib.request.urlopen(request, timeout=60) as response, \
-            open(dest, "wb") as out:
+    with _open(request, 60) as response, open(dest, "wb") as out:
         total = int(response.headers.get("Content-Length") or 0)
         done = 0
         while True:
@@ -125,6 +124,43 @@ def _download(url: str, dest: Path,
 # plain version tag, whatever the API answer says.
 _ASSET_PREFIX = f"https://github.com/{REPO}/releases/download/"
 _VERSION_RE = re.compile(r"^\d+(\.\d+){1,3}$")
+# Checklist 35.6 (7 Oct 2026): the end-to-end test of a real build serves
+# a test release from this PC. ODC_UPDATE_SOURCE may name a LOOPBACK
+# server only; anything else is ignored. The signature by the owner's key
+# is still required, so this cannot install anything unsigned.
+# Review (7 Oct): 127.0.0.1 only (no "localhost" to resolve), whole-string
+# match, ASCII digits, and only in test mode (ODC_UPDATE_DIR also set).
+_LOOPBACK_SOURCE = re.compile(r"http://127\.0\.0\.1:[0-9]{1,5}")
+
+
+def _local_source() -> str:
+    if not os.environ.get("ODC_UPDATE_DIR", "").strip():
+        return ""
+    source = os.environ.get("ODC_UPDATE_SOURCE", "").strip().rstrip("/")
+    return source if _LOOPBACK_SOURCE.fullmatch(source) else ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A test server on this PC must not send the app anywhere else."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UpdateError(f"the local test server redirected to {newurl}")
+
+
+def _open(request, timeout: float):
+    if _local_source():
+        return urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
+def latest_api() -> str:
+    local = _local_source()
+    return f"{local}/repos/{REPO}/releases/latest" if local else LATEST_API
+
+
+def asset_prefix() -> str:
+    local = _local_source()
+    return f"{local}/{REPO}/releases/download/" if local else _ASSET_PREFIX
 
 
 def parse_release(data: dict) -> Release:
@@ -143,8 +179,9 @@ def parse_release(data: dict) -> Release:
     zip_url = zip_asset.get("browser_download_url") or ""
     sums_url = sums_asset.get("browser_download_url") or ""
     sig_url = sig_asset.get("browser_download_url") or ""
+    prefix = asset_prefix()
     for url in (zip_url, sums_url, sig_url):
-        if not url.startswith(_ASSET_PREFIX):
+        if not url.startswith(prefix):
             raise UpdateError(f"release {tag} points outside {REPO}: {url}")
     return Release(
         version=version, tag=tag,
@@ -156,7 +193,7 @@ def parse_release(data: dict) -> Release:
 
 
 def latest_release(fetch: Callable[[str], bytes] = _fetch) -> Release:
-    return parse_release(json.loads(fetch(LATEST_API).decode("utf-8")))
+    return parse_release(json.loads(fetch(latest_api()).decode("utf-8")))
 
 
 def newer_release(fetch: Callable[[str], bytes] = _fetch,

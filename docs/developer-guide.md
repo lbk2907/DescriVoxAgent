@@ -95,6 +95,7 @@ interface stays in English and Malay.
 | `ODC_TOOLS_DIR` | user-installed yt-dlp updates |
 | `ODC_UPDATE_DIR` | downloaded app updates and the swap script's log |
 | `ODC_RELEASE_KEY` | the release signing key (tests use a temp test key) |
+| `ODC_UPDATE_SOURCE` | test only: `http://127.0.0.1:<port>` serves a test release (needs `ODC_UPDATE_DIR` too; no redirects; still signed) |
 | `ODC_LOCALES_DIR` | user language files |
 | `ODC_PRISM_BACKEND` | forces a speech backend (SAPI, NVDA, OneCore) |
 

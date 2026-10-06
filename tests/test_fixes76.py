@@ -350,6 +350,64 @@ def test_review_urls_size_tag():
         pass
 
 
+def test_local_source_loopback_only():
+    """35.6: ODC_UPDATE_SOURCE serves a test release from this PC only."""
+    real = os.environ.pop("ODC_UPDATE_SOURCE", None)
+    try:
+        assert au.latest_api() == au.LATEST_API
+        for bad in ("http://evil.example:80", "https://127.0.0.1:8000",
+                    "http://127.0.0.1.evil.example:80", "http://127.0.0.1",
+                    "http://127.0.0.1:80@evil.com", "http://[::1]:80",
+                    "http://localhost:80", "http://127.0.0.1:80/x"):
+            os.environ["ODC_UPDATE_SOURCE"] = bad
+            assert au.latest_api() == au.LATEST_API, bad
+        # Only in test mode: without ODC_UPDATE_DIR the switch is ignored.
+        os.environ["ODC_UPDATE_SOURCE"] = "http://127.0.0.1:8765"
+        upd = os.environ.pop("ODC_UPDATE_DIR")
+        try:
+            assert au.latest_api() == au.LATEST_API
+        finally:
+            os.environ["ODC_UPDATE_DIR"] = upd
+        # A local server may not redirect the app elsewhere.
+        import http.server
+        import threading as th
+
+        class Redirect(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", "http://example.invalid/x")
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Redirect)
+        th.Thread(target=srv.handle_request, daemon=True).start()
+        os.environ["ODC_UPDATE_SOURCE"] = f"http://127.0.0.1:{srv.server_port}"
+        try:
+            au._fetch(f"http://127.0.0.1:{srv.server_port}/x", timeout=10)
+            raise AssertionError("followed a redirect away from this PC")
+        except UpdateError:
+            pass
+        finally:
+            srv.server_close()
+        os.environ["ODC_UPDATE_SOURCE"] = "http://127.0.0.1:8765/"
+        assert au.latest_api() == f"http://127.0.0.1:8765/repos/{au.REPO}/releases/latest"
+        data = release_json()
+        for a in data["assets"]:
+            a["browser_download_url"] = (f"http://127.0.0.1:8765/{au.REPO}/releases/"
+                                         f"download/v2.1.3/{a['name']}")
+        assert au.parse_release(data).sig_url.endswith(au.SIG_NAME)
+        try:
+            au.parse_release(release_json())   # GitHub URLs while local
+            raise AssertionError("mixed sources accepted")
+        except UpdateError:
+            pass
+    finally:
+        os.environ.pop("ODC_UPDATE_SOURCE", None)
+        if real is not None:
+            os.environ["ODC_UPDATE_SOURCE"] = real
+
+
 def test_review_one_install_at_a_time():
     """MEDIUM: a second install while one runs is refused, not interleaved."""
     with au.install_lock():
@@ -601,6 +659,7 @@ def main() -> int:
     check("review: good swap removes DescriVox.new (real)", test_review_success_cleans_staging)
     check("review: GitHub URLs only, plain tag, size cap", test_review_urls_size_tag)
     check("review: one install at a time", test_review_one_install_at_a_time)
+    check("test release source: this PC only", test_local_source_loopback_only)
     check("review: unsafe update folder refused", test_review_unsafe_update_dir)
     check("after the restart: took / did not take", test_finish_pending)
     check("build writes SHA256SUMS.txt and release notes", test_release_files)
