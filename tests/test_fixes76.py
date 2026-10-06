@@ -235,6 +235,38 @@ def test_release_files():
     assert rf.notes_for(real, __version__).strip()
 
 
+def test_publish_preflight():
+    """tools/publish_release.py refuses anything the updater would refuse."""
+    import publish_release as pr
+    dist = Path(tempfile.mkdtemp(prefix="odc_t76_pub_"))
+    assert any("missing" in p for p in pr.check_files(dist, "9.9.9"))
+    archive = make_zip(dist / au.zip_name("9.9.9"), good_members())
+    (dist / au.SUMS_NAME).write_text(f"{au.sha256_of(archive)}  {archive.name}\n",
+                                     encoding="utf-8")
+    (dist / "release-notes-9.9.9.md").write_text("- Updates itself.\n", encoding="utf-8")
+    assert pr.check_files(dist, "9.9.9") == []
+    (dist / au.SUMS_NAME).write_text(f"{'0' * 64}  {archive.name}\n", encoding="utf-8")
+    assert pr.check_files(dist, "9.9.9"), "a zip not matching its checksum passed"
+
+    class Out:
+        def __init__(self, stdout="", returncode=0):
+            self.stdout, self.returncode = stdout, returncode
+    heads = {"HEAD": "abc", "v9.9.9": "abc"}
+    run = lambda cmd: Out(heads.get(cmd[-1], "") if cmd[1] != "rev-list"  # noqa: E731
+                          else heads.get(cmd[-1], ""))
+    assert pr.check_tag("9.9.9", run) == []
+    heads["v9.9.9"] = "old"
+    assert pr.check_tag("9.9.9", run) == ["tag v9.9.9 is not HEAD"]
+    assert pr.check_gh(lambda cmd: Out(returncode=1)), "gh logged out passed"
+    steps = pr.plan("9.9.9", dist)
+    assert steps[0] == ["git", "push", "origin", "main"]
+    assert steps[1] == ["git", "push", "origin", "v9.9.9"]
+    create = steps[2]
+    assert create[:4] == ["gh", "release", "create", "v9.9.9"]
+    assert str(dist / au.zip_name("9.9.9")) in create and \
+        str(dist / au.SUMS_NAME) in create and au.REPO in create
+
+
 # ── The window (accessibility + wiring) ──────────────────────────
 
 def test_gui():
@@ -387,6 +419,7 @@ def main() -> int:
     check("swap rolls back when the new folder cannot move (real)", test_swap_rolls_back)
     check("after the restart: took / did not take", test_finish_pending)
     check("build writes SHA256SUMS.txt and release notes", test_release_files)
+    check("publish tool refuses what the updater would refuse", test_publish_preflight)
     check("menu, dialog, start-up offer, busy refusal (GUI)", test_gui)
     check("Settings switch for the start-up check", test_settings_switch)
     failed = [n for n, ok in results if not ok]

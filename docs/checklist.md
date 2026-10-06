@@ -305,5 +305,7 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
 - [x] 35.4 test_fixes76 (10/10), the swap run for real against a waiting process (found pitfalls 101 and 102)
 - [ ] 35.5 Listen to the dialog with NVDA (needs the PC left alone)
 - [ ] 35.6 End-to-end on two real builds (old exe updates itself to a new one from a local test release)
-- [ ] 35.7 Owner publishes the first GitHub Release with the zip + SHA256SUMS.txt (2.1.3)
+- [x] 35.7 `tools/publish_release.py`: refuses unless VERIFIED, tag at HEAD, zip matches its checksum, gh logged in;
+      the agent publishes after ONE yes from the owner per version (owner delegated it, 6 Oct 2026); gh logged in
+- [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
 

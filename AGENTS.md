@@ -122,7 +122,12 @@ How work is actually done here, step by step.
      must say **VERIFIED**, and tag ONLY with `python tools/tag_release.py`
      (never `git tag` by hand). The gate, the build and the NVDA check record
      their own evidence; INCONCLUSIVE is not a pass (contracts/README.md).
-   - Delete the previous zip in `dist/` (ask the owner) and push (ask).
+   - Publish (owner delegated it, 6 Oct 2026): ask the owner ONE yes for
+     this version, then `python tools/publish_release.py --yes` (pushes
+     `main` + the tag, creates the GitHub Release with the zip and
+     `SHA256SUMS.txt`, which the in-app updater needs). Without that yes,
+     only the dry run.
+   - Delete the previous zip in `dist/` (ask the owner).
 10. **Contracts** (`contracts/`, owner 6 Oct 2026). What "done" means is
     frozen before the work. You may change a contract only with
     `python tools/contracts.py freeze <id> --why "..."`, which records it in

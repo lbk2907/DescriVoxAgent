@@ -185,12 +185,16 @@ the bench and judge with `tools/measure_check.py`. Results and methods: `docs/mo
    (judged against the frozen `contracts/a11y-main.json`).
 6. `python tools\release_check.py` must say VERIFIED (the release contract,
    judged on evidence the gate, build and NVDA check recorded themselves);
-   tag with `python tools\tag_release.py`, never by hand. Push `main` and
-   the tag only with the owner's permission. See `contracts/README.md`.
-   Then the owner (outward-facing, so never an agent) publishes a GitHub
-   Release for that tag on `lbk2907/DescriVoxAgent`: title `DescriVox Agent
-   <v>`, text = `dist/release-notes-<v>.md`, files = the zip AND
-   `SHA256SUMS.txt`, not a pre-release. The in-app updater
-   (`core/app_update.py`) reads `releases/latest` and refuses a release
-   without both files or whose zip does not match.
-7. Keep only the newest zip in `dist/` (ask the owner before deleting).
+   tag with `python tools\tag_release.py`, never by hand. See
+   `contracts/README.md`.
+7. Publish: `python tools\publish_release.py` (dry run) checks VERIFIED,
+   the tag at HEAD, the zip against `SHA256SUMS.txt`, the notes, and that
+   `gh` is logged in (the owner logs it in once; no token passes through
+   an agent), then prints the plan. The owner delegated publishing to the
+   agent (6 Oct 2026) but answers ONE yes per version; only then
+   `python tools\publish_release.py --yes`: pushes `main` and the tag,
+   creates the GitHub Release on `lbk2907/DescriVoxAgent` (title
+   `DescriVox Agent <v>`, text = `dist/release-notes-<v>.md`, files = the
+   zip AND `SHA256SUMS.txt`) and reads `releases/latest` back the way the
+   in-app updater (`core/app_update.py`) does.
+8. Keep only the newest zip in `dist/` (ask the owner before deleting).
