@@ -9,6 +9,7 @@ those windows on a throwaway project and tabs through it the same way.
     python tools/nvda_window_check.py --window editor
     python tools/nvda_window_check.py --window ask
     python tools/nvda_window_check.py --window updates
+    python tools/nvda_window_check.py --window app_update
     python tools/nvda_window_check.py --window explorer
     python tools/nvda_window_check.py --window settings
     python tools/nvda_window_check.py --window settings --provider custom
@@ -68,6 +69,18 @@ def serve(window: str, work: Path) -> None:
         from omni_describer_custom.ui.update_dialog import UpdateDialog
         top = UpdateDialog(player, None)
         top.Show()
+    elif window == "app_update":
+        # 2.1.3: Help > Check for Updates (the app itself), offering a
+        # made-up release so nothing is fetched from GitHub.
+        from omni_describer_custom.core.app_update import Release
+        from omni_describer_custom.ui.app_update_dialog import AppUpdateDialog
+        release = Release(
+            version="9.9.9", tag="v9.9.9",
+            notes="- The app updates itself.\n- A test release for listening.",
+            page_url="https://example.invalid", zip_url="", zip_size=0,
+            sums_url="")
+        top = AppUpdateDialog(player, None, release=release)
+        top.Show()
     elif window == "explorer":
         from omni_describer_custom.ui.scene_explorer import SceneExplorer
         top = SceneExplorer(player, None, str(clip))
@@ -95,7 +108,7 @@ def serve(window: str, work: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--window", choices=["player", "editor", "ask", "updates", "explorer",
-                                 "settings"],
+                                 "settings", "app_update"],
                         required=True)
     parser.add_argument("--steps", type=int, default=16)
     parser.add_argument("--provider", default="",
@@ -142,7 +155,35 @@ def main() -> int:
             hwnd = win32gui.FindWindow(None, title)
             time.sleep(0.5)
         win = Desktop(backend="uia").window(handle=hwnd)
+        # Bring it to the front first (as nvda_agent_check does): with
+        # another app in front, pywinauto's set_focus alone left the
+        # Claude window foreground and safe_keys refused every key.
+        try:
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception:
+            win.set_focus()
         time.sleep(1.5)
+        # 6 Oct 2026: the keys reached the dialog, but NVDA kept reporting
+        # the Claude window's "Prompt" box for 6 Tabs, and the report said
+        # OK for them. Wait until NVDA itself is in this app; if it never
+        # is, that is INCONCLUSIVE (pitfall 100), not a pass.
+        # NVDA follows only after a key lands in the window; safe_keys has
+        # checked the foreground AND keyboard focus are this app's, so
+        # these warm-up Tabs (not recorded) cannot reach another program.
+        app_name = ""
+        for _warm in range(8):
+            try:
+                app_name = str(a11y.focus_object().get("appName", ""))
+            except Exception:
+                app_name = ""
+            if app_name and app_name.lower() not in ("claude", "explorer"):
+                break
+            safe_keys.send_keys("{TAB}")
+            time.sleep(0.9)
+        else:
+            print(f"INCONCLUSIVE: NVDA's focus stayed in {app_name or '?'}, "
+                  f"not the window under test; nothing was judged")
+            return 3
         print(f"Window: {title}")
         seen = a11y.walk_controls(win, args.steps)
         # The main-window pitfall-12 checks look for the preset combo and

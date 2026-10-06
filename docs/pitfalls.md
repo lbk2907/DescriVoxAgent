@@ -430,3 +430,12 @@ that folder after a successful update silently failed (`rmtree` with
 `ignore_errors`). The script now runs from `%SystemRoot%` and starts the app
 from its own folder, as Explorer does.
 
+### 103. NVDA can lag behind the keyboard focus: check NVDA is in the app
+`tools/nvda_window_check.py` brought the dialog to the front and pressed
+Tab; `safe_keys` confirmed every key reached the app, yet NVDA kept
+reporting the Claude window's "Prompt" box for the first six Tabs, and the
+report printed OK for them. A listening result counts only for controls NVDA
+itself reported in the app under test. The tool now presses warm-up Tabs
+(into the app only) until NVDA's focus `appName` is the app, and answers
+INCONCLUSIVE if it never is (pitfall 100).
+

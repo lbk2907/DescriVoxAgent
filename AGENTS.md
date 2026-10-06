@@ -288,6 +288,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 | Testing, gate, GUI automation | 3, 5, 6, 9, 10, 18, 19, 40, 44, 55, 60, 64, 88, 91, 94 |
 | Build and packaging | 17, 21, 22, 23, 36, 49 |
 | Self-update (cmd script) | 101, 102 |
+| Listening checks (NVDA) | 100, 103 |
 
 ## 9. Current status (update at each release)
 

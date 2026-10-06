@@ -303,7 +303,10 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       Settings switch `updates.check_app_at_start`
 - [x] 35.3 `tools/release_files.py` in build.bat: `SHA256SUMS.txt` + release notes from the CHANGELOG
 - [x] 35.4 test_fixes76 (10/10), the swap run for real against a waiting process (found pitfalls 101 and 102)
-- [ ] 35.5 Listen to the dialog with NVDA (needs the PC left alone)
+- [x] 35.5 Listened with NVDA (6 Oct 2026, `nvda_window_check.py --window app_update`, `settings`, `updates`):
+      every control named and announced; status box reads the offer, "What's new" reads the notes; the Settings
+      switch and the renamed yt-dlp dialog heard. The first run printed OK while NVDA was still on the Claude
+      window (pitfall 103); the tool now waits for NVDA and says INCONCLUSIVE otherwise
 - [ ] 35.6 End-to-end on two real builds (old exe updates itself to a new one from a local test release)
 - [x] 35.7 `tools/publish_release.py`: refuses unless VERIFIED, tag at HEAD, zip matches its checksum, gh logged in;
       the agent publishes after ONE yes from the owner per version (owner delegated it, 6 Oct 2026); gh logged in
