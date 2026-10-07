@@ -307,7 +307,12 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       every control named and announced; status box reads the offer, "What's new" reads the notes; the Settings
       switch and the renamed yt-dlp dialog heard. The first run printed OK while NVDA was still on the Claude
       window (pitfall 103); the tool now waits for NVDA and says INCONCLUSIVE otherwise
-- [ ] 35.6 End-to-end on two real builds (old exe updates itself to a new one from a local test release)
+- [x] 35.6 End-to-end on two real builds (8 Oct 2026): built 2.1.2 (build.bat) and a 9.9.9 copy; a 395 MB test release
+      signed with the owner's real key, served on 127.0.0.1 (`ODC_UPDATE_SOURCE`). The 2.1.2 exe offered 9.9.9 at
+      start-up, Alt+D downloaded and verified it (signature + SHA-256 inside the frozen exe), Yes closed it; the swap
+      logged "updated", kept DescriVox.previous, removed DescriVox.new, and the 9.9.9 exe started and reported the
+      result (pending cleared, update folder removed). First run: Windows kept Claude in front and safe_keys refused
+      every key (nothing typed elsewhere); fixed by focusing the dialog the pywinauto way
 - [x] 35.7 `tools/publish_release.py`: refuses unless VERIFIED, tag at HEAD, zip matches its checksum, gh logged in;
       the agent publishes after ONE yes from the owner per version (owner delegated it, 6 Oct 2026); gh logged in
 - [x] 35.9 Reviewed by `ecc:python-reviewer` (6 Oct 2026): no CRITICAL. Fixed test-first (6 new tests, each seen
@@ -322,6 +327,6 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       (`ODC_RELEASE_KEY` in isolate.py). test_fixes76: 18/18
 - [x] 35.11 Owner backed up the release key offline (7 Oct 2026). One key only (owner's choice: no reserve key);
       if it and the backup are lost, users update by hand once to a build with a new public key
-- [ ] 35.12 Next build: confirm PyNaCl (`nacl/_sodium.pyd`) is inside `dist/DescriVox/_internal`
+- [x] 35.12 PyNaCl is in the build (`_internal/nacl/_sodium.pyd`, 8 Oct 2026) and verifies inside the frozen exe (35.6)
 - [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
 
