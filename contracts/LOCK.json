@@ -14,6 +14,21 @@
     "sha256": "8f9849ff0c574e5630d95cbac9084b7a78cb39a71dba6c46676fc7951ebf7869",
     "version": 1
   },
+  "measure-honest-floor-3": {
+    "frozen_at": "2026-10-08T01:25:18",
+    "sha256": "0ddda13aab7bd0e1b3137c82d36de4d8c6d294ac5d78616f7d19a383c3c84ee6",
+    "version": 1
+  },
+  "measure-honest-floor-3-ms": {
+    "frozen_at": "2026-10-08T01:25:19",
+    "sha256": "1dd61c5398fc5d4bf3b8df1c1362e3cabc6745909f544dac4613c47776b32202",
+    "version": 1
+  },
+  "measure-honest-floor-3-propose": {
+    "frozen_at": "2026-10-08T01:25:20",
+    "sha256": "f3ddd77ddc6a9d25d2316b037e1977471aa2cbfd4a51c53b02c829ee3c2dc075",
+    "version": 1
+  },
   "measure-template": {
     "frozen_at": "2026-10-06T04:52:32",
     "sha256": "4df5192368ad085ff77acfd1b00fb82f6a24dc1b9829ecb18e18b2d4360c3f5d",

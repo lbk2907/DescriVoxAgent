@@ -1,0 +1,14 @@
+{
+  "contract_id": "measure-honest-floor-3-propose",
+  "title": "34.1 Honest floor v2 does not stop the agent proposing real fixes",
+  "kind": "measure",
+  "feature": "honest-floor",
+  "notes": "Frozen 8 Oct 2026 BEFORE the run. The review of 2.1.3 warned the floor ('never fill the gap from the descriptions') may make the agent decline instead of proposing a fix. Measured with the app's own agent (Gemini 3.1 Flash-Lite, as F2) on Tears of Steel descriptions the independent judge labelled WRONG (a fix must be proposed) and RIGHT (no change). tools/honest_bench.py --set propose, 'on' = v2 floor, 'off' = no floor.",
+  "metrics": [
+    {"id": "fixes_not_lost", "metric": "propose_wrong", "compare": "on_minus_off", "min": -10.0, "required": true,
+     "why": "the floor may cost at most 10 points of fixes proposed for wrong descriptions"},
+    {"id": "no_new_noise", "metric": "keep_right", "compare": "on_minus_off", "min": -10.0, "required": true,
+     "why": "the floor may not make the agent change correct descriptions more than 10 points more often"}
+  ],
+  "min_runs": 3
+}

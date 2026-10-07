@@ -114,6 +114,18 @@ The full walkthrough is in the [user guide](docs/user-guide.md).
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.3
+
+- **DescriVox Agent updates itself.** **Help > Check for Updates** checks for a newer version,
+  reads what is new, and with **Download and install** downloads it, checks it, closes the
+  app, puts the new version in place and opens it again; your settings and projects are kept
+  and the old version is kept as `DescriVox.previous`. It also checks quietly each time the
+  app opens (Settings can turn that off). Every release is signed with the author's own key,
+  and the app installs nothing else. yt-dlp now has its own item, **Help > Update YouTube
+  downloader**. This is the last version you have to download by hand.
+- **The agent says when it cannot see something** (F2): "I cannot see that clearly", with the
+  times it looked at, instead of a guess.
+
 ## What's new in v2.1.2
 
 - **File > New Project is useful now.** It used to make an EMPTY project that nothing used
@@ -129,24 +141,6 @@ were first tagged 1.6.10 and 1.6.11).
   and feature requests, and a pull request template. The README has badges, contents,
   requirements and a quick start. The Malay user guide was removed; the app's interface
   is unchanged and stays in English and Malay.
-
-## What's new in v2.1.0
-
-- **One name for every person.** Before, the same person could be "a man", then "the man in
-  red", then "he", and names heard in the dialogue were not used. Now the AI uses a name
-  heard or shown on screen, keeps ONE label until the name is known, and a long video
-  carries the list of people from part to part. Measured on two films first: with Gemini on
-  Sintel, 99% of the lines about people use the right name (1% before). Settings > AI >
-  **Recognise characters by name** turns it off.
-- **Player > Characters...** lists the people: give someone a real name and it is put into
-  every description at once ("The man in the grey coat nods" becomes "Encik Rahim nods").
-  Names you give are never changed by the AI.
-- **The agent (F2) can rename too:** "the man in the grey coat is Encik Rahim" gives ONE
-  proposal for all the descriptions; accept or reject.
-- **The agent no longer leaves you with a fix in words only** — it is asked to make it a
-  proposal — and an empty answer is asked again.
-
-Older releases: [CHANGELOG.md](CHANGELOG.md).
 
 ## Standalone video describer (CLI + HTTP API)
 

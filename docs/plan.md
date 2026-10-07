@@ -115,8 +115,8 @@ phases 19 onwards in the [checklist](checklist.md). "—" = no release.
 | 31 | File > New Project | 2.1.2 | New Project asks for a name and the video; no more empty projects |
 | 32 | Documents updated automatically | — | `tools/check_docs.py` in the gate and the build |
 | 33 | Frozen contracts | — | Release, accessibility and measurement contracts; releases tagged only on VERIFIED |
-| 34 | Ideas from Watch Skill | (2.1.3, planned) | Honest floor for the agent, on-screen-text OCR, scene-based frame selection, lessons from the owner's corrections — each measured under a frozen contract first |
-| 35 | The app updates itself | (2.1.3, planned) | Help > Check for Updates: GitHub Releases, checked at every start, SHA-256 verified, folder swap with rollback; yt-dlp moves to its own item |
+| 34 | Ideas from Watch Skill | 2.1.3 (34.1); the rest later | Honest floor for the agent, on-screen-text OCR, scene-based frame selection, lessons from the owner's corrections — each measured under a frozen contract first |
+| 35 | The app updates itself | 2.1.3 | Help > Check for Updates: GitHub Releases, checked at every start, SHA-256 verified, folder swap with rollback; yt-dlp moves to its own item |
 
 Every release phase closed with gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, the exe heard
 through NVDA, a tag, and the old zip deleted.

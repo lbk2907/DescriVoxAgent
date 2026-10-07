@@ -2,7 +2,7 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
-## Unreleased
+## What's new in v2.1.3
 
 - **DescriVox Agent updates itself.** **Help > Check for Updates** now checks for a newer
   DescriVox Agent (the yt-dlp updater moved to **Help > Update YouTube downloader**). Every
@@ -20,8 +20,9 @@ Every release since v1.5.1, newest first, as it appeared in the README at the ti
   whose signature checks out, so even a stolen GitHub login cannot push a fake update.
 - **The agent says when it cannot see something.** When a detail is not there or not
   readable, the agent (F2) now always begins with "I cannot see that clearly" and names the
-  times it looked at, instead of guessing. Measured first on known clips and on Tears of Steel
-  and Sintel: no answers were lost.
+  times it looked at, instead of guessing, in the agent's own language (also Malay). It still
+  proposes fixes as before. Measured first on known clips and on Tears of Steel and Sintel, in
+  English and Malay: no answers and no fixes were lost.
 - **Frozen contracts for releases, accessibility and measurements** (`contracts/`). A
   release is tagged only when `tools/release_check.py` says VERIFIED, judged on evidence the
   gate, the build and the NVDA check record themselves; the main window's accessibility is

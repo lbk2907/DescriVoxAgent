@@ -1249,6 +1249,8 @@ class MainFrame(wx.Frame):
         update dialog only when this window is in front and idle;
         otherwise says it on the status bar and in the log.
         """
+        if not self or self.IsBeingDeleted():
+            return   # closed before the start-up timer fired (2.1.3 review)
         if not self.settings.get("updates.check_app_at_start", True):
             return
         from ..core import app_update
@@ -1275,11 +1277,26 @@ class MainFrame(wx.Frame):
             isinstance(w, wx.Dialog) and w.IsShown()
             for w in wx.GetTopLevelWindows())
         if busy:
+            # 2.1.3 review: NVDA does not read status-bar changes, and no
+            # focus moves here, so speak it through the screen reader
+            # itself (Prism; speech.announce stays silent when one runs).
+            # Queued, not interrupting; not while a video is processed
+            # (its own progress is being spoken then).
+            if not self._processing:
+                try:
+                    from ..core.speech import get_speech
+                    speech = get_speech()
+                    if speech.available:
+                        speech.speak(msg, interrupt=False)
+                except Exception:
+                    logger.debug("Update notice not spoken", exc_info=True)
             return
         self._show_app_update(release)
 
     def report_app_update_result(self) -> None:
         """After a restart for an update: did it take?"""
+        if not self or self.IsBeingDeleted():
+            return   # closed before the start-up timer fired (2.1.3 review)
         from .. import __version__
         from ..core import app_update
         result = app_update.finish_pending(self.settings, __version__,

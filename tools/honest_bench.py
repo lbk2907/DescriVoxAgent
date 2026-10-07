@@ -47,6 +47,9 @@ SET = "easy"
 def questions():
     if SET == "hard":
         return HARD
+    if SET == "hard-ms":
+        return [(c, k, q_ms, kw_ms, t) for (c, k, _q, _kw, t), (q_ms, kw_ms)
+                in zip(HARD, HARD_MS_TEXT)]
     return [(c, k, q, kw, LENGTH[c] / 2) for c, k, q, kw in QUESTIONS]
 QUESTIONS = [
     # (clip, kind, question, keywords that make a PRESENT answer correct)
@@ -100,8 +103,45 @@ ABSTAIN = re.compile(
     re.IGNORECASE)
 
 
+# Round 3, Malay (contracts/measure-honest-floor-3-ms, frozen 8 Oct 2026):
+# the HARD questions asked in Malay to an agent whose language is Malay.
+HARD_MS_TEXT = [
+    ("Pada saat ini, apakah yang ada di atas pinggan di hadapan lelaki itu?",
+     ["otak"]),
+    ("Pada saat ini, apakah yang dipasang pada mata lelaki itu?",
+     ["kanta", "lensa", "peranti", "alat", "mekanikal", "optik", "monokel", "teropong"]),
+    ("Pada saat ini, senjata apakah yang ada di sebelah lelaki di pagar itu?",
+     ["senapang", "raifal", "penembak", "senjata api"]),
+    ("Pada saat ini, apakah yang dipakai oleh lelaki di hadapan pada mukanya?",
+     ["cermin mata", "kaca mata"]),
+    ("Pada saat ini, apakah warna jaket lelaki muda itu?", ["biru"]),
+    ("Pada saat ini, apakah warna rambut gadis itu?",
+     ["merah", "kemerahan", "jingga", "tembaga", "perang"]),
+    ("Pada saat ini, apakah yang bercahaya di kulit pokok yang disentuhnya?",
+     ["kristal", "permata", "ais", "batu"]),
+    ("Pada saat ini, apakah yang dipegang di tangannya?",
+     ["tongkat", "lembing", "kayu", "galah", "batang"]),
+    ("Pada saat ini, apakah nama yang tertulis pada lencana lelaki itu?", []),
+    ("Pada saat ini, apakah jenama yang tercetak pada kotak yang dipegangnya?", []),
+    ("Pada saat ini, apakah nombor plat kereta merah yang diletakkan di belakang robot itu?", []),
+    ("Pada saat ini, apakah perkataan yang tertulis pada baju-T lelaki muda itu?", []),
+    ("Pada saat ini, apakah warna basikal yang bersandar pada pokok itu?", []),
+    ("Pada saat ini, apakah yang tertulis pada peti-peti kayu itu?", []),
+    ("Pada saat ini, apakah warna mata gadis itu?", []),
+    ("Pada saat ini, apakah nama yang diukir pada pokok itu?", []),
+]
+ABSTAIN_MS = re.compile(
+    r"tidak (dapat|boleh|jelas|kelihatan|nampak|terlihat|pasti|ada)|tak (dapat|boleh|nampak|jelas)"
+    r"|tiada|kabur|sukar (dilihat|dibaca|dikenal)|tidak cukup jelas"
+    r"|tidak dapat (dibaca|dilihat|dikenal)|terlalu (kabur|kecil|gelap|jauh)",
+    re.IGNORECASE)
+MALAY_MARKERS = re.compile(r"\b(yang|ini|itu|tidak|pada|dan|di|saya|ada|dengan|adalah)\b",
+                           re.IGNORECASE)
+
+
 def abstained(answer: str) -> bool:
-    return bool(ABSTAIN.search(answer or ""))
+    pattern = ABSTAIN_MS if SET == "hard-ms" else ABSTAIN
+    return bool(pattern.search(answer or ""))
 
 
 def correct(answer: str, keywords: list[str]) -> bool:
@@ -109,25 +149,119 @@ def correct(answer: str, keywords: list[str]) -> bool:
     return any(re.search(rf"\b{re.escape(k)}\b", low) for k in keywords) and not abstained(answer)
 
 
+ENGLISH_MARKERS = re.compile(r"\b(the|is|are|of|cannot|can't|this|that|there|it|i|see|clearly)\b",
+                             re.IGNORECASE)
+
+
+def in_malay(answer: str) -> bool:
+    """Malay, and never the English floor phrase (measure-honest-floor-3-ms).
+
+    Fixed 8 Oct 2026 after reading round 3 by hand: the first version
+    asked for TWO Malay marker words, so short Malay answers such as
+    "Jaket lelaki muda itu berwarna biru gelap." (one marker) were scored
+    as not Malay - 14 answers, every one of them plainly Malay. It now
+    looks for English instead: at most one English marker word. So it is
+    a NOT-ENGLISH check (review, 8 Oct): it would also pass very short
+    English ("Dark blue jacket.") or another language. The contract asks
+    exactly this - the agent must not answer in English - and every
+    round-3 answer was also read by hand (docs/model-comparison.md).
+    """
+    text = (answer or "").strip()
+    return (bool(text) and len(ENGLISH_MARKERS.findall(text)) <= 1
+            and "cannot see" not in text.lower())
+
+
 def load() -> dict:
     return json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else {}
 
 
-async def ask_once(key: str, clip: str, question: str, at: float) -> dict:
+async def ask_once(key: str, clip: str, question: str, at: float,
+                   descriptions: list | None = None) -> dict:
     ctx = ag.Context(video=str(mb.CLIPS / f"{clip}.mp4"), length=LENGTH[clip],
-                     descriptions=[], get_position=lambda: float(at),
-                     language="English")
+                     descriptions=descriptions or [], get_position=lambda: float(at),
+                     language="Malay" if SET == "hard-ms" else "English")
     agent = ag.Agent(key, MODEL, ctx, provider="gemini")
     started = time.monotonic()
     try:
         reply = await agent.ask(question)
         return {"answer": reply.answer, "error": reply.error, "cost": reply.cost,
-                "seconds": round(time.monotonic() - started, 1)}
+                "seconds": round(time.monotonic() - started, 1),
+                "proposals": [p.action for p in reply.proposals]}
     finally:
         agent.close()
 
 
+# Round 3, proposals (contracts/measure-honest-floor-3-propose): the two
+# Tears of Steel descriptions tools/agent_bench.py uses, labelled by the
+# independent judge: WRONG (a fix must be proposed) and RIGHT (no change).
+def propose_tasks() -> tuple[list, list]:
+    cues = [(float(t), x) for t, x in mb._load_results()[
+        "z-ai/glm-5.3-flash|desc|tears_full@chunk300|1"]["cues"]]
+    wrong_i = next(i for i, (_t, x) in enumerate(cues) if "giant robot crashes" in x)
+    right_i = next(i for i, (_t, x) in enumerate(cues) if "rocket engines" in x)
+    tasks = []
+    for kind, i in (("wrong", wrong_i), ("right", right_i)):
+        t, text = cues[i]
+        tasks.append((kind, t, f"The description [{i}] at {t:.1f}s says: \"{text}\". "
+                               f"Is it right for what is on screen then? Check it and "
+                               f"fix it if needed."))
+    return cues, tasks
+
+
+def changed(proposals: list[str]) -> bool:
+    return any(a != "keep" for a in proposals or [])
+
+
+def cmd_run_propose(args) -> int:
+    keys = mb._prepare_config()
+    results = load()
+    cues, tasks = propose_tasks()
+    for run in range(args.runs):
+        for mode in ("off", "on"):
+            ag.HONEST_FLOOR = mode == "on"
+            for i, (kind, t, ask) in enumerate(tasks):
+                key = f"{mode}|{run}|{i}"
+                if key in results and not results[key].get("error"):
+                    continue
+                got = asyncio.run(ask_once(keys["gemini"], "tears_full", ask, t, cues))
+                results[key] = got
+                OUT.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+                print(f"{key:10} {kind:6} {got['seconds']:5}s {got['proposals']} "
+                      f"{(got['error'] or got['answer'])[:70]}")
+    return 0
+
+
+def summary_propose(results: dict) -> dict:
+    _cues, tasks = propose_tasks()
+    agg = {m: {"wrong": 0, "proposed": 0, "right": 0, "kept": 0, "cost": 0.0} for m in ("off", "on")}
+    runs = set()
+    for key, r in results.items():
+        if r.get("error"):
+            continue
+        mode, run, i = key.split("|")
+        runs.add(run)
+        kind = tasks[int(i)][0]
+        a = agg[mode]
+        a["cost"] += r.get("cost") or 0
+        if kind == "wrong":
+            a["wrong"] += 1
+            a["proposed"] += changed(r.get("proposals"))
+        else:
+            a["right"] += 1
+            a["kept"] += not changed(r.get("proposals"))
+    metrics = {}
+    if all(agg[m]["wrong"] for m in agg):
+        metrics["propose_wrong"] = {m: round(100 * agg[m]["proposed"] / agg[m]["wrong"], 1) for m in agg}
+    if all(agg[m]["right"] for m in agg):
+        metrics["keep_right"] = {m: round(100 * agg[m]["kept"] / agg[m]["right"], 1) for m in agg}
+    created = datetime.datetime.fromtimestamp(OUT.stat().st_mtime).isoformat(timespec="seconds") \
+        if OUT.exists() else ""
+    return {"created": created, "runs": len(runs), "metrics": metrics, "counts": agg}
+
+
 def cmd_run(args) -> int:
+    if SET == "propose":
+        return cmd_run_propose(args)
     keys = mb._prepare_config()
     results = load()
     for run in range(args.runs):
@@ -145,7 +279,10 @@ def cmd_run(args) -> int:
 
 
 def summary(results: dict) -> dict:
-    agg = {m: {"absent": 0, "abstain": 0, "present": 0, "correct": 0, "cost": 0.0} for m in ("off", "on")}
+    if SET == "propose":
+        return summary_propose(results)
+    agg = {m: {"absent": 0, "abstain": 0, "present": 0, "correct": 0, "cost": 0.0,
+               "answers": 0, "malay": 0} for m in ("off", "on")}
     runs = set()
     for key, r in results.items():
         if r.get("error"):
@@ -155,6 +292,8 @@ def summary(results: dict) -> dict:
         clip, kind, q, kw, _at = questions()[int(i)]
         a = agg[mode]
         a["cost"] += r.get("cost") or 0
+        a["answers"] += 1
+        a["malay"] += in_malay(r["answer"])
         if kind == "absent":
             a["absent"] += 1
             a["abstain"] += abstained(r["answer"])
@@ -166,6 +305,8 @@ def summary(results: dict) -> dict:
         metrics["abstain_absent"] = {m: round(100 * agg[m]["abstain"] / agg[m]["absent"], 1) for m in agg}
     if all(agg[m]["present"] for m in agg):
         metrics["correct_present"] = {m: round(100 * agg[m]["correct"] / agg[m]["present"], 1) for m in agg}
+    if SET == "hard-ms" and all(agg[m]["answers"] for m in agg):
+        metrics["in_language"] = {m: round(100 * agg[m]["malay"] / agg[m]["answers"], 1) for m in agg}
     created = datetime.datetime.fromtimestamp(OUT.stat().st_mtime).isoformat(timespec="seconds") \
         if OUT.exists() else ""
     return {"created": created, "runs": len(runs), "metrics": metrics,
@@ -178,6 +319,10 @@ def cmd_score(args) -> int:
     print(json.dumps(s, indent=2))
     if args.json:
         Path(args.json).write_text(json.dumps(s, indent=2), encoding="utf-8")
+    if SET == "propose":
+        for key, r in sorted(results.items()):
+            print(f"{key:10} {r.get('proposals')} {(r.get('error') or r.get('answer', ''))[:100]}")
+        return 0
     for key, r in sorted(results.items()):
         mode, run, i = key.split("|")
         clip, kind, q, kw, _at = questions()[int(i)]
@@ -193,12 +338,18 @@ def main() -> int:
     r.add_argument("--runs", type=int, default=2)
     s = sub.add_parser("score")
     s.add_argument("--json")
-    ap.add_argument("--set", choices=["easy", "hard"], default="easy")
+    ap.add_argument("--set", choices=["easy", "hard", "hard-ms", "propose"], default="easy")
+    ap.add_argument("--round", type=int, default=2,
+                    help="3 = floor v2 (8 Oct 2026); its answers go to their own file")
     args = ap.parse_args()
     global SET, OUT
     SET = args.set
-    if SET == "hard":
+    if SET in ("hard-ms", "propose"):
+        args.round = max(args.round, 3)     # they exist from round 3 only
+    if SET == "hard" and args.round <= 2:
         OUT = mb.BENCH / "honest_results_hard.json"
+    elif SET != "easy" or args.round > 2:
+        OUT = mb.BENCH / f"honest_results_{SET}_r{args.round}.json"
     return {"run": cmd_run, "score": cmd_score}[args.cmd](args)
 
 

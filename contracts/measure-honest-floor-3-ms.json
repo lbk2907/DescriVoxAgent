@@ -1,0 +1,18 @@
+{
+  "contract_id": "measure-honest-floor-3-ms",
+  "title": "34.1 Honest floor v2 in Malay: declines and answers in the agent's language",
+  "kind": "measure",
+  "feature": "honest-floor",
+  "notes": "Frozen 8 Oct 2026 BEFORE the run. The review of 2.1.3 found the v1 floor demanded the English phrase 'I cannot see that clearly' even when the agent answers in Malay. Same hard set, questions asked in Malay, agent language Malay (tools/honest_bench.py --set hard-ms); Malay refusals and Malay answer keywords scored. 'on' = v2 floor, 'off' = no floor.",
+  "metrics": [
+    {"id": "abstains_when_unclear", "metric": "abstain_absent", "compare": "on", "min": 80.0, "required": true,
+     "why": "at least 80% of questions about details that are not there or not readable are declined, in Malay"},
+    {"id": "still_answers", "metric": "correct_present", "compare": "on", "min": 60.0, "required": true,
+     "why": "at least 60% of questions about visible details are answered correctly in Malay (keyword scoring in Malay is stricter)"},
+    {"id": "answers_not_lost", "metric": "correct_present", "compare": "on_minus_off", "min": -10.0, "required": true,
+     "why": "the floor may cost at most 10 points of correct answers compared with 2.1.2"},
+    {"id": "stays_in_malay", "metric": "in_language", "compare": "on", "min": 90.0, "required": true,
+     "why": "at least 90% of answers are in Malay and none uses the English phrase 'I cannot see'"}
+  ],
+  "min_runs": 2
+}

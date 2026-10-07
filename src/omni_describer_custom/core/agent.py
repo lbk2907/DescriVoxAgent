@@ -113,17 +113,26 @@ SYSTEM = (
 # person cannot check an answer, so a guess is worse than "I cannot see it".
 # Measured before it is switched on for good (contracts/measure-honest-floor).
 HONEST_FLOOR = True
+# v2 (2.1.3 pre-release review, 8 Oct 2026): v1 demanded the ENGLISH phrase
+# even from a Malay agent, and its "never fill the gap" could stop it
+# proposing fixes. Now the phrase is in the agent's language, within the
+# sentence limit, and the floor is about answering questions only.
+# Measured again: contracts/measure-honest-floor-3, -3-ms, -3-propose.
 HONEST_FLOOR_TEXT = (
-    " If you looked and still cannot clearly see what the person asks about, "
-    "say so plainly, beginning with \"I cannot see that clearly\", and give "
-    "the times you looked at. Never guess, and never fill the gap from the "
-    "descriptions, the dialogue or general knowledge: the person cannot see "
-    "the screen to check you.")
+    " When the person asks what is on screen and you looked but still cannot "
+    "clearly see it, say so plainly in {language}, beginning with the "
+    "{language} for \"I cannot see that clearly\", and give the times you "
+    "looked at, still within one to three short sentences. Never guess that "
+    "answer, and never fill the gap from the descriptions, the dialogue or "
+    "general knowledge: the person cannot see the screen to check you. This "
+    "is about answering questions only; when to propose a fix is unchanged.")
 
 
 def system_prompt(language: str) -> str:
     text = SYSTEM.format(language=language)
-    return text + HONEST_FLOOR_TEXT if HONEST_FLOOR else text
+    if not HONEST_FLOOR:
+        return text
+    return text + HONEST_FLOOR_TEXT.format(language=language)
 
 
 TOOLS: list[dict] = [

@@ -45,6 +45,17 @@ def test_on_by_default_in_every_conversation():
     assert "I cannot see that clearly" in agent.messages[0]["content"]
 
 
+def test_floor_v2_follows_the_language_and_spares_fixes():
+    """2.1.3 review (8 Oct 2026): v1 forced the ENGLISH phrase on a Malay
+    agent, and could stop it proposing fixes. v2 names the agent's
+    language and applies to answering questions only."""
+    malay = ag.system_prompt("Malay")
+    tail = malay[len(ag.SYSTEM.format(language="Malay")):]
+    assert "in Malay" in tail, tail
+    assert "propose" in tail and "fix" in tail, "v2 must say fixes are unchanged"
+    assert "{language}" not in malay
+
+
 def test_the_switch_turns_it_off():
     try:
         ag.HONEST_FLOOR = False
@@ -67,6 +78,13 @@ def test_scorer_counts_every_way_of_declining():
                  "The plate is too blurry to read."):
         assert hb.abstained(said), said
     assert not hb.abstained("The girl's hair is a reddish-brown color.")
+    # Round 3 (8 Oct 2026): short Malay answers are Malay; English is not.
+    for said in ("Jaket lelaki muda itu berwarna biru gelap.",
+                 "Dia sedang memegang sebatang tongkat kayu.",
+                 "Saya tidak dapat melihat dengan jelas pada 1:00."):
+        assert hb.in_malay(said), said
+    for said in ("I cannot see that clearly at 6:40.", "The jacket is blue.", ""):
+        assert not hb.in_malay(said), said
     hard = {q: kw for _c, _k, q, kw, _t in hb.HARD}
     assert hb.correct("The girl's hair is a reddish-brown color.",
                       hard["At this moment, what colour is the girl's hair?"])
@@ -74,6 +92,7 @@ def test_scorer_counts_every_way_of_declining():
 
 def main() -> int:
     check("on by default, in every agent conversation", test_on_by_default_in_every_conversation)
+    check("v2: the agent's language, fixes unchanged", test_floor_v2_follows_the_language_and_spares_fixes)
     check("the switch turns it off (for measuring)", test_the_switch_turns_it_off)
     check("measured under frozen contracts", test_measured_under_frozen_contracts)
     check("the scorer counts every way of declining", test_scorer_counts_every_way_of_declining)

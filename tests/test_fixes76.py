@@ -621,6 +621,44 @@ def test_gui():
         pump(0.2)
 
 
+def test_review_213_lows():
+    """2.1.3 pre-release review (8 Oct 2026), LOW findings, test-first:
+    a frame closed before the start-up timers fire is left alone, and an
+    offer that cannot open the dialog is still SPOKEN, not only written
+    on the status bar (NVDA does not read status-bar changes)."""
+    import wx
+    app = wx.GetApp() or wx.App(False)  # noqa: F841
+    from omni_describer_custom.ui.main_frame import MainFrame
+    from omni_describer_custom.core import speech
+    frame = MainFrame()
+    spoken = []
+
+    class FakeNVDA:
+        """A screen reader IS running (the review's point: announce()
+        is silent then, so it must not be what speaks this)."""
+        available = True
+        is_screen_reader = True
+
+        def speak(self, text, interrupt=True):
+            spoken.append((text, interrupt))
+            return True
+    real_get = speech.get_speech
+    speech.get_speech = lambda: FakeNVDA()
+    try:
+        rel = au.parse_release(release_json())
+        frame._show_app_update = lambda r: None
+        frame._offer_app_update(rel)        # the test frame is not active
+        assert any("2.1.3" in s for s, _i in spoken), spoken
+        assert all(i is False for _s, i in spoken), "must not cut NVDA off"
+    finally:
+        speech.get_speech = real_get
+    frame.Destroy()
+    pump(0.3)
+    # The start-up timers fire after the window is gone: no exception.
+    frame.report_app_update_result()
+    frame.check_app_update_at_start()
+
+
 def test_settings_switch():
     import wx
     app = wx.GetApp() or wx.App(False)  # noqa: F841
@@ -666,6 +704,7 @@ def main() -> int:
     check("publish tool refuses what the updater would refuse", test_publish_preflight)
     check("menu, dialog, start-up offer, busy refusal (GUI)", test_gui)
     check("Settings switch for the start-up check", test_settings_switch)
+    check("review 2.1.3: offer spoken; closed frame left alone", test_review_213_lows)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

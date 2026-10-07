@@ -372,3 +372,27 @@ had missed "it is not possible to determine" as a refusal; fixed, the gain disap
 owner kept the floor for the one consistent phrase ("I cannot see that clearly" + the times
 looked at). Not measured yet: the GLM agent, and Ask More. Cost: about $0.15 of Gemini credit.
 
+### Round 3 — floor v2 (8 Oct 2026, before 2.1.3)
+
+The 2.1.3 pre-release review (`ecc:python-reviewer`) found two risks in the v1 text: it
+demanded the ENGLISH phrase even from an agent answering in Malay, and "never fill the gap
+from the descriptions" might stop the agent proposing fixes. v2 says the phrase in the
+agent's language, within the sentence limit, for answering questions only. Three contracts
+were frozen before running; Gemini 3.1 Flash-Lite, the app's own agent, off = no floor (2.1.2).
+
+| Contract | Set | Result off → on | Verdict |
+|---|---|---|---|
+| `measure-honest-floor-3` | hard set, English, 2 runs | declined 100 → 100%, correct 100 → 100% | VERIFIED |
+| `measure-honest-floor-3-ms` | hard set asked in Malay, agent language Malay, 2 runs | declined 100 → 100%, correct 100 → 100%, answers in Malay 100 → 100% | VERIFIED |
+| `measure-honest-floor-3-propose` | Tears of Steel: a description judged WRONG and one judged RIGHT, 3 runs | fix proposed for the wrong one 100 → 100%, right one kept 100 → 100% | VERIFIED |
+
+The Malay contract first came out FAILED (answers in Malay 81.2%). Reading the 14 "not
+Malay" answers by hand showed every one was plain Malay ("Jaket lelaki muda itu berwarna
+biru gelap."): the scorer wanted two Malay marker words and short answers have one. The
+scorer was fixed to look for English instead (`honest_bench.in_malay`, test_fixes75) and
+the SAME answers re-scored; the contract's 90% rule was not changed. Cost about $0.22.
+The fixed scorer is a NOT-ENGLISH check (the review pointed out it would also pass very short
+English or another language), which is what the contract asks; all 64 Malay answers were also
+read by hand and every one is Malay. The Malay refusal pattern also counts "tiada"/"tidak ada",
+which can be an ordinary answer; it did not matter here (visible details 100% correct either way).
+

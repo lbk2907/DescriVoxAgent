@@ -277,6 +277,9 @@ measure → the owner decides. Nothing ships on by default without a VERIFIED me
       of Steel and Sintel, truth checked on the frames): declined 100% → 100%, correct 100% → 100%. Today's agent was
       already honest, so the advisory "helps" failed; an apparent +12.5 was a scorer error found by reading the answers
       and fixed (it REMOVED the gain). Owner: keep it, for the one consistent phrase (test_fixes75 4/4)
+- [x] 34.1v2 Floor v2 (8 Oct 2026, from the 2.1.3 pre-release review): the phrase in the agent's language, questions
+      only; three contracts frozen first, all VERIFIED (English, Malay, proposals; docs/model-comparison.md round 3).
+      The Malay scorer was wrong first (short Malay answers counted as not Malay) and was fixed after reading them
 - [ ] 34.1b The GLM (OpenRouter) agent on the hard set; Ask More (not measured yet, unchanged)
 - [ ] 34.2 OCR of on-screen text: a local OCR engine (onnxruntime is already bundled) reads text in sampled frames and
       gives it to the AI like the transcript. Measure on the Excel tutorial, NASA and news clips: wrong rate of
@@ -288,7 +291,9 @@ measure → the owner decides. Nothing ships on by default without a VERIFIED me
       the relevant ones are given to the AI on the next video. Measure: re-describe corrected videos, does the same
       mistake come back less often? (Needs the most design; done last.)
 - [ ] 34.5 OpenRouter credit ≥ 1 USD for the GLM measurements (owner; the GLM judge on pictures works without it)
-- [ ] 34.6 Release 2.1.3 with the adopted ideas, judged by the release contract (tag only on VERIFIED)
+- [ ] 34.6 Release 2.1.3 — owner, 8 Oct 2026: released with 34.1 and phase 35 (self-update) so users stop
+      downloading by hand; 34.2-34.4 follow in later versions through the in-app update. Judged by the
+      release contract (tag only on VERIFIED)
 
 ## Phase 35 — the app updates itself (owner 6 Oct 2026)
 
