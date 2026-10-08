@@ -376,6 +376,7 @@ ruff already ran in CI with bug rules only. A wider read-only run found 111 warn
       only). Three `noqa` comments moved to the line the formatter split them onto. Two tests that matched exact source
       text (test_fixes23, test_fixes65) now ignore whitespace (pitfall 104). CI runs `ruff format --check .` (ruff pinned);
       the commit is in `.git-blame-ignore-revs`
-- [ ] 37.6 Turn the ECC quality-gate hook back on (remove `post:quality-gate` from ECC_DISABLED_HOOKS in
-      ~/.claude/settings.json) once 37.2-37.4 are done (owner's choice)
+- [x] 37.6 ECC quality-gate hook back on (8 Oct 2026): `post:quality-gate` removed from ECC_DISABLED_HOOKS in
+      ~/.claude/settings.json now that the repo passes `ruff check` and `ruff format --check` (owner's choice).
+      Takes effect in the next Claude Code session
 
