@@ -353,3 +353,17 @@ Flash. Agentic video works only through the Interactions API.
 - [x] 36.6 Release 2.1.4 — published 8 Oct 2026 (release_check VERIFIED; 2.1.3 copies are offered it in the app)
       Release 2.1.4 (owner, 8 Oct 2026: "YA"), judged by the release contract; publish after the owner's yes
 
+## Phase 37 — ruff bug-catching rules, stage by stage (owner 8 Oct 2026)
+
+ruff already runs in CI with bug rules only and no `ruff format` (keeps git blame; formatting would rewrite 169 of
+172 files). A wider read-only run found 111 warnings; each stage adds its rule to `pyproject.toml` once clean.
+
+- [x] 37.1 B023 (closure reads a loop variable): 12, all used within the same iteration (download pumps in
+      video_processor.py, bench tools) - no real bug; marked `noqa` with that reason; B023 added to CI
+- [ ] 37.2 F841, F811, F541, B007, B904, B011 (28): unused variables, duplicates, raise-from, assert False
+- [ ] 37.3 F401 unused imports (54): remove; intentional ones (e.g. `import isolate`) marked noqa; check PyInstaller
+- [ ] 37.4 B905 zip() without strict= (17): case by case - strict=True raises on different lengths
+- [ ] 37.5 Formatting stays off (decide later)
+- [ ] 37.6 Turn the ECC quality-gate hook back on (remove `post:quality-gate` from ECC_DISABLED_HOOKS in
+      ~/.claude/settings.json) once 37.2-37.4 are done (owner's choice)
+

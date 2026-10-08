@@ -184,7 +184,7 @@ def cmd_score(args) -> int:
     print(f"\n{'provider':8} {'clip':12} {'mode':4} {'lines':>5} {'person':>6} "
           f"{'named':>5} {'rate':>5} {'labels':>6}  other capitalised words")
     for (provider, clip, mode), ss in sorted(rows.items()):
-        avg = lambda k: sum(s[k] for s in ss) / len(ss)  # noqa: E731
+        avg = lambda k: sum(s[k] for s in ss) / len(ss)  # noqa: E731, B023  (used in this iteration only)
         print(f"{provider:8} {clip:12} {mode:4} {avg('lines'):5.0f} {avg('person_lines'):6.0f} "
               f"{avg('named_lines'):5.0f} {avg('name_rate'):5.2f} {avg('labels'):6.1f}  "
               f"{', '.join(ss[0]['other_names'])}")

@@ -940,14 +940,14 @@ def cmd_review(args) -> int:
 
             async def one(job):
                 i, t, text, sheet, times = job
-                lkey = f"{args.reviewer}|{args.version}|{clip}|{i}"
+                lkey = f"{args.reviewer}|{args.version}|{clip}|{i}"  # noqa: B023 (used in this iteration only)
                 if lkey in log:
                     return
                 async with sem:
-                    log[lkey] = await _review_one(args.reviewer, clip, t, text,
+                    log[lkey] = await _review_one(args.reviewer, clip, t, text,  # noqa: B023 (used in this iteration only)
                                                   sheet, times, keys["glm"])
             before = await _balance(keys["glm"])
-            await asyncio.gather(*[one(j) for j in jobs])
+            await asyncio.gather(*[one(j) for j in jobs])  # noqa: B023 (used in this iteration only)
             after = await _balance(keys["glm"])
             if before is not None and after is not None:
                 print(f"review spent ${before - after:.3f}", flush=True)

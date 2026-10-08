@@ -260,7 +260,7 @@ def answer_file_dialog(path: Path, app_pid: int,
                     return
                 _, pid = win32process.GetWindowThreadProcessId(hwnd)
                 if pid == app_pid:
-                    found.append((hwnd, win32gui.GetWindowText(hwnd)))
+                    found.append((hwnd, win32gui.GetWindowText(hwnd)))  # noqa: B023 (used in this iteration only)
             except Exception:
                 pass
 

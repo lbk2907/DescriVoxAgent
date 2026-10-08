@@ -517,18 +517,18 @@ class VideoProcessor:
 
                 def _on_line(text: str, is_err: bool) -> None:
                     if is_err:
-                        err_lines.append(text)
+                        err_lines.append(text)  # noqa: B023 (used in this iteration only)
                         return
                     if text.startswith("[download] Destination:"):
                         # First destination = video stream, second = audio stream
-                        phase[0] = "audio" if phase[0] == "video" else "video"
+                        phase[0] = "audio" if phase[0] == "video" else "video"  # noqa: B023 (used in this iteration only)
                         return
                     if text.startswith("[Merger]"):
-                        phase[0] = "merge"
+                        phase[0] = "merge"  # noqa: B023 (used in this iteration only)
                         return
                     p = self._parse_ytdlp_progress(text)
                     if p:
-                        p.phase = phase[0]
+                        p.phase = phase[0]  # noqa: B023 (used in this iteration only)
                         try:
                             if on_progress:
                                 on_progress(p)
@@ -546,7 +546,7 @@ class VideoProcessor:
 
                 def _kill() -> None:
                     try:
-                        proc.kill()
+                        proc.kill()  # noqa: B023 (used in this iteration only)
                     except ProcessLookupError:
                         pass
 
