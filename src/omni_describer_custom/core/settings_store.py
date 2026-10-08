@@ -237,7 +237,9 @@ class SettingsStore:
             # saved in settings.json is kept.
             "video_mode": "full",
             "providers": {
-                "gemini": {"api_key": "", "model": "gemini-3.8-flash"},
+                # Phase 36 (8 Oct 2026): the measured best on the direct
+                # path; an existing saved choice is kept as it is.
+                "gemini": {"api_key": "", "model": "gemini-3.5-flash-lite"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
                 "glm": {"api_key": "", "model": "z-ai/glm-5.3-flash", "base_url": "https://openrouter.ai/api/v1"},
                 "custom": {"api_key": "", "model": "", "base_url": "", "api_format": "auto"},

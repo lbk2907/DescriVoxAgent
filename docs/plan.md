@@ -117,6 +117,7 @@ phases 19 onwards in the [checklist](checklist.md). "—" = no release.
 | 33 | Frozen contracts | — | Release, accessibility and measurement contracts; releases tagged only on VERIFIED |
 | 34 | Ideas from Watch Skill | 2.1.3 (34.1); the rest later | Honest floor for the agent, on-screen-text OCR, scene-based frame selection, lessons from the owner's corrections — each measured under a frozen contract first |
 | 35 | The app updates itself | 2.1.3 | Help > Check for Updates: GitHub Releases, checked at every start, SHA-256 verified, folder swap with rollback; yt-dlp moves to its own item |
+| 36 | Newer Gemini models | (2.1.4, planned) | Gemini 4 not in the API; 3.5/3.7/3.8 Flash and agentic video measured under frozen contracts; 3.5 Flash-Lite adopted for the direct Gemini path |
 
 Every release phase closed with gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, the exe heard
 through NVDA, a tag, and the old zip deleted.
@@ -205,7 +206,7 @@ Things tried and NOT adopted, with the number. Do not retry without a new measur
 
 ## 6. How to add a plan
 
-1. A new phase continues the numbering: the next one is **Phase 36**. Never renumber.
+1. A new phase continues the numbering: the next one is **Phase 37**. Never renumber.
 2. Write a short entry here (phase, name, reason, date, who asked) and the detailed items
    in the [checklist](checklist.md) (`35.1`, `35.2`, ...).
 3. Tick `[x]` only with evidence: test output, numbers, a real run, or NVDA heard.

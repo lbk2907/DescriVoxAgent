@@ -396,3 +396,34 @@ English or another language), which is what the contract asks; all 64 Malay answ
 read by hand and every one is Malay. The Malay refusal pattern also counts "tiada"/"tidak ada",
 which can be an ordinary answer; it did not matter here (visible details 100% correct either way).
 
+## Phase 36 — newer Gemini models and agentic video (8 Oct 2026)
+
+The owner asked about Gemini 4. Gemini 4 Argon (announced 30 Sep 2026) is only for Google's
+security partners; Google's ListModels with the owner's key shows 3.5 Flash-Lite and 3.6, 3.7,
+3.8 Flash. "Agentic video" (the model inspects the timeline itself) exists only through the
+Interactions API; the bench gained an `@agentic` path (same prompt and parser as the app).
+
+Six contracts were frozen first (`measure-gemini-*`). The test clips in %TEMP% were gone, so
+they were downloaded again from official sources (Tears of Steel, Sintel, NASA Goddard, Astro
+AWANI) and the 3.1 Flash-Lite baseline was run again on them: 4 clips x 3 runs each, the
+default preset, temperature 0, GLM ruler. Summaries by `model_bench.py compare` (it reproduces
+phase 22.4 exactly).
+
+| Candidate vs 3.1 Flash-Lite | Wrong | Descriptions per run | Seconds per clip | Contract |
+|---|---|---|---|---|
+| **3.5 Flash-Lite** | **19.9 → 11.7%** | 23.5 → 20.8 | 42 → 40 | **VERIFIED** |
+| 3.5 Flash-Lite agentic | 19.9 → 18.1% | 23.5 → 12.4 | 42 → 38 | FAILED |
+| 3.7 Flash | 19.9 → 12.7% | 23.5 → 5.9 | 42 → 57 | FAILED (too few) |
+| 3.7 Flash agentic | 19.9 → 25.3% | 23.5 → 17.4 | 42 → 143 | FAILED (10 of 12 runs) |
+| 3.8 Flash | 19.9 → 13.8% | 23.5 → 6.7 | 42 → 59 | FAILED (too few) |
+| 3.8 Flash agentic | 19.9 → 20.5% | 23.5 → 28.6 | 42 → 105 | FAILED |
+
+3.5 Flash-Lite ADOPTED for the direct Gemini path (owner, for 2.1.4), with its own default
+thinking as measured. Not measured: the OpenRouter route and the agent (F2), so they are
+unchanged. The 3.1 Flash-Lite baseline is worse than in phase 22.4 (19.9% against 9.1%) on
+these different clips, which is why the comparison is only made within one run. Open
+questions: why 3.7/3.8 Flash write so few descriptions (thinking against the 8192-token output
+limit?); the agentic `background: true` mode refused the uploaded file ("Unsupported file uri:
+blobstore") while the plain request worked. Cost: $0.17 OpenRouter for judging; the Gemini runs
+used the rest of the owner's prepaid Gemini credit (HTTP 402 during the last two runs).
+

@@ -44,6 +44,13 @@ CACHE_NAME = "openrouter_models.json"
 RECOMMENDED = ("z-ai/glm-5.3-flash", "google/gemini-3.1-flash-lite")
 
 
+# The DIRECT Gemini path (the user's own Google key) was measured on its
+# own in phase 36 (8 Oct 2026): 3.5 Flash-Lite, wrong 19.9% -> 11.7%
+# against 3.1 Flash-Lite. OpenRouter's Gemini route was not, so
+# RECOMMENDED above is unchanged.
+GEMINI_DIRECT_RECOMMENDED = ("gemini-3.5-flash-lite",)
+
+
 def recommended_rank(model: str) -> int:
     """Position among the recommended models; len(RECOMMENDED) if not one."""
     return RECOMMENDED.index(model) if model in RECOMMENDED else len(RECOMMENDED)
@@ -381,7 +388,10 @@ def parse_gemini_models(data: dict) -> list[dict]:
         found = re.match(r"gemini-(\d+)(?:\.(\d+))?", row["id"])
         version = ((int(found.group(1)), int(found.group(2) or 0))
                    if found else (0, 0))
-        return (recommended_rank(f"google/{row['id']}"),
+        direct = (GEMINI_DIRECT_RECOMMENDED.index(row["id"])
+                  if row["id"] in GEMINI_DIRECT_RECOMMENDED
+                  else len(GEMINI_DIRECT_RECOMMENDED))
+        return (direct, recommended_rank(f"google/{row['id']}"),
                 "preview" in row["id"], -version[0], -version[1], row["id"])
     rows.sort(key=order)
     # The price, when OpenRouter's catalog knows it (the same model).

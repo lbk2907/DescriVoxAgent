@@ -806,9 +806,11 @@ class AIProvider(ABC):
 class GeminiProvider(AIProvider):
     name = "gemini"
     models = [
-        "gemini-3.8-flash",
-        "gemini-3.1-flash-lite",   # Recommended (pitfall 69)
+        # Recommended (phase 36, 8 Oct 2026): wrong 19.9% -> 11.7% against
+        # 3.1 Flash-Lite, same coverage and speed (contracts/measure-gemini-*).
         "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash",
         # Google limits 2.5 to accounts that used it before; kept
         # last so an existing saved choice stays selectable.
         "gemini-2.5-flash",

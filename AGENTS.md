@@ -194,7 +194,7 @@ src/omni_describer_custom/
     app_update_dialog.py    Check for Updates (the app itself)
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 86
+tests/                      one script per regression round; run_gate.bat lists 87
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -219,7 +219,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 86 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 87 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -304,7 +304,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
   NVDA; judged by `tools/release_check.py` (checklist phases 34.1 and 35).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
-  `gemini-3.1-flash-lite`); MiniMax; OpenAI (frame mode); custom
+  `gemini-3.5-flash-lite` since phase 36, before that 3.1 Flash-Lite); MiniMax; OpenAI (frame mode); custom
   OpenAI-compatible. `model_catalog.RECOMMENDED` = GLM 5.3 Flash, Gemini 3.1
   Flash-Lite; change only with new `model_bench.py` measurements.
 - **Player agent** works with OpenRouter and Gemini (`AGENT_PROVIDERS`).

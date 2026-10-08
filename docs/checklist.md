@@ -337,3 +337,17 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
       .sig; release_check VERIFIED (gate twice, build, NVDA heard the exe: a11y-main VERIFIED); the app's
       updater reads it back (2.1.2 is offered 2.1.3, 2.1.3 is up to date)
 
+## Phase 36 — newer Gemini models (owner 8 Oct 2026, after asking about Gemini 4)
+
+Gemini 4 Argon (30 Sep 2026) is only for Google's security partners; the API lists 3.5 Flash-Lite and 3.6/3.7/3.8
+Flash. Agentic video works only through the Interactions API.
+
+- [x] 36.1 Six contracts frozen before running (`measure-gemini-*`): each candidate vs 3.1 Flash-Lite (`@new`),
+      4 re-downloaded clips x 3 runs, GLM ruler; `model_bench.py` gained `@agentic` (Interactions API) and `compare`
+      (reproduces phase 22.4 exactly)
+- [x] 36.2 Results (docs/model-comparison.md, phase 36): only 3.5 Flash-Lite VERIFIED (wrong 19.9% -> 11.7%);
+      3.7/3.8 Flash too few descriptions; every agentic variant FAILED (3.7 agentic 10/12 runs: credit ran out)
+- [x] 36.3 3.5 Flash-Lite is the direct Gemini default and recommendation (test_fixes77); OpenRouter and the agent unchanged
+- [ ] 36.4 The agent (F2) on 3.5 Flash-Lite (needs Gemini credit; the owner's prepayment ran out on 8 Oct)
+- [ ] 36.5 Why 3.7/3.8 Flash give so few descriptions (thinking vs the 8192-token output limit?)
+

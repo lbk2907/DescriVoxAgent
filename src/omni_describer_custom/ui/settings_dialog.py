@@ -24,9 +24,9 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "MiniMax-M3",
     ],
     "gemini": [
+        "gemini-3.5-flash-lite",   # Recommended (phase 36, 8 Oct 2026)
+        "gemini-3.1-flash-lite",
         "gemini-3.8-flash",
-        "gemini-3.1-flash-lite",   # Recommended (pitfall 69)
-        "gemini-3.5-flash-lite",
         # Google limits 2.5 to accounts that used it before; kept
         # last so an existing saved choice stays selectable.
         "gemini-2.5-flash",

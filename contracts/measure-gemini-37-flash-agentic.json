@@ -1,0 +1,34 @@
+{
+  "contract_id": "measure-gemini-37-flash-agentic",
+  "title": "Phase 36: Gemini 3.7-flash (agentic video) vs 3.1 Flash-Lite",
+  "kind": "measure",
+  "feature": "gemini-model",
+  "notes": "Frozen 8 Oct 2026 BEFORE the run (owner: measure the newer Gemini Flash models and agentic video; Gemini 4 is not available through the API). Clips tears_drama, nasa_doc, bm_news, sintel_dialogue (re-downloaded today; the old ones were gone), 3 runs each, the default preset, temperature 0. off = gemini-3.1-flash-lite@new (the app today, medium thinking), on = gemini-3.7-flash@agentic. Judged by the GLM ruler (model_bench.py measure --direct), summary by model_bench.py compare.",
+  "metrics": [
+    {
+      "id": "fewer_wrong",
+      "metric": "wrong_rate",
+      "compare": "on_minus_off",
+      "max": -2.0,
+      "required": true,
+      "why": "at least 2 points fewer descriptions judged wrong than 3.1 Flash-Lite"
+    },
+    {
+      "id": "coverage_kept",
+      "metric": "descriptions",
+      "compare": "on_over_off",
+      "min": 0.8,
+      "required": true,
+      "why": "no more than 20% fewer descriptions per run"
+    },
+    {
+      "id": "not_too_slow",
+      "metric": "seconds",
+      "compare": "on_over_off",
+      "max": 2.0,
+      "required": false,
+      "why": "advisory: at most twice the time per clip"
+    }
+  ],
+  "min_runs": 3
+}

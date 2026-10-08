@@ -4,6 +4,36 @@
     "sha256": "5214e7455c7683eacd7adc469013b00addcf39f43973ece8cecfee9c6d211ce1",
     "version": 1
   },
+  "measure-gemini-35-flash-lite-agentic": {
+    "frozen_at": "2026-10-08T14:11:44",
+    "sha256": "b17c4ab619d030a91a5d595f2719f81e145a0ad318739cfa035f796d3ed97dbe",
+    "version": 1
+  },
+  "measure-gemini-35-flash-lite-new": {
+    "frozen_at": "2026-10-08T14:11:45",
+    "sha256": "6b1982b3de58416784129121b17ab526568c1010d499fd8d556cf8f82ac50a75",
+    "version": 1
+  },
+  "measure-gemini-37-flash-agentic": {
+    "frozen_at": "2026-10-08T14:11:45",
+    "sha256": "cd1a0ed0eb731dae2c9f1ed5b071972f72980fb431e43399675c81f726f0dd0e",
+    "version": 1
+  },
+  "measure-gemini-37-flash-new": {
+    "frozen_at": "2026-10-08T14:11:46",
+    "sha256": "d2b249236650bd2b0ea13213e7195d022334bf99b18d84c465370a2540f5393f",
+    "version": 1
+  },
+  "measure-gemini-38-flash-agentic": {
+    "frozen_at": "2026-10-08T14:11:47",
+    "sha256": "865d1d3979077f4842596d4c2abe3e318787eca537853e04e794b13e39abb845",
+    "version": 1
+  },
+  "measure-gemini-38-flash-new": {
+    "frozen_at": "2026-10-08T14:11:47",
+    "sha256": "4e153389ed4cfdb483b20ae889556992cd01229d1ac57c04d87601f5482be4dd",
+    "version": 1
+  },
   "measure-honest-floor": {
     "frozen_at": "2026-10-06T05:46:34",
     "sha256": "54a81f564f5d000cfdd0e0488304105d4a82d79869c5e4127afe012c86569fb5",

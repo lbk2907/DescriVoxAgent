@@ -2,6 +2,14 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## Unreleased
+
+- **A more accurate Gemini model.** With your own Google key, the app now recommends and starts
+  with **Gemini 3.5 Flash-Lite**: on four test clips it got 8 points fewer descriptions wrong
+  than 3.1 Flash-Lite (11.7% against 19.9%), as many descriptions and as fast. A model you
+  already chose is kept. Gemini 3.7 and 3.8 Flash, and Google's new "agentic video", were
+  measured too and were not better for describing video.
+
 ## What's new in v2.1.3
 
 - **DescriVox Agent updates itself.** **Help > Check for Updates** now checks for a newer

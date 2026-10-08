@@ -201,6 +201,52 @@ def _save_results(results: dict) -> None:
     tmp.replace(path)
 
 
+def _agentic_generator(prov):
+    """A drop-in for GeminiProvider._generate_with_video that uses the
+    Interactions API with agentic video processing (phase 36). Runs in
+    the background and is polled, as Google advises for long videos."""
+    from omni_describer_custom.core.ai_engine import _http_json
+
+    async def generate(uri, mime, prompt, model, is_cancelled=None):
+        base = prov.base_url.rstrip("/")
+        config = {}
+        if prov.TEMPERATURE is not None:
+            config["temperature"] = prov.TEMPERATURE
+        level = (prov.THINKING if prov.THINKING is not None
+                 else prov.THINKING_BY_MODEL.get(model) or {}).get("thinkingLevel")
+        if level:
+            config["thinking_level"] = level
+        # Not "background": True - with it the same file URI came back as
+        # "Unsupported file uri: blobstore:///..." (8 Oct 2026); the 60 s
+        # bench clips finish within one request. Polled below if not.
+        payload = {"model": model,
+                   "input": [{"type": "text", "text": prompt},
+                             {"type": "video", "uri": uri, "mime_type": mime,
+                              "processing": "agentic"}]}
+        if config:
+            payload["generation_config"] = config
+        data = await _http_json("POST", f"{base}/interactions", label="Gemini",
+                                headers=prov._auth_headers(), payload=payload,
+                                timeout=900)
+        ident = data.get("id") or data.get("name", "").split("/")[-1]
+        deadline = time.monotonic() + 1800
+        while data.get("status") in ("in_progress", None, "") and time.monotonic() < deadline:
+            await asyncio.sleep(5)
+            data = await _http_json("GET", f"{base}/interactions/{ident}",
+                                    label="Gemini", headers=prov._auth_headers(),
+                                    timeout=60)
+        if data.get("status") != "completed":
+            raise RuntimeError(f"agentic interaction {data.get('status')}: "
+                               f"{str(data.get('error') or data)[:300]}")
+        texts = [c.get("text", "") for s in data.get("steps") or []
+                 if s.get("type") == "model_output"
+                 for c in s.get("content") or [] if c.get("text")]
+        if not texts:
+            raise RuntimeError(f"agentic interaction had no text: {str(data)[:300]}")
+        return texts[-1]
+    return generate
+
+
 async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
     from omni_describer_custom.core.ai_engine import GeminiProvider, GLMProvider
     from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
@@ -221,6 +267,12 @@ async def _describe(model: str, clip: str, keys: dict, transcript) -> dict:
                 # "@thinkdef" = the model's own default.
                 level = variant[5:]
                 prov.THINKING = {} if level == "def" else {"thinkingLevel": level}
+            elif variant == "agentic":
+                # Phase 36 (8 Oct 2026): the same prompt and parser, but the
+                # video goes through the Interactions API with
+                # "processing": "agentic" (the model inspects the timeline
+                # itself). "@new" = the app's usual path on today's clips.
+                prov._generate_with_video = _agentic_generator(prov)
             pairs = await prov.describe_video_full(
                 str(CLIPS / f"{base}.mp4"), prompt, model)
         else:
@@ -987,6 +1039,67 @@ def cmd_snap(args) -> int:
     return 0
 
 
+def cmd_compare(args) -> int:
+    """Phase 36: one candidate against the baseline, as measure_check reads it.
+
+    --base / --cand are "model@variant" (e.g. gemini-3.1-flash-lite@new,
+    gemini-3.7-flash@agentic). Over the given clips and every run that has
+    results: wrong_rate (GLM judge verdicts), descriptions per run, and
+    seconds per run. off = base, on = candidate.
+    """
+    import datetime
+    results = _load_results()
+    store = BENCH / "judgements.json"
+    done = json.loads(store.read_text(encoding="utf-8")) if store.exists() else {}
+    clips = args.clips.split(",")
+
+    def stats(spec: str) -> dict:
+        model, _, variant = spec.partition("@")
+        n = wrong = judged = 0
+        runs = []
+        seconds = []
+        per_clip: dict[str, int] = {c: 0 for c in clips}
+        for rkey, got in results.items():
+            m, kind, clip, run = rkey.split("|")
+            base, _, var = clip.partition("@")
+            if m != model or kind != "desc" or var != variant or base not in clips:
+                continue
+            if got.get("error"):
+                continue
+            per_clip[base] += 1
+            runs.append(len(got.get("cues") or []))
+            if got.get("seconds"):
+                seconds.append(got["seconds"])
+            for i in range(len(got.get("cues") or [])):
+                v = done.get(f"{args.judge}||{run}||{clip}|{model}|{i}", {}).get("verdict")
+                n += 1
+                if v:
+                    judged += 1
+                    wrong += v == "wrong"
+        return {"wrong_rate": round(100 * wrong / judged, 2) if judged else None,
+                "descriptions": round(sum(runs) / len(runs), 2) if runs else None,
+                "seconds": round(sum(seconds) / len(seconds), 1) if seconds else None,
+                "runs": len(runs), "judged": judged, "n": n,
+                # Review (8 Oct): the FEWEST successful runs of any clip,
+                # not the total divided by the clips.
+                "runs_per_clip": min(per_clip.values()) if per_clip else 0}
+    off, on = stats(args.base), stats(args.cand)
+    for side, s in (("base", off), ("cand", on)):
+        if s["judged"] != s["n"]:
+            print(f"NOTE: {side} has {s['n'] - s['judged']} of {s['n']} "
+                  f"descriptions without a verdict (judge returned nothing)")
+    metrics = {k: {"off": off[k], "on": on[k]}
+               for k in ("wrong_rate", "descriptions", "seconds")
+               if off[k] is not None and on[k] is not None}
+    per_clip_runs = min(off["runs_per_clip"], on["runs_per_clip"])
+    out = {"created": datetime.datetime.now().isoformat(timespec="seconds"),
+           "runs": per_clip_runs, "metrics": metrics, "counts": {"off": off, "on": on}}
+    print(json.dumps(out, indent=1))
+    if args.json:
+        Path(args.json).write_text(json.dumps(out, indent=1), encoding="utf-8")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1027,6 +1140,12 @@ def main() -> int:
     review.add_argument("--no-drop", action="store_true")
     review.add_argument("--version", default="v2",
                         help="prompt version; answers are cached per version")
+    compare = sub.add_parser("compare")
+    compare.add_argument("--base", required=True)
+    compare.add_argument("--cand", required=True)
+    compare.add_argument("--clips", required=True)
+    compare.add_argument("--judge", default="z-ai/glm-5.3-flash")
+    compare.add_argument("--json", default="")
     snap = sub.add_parser("snap")
     snap.add_argument("--clips", required=True)
     snap.add_argument("--model", default="z-ai/glm-5.3-flash")
@@ -1038,7 +1157,8 @@ def main() -> int:
     return {"make-clips": cmd_make_clips, "run": cmd_run,
             "frames": cmd_frames, "score": cmd_score,
             "judge": cmd_judge, "measure": cmd_measure,
-            "review": cmd_review, "snap": cmd_snap}[args.cmd](args)
+            "review": cmd_review, "snap": cmd_snap,
+            "compare": cmd_compare}[args.cmd](args)
 
 
 if __name__ == "__main__":
