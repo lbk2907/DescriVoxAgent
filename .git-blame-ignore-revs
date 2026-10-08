@@ -1,0 +1,6 @@
+# Commits that only reformatted code; `git blame` skips them.
+# GitHub reads this file automatically. Locally, run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: ruff format the whole repo, line length 100 (phase 37.5, 8 Oct 2026)
+97e843e076097a32831a2e00a56859b481d8139b
