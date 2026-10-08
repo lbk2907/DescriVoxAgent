@@ -170,19 +170,21 @@ def main() -> int:
         # NVDA follows only after a key lands in the window; safe_keys has
         # checked the foreground AND keyboard focus are this app's, so
         # these warm-up Tabs (not recorded) cannot reach another program.
-        app_name = ""
+        # A positive match on the app under test (it runs from source,
+        # so NVDA names it python), not "anything but Claude" (review,
+        # 8 Oct 2026: a browser or terminal would have counted).
         for _warm in range(8):
-            try:
-                app_name = str(a11y.focus_object().get("appName", ""))
-            except Exception:
-                app_name = ""
-            if app_name and app_name.lower() not in ("claude", "explorer"):
+            if a11y.nvda_in(a11y.SOURCE_APP_NAMES):
                 break
-            safe_keys.send_keys("{TAB}")
+            try:
+                safe_keys.send_keys("{TAB}")
+            except Exception as e:
+                print(f"warm-up refused: {e}")
+                break
             time.sleep(0.9)
-        else:
-            print(f"INCONCLUSIVE: NVDA's focus stayed in {app_name or '?'}, "
-                  f"not the window under test; nothing was judged")
+        if not a11y.nvda_in(a11y.SOURCE_APP_NAMES):
+            print("INCONCLUSIVE: NVDA's focus is not in the window under "
+                  "test; nothing was judged")
             return 3
         print(f"Window: {title}")
         seen = a11y.walk_controls(win, args.steps)

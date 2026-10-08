@@ -438,4 +438,9 @@ report printed OK for them. A listening result counts only for controls NVDA
 itself reported in the app under test. The tool now presses warm-up Tabs
 (into the app only) until NVDA's focus `appName` is the app, and answers
 INCONCLUSIVE if it never is (pitfall 100).
+8 Oct 2026: "NVDA is in the app" is now a POSITIVE match on the app under test
+(`nvda_in`: `descrivox` for the exe, `python` from source). "Anything but Claude"
+would also have accepted a browser or a terminal. The main-window check
+(`nvda_accessibility_check.py --frozen`) needed the same front-and-wait step for the
+2.1.3 release: safe_keys refused its first Tab while Claude was in front.
 

@@ -117,6 +117,58 @@ def launch(frozen: bool):
     raise SystemExit("the app window never appeared")
 
 
+FROZEN_APP_NAMES = {"descrivox"}               # NVDA's appName for the exe
+SOURCE_APP_NAMES = {"python", "pythonw", "python3"}
+
+
+def nvda_in(expected: set[str]) -> bool:
+    """Is NVDA's focus in the app under test? A positive match (review,
+    8 Oct 2026): "not Claude" also said yes for a browser or terminal."""
+    try:
+        app = str(focus_object().get("appName", "")).lower()
+    except Exception as e:
+        print(f"NVDA focus not readable: {e}")
+        return False
+    # Printed so an INCONCLUSIVE run shows why (8 Oct 2026: one run never
+    # saw NVDA follow, the next was VERIFIED - timing, not the app name).
+    print(f"  NVDA focus is in: {app or '?'}")
+    return app in expected
+
+
+def bring_to_front_and_nvda(win, expected: set[str]) -> bool:
+    """Front the app and wait until NVDA's own focus is inside it.
+
+    8 Oct 2026 (2.1.3 release check): with the Claude window in front,
+    win.set_focus() left it there and safe_keys refused the first Tab.
+    SetForegroundWindow first, then pywinauto's route; then warm-up Tabs
+    (safe_keys: only into this app) until NVDA reports this app, as
+    nvda_window_check does since pitfall 103. False = INCONCLUSIVE.
+    """
+    import win32gui
+    from pywinauto.keyboard import send_keys
+    hwnd = win.handle
+    try:
+        win32gui.SetForegroundWindow(hwnd)
+    except Exception as e:
+        print(f"SetForegroundWindow: {e}")
+    if win32gui.GetForegroundWindow() != hwnd:
+        try:
+            win.set_focus()
+        except Exception as e:
+            print(f"set_focus: {e}")
+    time.sleep(1.5)
+    for _ in range(8):
+        if nvda_in(expected):
+            return True
+        try:
+            send_keys("{TAB}")
+        except Exception as e:      # ForeignFocus or a pywinauto error
+            print(f"warm-up refused: {e}")
+            return False
+        time.sleep(0.9)
+    return False
+
+
 def walk_controls(win, steps: int) -> list[dict]:
     """Tab through the window, recording focus and what NVDA said."""
     from pywinauto.keyboard import send_keys
@@ -310,6 +362,12 @@ def main() -> int:
 
     proc, win = launch(args.frozen)
     try:
+        expected = FROZEN_APP_NAMES if args.frozen else SOURCE_APP_NAMES
+        if not bring_to_front_and_nvda(win, expected):
+            _record(args.frozen, args.contract, digest, C.INCONCLUSIVE, 0)
+            print(f"CONTRACT {args.contract}: {C.INCONCLUSIVE} (NVDA never "
+                  f"reached the app; nothing was judged - pitfall 103)")
+            return 2
         seen = walk_controls(win, args.steps)
         rc = report(seen)
         v = evaluate_contract(seen, contract, digest)

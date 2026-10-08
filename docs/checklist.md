@@ -291,7 +291,7 @@ measure → the owner decides. Nothing ships on by default without a VERIFIED me
       the relevant ones are given to the AI on the next video. Measure: re-describe corrected videos, does the same
       mistake come back less often? (Needs the most design; done last.)
 - [ ] 34.5 OpenRouter credit ≥ 1 USD for the GLM measurements (owner; the GLM judge on pictures works without it)
-- [ ] 34.6 Release 2.1.3 — owner, 8 Oct 2026: released with 34.1 and phase 35 (self-update) so users stop
+- [x] 34.6 Release 2.1.3 — owner, 8 Oct 2026: released with 34.1 and phase 35 (self-update) so users stop
       downloading by hand; 34.2-34.4 follow in later versions through the in-app update. Judged by the
       release contract (tag only on VERIFIED)
 
@@ -333,5 +333,7 @@ menu items (Check for Updates = the app, Update YouTube downloader = yt-dlp).
 - [x] 35.11 Owner backed up the release key offline (7 Oct 2026). One key only (owner's choice: no reserve key);
       if it and the backup are lost, users update by hand once to a build with a new public key
 - [x] 35.12 PyNaCl is in the build (`_internal/nacl/_sodium.pyd`, 8 Oct 2026) and verifies inside the frozen exe (35.6)
-- [ ] 35.8 First GitHub Release with the zip + SHA256SUMS.txt (2.1.3), published after the owner's yes
+- [x] 35.8 First GitHub Release, 2.1.3 (8 Oct 2026), published after the owner's yes: zip + SHA256SUMS.txt +
+      .sig; release_check VERIFIED (gate twice, build, NVDA heard the exe: a11y-main VERIFIED); the app's
+      updater reads it back (2.1.2 is offered 2.1.3, 2.1.3 is up to date)
 
