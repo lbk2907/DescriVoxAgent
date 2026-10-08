@@ -15,6 +15,7 @@ Covers:
   9. i18n: new keys exist in both EN and BM
 Run: python tests\\test_fixes16.py
 """
+
 from __future__ import annotations
 
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
@@ -51,16 +52,19 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 from omni_describer_custom.core.video_processor import VideoProcessor, SourceError
 
 vp = VideoProcessor()
-check("1a sanitize illegal chars",
-      VideoProcessor.sanitize_project_name("My: Cool/Video?") == "My Cool Video")
-check("1b sanitize empty -> fallback",
-      VideoProcessor.sanitize_project_name("", fallback="video") == "video")
-check("1c sanitize only-illegal -> fallback",
-      VideoProcessor.sanitize_project_name("???") == "video")
-check("1d sanitize length cap 80",
-      len(VideoProcessor.sanitize_project_name("A" * 200)) == 80)
-check("1e sanitize trims dots/spaces",
-      VideoProcessor.sanitize_project_name("  Name . ") == "Name")
+check(
+    "1a sanitize illegal chars",
+    VideoProcessor.sanitize_project_name("My: Cool/Video?") == "My Cool Video",
+)
+check(
+    "1b sanitize empty -> fallback",
+    VideoProcessor.sanitize_project_name("", fallback="video") == "video",
+)
+check(
+    "1c sanitize only-illegal -> fallback", VideoProcessor.sanitize_project_name("???") == "video"
+)
+check("1d sanitize length cap 80", len(VideoProcessor.sanitize_project_name("A" * 200)) == 80)
+check("1e sanitize trims dots/spaces", VideoProcessor.sanitize_project_name("  Name . ") == "Name")
 
 # ── 2. dedupe ───────────────────────────────────────────────────────
 from omni_describer_custom.core.project_store import ProjectStore
@@ -70,8 +74,11 @@ store = ProjectStore(projects_dir=tmp_store)
 p = store.create_project("T16 Project", "https://example.com/watch?v=t16")
 row = store.find_project_by_source("https://example.com/watch?v=t16")
 check("2a dedupe finds existing", bool(row) and row["id"] == p.id)
-check("2b dedupe misses other", store.find_project_by_source(
-    "https://example.com/watch?v=other") is None)
+check(
+    "2b dedupe misses other",
+    store.find_project_by_source("https://example.com/watch?v=other") is None,
+)
+
 
 # ── 3. cancel during metadata probe ─────────────────────────────────
 async def _t3() -> bool:
@@ -82,13 +89,13 @@ async def _t3() -> bool:
         return calls["n"] > 3  # cancel after ~1.5s
 
     try:
-        await vp._probe_url("https://httpbin.org/delay/30",
-                            is_cancelled=cancelled)
+        await vp._probe_url("https://httpbin.org/delay/30", is_cancelled=cancelled)
         return False
     except SourceError as e:
         return "cancel" in str(e).lower()
     except Exception:
         return False
+
 
 check("3 probe cancel raises cancelled", asyncio.run(_t3()))
 
@@ -105,15 +112,32 @@ def _long_video() -> str:
     it takes seconds). Returns "" only if ffmpeg itself is missing.
     """
     from omni_describer_custom.core.tools import find_tool
+
     path = os.path.join(tempfile.gettempdir(), "odc_t16_long_600s.mp4")
     if os.path.exists(path) and os.path.getsize(path) > 100_000:
         return path
     try:
         subprocess.run(
-            [find_tool("ffmpeg"), "-y", "-loglevel", "error",
-             "-f", "lavfi", "-i", f"testsrc=size=320x240:rate=25:duration={LONG_SECONDS}",
-             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-             path], check=True, timeout=300)
+            [
+                find_tool("ffmpeg"),
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"testsrc=size=320x240:rate=25:duration={LONG_SECONDS}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                path,
+            ],
+            check=True,
+            timeout=300,
+        )
     except Exception as e:
         print(f"could not make the long test video: {e}")
         return ""
@@ -134,8 +158,7 @@ async def _t4() -> tuple[bool, float]:
     async def run():
         state["t0"] = time.monotonic()
         try:
-            await vp.extract_frames(src, fps=5, output_dir=out,
-                                    is_cancelled=cancelled)
+            await vp.extract_frames(src, fps=5, output_dir=out, is_cancelled=cancelled)
             return False  # should NOT return normally
         except SourceError as e:
             state["elapsed"] = time.monotonic() - state["t0"]
@@ -145,13 +168,14 @@ async def _t4() -> tuple[bool, float]:
 
     return await run(), state["elapsed"]
 
+
 ok4, elapsed = asyncio.run(_t4())
 if elapsed >= 0:
     check("4a extraction cancel raises cancelled", ok4)
-    check("4b extraction cancel fast (<15s)", elapsed < 15.0,
-          f"elapsed={elapsed:.1f}s")
+    check("4b extraction cancel fast (<15s)", elapsed < 15.0, f"elapsed={elapsed:.1f}s")
 else:
     print("SKIP 4a/4b (ffmpeg missing, no long test video)")
+
 
 # ── 5+6. GUI: guards, heartbeat, player slider (REAL wx app) ────────
 def _t_gui() -> None:
@@ -165,8 +189,7 @@ def _t_gui() -> None:
     frame.Show(False)
 
     # 6: heartbeat fields exist
-    check("6a heartbeat fields", hasattr(frame, "_hb_timer")
-          and hasattr(frame, "_hb_start"))
+    check("6a heartbeat fields", hasattr(frame, "_hb_timer") and hasattr(frame, "_hb_start"))
 
     # 5a: _ensure_download_progress is a no-op after _dl_done
     frame._dl_done = True
@@ -179,13 +202,11 @@ def _t_gui() -> None:
     frame._dl_cancelled = True
     frame._dl_done = True
     frame._processing_done()
-    check("5b status Ready after cancel",
-          frame.GetStatusBar().GetStatusText() == "Ready")
+    check("5b status Ready after cancel", frame.GetStatusBar().GetStatusText() == "Ready")
     check("5c no player auto-open after cancel", opened["n"] == 0)
 
     # 5d: buttons re-enabled after cancel (app stays usable)
-    check("5d buttons enabled after cancel", frame.btn_local.Enabled
-          and frame.btn_youtube.Enabled)
+    check("5d buttons enabled after cancel", frame.btn_local.Enabled and frame.btn_youtube.Enabled)
 
     # 7: player slider over the REAL duration of a long video
     long_src = _long_video()
@@ -195,39 +216,49 @@ def _t_gui() -> None:
         long_store.set_video_duration(float(LONG_SECONDS))
         win = PlayerWindow(frame, long_store, frame.tts_engine, frame.ai_engine)
         dur = win._slider_dur
-        check("7a player slider duration real (>=500s)", dur >= 500.0,
-              f"dur={dur:.1f}")
+        check("7a player slider duration real (>=500s)", dur >= 500.0, f"dur={dur:.1f}")
         # simulate seek to slider end
         win.position_slider.SetValue(win.position_slider.GetMax())  # v1.9.6: seconds
         win._on_seek(None)
-        check("7b seek to end lands at duration",
-              abs(win._position - dur) < 1.0,
-              f"pos={win._position:.1f}")
+        check(
+            "7b seek to end lands at duration",
+            abs(win._position - dur) < 1.0,
+            f"pos={win._position:.1f}",
+        )
         win.Destroy()
     else:
         print("SKIP 7a/7b (ffmpeg missing, no long test video)")
 
     # 8: SRT regression (format standard)
     from omni_describer_custom.core.timeline_io import to_srt, parse_any, Description
-    descs = [Description(id=1, start_time=0.0, end_time=3.0, text="Hello"),
-             Description(id=2, start_time=61.5, end_time=64.0, text="Second")]
+
+    descs = [
+        Description(id=1, start_time=0.0, end_time=3.0, text="Hello"),
+        Description(id=2, start_time=61.5, end_time=64.0, text="Second"),
+    ]
     pth = os.path.join(tempfile.mkdtemp(prefix="odc_t16_srt_"), "a.srt")
     with open(pth, "w", encoding="utf-8") as f:
         f.write(to_srt(descs))
     raw = open(pth, "rb").read()
     cues = parse_any(pth)
-    check("8a srt standard timestamps",
-          b"00:01:01,500 --> 00:01:04,000" in raw)
+    check("8a srt standard timestamps", b"00:01:01,500 --> 00:01:04,000" in raw)
     check("8b srt roundtrip", len(cues) == 2 and abs(cues[1].start_time - 61.5) < 0.01)
 
     # 9: i18n keys exist (EN current language)
     from omni_describer_custom.i18n.strings import t, I18n  # noqa: F401 (checks the name still exists)
-    keys = ["project.remove_btn", "project.dedupe_open", "log.video_saved_at",
-            "download.loading_info", "process.complete_with_video"]
+
+    keys = [
+        "project.remove_btn",
+        "project.dedupe_open",
+        "log.video_saved_at",
+        "download.loading_info",
+        "process.complete_with_video",
+    ]
     check("9 i18n keys present", all(t(k) != k for k in keys))
 
     frame.Destroy()
     app.Destroy()
+
 
 try:
     _t_gui()
@@ -243,4 +274,5 @@ if FAIL_NAMES:
 
 # cleanup
 shutil.rmtree(tmp_store, ignore_errors=True)
-if "pytest" not in sys.modules: sys.exit(1 if FAIL else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if FAIL else 0)

@@ -46,9 +46,16 @@ omni_describer_custom = ["*.py"]
 python_files = "gate_*.py"
 
 [tool.ruff]
-# Lint only (no `ruff format`): keeps git blame intact.
+# Phase 37.5 (8 Oct 2026, owner): the whole repo is formatted with
+# `ruff format` (standard style, so anyone can contribute and read it).
+# The one-off format commit is listed in .git-blame-ignore-revs.
 target-version = "py311"
+line-length = 100
 extend-exclude = ["build", "dist", "bin", "projects"]
+
+[tool.ruff.format]
+# "auto" keeps each file's existing line endings.
+line-ending = "auto"
 
 [tool.ruff.lint]
 # Bug-catching rules only: syntax errors, invalid comparisons, misplaced

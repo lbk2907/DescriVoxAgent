@@ -97,6 +97,7 @@ class CharactersDialog(wx.Dialog):
         self.status.SetLabel(text)
         try:
             from ..core.speech import get_speech
+
             get_speech().speak(text, interrupt=True)
         except Exception:
             pass
@@ -144,8 +145,9 @@ class CharactersDialog(wx.Dialog):
         if not changed:
             self._say(t("cast.renamed_none", name=new))
             return
-        if not ask_yes_no(self, t("cast.rename_confirm", old=old, new=new, count=changed),
-                          t("cast.title")):
+        if not ask_yes_no(
+            self, t("cast.rename_confirm", old=old, new=new, count=changed), t("cast.title")
+        ):
             self._say(t("cast.renamed_list_only", name=new))
             return
         for d, text in zip(descs, texts, strict=False):
@@ -161,8 +163,13 @@ class CharactersDialog(wx.Dialog):
         if i < 0:
             return
         name = self.cast[i]["name"]
-        if not ask_yes_no(self, t("cast.remove_confirm", name=name), t("cast.title"),
-                          wx.ICON_WARNING, default_no=True):
+        if not ask_yes_no(
+            self,
+            t("cast.remove_confirm", name=name),
+            t("cast.title"),
+            wx.ICON_WARNING,
+            default_no=True,
+        ):
             return
         del self.cast[i]
         self._save()

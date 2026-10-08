@@ -11,6 +11,7 @@ Left open by the v1.7.4 audit:
   3. Split parts got ~1/n of their upload budget: the budget was
      divided by the part count AND spread over the whole video.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -22,16 +23,22 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_t38_"))
 
 from omni_describer_custom.core import ai_engine  # noqa: E402
 from omni_describer_custom.core.ai_engine import (  # noqa: E402
-    GLMProvider, _run_cancellable)
+    GLMProvider,
+    _run_cancellable,
+)
 
 results: list[tuple[str, bool, str]] = []
 
@@ -61,6 +68,7 @@ def test_cancel_abandons_a_long_request():
         async def press_cancel():
             await asyncio.sleep(0.3)
             cancelled["flag"] = True
+
         asyncio.ensure_future(press_cancel())
         await _run_cancellable(slow(), lambda: cancelled["flag"])
 
@@ -79,6 +87,7 @@ def test_uncancelled_request_returns_its_result():
     async def quick():
         await asyncio.sleep(0.05)
         return "text"
+
     assert asyncio.run(_run_cancellable(quick(), lambda: False)) == "text"
     assert asyncio.run(_run_cancellable(quick(), None)) == "text"
 
@@ -88,15 +97,17 @@ def test_glm_part_request_is_cancellable():
     # Whitespace-free, so re-wrapping the call (v1.8.4 added on_sent)
     # does not read as "unwrapped".
     flat = "".join(src.split())
-    assert "_run_cancellable(self._chat(payload,timeout=1800.0" in flat, \
+    assert "_run_cancellable(self._chat(payload,timeout=1800.0" in flat, (
         "the long GLM part request is not wrapped for Cancel"
+    )
 
 
 def test_failed_batch_cancels_its_siblings():
     from PIL import Image
+
     work = Path(tempfile.mkdtemp(prefix="odc_t38_frames_"))
     frames = []
-    for i in range(160):          # > 150 per batch -> two batches
+    for i in range(160):  # > 150 per batch -> two batches
         f = work / f"frame_{i:04d}.jpg"
         Image.new("RGB", (8, 8)).save(f)
         frames.append(str(f))
@@ -124,8 +135,7 @@ def test_failed_batch_cancels_its_siblings():
     except RuntimeError as e:
         assert "402" in str(e), str(e)
     assert state["calls"] == 2, f"{state['calls']} batches started"
-    assert state["sibling_cancelled"], \
-        "the other batch kept running after the job failed"
+    assert state["sibling_cancelled"], "the other batch kept running after the job failed"
     assert time.monotonic() - start < 5, "waited for the sibling instead"
 
 
@@ -150,8 +160,7 @@ def test_split_part_gets_its_whole_budget():
     subprocess.Popen = fake_popen
     try:
         try:
-            prov._split_into(video, work, 888.0, 600, None, None, None,
-                             keep_resolution=False)
+            prov._split_into(video, work, 888.0, 600, None, None, None, keep_resolution=False)
         except StopHere:
             pass
     finally:
@@ -164,19 +173,13 @@ def test_split_part_gets_its_whole_budget():
 
 
 def main() -> int:
-    check("Cancel abandons a long request within a second",
-          test_cancel_abandons_a_long_request)
-    check("an uncancelled request returns its result",
-          test_uncancelled_request_returns_its_result)
-    check("the GLM part request is wrapped for Cancel",
-          test_glm_part_request_is_cancellable)
-    check("a failed batch cancels its sibling batches",
-          test_failed_batch_cancels_its_siblings)
-    check("a split part gets its whole upload budget",
-          test_split_part_gets_its_whole_budget)
+    check("Cancel abandons a long request within a second", test_cancel_abandons_a_long_request)
+    check("an uncancelled request returns its result", test_uncancelled_request_returns_its_result)
+    check("the GLM part request is wrapped for Cancel", test_glm_part_request_is_cancellable)
+    check("a failed batch cancels its sibling batches", test_failed_batch_cancels_its_siblings)
+    check("a split part gets its whole upload budget", test_split_part_gets_its_whole_budget)
     failed = [r for r in results if not r[1]]
-    print(f"\nRESULT: {len(results) - len(failed)} passed, "
-          f"{len(failed)} failed")
+    print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0
 
 

@@ -74,14 +74,14 @@ def _usable(entry: dict) -> bool:
     if "video" not in mods:
         return False
     if mid.endswith(":batch"):
-        return False            # 404 on chat/completions
+        return False  # 404 on chat/completions
     if mid.startswith("~"):
-        return False            # alias: the model behind it changes
+        return False  # alias: the model behind it changes
     if mid.startswith("openrouter/") or "router" in mid:
-        return False            # picks another model for you
+        return False  # picks another model for you
     try:
         if float((entry.get("pricing") or {}).get("prompt") or 0) < 0:
-            return False        # routers carry a -1 sentinel price
+            return False  # routers carry a -1 sentinel price
     except (TypeError, ValueError):
         return False
     return True
@@ -104,14 +104,14 @@ def parse_catalog(data: dict) -> list[dict]:
     """Usable video models: recommended first, then those that hear
     audio, then cheapest."""
     rows = [_row(e) for e in data.get("data", []) if _usable(e)]
-    rows.sort(key=lambda r: (recommended_rank(r["id"]), not r["audio"],
-                             r["price_in"], r["id"]))
+    rows.sort(key=lambda r: (recommended_rank(r["id"]), not r["audio"], r["price_in"], r["id"]))
     return rows
 
 
 def fetch_catalog(url: str = CATALOG_URL, timeout: float = 60.0) -> list[dict]:
     request = urllib.request.Request(
-        url, headers={"User-Agent": "OmniDescriber", "Accept-Encoding": "identity"})
+        url, headers={"User-Agent": "OmniDescriber", "Accept-Encoding": "identity"}
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         if response.status != 200:
             raise RuntimeError(f"catalog HTTP {response.status}")
@@ -120,14 +120,16 @@ def fetch_catalog(url: str = CATALOG_URL, timeout: float = 60.0) -> list[dict]:
 
 def _cache_path(name: str = CACHE_NAME) -> Path:
     from .settings_store import _get_config_dir
+
     return _get_config_dir() / name
 
 
 def save_cache(models: list[dict], name: str = CACHE_NAME) -> None:
     try:
-        _cache_path(name).write_text(json.dumps(
-            {"fetched": time.strftime("%Y-%m-%d"), "models": models},
-            indent=1), encoding="utf-8")
+        _cache_path(name).write_text(
+            json.dumps({"fetched": time.strftime("%Y-%m-%d"), "models": models}, indent=1),
+            encoding="utf-8",
+        )
     except OSError as e:
         logger.warning("Could not save the model list: %s", e)
 
@@ -170,8 +172,14 @@ def record_probe(model: str, result: dict) -> None:
         if row.get("id") == model:
             break
     else:
-        row = {"id": model, "name": model, "audio": False,
-               "price_in": 0.0, "price_out": 0.0, "context": 0}
+        row = {
+            "id": model,
+            "name": model,
+            "audio": False,
+            "price_in": 0.0,
+            "price_out": 0.0,
+            "context": 0,
+        }
         models.append(row)
     row["tested"] = time.strftime("%Y-%m-%d")
     row["sees"] = bool(result.get("sees"))
@@ -186,7 +194,8 @@ PROBE_QUESTION = (
     "This is a 6-second test video. Answer in exactly two lines and "
     "nothing else:\n"
     "COLOURS: <the two background colours, in the order they appear>\n"
-    "WORD: <the secret word the voice says, or NONE if you hear no voice>")
+    "WORD: <the secret word the voice says, or NONE if you hear no voice>"
+)
 
 
 def _speak_to_wav(text: str, path: Path) -> bool:
@@ -194,10 +203,11 @@ def _speak_to_wav(text: str, path: Path) -> bool:
     try:
         import pythoncom
         import win32com.client
+
         pythoncom.CoInitialize()
         try:
             stream = win32com.client.Dispatch("SAPI.SpFileStream")
-            stream.Open(str(path), 3)          # SSFMCreateForWrite
+            stream.Open(str(path), 3)  # SSFMCreateForWrite
             voice = win32com.client.Dispatch("SAPI.SpVoice")
             voice.AudioOutputStream = stream
             voice.Speak(text)
@@ -214,18 +224,41 @@ def make_probe_clip(folder: Path) -> tuple[Path, bool]:
     """Red for 3 s, then blue for 3 s; a voice says the probe word when
     Windows can speak. Returns (clip, has_voice)."""
     from .tools import find_tool
+
     wav = folder / "voice.wav"
     has_voice = _speak_to_wav(f"The secret word is {PROBE_WORD}.", wav)
     clip = folder / "probe.mp4"
+
     def colour(name: str) -> str:
         return f"color=c={name}:s=320x240:d=3,format=yuv420p"
-    cmd = [find_tool("ffmpeg"), "-y", "-loglevel", "error",
-           "-f", "lavfi", "-i", colour("red"),
-           "-f", "lavfi", "-i", colour("blue")]
+
+    cmd = [
+        find_tool("ffmpeg"),
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        colour("red"),
+        "-f",
+        "lavfi",
+        "-i",
+        colour("blue"),
+    ]
     if has_voice:
-        cmd += ["-i", str(wav), "-filter_complex",
-                "[0][1]concat=n=2:v=1[v];[2]apad=whole_dur=6[a]",
-                "-map", "[v]", "-map", "[a]", "-c:a", "aac"]
+        cmd += [
+            "-i",
+            str(wav),
+            "-filter_complex",
+            "[0][1]concat=n=2:v=1[v];[2]apad=whole_dur=6[a]",
+            "-map",
+            "[v]",
+            "-map",
+            "[a]",
+            "-c:a",
+            "aac",
+        ]
     else:
         cmd += ["-filter_complex", "[0][1]concat=n=2:v=1[v]", "-map", "[v]"]
     cmd += ["-c:v", "libx264", "-t", "6", str(clip)]
@@ -249,8 +282,7 @@ def judge(answer: str, has_voice: bool) -> dict:
     return {"sees": sees, "hears": hears}
 
 
-def probe_model(api_key: str, model: str, url: str = CHAT_URL,
-                timeout: float = 150.0) -> dict:
+def probe_model(api_key: str, model: str, url: str = CHAT_URL, timeout: float = 150.0) -> dict:
     """Send the probe clip to `model`, the way the app sends video.
 
     Returns {"sees": bool, "hears": bool|None, "answer": str,
@@ -262,15 +294,27 @@ def probe_model(api_key: str, model: str, url: str = CHAT_URL,
     try:
         clip, has_voice = make_probe_clip(folder)
         data = base64.b64encode(clip.read_bytes()).decode()
-        body = {"model": model, "max_tokens": 3000, "messages": [{
-            "role": "user", "content": [
-                {"type": "video_url",
-                 "video_url": {"url": f"data:video/mp4;base64,{data}"}},
-                {"type": "text", "text": PROBE_QUESTION}]}]}
+        body = {
+            "model": model,
+            "max_tokens": 3000,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "video_url",
+                            "video_url": {"url": f"data:video/mp4;base64,{data}"},
+                        },
+                        {"type": "text", "text": PROBE_QUESTION},
+                    ],
+                }
+            ],
+        }
         request = urllib.request.Request(
-            url, json.dumps(body).encode("utf-8"),
-            {"Authorization": f"Bearer {api_key}",
-             "Content-Type": "application/json"})
+            url,
+            json.dumps(body).encode("utf-8"),
+            {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as resp:
                 reply = json.loads(resp.read().decode("utf-8"))
@@ -280,34 +324,50 @@ def probe_model(api_key: str, model: str, url: str = CHAT_URL,
                 detail = json.loads(detail)["error"]["message"]
             except Exception:
                 pass
-            return {"sees": False, "hears": None, "answer": "",
-                    "error": f"HTTP {e.code}: {str(detail)[:160]}",
-                    "seconds": time.monotonic() - started}
+            return {
+                "sees": False,
+                "hears": None,
+                "answer": "",
+                "error": f"HTTP {e.code}: {str(detail)[:160]}",
+                "seconds": time.monotonic() - started,
+            }
         choices = reply.get("choices") or []
-        answer = ((choices[0].get("message") or {}).get("content") or ""
-                  ) if choices else ""
+        answer = ((choices[0].get("message") or {}).get("content") or "") if choices else ""
         if not answer:
             err = (reply.get("error") or {}).get("message") or "empty reply"
-            return {"sees": False, "hears": None, "answer": "",
-                    "error": str(err)[:160],
-                    "seconds": time.monotonic() - started}
+            return {
+                "sees": False,
+                "hears": None,
+                "answer": "",
+                "error": str(err)[:160],
+                "seconds": time.monotonic() - started,
+            }
         verdict = judge(answer, has_voice)
-        return {**verdict, "answer": answer.strip(), "error": "",
-                "seconds": time.monotonic() - started}
+        return {
+            **verdict,
+            "answer": answer.strip(),
+            "error": "",
+            "seconds": time.monotonic() - started,
+        }
     except Exception as e:
-        return {"sees": False, "hears": None, "answer": "",
-                "error": f"{type(e).__name__}: {str(e)[:160]}",
-                "seconds": time.monotonic() - started}
+        return {
+            "sees": False,
+            "hears": None,
+            "answer": "",
+            "error": f"{type(e).__name__}: {str(e)[:160]}",
+            "seconds": time.monotonic() - started,
+        }
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
 
-PICTURE_QUESTION = ("What is the one colour that fills this picture? "
-                    "Answer with the colour name only.")
+PICTURE_QUESTION = (
+    "What is the one colour that fills this picture? Answer with the colour name only."
+)
 
 
 def probe_engine(engine, provider: str, model: str = "") -> dict:
-    """"Test this model" for Gemini, MiniMax, OpenAI and Custom (v1.9.2).
+    """ "Test this model" for Gemini, MiniMax, OpenAI and Custom (v1.9.2).
 
     Goes through the app's own engine, so the key, base URL, model and
     upload path are the ones a real job uses. Video providers get the
@@ -316,37 +376,69 @@ def probe_engine(engine, provider: str, model: str = "") -> dict:
     it from a worker thread.
     """
     import asyncio
+
     folder = Path(tempfile.mkdtemp(prefix="odc_probe_"))
     started = time.monotonic()
     loop = asyncio.new_event_loop()
     try:
         clip, has_voice = make_probe_clip(folder)
         if engine.watches_video(provider):
-            answer = loop.run_until_complete(engine.ask_about_video(
-                str(clip), PROBE_QUESTION, provider, model))
+            answer = loop.run_until_complete(
+                engine.ask_about_video(str(clip), PROBE_QUESTION, provider, model)
+            )
             verdict = judge(answer, has_voice)
             picture = False
         else:
             from .tools import find_tool
+
             frame = folder / "frame.jpg"
-            subprocess.run([find_tool("ffmpeg"), "-y", "-loglevel", "error",
-                            "-ss", "1", "-i", str(clip), "-frames:v", "1",
-                            str(frame)], check=True, capture_output=True,
-                           timeout=60)
-            answer = loop.run_until_complete(engine.look(
-                str(frame), PICTURE_QUESTION, provider, model))
+            subprocess.run(
+                [
+                    find_tool("ffmpeg"),
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-ss",
+                    "1",
+                    "-i",
+                    str(clip),
+                    "-frames:v",
+                    "1",
+                    str(frame),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
+            answer = loop.run_until_complete(
+                engine.look(str(frame), PICTURE_QUESTION, provider, model)
+            )
             verdict = {"sees": "red" in (answer or "").lower(), "hears": None}
             picture = True
         if not (answer or "").strip():
-            return {"sees": False, "hears": None, "answer": "",
-                    "error": "empty reply", "picture": picture,
-                    "seconds": time.monotonic() - started}
-        return {**verdict, "answer": answer.strip(), "error": "",
-                "picture": picture, "seconds": time.monotonic() - started}
+            return {
+                "sees": False,
+                "hears": None,
+                "answer": "",
+                "error": "empty reply",
+                "picture": picture,
+                "seconds": time.monotonic() - started,
+            }
+        return {
+            **verdict,
+            "answer": answer.strip(),
+            "error": "",
+            "picture": picture,
+            "seconds": time.monotonic() - started,
+        }
     except Exception as e:
-        return {"sees": False, "hears": None, "answer": "",
-                "error": f"{type(e).__name__}: {str(e)[:160]}",
-                "seconds": time.monotonic() - started}
+        return {
+            "sees": False,
+            "hears": None,
+            "answer": "",
+            "error": f"{type(e).__name__}: {str(e)[:160]}",
+            "seconds": time.monotonic() - started,
+        }
     finally:
         loop.close()
         shutil.rmtree(folder, ignore_errors=True)
@@ -354,22 +446,31 @@ def probe_engine(engine, provider: str, model: str = "") -> dict:
 
 # ── Gemini with the user's own key (v1.9.3) ─────────────────────
 
-GEMINI_LIST_URL = ("https://generativelanguage.googleapis.com/v1beta/"
-                   "models?pageSize=1000")
+GEMINI_LIST_URL = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
 GEMINI_CACHE_NAME = "gemini_models.json"
 # Google lists 61 models for one key (1 Oct 2026): speech, pictures,
 # music, embeddings, live audio... none describes a video file. Kept:
 # "gemini-*" models with generateContent and a context of a million
 # tokens or more (what a video needs), minus these:
-_GEMINI_SKIP = ("tts", "image", "live", "robotics", "computer-use",
-                "embedding", "transcribe", "customtools", "native-audio",
-                "latest")
+_GEMINI_SKIP = (
+    "tts",
+    "image",
+    "live",
+    "robotics",
+    "computer-use",
+    "embedding",
+    "transcribe",
+    "customtools",
+    "native-audio",
+    "latest",
+)
 
 
 def parse_gemini_models(data: dict) -> list[dict]:
     """Google's ListModels answer -> rows for Settings: the recommended
     one first, released before previews, newest version first."""
     import re
+
     rows = []
     for m in data.get("models") or []:
         model_id = str(m.get("name", "")).split("/", 1)[-1]
@@ -381,18 +482,25 @@ def parse_gemini_models(data: dict) -> list[dict]:
             continue
         if any(word in model_id for word in _GEMINI_SKIP):
             continue
-        rows.append({"id": model_id, "name": m.get("displayName") or model_id,
-                     "gemini": True})
+        rows.append({"id": model_id, "name": m.get("displayName") or model_id, "gemini": True})
 
     def order(row):
         found = re.match(r"gemini-(\d+)(?:\.(\d+))?", row["id"])
-        version = ((int(found.group(1)), int(found.group(2) or 0))
-                   if found else (0, 0))
-        direct = (GEMINI_DIRECT_RECOMMENDED.index(row["id"])
-                  if row["id"] in GEMINI_DIRECT_RECOMMENDED
-                  else len(GEMINI_DIRECT_RECOMMENDED))
-        return (direct, recommended_rank(f"google/{row['id']}"),
-                "preview" in row["id"], -version[0], -version[1], row["id"])
+        version = (int(found.group(1)), int(found.group(2) or 0)) if found else (0, 0)
+        direct = (
+            GEMINI_DIRECT_RECOMMENDED.index(row["id"])
+            if row["id"] in GEMINI_DIRECT_RECOMMENDED
+            else len(GEMINI_DIRECT_RECOMMENDED)
+        )
+        return (
+            direct,
+            recommended_rank(f"google/{row['id']}"),
+            "preview" in row["id"],
+            -version[0],
+            -version[1],
+            row["id"],
+        )
+
     rows.sort(key=order)
     # The price, when OpenRouter's catalog knows it (the same model).
     prices = {r["id"]: r.get("price_in") for r in load_cache()[0]}
@@ -402,18 +510,24 @@ def parse_gemini_models(data: dict) -> list[dict]:
     return rows
 
 
-def fetch_gemini_models(api_key: str, url: str = GEMINI_LIST_URL,
-                        timeout: float = 60.0) -> list[dict]:
+def fetch_gemini_models(
+    api_key: str, url: str = GEMINI_LIST_URL, timeout: float = 60.0
+) -> list[dict]:
     """Ask Google which models this key can use. Listing models uses no
     quota. The key goes in a header, never the URL (pitfall 51)."""
     import urllib.error
+
     request = urllib.request.Request(
-        url, headers={"x-goog-api-key": api_key, "User-Agent": "OmniDescriber",
-                      "Accept-Encoding": "identity"})
+        url,
+        headers={
+            "x-goog-api-key": api_key,
+            "User-Agent": "OmniDescriber",
+            "Accept-Encoding": "identity",
+        },
+    )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return parse_gemini_models(
-                json.loads(response.read().decode("utf-8")))
+            return parse_gemini_models(json.loads(response.read().decode("utf-8")))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "replace")
         try:

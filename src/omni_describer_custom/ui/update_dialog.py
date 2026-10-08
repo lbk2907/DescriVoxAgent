@@ -23,19 +23,25 @@ logger = logging.getLogger(__name__)
 
 class UpdateDialog(wx.Dialog):
     def __init__(self, parent, settings=None, check_on_open: bool = True):
-        super().__init__(parent, title=t("update.title"), size=(520, 320),
-                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(
+            parent,
+            title=t("update.title"),
+            size=(520, 320),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self.settings = settings
         self._latest = ""
         self._busy = False
 
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(wx.StaticText(panel, label=t("update.status_label")),
-                  0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("update.status_label")), 0, wx.ALL, 5)
         self.status_box = wx.TextCtrl(
-            panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
-            size=(-1, 150), name=t("update.status_label"))
+            panel,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            size=(-1, 150),
+            name=t("update.status_label"),
+        )
         sizer.Add(self.status_box, 1, wx.ALL | wx.EXPAND, 5)
 
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -54,8 +60,7 @@ class UpdateDialog(wx.Dialog):
         self.check_btn.Bind(wx.EVT_BUTTON, lambda e: self.start_check())
         self.update_btn.Bind(wx.EVT_BUTTON, lambda e: self.start_install())
         self.revert_btn.Bind(wx.EVT_BUTTON, lambda e: self.do_revert())
-        self.close_btn.Bind(wx.EVT_BUTTON,
-                            lambda e: self.EndModal(wx.ID_CLOSE))
+        self.close_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CLOSE))
         self.SetEscapeId(wx.ID_CLOSE)
 
         # Running yt-dlp to ask its version takes 1-3 s, so nothing here
@@ -74,6 +79,7 @@ class UpdateDialog(wx.Dialog):
         self.status_box.SetFocus()
         try:
             from ..core.speech import announce
+
             announce(text)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -84,10 +90,13 @@ class UpdateDialog(wx.Dialog):
 
     @staticmethod
     def _describe(st: dict) -> str:
-        source = (t("update.source_updated") if st["using_update"]
-                  else t("update.source_bundled"))
-        return t("update.current", version=st["in_use_version"] or "?",
-                 source=source, bundled=st["bundled_version"] or "?")
+        source = t("update.source_updated") if st["using_update"] else t("update.source_bundled")
+        return t(
+            "update.current",
+            version=st["in_use_version"] or "?",
+            source=source,
+            bundled=st["bundled_version"] or "?",
+        )
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -114,8 +123,7 @@ class UpdateDialog(wx.Dialog):
                 wx.CallAfter(self._check_done, st, latest, newer, "")
             except Exception as e:
                 logger.warning("Update check failed: %s", e)
-                wx.CallAfter(self._check_done, st, "", "",
-                             short_error(str(e)))
+                wx.CallAfter(self._check_done, st, "", "", short_error(str(e)))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -128,8 +136,7 @@ class UpdateDialog(wx.Dialog):
         if error:
             result = t("update.check_failed", error=error)
         elif newer:
-            result = t("update.available", current=current or "?",
-                       latest=newer)
+            result = t("update.available", current=current or "?", latest=newer)
         else:
             result = t("update.up_to_date", version=current or latest)
         # The result first: it is what the user is waiting to hear.
@@ -151,8 +158,7 @@ class UpdateDialog(wx.Dialog):
                 wx.CallAfter(self._install_done, version, "")
             except Exception as e:
                 logger.error("yt-dlp update failed: %s", e)
-                wx.CallAfter(self._install_done, "",
-                             short_error(str(e)))
+                wx.CallAfter(self._install_done, "", short_error(str(e)))
 
         threading.Thread(target=work, daemon=True).start()
 

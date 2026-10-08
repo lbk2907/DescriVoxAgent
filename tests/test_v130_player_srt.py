@@ -7,6 +7,7 @@ Covers:
 - ProjectStore.set_video_path (DB + memory update)
 - ProjectStore.media_dir creation
 """
+
 from __future__ import annotations
 
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
@@ -20,7 +21,10 @@ sys.path.insert(0, str(REPO / "src"))
 
 from omni_describer_custom.core.project_store import ProjectStore
 from omni_describer_custom.core.timeline_io import (
-    Description, parse_any, parse_srt, to_srt,
+    Description,
+    parse_any,
+    parse_srt,
+    to_srt,
 )
 
 PASS = 0
@@ -66,8 +70,11 @@ def main() -> int:
     p2 = tmp / "bom.srt"
     p2.write_bytes(b"\xef\xbb\xbf1\r\n00:00:02,000 --> 00:00:05,000\r\nBOM cue\r\n\r\n")
     parsed3 = parse_srt(p2)
-    check("BOM+CRLF parse", len(parsed3) == 1 and parsed3[0].text == "BOM cue",
-          str([d.text for d in parsed3]))
+    check(
+        "BOM+CRLF parse",
+        len(parsed3) == 1 and parsed3[0].text == "BOM cue",
+        str([d.text for d in parsed3]),
+    )
 
     # ── 2. ProjectStore video persistence ────────────────────────
     print("[2] ProjectStore.persist_video_file / set_video_path")
@@ -112,8 +119,11 @@ def main() -> int:
     store.create_project("Second", "https://x")
     store.set_video_path(str(expect))
     reopened = store.open_project(2)
-    check("open_project video_path", reopened and reopened.video_path == str(expect),
-          reopened.video_path if reopened else "none")
+    check(
+        "open_project video_path",
+        reopened and reopened.video_path == str(expect),
+        reopened.video_path if reopened else "none",
+    )
 
     print()
     print(f"RESULT: {PASS} passed, {FAIL} failed")

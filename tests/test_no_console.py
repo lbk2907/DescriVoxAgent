@@ -4,6 +4,7 @@ A windowed parent (pythonw, like the frozen exe) starts a console child.
 The child reports whether it got a console WINDOW. With no_console
 installed it must not; without it, it does — proving the test can fail.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import os
 import subprocess
@@ -27,8 +28,9 @@ PARENT = (
 def child_window(install: bool) -> int:
     out = Path(os.environ.get("TEMP", ".")) / f"odc_noconsole_{int(install)}.txt"
     out.unlink(missing_ok=True)
-    code = PARENT.format(src=str(REPO / "src"), install=install,
-                         py=sys.executable, child=CHILD, out=str(out))
+    code = PARENT.format(
+        src=str(REPO / "src"), install=install, py=sys.executable, child=CHILD, out=str(out)
+    )
     subprocess.run([PYW, "-c", code], timeout=60)
     return int(out.read_text().strip() or "0")
 

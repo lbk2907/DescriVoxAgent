@@ -16,6 +16,7 @@ Now the body is streamed with a byte count, the wait is estimated from
 what this model took before (core/timing_store), and each phase is said
 through Prism, which speaks through the screen reader.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -28,10 +29,14 @@ import threading
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 os.environ["ODC_CONFIG_DIR"] = tempfile.mkdtemp(prefix="odc_t48_cfg_")
@@ -57,9 +62,23 @@ def check(name, fn):
 
 def _clip(seconds=3) -> Path:
     path = Path(tempfile.mkdtemp(prefix="odc_t48_v_")) / "clip.mp4"
-    subprocess.run([find_tool("ffmpeg"), "-y", "-loglevel", "error", "-f", "lavfi",
-                    "-i", f"testsrc=size=160x120:rate=5:duration={seconds}",
-                    "-c:v", "libx264", str(path)], check=True, timeout=120)
+    subprocess.run(
+        [
+            find_tool("ffmpeg"),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=size=160x120:rate=5:duration={seconds}",
+            "-c:v",
+            "libx264",
+            str(path),
+        ],
+        check=True,
+        timeout=120,
+    )
     return path
 
 
@@ -69,7 +88,9 @@ def test_timing_store_learns():
     assert timing_store.expected_seconds(key, 0) == 0.0
     over = timing_store.OVERHEAD_SECONDS
     # The 29 Sep 2026 measurement: 50 s of video, 80 s of waiting.
-    assert 60 <= timing_store.expected_seconds(key, 50) <= 100,         timing_store.expected_seconds(key, 50)
+    assert 60 <= timing_store.expected_seconds(key, 50) <= 100, timing_store.expected_seconds(
+        key, 50
+    )
     timing_store.record(key, 100.0, over + 50.0)
     assert abs(timing_store.ratio(key) - 0.5) < 1e-6, timing_store.ratio(key)
     timing_store.record(key, 100.0, over + 100.0)
@@ -83,6 +104,7 @@ def test_timing_store_learns():
 
 def test_chat_streams_with_a_byte_count():
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
     seen = {}
 
     class Chat(BaseHTTPRequestHandler):
@@ -93,8 +115,7 @@ def test_chat_streams_with_a_byte_count():
             seen["length"] = self.headers.get("Content-Length")
             seen["chunked"] = self.headers.get("Transfer-Encoding")
             seen["body"] = self.rfile.read(int(self.headers["Content-Length"]))
-            out = json.dumps({"choices": [{"message": {"content": "[00:01] ok"}}]}
-                             ).encode()
+            out = json.dumps({"choices": [{"message": {"content": "[00:01] ok"}}]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(out)))
@@ -104,8 +125,7 @@ def test_chat_streams_with_a_byte_count():
     server = ThreadingHTTPServer(("127.0.0.1", 0), Chat)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        prov = GLMProvider(api_key="k",
-                           base_url=f"http://127.0.0.1:{server.server_address[1]}")
+        prov = GLMProvider(api_key="k", base_url=f"http://127.0.0.1:{server.server_address[1]}")
         payload = {"model": "m", "blob": "x" * (3 * 1024 * 1024)}
         shares = []
         text = asyncio.run(prov._chat(payload, timeout=30, on_sent=shares.append))
@@ -121,7 +141,7 @@ def test_a_part_reports_upload_then_the_wait():
     key = "glm:m"
     before = timing_store.ratio(key)
     real = timing_store.OVERHEAD_SECONDS
-    timing_store.OVERHEAD_SECONDS = 0.0       # keep the test to seconds
+    timing_store.OVERHEAD_SECONDS = 0.0  # keep the test to seconds
     prov = GLMProvider(api_key="k")
     statuses, reports = [], []
 
@@ -130,12 +150,20 @@ def test_a_part_reports_upload_then_the_wait():
         on_sent(1.0)
         await asyncio.sleep(2.5)
         return "[00:01] a thing"
+
     prov._chat = fake_chat
     try:
-        pairs = asyncio.run(prov._describe_one_part(
-            _clip(), "p", "m", on_status=statuses.append, is_cancelled=None,
-            part_seconds=10.0,
-            on_part_progress=lambda f, e: reports.append((f, e))))
+        pairs = asyncio.run(
+            prov._describe_one_part(
+                _clip(),
+                "p",
+                "m",
+                on_status=statuses.append,
+                is_cancelled=None,
+                part_seconds=10.0,
+                on_part_progress=lambda f, e: reports.append((f, e)),
+            )
+        )
     finally:
         timing_store.OVERHEAD_SECONDS = real
     assert pairs == [(1.0, "a thing")], pairs
@@ -160,12 +188,19 @@ def test_the_whole_job_moves_one_bar():
             on_sent(share)
         await asyncio.sleep(1.2)
         return "[00:01] a"
+
     prov._chat = fake_chat
     parts = []
-    asyncio.run(prov.describe_video_full(
-        str(_clip(12)), "p", "m", chunk_seconds=5,
-        on_part=lambda i, n: parts.append((i, n)),
-        on_eta=lambda pct, eta: overall.append(pct)))
+    asyncio.run(
+        prov.describe_video_full(
+            str(_clip(12)),
+            "p",
+            "m",
+            chunk_seconds=5,
+            on_part=lambda i, n: parts.append((i, n)),
+            on_eta=lambda pct, eta: overall.append(pct),
+        )
+    )
     assert len(parts) >= 2, parts
     assert overall and overall == sorted(overall), overall
     assert 10.0 <= overall[0] < 20.0 and overall[-1] < 100.0, overall
@@ -184,6 +219,7 @@ def test_window_bar_and_speech():
     import wx.adv  # noqa: F401
     from omni_describer_custom.i18n.strings import I18n, t
     from omni_describer_custom.ui.main_frame import MainFrame
+
     app = wx.GetApp() or wx.App(False)
     I18n.set_language("en")
     frame = MainFrame()
@@ -212,13 +248,13 @@ def test_window_bar_and_speech():
         frame._video_part_tick(1, 2)
         # v1.9.6: ONE overall percentage for the whole job; the AI step's
         # 10% is 30 + 65 * 0.10 = 36 of it.
-        assert "36%" in frame.GetStatusBar().GetStatusText(), \
-            frame.GetStatusBar().GetStatusText()
+        assert "36%" in frame.GetStatusBar().GetStatusText(), frame.GetStatusBar().GetStatusText()
         frame._video_status_tick("encoding")
         frame._video_status_tick("uploading")
         pump(1.2)
-        assert spoken == [f'{t("video.part_start", part=1, total=2)} '
-                          f'{t("video.phase_uploading")}'], spoken
+        assert spoken == [
+            f"{t('video.part_start', part=1, total=2)} {t('video.phase_uploading')}"
+        ], spoken
         frame._video_eta_tick(12.0, None)
         frame._video_status_tick("waiting")
         pump(1.2)
@@ -233,8 +269,11 @@ def test_window_bar_and_speech():
         assert [len(a) for a in updates] == [2, 1], updates
         dlg.Update = real_update
         pump(1.2)
-        assert len(spoken) == 2 and spoken[1].startswith(t("video.phase_waiting")) \
-            and t("video.eta_minutes", minutes=3) in spoken[1], spoken
+        assert (
+            len(spoken) == 2
+            and spoken[1].startswith(t("video.phase_waiting"))
+            and t("video.eta_minutes", minutes=3) in spoken[1]
+        ), spoken
         status = frame.GetStatusBar().GetStatusText()
         assert t("video.eta_minutes", minutes=3) in status, status
         # 31% of the AI step = 30 + 65 * 0.31 = 50% overall (v1.9.6).
@@ -254,17 +293,15 @@ def test_window_bar_and_speech():
 
 
 def main() -> int:
-    check("the timing store learns and survives a broken file",
-          test_timing_store_learns)
-    check("a chat request streams with a byte count",
-          test_chat_streams_with_a_byte_count)
-    check("a part reports its upload, then its estimated wait",
-          test_a_part_reports_upload_then_the_wait)
-    check("the whole job moves one bar forward",
-          test_the_whole_job_moves_one_bar)
+    check("the timing store learns and survives a broken file", test_timing_store_learns)
+    check("a chat request streams with a byte count", test_chat_streams_with_a_byte_count)
+    check(
+        "a part reports its upload, then its estimated wait",
+        test_a_part_reports_upload_then_the_wait,
+    )
+    check("the whole job moves one bar forward", test_the_whole_job_moves_one_bar)
     check("the window asks the engine for progress", test_wiring_reaches_the_window)
-    check("the window moves the bar and speaks each phase once",
-          test_window_bar_and_speech)
+    check("the window moves the bar and speaks each phase once", test_window_bar_and_speech)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

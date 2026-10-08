@@ -35,6 +35,7 @@ _lock = threading.Lock()
 
 def _path():
     from .settings_store import _get_config_dir
+
     return _get_config_dir() / "timing.json"
 
 
@@ -66,14 +67,12 @@ def record(key: str, media_seconds: float, took_seconds: float) -> None:
     """Learn from one finished wait. Never raises: it only improves a guess."""
     if media_seconds < 5 or took_seconds <= 0:
         return
-    measured = min(_MAX_RATIO, max(
-        _MIN_RATIO, (took_seconds - OVERHEAD_SECONDS) / media_seconds))
+    measured = min(_MAX_RATIO, max(_MIN_RATIO, (took_seconds - OVERHEAD_SECONDS) / media_seconds))
     with _lock:
         try:
             data = _load()
             old = data.get(key)
-            new = measured if old is None else (
-                (1 - _WEIGHT) * float(old) + _WEIGHT * measured)
+            new = measured if old is None else ((1 - _WEIGHT) * float(old) + _WEIGHT * measured)
             data[key] = round(new, 4)
             path = _path()
             tmp = path.with_name(path.name + ".tmp")

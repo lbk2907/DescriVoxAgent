@@ -24,8 +24,23 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-FORBIDDEN = (".exe", ".dll", ".pyd", ".zip", ".7z", ".msi", ".mp4", ".mkv",
-             ".mp3", ".wav", ".db", ".sqlite", ".onnx", ".bin", ".pt")
+FORBIDDEN = (
+    ".exe",
+    ".dll",
+    ".pyd",
+    ".zip",
+    ".7z",
+    ".msi",
+    ".mp4",
+    ".mkv",
+    ".mp3",
+    ".wav",
+    ".db",
+    ".sqlite",
+    ".onnx",
+    ".bin",
+    ".pt",
+)
 KEY = re.compile(rb"(sk-or-v1-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|sk-[A-Za-z0-9]{30,})")
 
 
@@ -41,8 +56,12 @@ def problems(zip_path: Path) -> list[str]:
                 continue
             name = info.filename
             low = name.lower()
-            if low.endswith(FORBIDDEN) or "/dist/" in low or "/build/" in low \
-                    or low.endswith("settings.json"):
+            if (
+                low.endswith(FORBIDDEN)
+                or "/dist/" in low
+                or "/build/" in low
+                or low.endswith("settings.json")
+            ):
                 found.append(f"not source: {name}")
                 continue
             data = z.read(info)
@@ -59,12 +78,23 @@ def main() -> int:
     args = ap.parse_args()
     sys.path.insert(0, str(REPO / "src"))
     from omni_describer_custom import __version__ as version
+
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"DescriVox-Agent-source-v{version}.zip"
-    subprocess.run(["git", "archive", "--format=zip",
-                    f"--prefix=DescriVox-Agent-v{version}/", "-o", str(out), "HEAD"],
-                   cwd=str(REPO), check=True)
+    subprocess.run(
+        [
+            "git",
+            "archive",
+            "--format=zip",
+            f"--prefix=DescriVox-Agent-v{version}/",
+            "-o",
+            str(out),
+            "HEAD",
+        ],
+        cwd=str(REPO),
+        check=True,
+    )
     found = problems(out)
     if found:
         out.unlink()

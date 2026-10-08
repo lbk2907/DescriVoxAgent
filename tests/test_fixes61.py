@@ -12,6 +12,7 @@ Now Close/Esc/Alt+F4 set the stop flag before the window ends, Ask turns
 into "Stop asking" while it runs, a second run on the same Agent is
 refused, and every error goes through ai_engine.user_error_text.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -23,10 +24,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ["ODC_CONFIG_DIR"] = tempfile.mkdtemp(prefix="odc_t61_cfg_")
 os.environ["ODC_PROJECTS_DIR"] = tempfile.mkdtemp(prefix="odc_t61_prj_")
@@ -34,7 +39,9 @@ os.environ["ODC_PROJECTS_DIR"] = tempfile.mkdtemp(prefix="odc_t61_prj_")
 import wx  # noqa: E402
 
 from omni_describer_custom.core.project_store import (  # noqa: E402
-    Description, ProjectStore)
+    Description,
+    ProjectStore,
+)
 from omni_describer_custom.core.settings_store import SettingsStore  # noqa: E402
 from omni_describer_custom.core.tools import find_tool  # noqa: E402
 from omni_describer_custom.i18n.strings import t  # noqa: E402
@@ -44,7 +51,7 @@ results: list[tuple[str, bool]] = []
 APP = wx.App(False)
 TMP = Path(tempfile.mkdtemp(prefix="odc_t61_"))
 SPOKEN: list[str] = []
-agent_dialog.speak = SPOKEN.append        # silent: nothing reaches NVDA
+agent_dialog.speak = SPOKEN.append  # silent: nothing reaches NVDA
 
 
 def check(name, fn):
@@ -76,28 +83,44 @@ def wait_for(condition, seconds):
 def video() -> Path:
     out = TMP / "clip.mp4"
     if not out.exists():
-        subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
-                        "-i", "testsrc=size=320x240:rate=10:duration=30",
-                        "-c:v", "libx264", str(out)], check=True, timeout=120)
+        subprocess.run(
+            [
+                find_tool("ffmpeg"),
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=320x240:rate=10:duration=30",
+                "-c:v",
+                "libx264",
+                str(out),
+            ],
+            check=True,
+            timeout=120,
+        )
     return out
 
 
 def player():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     settings = SettingsStore()
     settings.set("ai.default_provider", "glm")
-    settings.set_ai_provider("glm", {"api_key": "k-test",
-                                     "model": "z-ai/glm-5.3-flash"})
+    settings.set_ai_provider("glm", {"api_key": "k-test", "model": "z-ai/glm-5.3-flash"})
     settings.set("ai.agent_models", ["z-ai/glm-5.3-flash"])
     store = ProjectStore()
     store.create_project("Agent stop test", str(video()))
     store.persist_video_file(str(video()))
     store.set_video_duration(30.0)
-    store.save_descriptions([
-        Description(start_time=2.0, end_time=4.0, text="A test pattern."),
-        Description(start_time=10.0, end_time=12.0, text="A red dragon flies."),
-    ])
+    store.save_descriptions(
+        [
+            Description(start_time=2.0, end_time=4.0, text="A test pattern."),
+            Description(start_time=10.0, end_time=12.0, text="A red dragon flies."),
+        ]
+    )
     w = PlayerWindow(None, store, TTSEngine({}), settings=settings)
     w._agent = w._make_agent()
     return w
@@ -117,8 +140,7 @@ class SlowPost:
         except asyncio.CancelledError:
             self.cancelled += 1
             raise
-        return {"choices": [{"message": {"role": "assistant",
-                                         "content": "Late answer."}}]}
+        return {"choices": [{"message": {"role": "assistant", "content": "Late answer."}}]}
 
 
 def modal(dlg):
@@ -131,8 +153,7 @@ def modal(dlg):
 
 
 def click(button):
-    button.GetEventHandler().ProcessEvent(
-        wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId()))
+    button.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId()))
 
 
 def test_close_stops_the_ask():
@@ -145,10 +166,11 @@ def test_close_stops_the_ask():
         dlg.submit("Is [1] right?")
         assert wait_for(lambda: slow.started == 1, 5), "the ask never started"
         assert dlg.GetEscapeId() == wx.ID_CLOSE, "Esc does not press Close"
-        click(dlg.close_btn)                 # Close, and Esc through it
+        click(dlg.close_btn)  # Close, and Esc through it
         assert ended == [wx.ID_CLOSE], ended
-        assert wait_for(lambda: slow.cancelled == 1, 2), \
+        assert wait_for(lambda: slow.cancelled == 1, 2), (
             "the ask kept running after the window closed"
+        )
         assert wait_for(lambda: not w._agent.busy, 2)
     finally:
         pump(20)
@@ -159,6 +181,7 @@ def test_close_stops_the_ask():
 
 def test_close_stops_check_all():
     from omni_describer_custom.ui import dialogs
+
     w = player()
     slow = SlowPost()
     w._agent._post = slow
@@ -171,8 +194,9 @@ def test_close_stops_check_all():
         assert wait_for(lambda: slow.started == 1, 5), "the check never started"
         click(dlg.close_btn)
         assert ended == [wx.ID_CLOSE], ended
-        assert wait_for(lambda: slow.cancelled == 1, 2), \
+        assert wait_for(lambda: slow.cancelled == 1, 2), (
             "Check the whole video kept running after the window closed"
+        )
         time.sleep(0.6)
         assert slow.started == 1, f"{slow.started} requests after Close"
     finally:
@@ -192,8 +216,7 @@ def test_ask_becomes_stop():
         SPOKEN.clear()
         dlg.submit("Is [1] right?")
         assert wait_for(lambda: slow.started == 1, 5)
-        assert dlg.ask_btn.GetLabel() == t("agent.ask_stop_btn"), \
-            dlg.ask_btn.GetLabel()
+        assert dlg.ask_btn.GetLabel() == t("agent.ask_stop_btn"), dlg.ask_btn.GetLabel()
         assert dlg.ask_btn.IsEnabled(), "Stop asking cannot be pressed"
         assert not dlg.check_all_btn.IsEnabled()
         click(dlg.ask_btn)
@@ -227,8 +250,7 @@ def test_second_window_cannot_ask_twice():
         pump(30)
         assert slow.started == 1, f"{slow.started} asks ran at once"
         assert t("agent.still_working") in SPOKEN, SPOKEN
-        assert not any(m.get("content") == "second question"
-                       for m in w._agent.messages)
+        assert not any(m.get("content") == "second question" for m in w._agent.messages)
         assert wait_for(lambda: not w._agent.busy, 5)
     finally:
         pump(20)
@@ -240,8 +262,10 @@ def test_second_window_cannot_ask_twice():
 
 def test_errors_are_words():
     from omni_describer_custom.core.ai_engine import user_error_text
-    daily = ("Gemini HTTP 429: daily quota used up "
-             "(GenerateRequestsPerDayPerProjectPerModel-FreeTier).")
+
+    daily = (
+        "Gemini HTTP 429: daily quota used up (GenerateRequestsPerDayPerProjectPerModel-FreeTier)."
+    )
     assert agent_dialog.AgentDialog._error_text(daily) == t("error.ai_daily_quota")
     raw = 'OpenRouter error: {"code": 400, "message": "bad", "user": "user_2abcDEF123"}'
     shown = agent_dialog.AgentDialog._error_text(raw)
@@ -250,14 +274,19 @@ def test_errors_are_words():
     w = player()
 
     async def error_reply(payload):
-        return {"error": {"code": 400, "message": "Provider returned error",
-                          "metadata": {"raw": '{"x": 1}'}}}
+        return {
+            "error": {
+                "code": 400,
+                "message": "Provider returned error",
+                "metadata": {"raw": '{"x": 1}'},
+            }
+        }
+
     w._agent._post = error_reply
     dlg = agent_dialog.AgentDialog(w, w._agent)
     try:
         dlg.submit("q")
-        assert wait_for(lambda: dlg.ask_btn.GetLabel() == t("agent.ask_btn")
-                        and not dlg._busy, 5)
+        assert wait_for(lambda: dlg.ask_btn.GetLabel() == t("agent.ask_btn") and not dlg._busy, 5)
         log = dlg.log.GetValue()
         assert "Provider returned error" in log and "{" not in log, log
     finally:
@@ -271,8 +300,7 @@ def main() -> int:
     check("Close/Esc stops the ask", test_close_stops_the_ask)
     check("Close/Esc stops Check the whole video", test_close_stops_check_all)
     check("Ask becomes Stop asking while it runs", test_ask_becomes_stop)
-    check("a second window cannot ask at the same time",
-          test_second_window_cannot_ask_twice)
+    check("a second window cannot ask at the same time", test_second_window_cannot_ask_twice)
     check("errors are words, never JSON", test_errors_are_words)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

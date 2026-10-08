@@ -40,7 +40,7 @@ VERIFIED, FAILED, INCONCLUSIVE = "VERIFIED", "FAILED", "INCONCLUSIVE"
 @dataclass
 class Result:
     check_id: str
-    outcome: str            # PASS / FAIL / UNKNOWN
+    outcome: str  # PASS / FAIL / UNKNOWN
     detail: str = ""
     required: bool = True
 
@@ -69,14 +69,18 @@ class Verdict:
         return out
 
     def as_dict(self) -> dict:
-        return {"contract_id": self.contract_id, "digest": self.digest,
-                "verdict": self.verdict,
-                "results": [r.__dict__ for r in self.results]}
+        return {
+            "contract_id": self.contract_id,
+            "digest": self.digest,
+            "verdict": self.verdict,
+            "results": [r.__dict__ for r in self.results],
+        }
 
 
 def canonical(data) -> bytes:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=False).encode("utf-8")
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def digest(data) -> str:
@@ -102,9 +106,11 @@ def load(contract_id: str, folder: Path = CONTRACTS) -> tuple[dict, str]:
     lock = json.loads(_lock_path(folder).read_text(encoding="utf-8"))
     frozen = lock.get(contract_id, {}).get("sha256")
     if frozen != d:
-        raise ValueError(f"contract {contract_id} is not as frozen "
-                         f"(lock {str(frozen)[:12]}, file {d[:12]}): "
-                         f"run tools/contracts.py freeze {contract_id} --why ...")
+        raise ValueError(
+            f"contract {contract_id} is not as frozen "
+            f"(lock {str(frozen)[:12]}, file {d[:12]}): "
+            f"run tools/contracts.py freeze {contract_id} --why ..."
+        )
     return data, d
 
 
@@ -113,8 +119,9 @@ def problems(folder: Path = CONTRACTS) -> list[str]:
     found = []
     lock_file = _lock_path(folder)
     lock = json.loads(lock_file.read_text(encoding="utf-8")) if lock_file.exists() else {}
-    changes = _changes_path(folder).read_text(encoding="utf-8") \
-        if _changes_path(folder).exists() else ""
+    changes = (
+        _changes_path(folder).read_text(encoding="utf-8") if _changes_path(folder).exists() else ""
+    )
     for cid in contract_ids(folder):
         data = json.loads((folder / f"{cid}.json").read_text(encoding="utf-8"))
         entry = lock.get(cid)
@@ -132,8 +139,7 @@ def problems(folder: Path = CONTRACTS) -> list[str]:
     return found
 
 
-def freeze(contract_id: str, why: str, who: str = "agent",
-           folder: Path = CONTRACTS) -> int:
+def freeze(contract_id: str, why: str, who: str = "agent", folder: Path = CONTRACTS) -> int:
     if not why.strip():
         raise ValueError("a reason is required")
     data = json.loads((folder / f"{contract_id}.json").read_text(encoding="utf-8"))
@@ -148,13 +154,20 @@ def freeze(contract_id: str, why: str, who: str = "agent",
     lock[contract_id] = {"sha256": d, "version": version, "frozen_at": now}
     lock_file.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     changes = _changes_path(folder)
-    head = "" if changes.exists() else (
-        "# Contract changes\n\nEvery version of every contract, with who changed it and why.\n"
-        "The owner allowed agents to change contracts on condition that every change is\n"
-        "recorded here and reported (6 Oct 2026).\n\n")
+    head = (
+        ""
+        if changes.exists()
+        else (
+            "# Contract changes\n\nEvery version of every contract, with who changed it and why.\n"
+            "The owner allowed agents to change contracts on condition that every change is\n"
+            "recorded here and reported (6 Oct 2026).\n\n"
+        )
+    )
     with changes.open("a", encoding="utf-8") as f:
-        f.write(head + f"- {now[:10]} `{contract_id}` v{version} ({who}, sha256 {d[:12]}): "
-                f"{why.strip()}\n")
+        f.write(
+            head + f"- {now[:10]} `{contract_id}` v{version} ({who}, sha256 {d[:12]}): "
+            f"{why.strip()}\n"
+        )
     return version
 
 

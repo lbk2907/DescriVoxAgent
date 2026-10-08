@@ -15,6 +15,7 @@ Covered here WITHOUT any network access:
 4. Settings dialog: the checkbox exists in the AI tab, is disabled for
    non-Gemini providers, enabled for Gemini, and persists ai.video_mode.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import ctypes
@@ -30,10 +31,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -45,6 +50,7 @@ def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -87,6 +93,7 @@ def _destroy_frame(frame) -> None:
 
 # ── 1. Parser ────────────────────────────────────────────────────────
 
+
 def test_parser():
     from omni_describer_custom.core.ai_engine import parse_gemini_timestamp_lines
 
@@ -112,6 +119,7 @@ def test_parser():
 
 # ── 2. Full flow over a loopback that mimics the Gemini API ─────────
 
+
 class _GeminiStub(BaseHTTPRequestHandler):
     posted_bodies: list[bytes] = []
 
@@ -125,8 +133,9 @@ class _GeminiStub(BaseHTTPRequestHandler):
         # Step 1: resumable init -> hand back an upload URL on this server
         if "uploadType=resumable" in self.path:
             self.send_response(200)
-            self.send_header("X-Goog-Upload-URL",
-                             f"http://127.0.0.1:{self.server.server_port}/upload")
+            self.send_header(
+                "X-Goog-Upload-URL", f"http://127.0.0.1:{self.server.server_port}/upload"
+            )
             self.end_headers()
             return
         # Step 2: chunk upload (finalize) -> file resource
@@ -134,14 +143,19 @@ class _GeminiStub(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "file": {
-                    "uri": ("http://generativelanguage.googleapis.com/v1beta/"
-                            "files/demoabc123"),
-                    "name": "files/demoabc123",
-                    "state": "PROCESSING",
-                }
-            }).encode())
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "file": {
+                            "uri": (
+                                "http://generativelanguage.googleapis.com/v1beta/files/demoabc123"
+                            ),
+                            "name": "files/demoabc123",
+                            "state": "PROCESSING",
+                        }
+                    }
+                ).encode()
+            )
             return
         # Step 3: generateContent -> timestamped description text
         if ":generateContent" in self.path:
@@ -151,12 +165,24 @@ class _GeminiStub(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "candidates": [{"content": {"parts": [
-                    {"text": "[00:00] A red car drives past green hills.\n"
-                             "[00:10] The narrator greets the audience."}
-                ]}}]
-            }).encode())
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "content": {
+                                    "parts": [
+                                        {
+                                            "text": "[00:00] A red car drives past green hills.\n"
+                                            "[00:10] The narrator greets the audience."
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ).encode()
+            )
             return
         self.send_response(404)
         self.end_headers()
@@ -166,8 +192,7 @@ class _GeminiStub(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"name": "files/demoabc123",
-                                     "state": "ACTIVE"}).encode())
+        self.wfile.write(json.dumps({"name": "files/demoabc123", "state": "ACTIVE"}).encode())
 
 
 def test_full_video_flow():
@@ -186,12 +211,13 @@ def test_full_video_flow():
         progress: list[float] = []
 
         async def run():
-            prov = GeminiProvider(api_key="test-key",
-                                  base_url=f"http://127.0.0.1:{port}/v1beta")
+            prov = GeminiProvider(api_key="test-key", base_url=f"http://127.0.0.1:{port}/v1beta")
             return await prov.describe_video_full(
-                str(tmp), "Describe this video.",
+                str(tmp),
+                "Describe this video.",
                 on_status=statuses.append,
-                on_upload_progress=progress.append)
+                on_upload_progress=progress.append,
+            )
 
         pairs = asyncio.new_event_loop().run_until_complete(run())
         assert statuses == ["uploading", "processing", "describing"], statuses
@@ -212,8 +238,7 @@ def test_engine_rejects_non_gemini():
     loop = asyncio.new_event_loop()
     try:
         try:
-            loop.run_until_complete(
-                engine.describe_video_full("x.mp4", "p"))
+            loop.run_until_complete(engine.describe_video_full("x.mp4", "p"))
         except ValueError as e:
             assert "full-video" in str(e), e
         else:
@@ -223,6 +248,7 @@ def test_engine_rejects_non_gemini():
 
 
 # ── 4. Settings UI ───────────────────────────────────────────────────
+
 
 def test_settings_video_mode():
     from unittest.mock import patch
@@ -284,6 +310,7 @@ def _video_phase_text(frame, phase: str) -> str:
 
 # ── 5. MainFrame video tick handlers (real frame, no network) ────────
 
+
 def test_video_ticks_on_main_frame():
     from omni_describer_custom.i18n.strings import t
     from omni_describer_custom.ui.main_frame import MainFrame
@@ -300,8 +327,7 @@ def test_video_ticks_on_main_frame():
 
         # Every phase is announced with DISTINCT wording so screen
         # reader users can tell exactly which stage is running
-        texts = {_video_phase_text(frame, p) for p in
-                 ("uploading", "processing", "describing")}
+        texts = {_video_phase_text(frame, p) for p in ("uploading", "processing", "describing")}
         assert len(texts) == 3, texts
 
         # Unknown phase falls back safely instead of raising
@@ -312,12 +338,10 @@ def test_video_ticks_on_main_frame():
         # a dialog present
         frame._dl_dialog = None
         frame._video_upload_tick(37.4)
-        assert frame.GetStatusBar().GetStatusText() == t(
-            "video.uploading_progress").format(pct=37)
+        assert frame.GetStatusBar().GetStatusText() == t("video.uploading_progress").format(pct=37)
 
         # Announced, not silent: status text is non-empty at every step
-        assert all(_video_phase_text(frame, p) for p in
-                   ("uploading", "processing", "describing"))
+        assert all(_video_phase_text(frame, p) for p in ("uploading", "processing", "describing"))
 
         # v1.4.1 regression: the dialog must stay VISIBLE until
         # _close_download_progress destroys it, and the bar moves with
@@ -325,16 +349,14 @@ def test_video_ticks_on_main_frame():
         # AccessibleProgressDialog (a real progress bar NVDA reads), the
         # bar is ONE percentage for the whole job (AI stage = 30-95 of
         # it), and it never goes back.
-        from omni_describer_custom.ui.progress_dialog import (
-            AccessibleProgressDialog)
+        from omni_describer_custom.ui.progress_dialog import AccessibleProgressDialog
+
         frame._progress_reset()
-        dlg = AccessibleProgressDialog("Downloading video", "x",
-                                       maximum=100, parent=frame)
+        dlg = AccessibleProgressDialog("Downloading video", "x", maximum=100, parent=frame)
         frame._dl_dialog = dlg
         try:
             user32 = ctypes.windll.user32
-            visible = lambda: bool(
-                user32.IsWindowVisible(dlg.GetHandle()))
+            visible = lambda: bool(user32.IsWindowVisible(dlg.GetHandle()))
             appear = time.time() + 5
             while time.time() < appear and not visible():
                 wx.GetApp().Yield()
@@ -346,12 +368,10 @@ def test_video_ticks_on_main_frame():
             # AI step (30 + 65*0.10 = 36 overall), part 2 of 2 is 55%
             # (30 + 65*0.55 = 65 overall).
             assert dlg.GetValue() == 36, dlg.GetValue()
-            assert t("video.part_start", part=1, total=2) in dlg.GetMessage(), (
-                dlg.GetMessage())
+            assert t("video.part_start", part=1, total=2) in dlg.GetMessage(), dlg.GetMessage()
             frame._video_part_tick(2, 2)
             assert dlg.GetValue() == 65, dlg.GetValue()
-            assert t("video.part_start", part=2, total=2) in dlg.GetMessage(), (
-                dlg.GetMessage())
+            assert t("video.part_start", part=2, total=2) in dlg.GetMessage(), dlg.GetMessage()
             # The end of the AI step is the end of its stage (95), never
             # 100 while saving still runs.
             frame._video_eta_tick(100.0, 0.0)
@@ -371,6 +391,7 @@ def test_video_ticks_on_main_frame():
 
 
 # ── 6. Full-value integration: main_frame branch end to end ──────────
+
 
 def test_process_video_full_branch_integration():
     """Drive MainFrame._process_video (full-video branch) through the real
@@ -395,26 +416,44 @@ def test_process_video_full_branch_integration():
             if "uploadType=resumable" in self.path:
                 self.send_response(200)
                 self.send_header(
-                    "X-Goog-Upload-URL",
-                    f"http://127.0.0.1:{self.server.server_port}/upload")
+                    "X-Goog-Upload-URL", f"http://127.0.0.1:{self.server.server_port}/upload"
+                )
                 self.end_headers()
                 return
             if self.path.startswith("/upload"):
-                body = json.dumps({"file": {
-                    "uri": ("http://generativelanguage.googleapis.com"
-                            "/v1beta/files/demoabc123"),
-                    "name": "files/demoabc123",
-                    "state": "PROCESSING"}}).encode()
+                body = json.dumps(
+                    {
+                        "file": {
+                            "uri": (
+                                "http://generativelanguage.googleapis.com/v1beta/files/demoabc123"
+                            ),
+                            "name": "files/demoabc123",
+                            "state": "PROCESSING",
+                        }
+                    }
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(body)
                 return
             if ":generateContent" in self.path:
-                body = json.dumps({"candidates": [{"content": {"parts": [
-                    {"text": "[00:00] A red car drives past green hills.\n"
-                             "[00:10] The narrator greets the audience."
-                     }]}}]}).encode()
+                body = json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "content": {
+                                    "parts": [
+                                        {
+                                            "text": "[00:00] A red car drives past green hills.\n"
+                                            "[00:10] The narrator greets the audience."
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -424,8 +463,7 @@ def test_process_video_full_branch_integration():
             self.end_headers()
 
         def do_GET(self):
-            body = json.dumps({"name": "files/demoabc123",
-                               "state": "ACTIVE"}).encode()
+            body = json.dumps({"name": "files/demoabc123", "state": "ACTIVE"}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -446,9 +484,9 @@ def test_process_video_full_branch_integration():
         frame.project_store = ProjectStore(projects_dir=tmp_projects)
         frame.settings.set("ai.video_mode", "full")
         frame.settings.set("ai.default_provider", "gemini")
-        frame.settings.set_ai_provider("gemini", {
-            "api_key": "test-key",
-            "base_url": f"http://127.0.0.1:{port}/v1beta"})
+        frame.settings.set_ai_provider(
+            "gemini", {"api_key": "test-key", "base_url": f"http://127.0.0.1:{port}/v1beta"}
+        )
         frame._current_source = str(video)
 
         opened: list[int] = []
@@ -469,6 +507,7 @@ def test_process_video_full_branch_integration():
                 width = 640
                 height = 360
                 duration = 42.0
+
             return I()
 
         async def fake_resolve(self, source, **k):
@@ -511,8 +550,7 @@ def test_process_video_full_branch_integration():
             # is asserted at unit level (check 5) instead of here
             for key in ("video.phase_uploading", "video.phase_describing"):
                 if t(key) not in status_seen:
-                    failures.append(
-                        f"status not announced: {key}: {set(status_seen)}")
+                    failures.append(f"status not announced: {key}: {set(status_seen)}")
             if not opened:
                 failures.append("PlayerWindow was never auto-opened")
             cur = frame.project_store.current
@@ -521,12 +559,10 @@ def test_process_video_full_branch_integration():
             else:
                 descs = cur.descriptions
                 if len(descs) != 2:
-                    failures.append(
-                        f"expected 2 descriptions, got {len(descs)}")
+                    failures.append(f"expected 2 descriptions, got {len(descs)}")
                 else:
                     if [d.start_time for d in descs] != [0.0, 10.0]:
-                        failures.append(
-                            f"times: {[d.start_time for d in descs]}")
+                        failures.append(f"times: {[d.start_time for d in descs]}")
                     if descs[0].text != "A red car drives past green hills.":
                         failures.append(f"text0: {descs[0].text!r}")
                     if any(d.frame_path for d in descs):
@@ -536,22 +572,22 @@ def test_process_video_full_branch_integration():
                     # seven words and the second twelve, so their ends
                     # differ — what matters is that each one covers its
                     # own speech and never reaches the next cue.
-                    from omni_describer_custom.core.timeline_io import (
-                        speaking_seconds)
+                    from omni_describer_custom.core.timeline_io import speaking_seconds
+
                     for i, d in enumerate(descs):
                         needed = speaking_seconds(d.text, 1.0)
-                        room = (descs[i + 1].start_time - d.start_time
-                                if i + 1 < len(descs) else needed)
+                        room = (
+                            descs[i + 1].start_time - d.start_time if i + 1 < len(descs) else needed
+                        )
                         want = min(needed, room)
                         if abs((d.end_time - d.start_time) - want) > 0.35:
                             failures.append(
                                 f"cue {i} lasts "
                                 f"{d.end_time - d.start_time:.1f}s, needs "
-                                f"{want:.1f}s for {len(d.text.split())} words")
-                        if i + 1 < len(descs) and \
-                                d.end_time > descs[i + 1].start_time + 0.01:
-                            failures.append(
-                                f"cue {i} runs into the next one")
+                                f"{want:.1f}s for {len(d.text.split())} words"
+                            )
+                        if i + 1 < len(descs) and d.end_time > descs[i + 1].start_time + 0.01:
+                            failures.append(f"cue {i} runs into the next one")
                 if not Path(frame.project_store._db_path(cur.id)).exists():
                     failures.append("sqlite db missing in isolated dir")
         finally:
@@ -583,15 +619,20 @@ def test_error_path_failed_state():
             if "uploadType=resumable" in self.path:
                 self.send_response(200)
                 self.send_header(
-                    "X-Goog-Upload-URL",
-                    f"http://127.0.0.1:{self.server.server_port}/upload")
+                    "X-Goog-Upload-URL", f"http://127.0.0.1:{self.server.server_port}/upload"
+                )
                 self.end_headers()
                 return
             if self.path.startswith("/upload"):
-                body = json.dumps({"file": {
-                    "uri": "http://x/v1beta/files/bad1",
-                    "name": "files/bad1",
-                    "state": "PROCESSING"}}).encode()
+                body = json.dumps(
+                    {
+                        "file": {
+                            "uri": "http://x/v1beta/files/bad1",
+                            "name": "files/bad1",
+                            "state": "PROCESSING",
+                        }
+                    }
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -601,8 +642,9 @@ def test_error_path_failed_state():
             self.end_headers()
 
         def do_GET(self):
-            body = json.dumps({"name": "files/bad1", "state": "FAILED",
-                               "error": {"message": "unsupported codec"}})
+            body = json.dumps(
+                {"name": "files/bad1", "state": "FAILED", "error": {"message": "unsupported codec"}}
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -614,18 +656,18 @@ def test_error_path_failed_state():
 
     frame = MainFrame()
     try:
-        frame.project_store = ProjectStore(
-            projects_dir=tempfile.mkdtemp(prefix="odc_err_proj_"))
+        frame.project_store = ProjectStore(projects_dir=tempfile.mkdtemp(prefix="odc_err_proj_"))
         frame.settings.set("ai.video_mode", "full")
         frame.settings.set("ai.default_provider", "gemini")
-        frame.settings.set_ai_provider("gemini", {
-            "api_key": "test-key",
-            "base_url": f"http://127.0.0.1:{port}/v1beta"})
+        frame.settings.set_ai_provider(
+            "gemini", {"api_key": "test-key", "base_url": f"http://127.0.0.1:{port}/v1beta"}
+        )
         video = Path(tempfile.mkdtemp(prefix="odc_err_vid_")) / "clip.mp4"
         video.write_bytes(b"\x00" * 2048)
         frame._current_source = str(video)
 
         import omni_describer_custom.ui.player_window as pw_mod
+
         pw_mod.PlayerWindow = lambda *a, **k: None
 
         # Same observation fakes as the happy-path check (idempotent)
@@ -634,12 +676,14 @@ def test_error_path_failed_state():
                 width = 640
                 height = 360
                 duration = 42.0
+
             return I()
 
         async def fake_resolve(self, source, **k):
             return str(video)
 
         from omni_describer_custom.ui import main_frame as mf
+
         mf.VideoProcessor.get_video_info = fake_info
         mf.VideoProcessor.resolve_source = fake_resolve
 
@@ -667,11 +711,13 @@ def test_error_path_failed_state():
             time.sleep(0.03)
 
         assert worker is not None and not worker.is_alive(), "worker hung"
-        assert any("unsupported codec" in s or "Gemini failed" in s
-                   for s in status_seen), set(status_seen)
+        assert any("unsupported codec" in s or "Gemini failed" in s for s in status_seen), set(
+            status_seen
+        )
         # FIX (1 Sep): no frame wording may be announced in full mode
-        assert not any("Extracting frames" in s or "Analyzing frames" in s
-                       for s in status_seen), set(status_seen)
+        assert not any("Extracting frames" in s or "Analyzing frames" in s for s in status_seen), (
+            set(status_seen)
+        )
         assert not frame._processing, "_processing stuck True"
         assert frame.btn_preset_open.Enabled, (
             "buttons not re-enabled: "
@@ -681,10 +727,10 @@ def test_error_path_failed_state():
             f"frame_enabled={frame.IsEnabled()} "
             f"dl_dialog={frame._dl_dialog!r} "
             f"dl_cancelled={frame._dl_cancelled} dl_done={frame._dl_done} "
-            f"status_tail={status_seen[-3:]}")
+            f"status_tail={status_seen[-3:]}"
+        )
         assert frame._dl_dialog is None, "progress dialog left open"
-        assert frame.project_store.current is None, \
-            "project should not be created on failure"
+        assert frame.project_store.current is None, "project should not be created on failure"
     finally:
         server.shutdown()
         try:
@@ -700,9 +746,7 @@ if __name__ == "__main__":
     check("non-gemini rejected clearly", test_engine_rejects_non_gemini)
     check("settings video-mode checkbox", test_settings_video_mode)
     check("mainframe video tick handlers", test_video_ticks_on_main_frame)
-    check("process_video full branch end-to-end",
-          test_process_video_full_branch_integration)
-    check("error path FAILED state announced + UI recovers",
-          test_error_path_failed_state)
+    check("process_video full branch end-to-end", test_process_video_full_branch_integration)
+    check("error path FAILED state announced + UI recovers", test_error_path_failed_state)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

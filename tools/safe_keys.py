@@ -43,11 +43,17 @@ def foreground() -> tuple[int, str]:
 
 
 class _GUITHREADINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
-                ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
-                ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
-                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
-                ("rcCaret", wintypes.RECT)]
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("hwndActive", wintypes.HWND),
+        ("hwndFocus", wintypes.HWND),
+        ("hwndCapture", wintypes.HWND),
+        ("hwndMenuOwner", wintypes.HWND),
+        ("hwndMoveSize", wintypes.HWND),
+        ("hwndCaret", wintypes.HWND),
+        ("rcCaret", wintypes.RECT),
+    ]
 
 
 def keyboard_focus() -> tuple[int, str]:
@@ -76,12 +82,14 @@ def send_keys(keys, *args, **kwargs):
     if pid not in _allowed:
         raise ForeignFocus(
             f"refusing to type {keys!r}: the foreground window "
-            f"({title!r}, pid {pid}) is not the app under test")
+            f"({title!r}, pid {pid}) is not the app under test"
+        )
     fpid, ftitle = keyboard_focus()
     if fpid not in _allowed:
         raise ForeignFocus(
             f"refusing to type {keys!r}: the keyboard focus "
-            f"({ftitle!r}, pid {fpid}) is not in the app under test")
+            f"({ftitle!r}, pid {fpid}) is not in the app under test"
+        )
     return _original(keys, *args, **kwargs)
 
 

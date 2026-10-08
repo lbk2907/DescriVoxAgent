@@ -31,7 +31,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 
-CHILD = r'''
+CHILD = r"""
 import sys, subprocess, wx
 from pathlib import Path
 sys.path.insert(0, "src")
@@ -63,7 +63,7 @@ def state():
     wx.CallLater(150, state)
 wx.CallLater(300, state)
 app.MainLoop()
-'''
+"""
 
 WM_KEYDOWN, WM_KEYUP = 0x0100, 0x0101
 VK = {"Down": 0x28, "Up": 0x26, "Right": 0x27, "Left": 0x25, "Space": 0x20}
@@ -71,6 +71,7 @@ VK = {"Down": 0x28, "Up": 0x26, "Right": 0x27, "Left": 0x25, "Space": 0x20}
 
 def post_key(hwnd: int, name: str) -> None:
     import ctypes
+
     user32 = ctypes.windll.user32
     vk = VK[name]
     # The arrows are "extended" keys (bit 24); without it Windows reports
@@ -82,17 +83,20 @@ def post_key(hwnd: int, name: str) -> None:
 
 def main() -> int:
     import nvda_accessibility_check as a11y
+
     alive, detail = a11y.bridge_alive()
     if not alive:
         print(f"NVDA HTTP Bridge not answering: {detail}")
         return 2
     print(f"Bridge up: {detail}")
     box = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
-    env = dict(os.environ, ODC_CONFIG_DIR=str(box / "config"),
-               ODC_PROJECTS_DIR=str(box / "projects"),
-               ODC_LOCALES_DIR=str(box / "locales"))
-    proc = subprocess.Popen([sys.executable, "-c", CHILD, str(box)],
-                            cwd=str(REPO), env=env)
+    env = dict(
+        os.environ,
+        ODC_CONFIG_DIR=str(box / "config"),
+        ODC_PROJECTS_DIR=str(box / "projects"),
+        ODC_LOCALES_DIR=str(box / "locales"),
+    )
+    proc = subprocess.Popen([sys.executable, "-c", CHILD, str(box)], cwd=str(REPO), env=env)
     rows = []
     try:
         deadline = time.monotonic() + 90
@@ -101,15 +105,12 @@ def main() -> int:
         hwnd = int((box / "hwnd.txt").read_text())
         time.sleep(2.0)
         print("start:", (box / "state.txt").read_text(encoding="utf-8"))
-        for key in ("Down", "Down", "Up", "Space", "Down", "Up", "Right",
-                    "Left", "Space"):
+        for key in ("Down", "Down", "Up", "Space", "Down", "Up", "Right", "Left", "Space"):
             mark = a11y.speech_now()
             post_key(hwnd, key)
             time.sleep(1.8)
-            focus, vol, pos, playing = (box / "state.txt").read_text(
-                encoding="utf-8").split("|")
-            rows.append((key, focus, int(vol), float(pos), playing,
-                         a11y.speech_since(mark)))
+            focus, vol, pos, playing = (box / "state.txt").read_text(encoding="utf-8").split("|")
+            rows.append((key, focus, int(vol), float(pos), playing, a11y.speech_since(mark)))
     finally:
         proc.terminate()
     print(f"{'key':6} {'focus':26} {'vol':>4} {'pos':>6} playing  NVDA said")

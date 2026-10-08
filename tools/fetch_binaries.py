@@ -41,13 +41,13 @@ BIN = Path(__file__).resolve().parent.parent / "bin"
 # To move to a newer release: change the URL, run with --print-hashes,
 # check the archive hash against the release page, paste the new values,
 # then run the gate and a real E2E before shipping.
-FFMPEG_URL = ("https://github.com/BtbN/FFmpeg-Builds/releases/download/"
-              "autobuild-2026-09-21-13-55/"
-              "ffmpeg-N-126734-ga9cbcc2bbb-win64-gpl-shared.zip")
-FFMPEG_ZIP_SHA256 = (
-    "0886420de730e186a747d29192ec176148a7c24f8ec89d8515023e7e18ad504b")
-YTDLP_URL = ("https://github.com/yt-dlp/yt-dlp/releases/download/"
-             "2026.08.19/yt-dlp.exe")
+FFMPEG_URL = (
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/"
+    "autobuild-2026-09-21-13-55/"
+    "ffmpeg-N-126734-ga9cbcc2bbb-win64-gpl-shared.zip"
+)
+FFMPEG_ZIP_SHA256 = "0886420de730e186a747d29192ec176148a7c24f8ec89d8515023e7e18ad504b"
+YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe"
 
 BINARY_SHA256 = {
     "ffmpeg.exe": "24770f008456164ec0bf0d23c93f26347580378e8b977ff92bc624a316a423b6",
@@ -67,10 +67,16 @@ BINARY_SHA256 = {
 # are small stubs and will not start without every one of them, so all
 # are required rather than nice to have.
 FFMPEG_MEMBERS = (
-    "ffmpeg.exe", "ffprobe.exe", "ffplay.exe",
-    "avcodec-63.dll", "avdevice-63.dll", "avfilter-12.dll",
-    "avformat-63.dll", "avutil-61.dll",
-    "swresample-7.dll", "swscale-10.dll",
+    "ffmpeg.exe",
+    "ffprobe.exe",
+    "ffplay.exe",
+    "avcodec-63.dll",
+    "avdevice-63.dll",
+    "avfilter-12.dll",
+    "avformat-63.dll",
+    "avutil-61.dll",
+    "swresample-7.dll",
+    "swscale-10.dll",
 )
 
 
@@ -89,7 +95,8 @@ def _require_hash(label: str, data: bytes, expected: str) -> None:
     if actual != expected:
         raise SystemExit(
             f"{label}: SHA-256 {actual} does not match the pinned "
-            f"{expected}. Refusing to ship an unverified binary.")
+            f"{expected}. Refusing to ship an unverified binary."
+        )
 
 
 def fetch_ffmpeg(force: bool) -> None:
@@ -117,7 +124,8 @@ def fetch_ffmpeg(force: bool) -> None:
         raise SystemExit(
             f"ffmpeg archive is missing {', '.join(absent)} — the upstream "
             "build layout or its library versions changed; update "
-            "FFMPEG_MEMBERS in this script")
+            "FFMPEG_MEMBERS in this script"
+        )
 
     BIN.mkdir(exist_ok=True)
     for name, member in wanted.items():
@@ -127,8 +135,7 @@ def fetch_ffmpeg(force: bool) -> None:
         print(f"  {name}")
 
     if licence_member:
-        with archive.open(licence_member) as src, \
-                open(BIN / "FFMPEG-LICENSE.txt", "wb") as dst:
+        with archive.open(licence_member) as src, open(BIN / "FFMPEG-LICENSE.txt", "wb") as dst:
             shutil.copyfileobj(src, dst)
         print("  FFMPEG-LICENSE.txt")
 
@@ -141,9 +148,11 @@ def fetch_ffmpeg(force: bool) -> None:
 
 def _run_version(exe: Path) -> str:
     import subprocess
+
     try:
-        out = subprocess.run([str(exe), "-hide_banner", "-version"],
-                             capture_output=True, text=True, timeout=60)
+        out = subprocess.run(
+            [str(exe), "-hide_banner", "-version"], capture_output=True, text=True, timeout=60
+        )
         first = out.stdout.splitlines()[0]
         return first.split()[2]  # "ffmpeg version N-126734-g... Copyright"
     except Exception:
@@ -172,8 +181,7 @@ def verify_hashes() -> int:
         if path.exists() and _sha256(path.read_bytes()) != expected:
             wrong.append(name)
     if wrong:
-        print("\nHASH MISMATCH (bin/ does not hold the pinned release): "
-              + ", ".join(wrong))
+        print("\nHASH MISMATCH (bin/ does not hold the pinned release): " + ", ".join(wrong))
         print("Run with --force to fetch the pinned versions.")
         return 1
     print("All pinned binaries match their SHA-256.")
@@ -184,6 +192,7 @@ def verify() -> int:
     """Report anything still absent. Returns a process exit code."""
     sys.path.insert(0, str(BIN.parent / "src"))
     from omni_describer_custom.core.tools import missing_tools
+
     absent = missing_tools()
     if absent:
         print("\nSTILL MISSING:")
@@ -196,11 +205,14 @@ def verify() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--force", action="store_true",
-                        help="re-download binaries that already exist")
-    parser.add_argument("--print-hashes", action="store_true",
-                        help="print SHA-256 of the files in bin/ (for "
-                             "updating BINARY_SHA256) and exit")
+    parser.add_argument(
+        "--force", action="store_true", help="re-download binaries that already exist"
+    )
+    parser.add_argument(
+        "--print-hashes",
+        action="store_true",
+        help="print SHA-256 of the files in bin/ (for updating BINARY_SHA256) and exit",
+    )
     args = parser.parse_args()
 
     if args.print_hashes:

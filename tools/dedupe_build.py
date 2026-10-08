@@ -42,16 +42,15 @@ def main() -> int:
         if _digest(duplicate) != _digest(bundled):
             # Same name, different content: something else shipped a
             # library by this name and deleting it could break it.
-            print(f"DEDUPE_FAIL {duplicate.name} differs from bin/ copy; "
-                  f"not touching it")
+            print(f"DEDUPE_FAIL {duplicate.name} differs from bin/ copy; not touching it")
             return 1
         size = duplicate.stat().st_size
         duplicate.unlink()
         freed += size
         removed += 1
-        print(f"  removed duplicate {duplicate.name} ({size/1e6:.1f} MB)")
+        print(f"  removed duplicate {duplicate.name} ({size / 1e6:.1f} MB)")
 
-    print(f"DEDUPE_OK {removed} duplicates removed, {freed/1e6:.0f} MB freed")
+    print(f"DEDUPE_OK {removed} duplicates removed, {freed / 1e6:.0f} MB freed")
     return 0
 
 

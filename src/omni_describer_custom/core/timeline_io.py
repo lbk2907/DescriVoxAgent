@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 
 # ── Time formatting / parsing ────────────────────────────────────
 
-_SRT_TIME = re.compile(
-    r"^(?:(\d{1,3}):)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?$"
-)
+_SRT_TIME = re.compile(r"^(?:(\d{1,3}):)?(\d{1,2}):(\d{2})(?:[,.](\d{1,3}))?$")
 
 # Hours may run past 99 (fmt_srt_time writes 100:00:00,000) and the
 # milliseconds may be absent ("00:00:03 --> 00:00:04", seen in the
@@ -97,6 +95,7 @@ def parse_timestamp(value: str) -> float | None:
 
 # ── SRT / VTT parsing ────────────────────────────────────────────
 
+
 def _iter_cue_blocks(text: str):
     """Yield (start, end, text_lines) from subtitle cue blocks."""
     block: list[str] = []
@@ -117,7 +116,7 @@ def _parse_cue_block(block: list[str]):
             end = _secs(m.group(5), m.group(6), m.group(7), m.group(8))
             text_lines = [
                 re.sub(r"</?[^>]+>", "", l)  # strip basic tags
-                for l in block[i + 1:]
+                for l in block[i + 1 :]
                 if l.strip()
             ]
             return start, end, "\n".join(text_lines).strip()
@@ -175,8 +174,7 @@ def parse_simple(path: str | Path) -> list[Description]:
         if end is None or end <= start:
             end = None
         text = re.sub(r"</?[^>]+>", "", m.group(3)).strip()
-        descs.append(Description(start_time=start, end_time=end or 0.0,
-                                 text=text))
+        descs.append(Description(start_time=start, end_time=end or 0.0, text=text))
     # Fill missing ends from next start
     for i, d in enumerate(descs):
         if d.end_time <= d.start_time:
@@ -203,6 +201,7 @@ def parse_any(path: str | Path) -> list[Description]:
 
 
 # ── SRT / VTT writing ────────────────────────────────────────────
+
 
 def _cue_text(text: str) -> str:
     """Cue text safe inside one SRT/VTT block.
@@ -271,8 +270,9 @@ def speaking_seconds(text: str, speed: float = 1.0) -> float:
     return max(MIN_CUE_SECONDS, words / rate)
 
 
-def silent_gaps(segments, start: float = 0.0, end: float | None = None,
-                min_seconds: float = 1.0) -> list[tuple[float, float]]:
+def silent_gaps(
+    segments, start: float = 0.0, end: float | None = None, min_seconds: float = 1.0
+) -> list[tuple[float, float]]:
     """Stretches of the video where nobody is speaking.
 
     Built from the transcript the app already fetches. Gaps shorter
@@ -300,29 +300,36 @@ def silent_gaps(segments, start: float = 0.0, end: float | None = None,
 
 # ── Audio export ─────────────────────────────────────────────────
 
+
 def _ffmpeg() -> str:
     from .tools import find_tool, tool_available
+
     if not tool_available("ffmpeg"):
         raise RuntimeError(
             "ffmpeg not found — neither bundled with this app nor on "
-            "PATH; audio export requires ffmpeg")
+            "PATH; audio export requires ffmpeg"
+        )
     return find_tool("ffmpeg")
 
 
 def _ffprobe_duration(path: str | Path) -> float:
     from .tools import find_tool
+
     exe = find_tool("ffprobe")
     try:
         out = subprocess.run(
-            [exe, "-v", "error", "-show_entries", "format=duration",
-             "-of", "csv=p=0", str(path)],
-            capture_output=True, text=True, timeout=30, check=True,
+            [exe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
         ).stdout.strip()
         return float(out.splitlines()[0])
     except Exception:
         # Fall back to wave module for WAV files
         try:
             import wave
+
             with wave.open(str(path), "rb") as w:
                 return w.getnframes() / float(w.getframerate() or 1)
         except Exception:
@@ -332,9 +339,9 @@ def _ffprobe_duration(path: str | Path) -> float:
 def _to_wav(src: str | Path, dst: str | Path) -> None:
     """Normalize any audio to 44.1 kHz stereo PCM WAV for safe mixing."""
     subprocess.run(
-        [_ffmpeg(), "-y", "-v", "error", "-i", str(src),
-         "-ar", "44100", "-ac", "2", str(dst)],
-        check=True, timeout=120,
+        [_ffmpeg(), "-y", "-v", "error", "-i", str(src), "-ar", "44100", "-ac", "2", str(dst)],
+        check=True,
+        timeout=120,
     )
 
 
@@ -344,9 +351,21 @@ def _mix(wavs: list[Path], delays_ms: list[int], dst: str | Path) -> None:
         d = delays_ms[0]
         filt = f"[0:a]adelay={d}|{d}[a0]" if d else "[0:a]anull[a0]"
         subprocess.run(
-            [_ffmpeg(), "-y", "-v", "error", "-i", str(wavs[0]),
-             "-filter_complex", filt, "-map", "[a0]", str(dst)],
-            check=True, timeout=300,
+            [
+                _ffmpeg(),
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                str(wavs[0]),
+                "-filter_complex",
+                filt,
+                "-map",
+                "[a0]",
+                str(dst),
+            ],
+            check=True,
+            timeout=300,
         )
         return
     parts = []
@@ -358,13 +377,22 @@ def _mix(wavs: list[Path], delays_ms: list[int], dst: str | Path) -> None:
         else:
             parts.append(f"[{i}:a]anull[d{i}]")
     concat = "".join(f"[d{i}]" for i in range(len(wavs)))
-    parts.append(
-        f"{concat}amix=inputs={len(wavs)}:normalize=0:duration=longest[aout]"
-    )
+    parts.append(f"{concat}amix=inputs={len(wavs)}:normalize=0:duration=longest[aout]")
     subprocess.run(
-        [_ffmpeg(), "-y", "-v", "error", *inputs,
-         "-filter_complex", ";".join(parts), "-map", "[aout]", str(dst)],
-        check=True, timeout=600,
+        [
+            _ffmpeg(),
+            "-y",
+            "-v",
+            "error",
+            *inputs,
+            "-filter_complex",
+            ";".join(parts),
+            "-map",
+            "[aout]",
+            str(dst),
+        ],
+        check=True,
+        timeout=600,
     )
 
 
@@ -416,10 +444,12 @@ def export_audio(
         async def _render_all():
             nonlocal skipped
             from .ai_engine import _run_cancellable
+
             for i, d in enumerate(descs):
                 check_cancel()
                 audio = await _run_cancellable(
-                    tts.speak(d.text, engine, voice, speed), is_cancelled)
+                    tts.speak(d.text, engine, voice, speed), is_cancelled
+                )
                 if is_cancelled is not None and is_cancelled():
                     if audio:
                         Path(audio).unlink(missing_ok=True)
@@ -465,8 +495,8 @@ def export_audio(
             nxt: list[Path] = []
             nxt_delays: list[int] = []
             for k in range(0, len(level), chunk_size):
-                group = level[k:k + chunk_size]
-                gdel = level_delays[k:k + chunk_size]
+                group = level[k : k + chunk_size]
+                gdel = level_delays[k : k + chunk_size]
                 base = gdel[0]
                 gdel = [d - base for d in gdel]
                 outk = tmp / f"mix{stage}_{k // chunk_size:04d}.wav"
@@ -484,9 +514,21 @@ def export_audio(
             shutil.copyfile(level[0], final_tmp)
         else:
             subprocess.run(
-                [_ffmpeg(), "-y", "-v", "error", "-i", str(level[0]),
-                 "-c:a", "libmp3lame", "-q:a", "4", str(final_tmp)],
-                check=True, timeout=600,
+                [
+                    _ffmpeg(),
+                    "-y",
+                    "-v",
+                    "error",
+                    "-i",
+                    str(level[0]),
+                    "-c:a",
+                    "libmp3lame",
+                    "-q:a",
+                    "4",
+                    str(final_tmp),
+                ],
+                check=True,
+                timeout=600,
             )
         check_cancel()
         try:

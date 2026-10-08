@@ -8,6 +8,7 @@ list travels through every part and is saved with the project, the
 agent uses the same file, and the Characters window can give a person a
 name in every description at once.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -19,8 +20,9 @@ import traceback
 from pathlib import Path
 
 if "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -44,8 +46,10 @@ def check(name, fn):
 
 
 def test_cast_lines_are_read():
-    cast = ch.parse_cast("KNOWN CHARACTERS:\n- Aisyah — woman in a blue headscarf\n"
-                         "* Ali: a boy\nnot a list line\n- Aisyah — again")
+    cast = ch.parse_cast(
+        "KNOWN CHARACTERS:\n- Aisyah — woman in a blue headscarf\n"
+        "* Ali: a boy\nnot a list line\n- Aisyah — again"
+    )
     assert [c["name"] for c in cast] == ["Aisyah", "Ali"], cast
     block = ch.cast_block(cast)
     assert "Aisyah — woman in a blue headscarf" in block and block.startswith("KNOWN CHARACTERS")
@@ -54,21 +58,29 @@ def test_cast_lines_are_read():
 
 def test_user_names_survive_the_ai():
     async def ask(prompt):
-        assert "Rahim" in prompt          # the known cast goes in
+        assert "Rahim" in prompt  # the known cast goes in
         return "- Aisyah — blue headscarf"
+
     old = [{"name": "Rahim", "look": "grey coat", "by_user": True}]
     new = asyncio.run(ch.update_cast(ask, old, ["Rahim and a woman talk."]))
     assert [c["name"] for c in new] == ["Rahim", "Aisyah"], new
 
     async def broken(prompt):
         raise RuntimeError("HTTP 500")
+
     assert asyncio.run(ch.update_cast(broken, old, ["x"])) == old
 
 
 def test_rename_everywhere():
     texts, n = ch.rename_in_texts(
-        ["The man in the grey coat nods.", "Aisyah looks at the man in the grey coat.",
-         "A dog runs."], "the man in the grey coat", "Rahim")
+        [
+            "The man in the grey coat nods.",
+            "Aisyah looks at the man in the grey coat.",
+            "A dog runs.",
+        ],
+        "the man in the grey coat",
+        "Rahim",
+    )
     assert texts[:2] == ["Rahim nods.", "Aisyah looks at Rahim."] and n == 2, texts
 
 
@@ -79,12 +91,14 @@ def test_capitals_are_not_kept():
 
 def test_cast_request_caps_thinking():
     from omni_describer_custom.core.ai_engine import GLMProvider
+
     prov = GLMProvider(api_key="k")
     sent = []
 
     async def chat(payload, timeout=0, **k):
         sent.append(payload)
         return "- Aisyah — scarf"
+
     prov._chat = chat
     asyncio.run(prov._ask_capped("q", "m"))
     assert sent[0]["reasoning"] == {"max_tokens": prov._REASONING_BUDGET}, sent[0]
@@ -93,8 +107,9 @@ def test_cast_request_caps_thinking():
 def test_old_agent_file_is_read():
     folder = TMP / "agentfile"
     folder.mkdir()
-    (folder / "characters.json").write_text(json.dumps({"Sintel": "girl with a spear"}),
-                                            encoding="utf-8")
+    (folder / "characters.json").write_text(
+        json.dumps({"Sintel": "girl with a spear"}), encoding="utf-8"
+    )
     cast = ch.load_cast(folder)
     assert cast == [{"name": "Sintel", "look": "girl with a spear", "by_user": True}], cast
 
@@ -102,6 +117,7 @@ def test_old_agent_file_is_read():
 def test_cast_travels_through_every_part():
     """Three 5-minute parts: part 2 and 3 are told who part 1 met."""
     from omni_describer_custom.core.ai_engine import GLMProvider
+
     prov = GLMProvider(api_key="k")
     video = TMP / "v.mp4"
     video.write_bytes(b"x")
@@ -119,8 +135,9 @@ def test_cast_travels_through_every_part():
 
     prov._describe_one_part = one_part
     prov._ask_capped = ask_capped
-    pairs = asyncio.run(prov.describe_video_full(
-        str(video), "Describe.", cast=[], on_cast=lambda c: seen.append(c)))
+    pairs = asyncio.run(
+        prov.describe_video_full(str(video), "Describe.", cast=[], on_cast=lambda c: seen.append(c))
+    )
     assert len(pairs) == 3
     assert "KNOWN CHARACTERS" not in prompts[0]
     assert all("the woman in red — long red dress" in p for p in prompts[1:]), prompts[1]
@@ -129,6 +146,7 @@ def test_cast_travels_through_every_part():
 
 def test_engine_rules_and_cast_for_a_whole_video_provider():
     from omni_describer_custom.core.ai_engine import AIEngine
+
     got = {}
 
     class Whole:
@@ -141,8 +159,11 @@ def test_engine_rules_and_cast_for_a_whole_video_provider():
     engine = AIEngine()
     engine._provider_or_raise = lambda name: Whole()
     engine._model_for = lambda p, m: "m"
-    asyncio.run(engine.describe_video_full(
-        "v.mp4", "Describe.", cast=[{"name": "Aisyah", "look": "blue headscarf"}]))
+    asyncio.run(
+        engine.describe_video_full(
+            "v.mp4", "Describe.", cast=[{"name": "Aisyah", "look": "blue headscarf"}]
+        )
+    )
     assert "Use a person's NAME when it is heard" in got["prompt"]
     assert "Aisyah — blue headscarf" in got["prompt"]
     assert "cast" not in got["kw"]
@@ -151,16 +172,20 @@ def test_engine_rules_and_cast_for_a_whole_video_provider():
 def _store_with(texts):
     store = ProjectStore(projects_dir=str(TMP / f"projects{time.monotonic_ns()}"))
     store.create_project("Cast", "")
-    store.save_descriptions([Description(start_time=i * 5.0, end_time=i * 5.0 + 2, text=x)
-                             for i, x in enumerate(texts)])
+    store.save_descriptions(
+        [Description(start_time=i * 5.0, end_time=i * 5.0 + 2, text=x) for i, x in enumerate(texts)]
+    )
     return store
 
 
 def test_characters_window_names_someone_everywhere():
     from omni_describer_custom.ui import characters_dialog as cd
+
     store = _store_with(["The man in the grey coat sits.", "A car passes."])
-    ch.save_cast(store.project_dir(store.current.id),
-                 [{"name": "the man in the grey coat", "look": "grey coat"}])
+    ch.save_cast(
+        store.project_dir(store.current.id),
+        [{"name": "the man in the grey coat", "look": "grey coat"}],
+    )
     changed = []
     real = cd.ask_yes_no
     cd.ask_yes_no = lambda *a, **k: True
@@ -183,15 +208,18 @@ def test_characters_window_names_someone_everywhere():
 
 def test_the_run_saves_the_cast_for_a_whole_video_provider():
     from omni_describer_custom.ui.main_frame import MainFrame
+
     frame = MainFrame()
     try:
         frame.project_store = _store_with(["x"])
         logged = []
-        frame._ui = (lambda fn, *a: logged.append(a)
-                     if getattr(fn, "__name__", "") == "_log" else fn(*a))
+        frame._ui = lambda fn, *a: (
+            logged.append(a) if getattr(fn, "__name__", "") == "_log" else fn(*a)
+        )
 
         async def ask(q, *a, **k):
             return "- Aisyah — blue headscarf"
+
         frame.ai_engine.ask = ask
         loop = asyncio.new_event_loop()
         try:
@@ -207,6 +235,7 @@ def test_the_run_saves_the_cast_for_a_whole_video_provider():
 
 def test_settings_switch():
     from omni_describer_custom.core.settings_store import SettingsStore
+
     assert SettingsStore().get("ai.characters", None) is True
     src = Path("src/omni_describer_custom/ui/main_frame.py").read_text(encoding="utf-8")
     assert 'self.settings.get("ai.characters", True))' in src
@@ -229,12 +258,18 @@ def main() -> int:
     check("names in capitals are not kept", test_capitals_are_not_kept)
     check("the cast request caps the thinking", test_cast_request_caps_thinking)
     check("the cast travels through every part", test_cast_travels_through_every_part)
-    check("a whole-video provider gets the rules and the cast",
-          test_engine_rules_and_cast_for_a_whole_video_provider)
-    check("the Characters window names someone everywhere",
-          test_characters_window_names_someone_everywhere)
-    check("the run saves the cast (whole-video provider)",
-          test_the_run_saves_the_cast_for_a_whole_video_provider)
+    check(
+        "a whole-video provider gets the rules and the cast",
+        test_engine_rules_and_cast_for_a_whole_video_provider,
+    )
+    check(
+        "the Characters window names someone everywhere",
+        test_characters_window_names_someone_everywhere,
+    )
+    check(
+        "the run saves the cast (whole-video provider)",
+        test_the_run_saves_the_cast_for_a_whole_video_provider,
+    )
     check("the Player has a Characters button", test_player_has_a_characters_button)
     check("Settings > AI switch, on by default", test_settings_switch)
     del app

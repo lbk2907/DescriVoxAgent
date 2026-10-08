@@ -5,6 +5,7 @@ NO GUI and NO network. This guard keeps it that way: importing wx/vlc or
 opening a socket fails loudly instead of silently needing a desktop or the
 internet. The full gate (run_gate.bat / `pytest tests`) stays local.
 """
+
 import builtins
 import socket
 

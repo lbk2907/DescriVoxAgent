@@ -97,8 +97,14 @@ def _check(check: dict, contract: dict, records: list[dict], ver: str) -> C.Resu
         if not exe.exists():
             return res(C.UNKNOWN, "no built exe")
         exe_sha = E.sha256_file(exe)
-        runs = [r for r in records if r.get("kind") == "nvda" and r.get("frozen")
-                and r.get("exe_sha256") == exe_sha and r.get("contract") == want]
+        runs = [
+            r
+            for r in records
+            if r.get("kind") == "nvda"
+            and r.get("frozen")
+            and r.get("exe_sha256") == exe_sha
+            and r.get("contract") == want
+        ]
         if not runs:
             return res(C.UNKNOWN, f"NVDA has not checked this exe against {want}")
         last = runs[-1]
@@ -110,7 +116,13 @@ def _check(check: dict, contract: dict, records: list[dict], ver: str) -> C.Resu
 
     if kind == "source_backup":
         import make_source_zip as msz
-        z = Path.home() / "Documents" / "DescriVox-source-backups" / f"DescriVox-Agent-source-v{ver}.zip"
+
+        z = (
+            Path.home()
+            / "Documents"
+            / "DescriVox-source-backups"
+            / f"DescriVox-Agent-source-v{ver}.zip"
+        )
         if not z.exists():
             return res(C.UNKNOWN, f"{z.name} not found")
         found = msz.problems(z)
@@ -136,9 +148,12 @@ def run() -> C.Verdict:
     for check in contract["checks"]:
         try:
             v.results.append(_check(check, contract, records, ver))
-        except Exception as e:     # a checker that breaks is not a pass
-            v.results.append(C.Result(check["id"], C.UNKNOWN, f"could not run: {e}",
-                                      bool(check.get("required", True))))
+        except Exception as e:  # a checker that breaks is not a pass
+            v.results.append(
+                C.Result(
+                    check["id"], C.UNKNOWN, f"could not run: {e}", bool(check.get("required", True))
+                )
+            )
     return v
 
 

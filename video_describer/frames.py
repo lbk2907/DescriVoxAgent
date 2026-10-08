@@ -5,6 +5,7 @@ frame as H:MM:SS, so the AI later READS the stamp off the pixels
 instead of guessing from frame order. Scale to 720p to keep each JPEG
 well under the 5 MB / 6000x6000px API limits.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,8 +18,7 @@ from pathlib import Path
 # fontfile is added at build time: on Windows, drawtext without an
 # explicit font file hits fontconfig (no default config -> crash).
 _DRAWTEXT_BODY = (
-    "text='%{pts\\:hms}':x=10:y=10:fontsize=28:"
-    "fontcolor=white:box=1:boxcolor=black@0.6"
+    "text='%{pts\\:hms}':x=10:y=10:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6"
 )
 
 _FONT_CANDIDATES = [
@@ -48,11 +48,15 @@ class FrameExtractorError(RuntimeError):
 
 def _find_ffmpeg() -> str:
     from shutil import which
+
     found = which("ffmpeg")
     if found:
         return found
-    local = Path(__file__).resolve().parent.parent / "bin" / ("ffmpeg.exe" if
-        __import__("sys").platform == "win32" else "ffmpeg")
+    local = (
+        Path(__file__).resolve().parent.parent
+        / "bin"
+        / ("ffmpeg.exe" if __import__("sys").platform == "win32" else "ffmpeg")
+    )
     if local.exists():
         return str(local)
     raise FrameExtractorError("ffmpeg not found on PATH or in bin/")
@@ -71,7 +75,8 @@ def build_filter(fps: float) -> str:
     if not fontfile:
         raise FrameExtractorError(
             "no usable TrueType font found for timestamp burn-in "
-            "(searched: " + ", ".join(_FONT_CANDIDATES) + ")")
+            "(searched: " + ", ".join(_FONT_CANDIDATES) + ")"
+        )
     font_part = f"fontfile='{fontfile.replace(':', chr(92) + ':')}'"
     drawtext = f"drawtext={font_part}:{_DRAWTEXT_BODY}"
     return f"fps={_fmt_fps(fps)},scale=-2:720,{drawtext}"
@@ -104,14 +109,21 @@ async def extract_frames(
     pattern = str(out / "frame_%05d.jpg")
     vf = build_filter(fps)
     cmd = [
-        ffmpeg, "-hide_banner", "-nostdin",
-        "-i", str(video_path),
-        "-vf", vf,
-        "-q:v", "3",
-        "-y", pattern,
+        ffmpeg,
+        "-hide_banner",
+        "-nostdin",
+        "-i",
+        str(video_path),
+        "-vf",
+        vf,
+        "-q:v",
+        "3",
+        "-y",
+        pattern,
     ]
     proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
 
     async def pump(stream, is_err: bool = False) -> None:
         while True:
@@ -133,8 +145,7 @@ async def extract_frames(
 
     cancel_task = asyncio.create_task(watch_cancel()) if is_cancelled else None
     try:
-        await asyncio.gather(
-            pump(proc.stdout), pump(proc.stderr, is_err=True), proc.wait())
+        await asyncio.gather(pump(proc.stdout), pump(proc.stderr, is_err=True), proc.wait())
     finally:
         if cancel_task:
             cancel_task.cancel()
@@ -143,13 +154,13 @@ async def extract_frames(
         # stderr was consumed by pump; rerun quietly to capture the
         # reason (cheap: extraction failed fast anyway)
         cap = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         _, err = await cap.communicate()
         tail = err.decode("utf-8", "replace")[-500:]
         raise FrameExtractorError(f"ffmpeg failed ({proc.returncode}): {tail}")
 
-    frames = sorted(
-        out.glob("frame_*.jpg"), key=lambda p: _frame_index(p.name))
+    frames = sorted(out.glob("frame_*.jpg"), key=lambda p: _frame_index(p.name))
     if not frames:
         raise FrameExtractorError("ffmpeg produced no frames")
     return frames

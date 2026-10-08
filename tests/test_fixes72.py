@@ -6,6 +6,7 @@ stayed in Open Project as "0 descriptions". Now New Project asks for a
 name, then for the video (local file, YouTube, direct URL), and the
 project is created with that name when Open starts the work.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
@@ -14,8 +15,9 @@ import traceback
 from pathlib import Path
 
 if "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -72,6 +74,7 @@ class FakeChoice:
 
 def frame():
     from omni_describer_custom.ui.main_frame import MainFrame
+
     f = MainFrame()
     f.project_store = ProjectStore(projects_dir=str(TMP / f"p{id(f)}"))
     f._speak_progress = lambda text: None
@@ -107,6 +110,7 @@ def test_name_then_video_then_the_named_project():
             assert f._pending_project_name is None
         finally:
             f.Destroy()
+
     with_fakes(run)
 
 
@@ -115,20 +119,21 @@ def test_cancelled_source_changes_nothing():
         f = frame()
         try:
             f._current_source = "earlier.mp4"
-            f._on_youtube_url = lambda e: None          # the URL box cancelled
+            f._on_youtube_url = lambda e: None  # the URL box cancelled
             FakeText.ok, FakeChoice.pick = True, 1
             f._on_new_project(None)
             assert f._current_source == "earlier.mp4"
             assert not getattr(f, "_pending_project_name", None)
             assert f.project_store.list_projects() == []
-            FakeChoice.pick = -1                         # the source list cancelled
+            FakeChoice.pick = -1  # the source list cancelled
             f._on_new_project(None)
-            FakeText.ok = False                          # the name box cancelled
+            FakeText.ok = False  # the name box cancelled
             f._on_new_project(None)
             assert f.project_store.list_projects() == []
         finally:
             FakeText.ok = True
             f.Destroy()
+
     with_fakes(run)
 
 
@@ -144,13 +149,16 @@ def test_the_name_is_only_for_its_own_video():
             assert "Kisah Pak Ali" not in names, names
         finally:
             f.Destroy()
+
     with_fakes(run)
 
 
 def main() -> int:
     app = wx.App(False)
-    check("a name, then the video, then the named project",
-          test_name_then_video_then_the_named_project)
+    check(
+        "a name, then the video, then the named project",
+        test_name_then_video_then_the_named_project,
+    )
     check("a cancelled step changes nothing", test_cancelled_source_changes_nothing)
     check("the name is only for its own video", test_the_name_is_only_for_its_own_video)
     del app

@@ -44,8 +44,7 @@ class UpdateError(Exception):
 
 
 def _fetch(url: str, timeout: float = 120.0) -> bytes:
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "OmniDescriber-update-check"})
+    request = urllib.request.Request(url, headers={"User-Agent": "OmniDescriber-update-check"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
 
@@ -55,8 +54,7 @@ def tool_version(path: str) -> str:
     if not path:
         return ""
     try:
-        out = subprocess.run([path, "--version"], capture_output=True,
-                             text=True, timeout=60)
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=60)
         lines = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
         return lines[-1] if out.returncode == 0 and lines else ""
     except (OSError, subprocess.SubprocessError):
@@ -107,13 +105,15 @@ def _expected_sha256(sums_text: str) -> str:
     raise UpdateError(f"{EXE_NAME} is not listed in the release checksums")
 
 
-def install(tag: str, fetch: Callable[[str], bytes] = _fetch,
-            on_status: Callable[[str], None] | None = None) -> str:
+def install(
+    tag: str, fetch: Callable[[str], bytes] = _fetch, on_status: Callable[[str], None] | None = None
+) -> str:
     """Download, verify and install yt-dlp `tag`. Returns the version.
 
     Raises UpdateError, leaving whatever was in use untouched, when the
     checksum or the version does not match.
     """
+
     def say(key: str) -> None:
         if on_status:
             on_status(key)
@@ -127,7 +127,8 @@ def install(tag: str, fetch: Callable[[str], bytes] = _fetch,
     if actual != expected:
         raise UpdateError(
             f"checksum mismatch: the download does not match the one the "
-            f"publisher lists for {tag}; nothing was installed")
+            f"publisher lists for {tag}; nothing was installed"
+        )
 
     folder = tools.user_tools_dir()
     folder.mkdir(parents=True, exist_ok=True)
@@ -140,7 +141,8 @@ def install(tag: str, fetch: Callable[[str], bytes] = _fetch,
         if version != tag:
             raise UpdateError(
                 f"the downloaded program reports version {version or 'none'}, "
-                f"not {tag}; nothing was installed")
+                f"not {tag}; nothing was installed"
+            )
         os.replace(staging, target)
     finally:
         if staging.exists():
@@ -150,10 +152,12 @@ def install(tag: str, fetch: Callable[[str], bytes] = _fetch,
                 pass
 
     manifest = tools.read_updates_manifest()
-    manifest[TOOL] = {"version": version, "sha256": actual,
-                      "installed": time.strftime("%Y-%m-%d %H:%M:%S")}
-    (folder / tools.UPDATES_MANIFEST).write_text(
-        json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest[TOOL] = {
+        "version": version,
+        "sha256": actual,
+        "installed": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    (folder / tools.UPDATES_MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     tools.forget_verification()
     logger.info("yt-dlp %s installed at %s (SHA-256 verified)", version, target)
     return version
@@ -170,7 +174,8 @@ def revert() -> bool:
     manifest = tools.read_updates_manifest()
     if manifest.pop(TOOL, None) is not None:
         (folder / tools.UPDATES_MANIFEST).write_text(
-            json.dumps(manifest, indent=2), encoding="utf-8")
+            json.dumps(manifest, indent=2), encoding="utf-8"
+        )
         removed = True
     tools.forget_verification()
     if removed:
@@ -198,6 +203,15 @@ def available_update(fetch: Callable[[str], bytes] = _fetch) -> str:
     return latest if is_newer(latest, current) else ""
 
 
-__all__ = ["UpdateError", "available_update", "install", "is_newer",
-           "latest_version", "record_check", "revert", "status",
-           "tool_version", "weekly_check_due"]
+__all__ = [
+    "UpdateError",
+    "available_update",
+    "install",
+    "is_newer",
+    "latest_version",
+    "record_check",
+    "revert",
+    "status",
+    "tool_version",
+    "weekly_check_due",
+]

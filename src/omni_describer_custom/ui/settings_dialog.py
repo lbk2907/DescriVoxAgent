@@ -23,7 +23,7 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "MiniMax-M3",
     ],
     "gemini": [
-        "gemini-3.5-flash-lite",   # Recommended (phase 36, 8 Oct 2026)
+        "gemini-3.5-flash-lite",  # Recommended (phase 36, 8 Oct 2026)
         "gemini-3.1-flash-lite",
         "gemini-3.8-flash",
         # Google limits 2.5 to accounts that used it before; kept
@@ -58,8 +58,12 @@ class SettingsDialog(wx.Dialog):
     """Settings dialog with tabbed interface."""
 
     def __init__(self, parent, settings, tts_engine=None):
-        super().__init__(parent, title=t("settings.title"), size=(650, 560),
-                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(
+            parent,
+            title=t("settings.title"),
+            size=(650, 560),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self.settings = settings
         self.tts_engine = tts_engine
         self._custom_visible = False
@@ -99,10 +103,8 @@ class SettingsDialog(wx.Dialog):
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.apply_btn = wx.Button(panel, label=t("settings.apply"),
-                                   name="apply_settings")
-        self.cancel_btn = wx.Button(panel, label=t("settings.cancel"),
-                                    name="cancel_settings")
+        self.apply_btn = wx.Button(panel, label=t("settings.apply"), name="apply_settings")
+        self.cancel_btn = wx.Button(panel, label=t("settings.cancel"), name="cancel_settings")
 
         btn_sizer.AddStretchSpacer()
         btn_sizer.Add(self.apply_btn, 0, wx.ALL, 5)
@@ -122,7 +124,9 @@ class SettingsDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Provider
-        sizer.Add(wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.provider"), name="provider_label"), 0, wx.ALL, 5
+        )
         self.provider_choice = wx.Choice(
             panel,
             choices=["gemini", "minimax", "openai", "glm", "custom"],
@@ -134,17 +138,18 @@ class SettingsDialog(wx.Dialog):
         # stays the machine id. Accessibility: "glm" means nothing to a
         # screen-reader user; "OpenRouter" does.
         self._provider_labels = {
-            pid: t(f"settings.provider_{pid}")
-            for pid in self.provider_choice.GetItems()
+            pid: t(f"settings.provider_{pid}") for pid in self.provider_choice.GetItems()
         }
         self.provider_choice.SetItems(
-            [self._provider_labels.get(pid, pid)
-             for pid in self.provider_choice.GetItems()])
+            [self._provider_labels.get(pid, pid) for pid in self.provider_choice.GetItems()]
+        )
         self.provider_choice.Bind(wx.EVT_CHOICE, self._on_provider_changed)
 
         # Model (dropdown for built-in, text field for custom)
         model_sizer = wx.BoxSizer(wx.VERTICAL)
-        model_sizer.Add(wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL, 5)
+        model_sizer.Add(
+            wx.StaticText(panel, label=t("settings.model"), name="model_label"), 0, wx.ALL, 5
+        )
 
         self.model_choice = wx.Choice(panel, name="ai_model")
         self.model_choice.SetLabel(t("settings.model"))
@@ -153,31 +158,29 @@ class SettingsDialog(wx.Dialog):
         # Video-only filter notice (OpenRouter): the model list shows
         # only catalog-verified video-capable models.
         self.video_only_hint = wx.StaticText(
-            panel, label=t("settings.video_only_hint"),
-            name="video_only_hint")
+            panel, label=t("settings.video_only_hint"), name="video_only_hint"
+        )
         self.video_only_hint.Wrap(560)
         model_sizer.Add(self.video_only_hint, 0, wx.ALL, 5)
 
         # Fetch models: pull the live catalog of video-capable models
         # from OpenRouter (public endpoint, no key/credit needed).
         self.fetch_models_btn = wx.Button(
-            panel, label=t("settings.fetch_models"),
-            name="fetch_models")
+            panel, label=t("settings.fetch_models"), name="fetch_models"
+        )
         self.fetch_models_btn.Bind(wx.EVT_BUTTON, self._on_fetch_models)
         model_sizer.Add(self.fetch_models_btn, 0, wx.ALL, 5)
 
         # v1.8.1: send the chosen model a 6-second clip and hear whether
         # it really watches the video and hears its sound.
-        self.probe_model_btn = wx.Button(
-            panel, label=t("settings.probe_model"), name="probe_model")
+        self.probe_model_btn = wx.Button(panel, label=t("settings.probe_model"), name="probe_model")
         self.probe_model_btn.Bind(wx.EVT_BUTTON, self._on_probe_model)
         model_sizer.Add(self.probe_model_btn, 0, wx.ALL, 5)
 
         # v1.9.0: can this model drive the Player agent (F2)? Judged on
         # what it does (tools used, looked first, valid proposal, an
         # answer), measured in tools/agent_bench.py.
-        self.test_agent_btn = wx.Button(
-            panel, label=t("settings.test_agent"), name="test_agent")
+        self.test_agent_btn = wx.Button(panel, label=t("settings.test_agent"), name="test_agent")
         self.test_agent_btn.Bind(wx.EVT_BUTTON, self._on_test_agent)
         model_sizer.Add(self.test_agent_btn, 0, wx.ALL, 5)
 
@@ -185,7 +188,8 @@ class SettingsDialog(wx.Dialog):
         # from the static text created just before it; without this one it
         # followed a button and was read as an unlabelled edit (v1.9.2).
         self.custom_model_label = wx.StaticText(
-            panel, label=t("settings.custom_model"), name="custom_model_label")
+            panel, label=t("settings.custom_model"), name="custom_model_label"
+        )
         self.custom_model_label.Hide()
         model_sizer.Add(self.custom_model_label, 0, wx.ALL, 5)
         self.custom_model_text = wx.TextCtrl(panel, name="custom_model_input")
@@ -201,7 +205,9 @@ class SettingsDialog(wx.Dialog):
         # Base URL
         self.custom_sizer.Add(
             wx.StaticText(panel, label=t("settings.base_url"), name="base_url_label"),
-            0, wx.ALL, 5,
+            0,
+            wx.ALL,
+            5,
         )
         self.base_url_text = wx.TextCtrl(panel, name="custom_base_url")
         self.base_url_text.SetHint(t("settings.base_url_placeholder"))
@@ -210,7 +216,9 @@ class SettingsDialog(wx.Dialog):
         # API Format
         self.custom_sizer.Add(
             wx.StaticText(panel, label=t("settings.api_format"), name="api_format_label"),
-            0, wx.ALL, 5,
+            0,
+            wx.ALL,
+            5,
         )
         fmt_labels = [t(label_key) for _, label_key in API_FORMATS]
         self.format_choice = wx.Choice(panel, choices=fmt_labels, name="api_format")
@@ -222,19 +230,18 @@ class SettingsDialog(wx.Dialog):
 
         # API Key
         self._api_key_label = wx.StaticText(
-            panel, label=t("settings.api_key"), name="api_key_label")
+            panel, label=t("settings.api_key"), name="api_key_label"
+        )
         sizer.Add(self._api_key_label, 0, wx.ALL, 5)
         # No SetLabel on a TextCtrl (pitfall 12): NVDA names it from the
         # static text created just before it.
-        self.api_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD,
-                                        name="api_key_input")
+        self.api_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD, name="api_key_input")
         self.api_key_text.SetHint(t("settings.api_key_placeholder"))
         self._key_hidden = True
         sizer.Add(self.api_key_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Show/hide key button
-        self.show_key_btn = wx.ToggleButton(panel, label=t("settings.show"),
-                                            name="toggle_key")
+        self.show_key_btn = wx.ToggleButton(panel, label=t("settings.show"), name="toggle_key")
         sizer.Add(self.show_key_btn, 0, wx.ALL, 5)
         self.show_key_btn.Bind(wx.EVT_TOGGLEBUTTON, self._on_toggle_key)
 
@@ -244,36 +251,43 @@ class SettingsDialog(wx.Dialog):
 
         # Full-video mode: the provider watches the whole video (Gemini,
         # MiniMax, OpenRouter). Unticked = still frames one at a time.
-        self.video_mode_cb = wx.CheckBox(
-            panel, label=t("settings.video_mode"), name="video_mode")
-        self.video_mode_cb.SetValue(
-            self.settings.get("ai.video_mode", "full") == "full")
+        self.video_mode_cb = wx.CheckBox(panel, label=t("settings.video_mode"), name="video_mode")
+        self.video_mode_cb.SetValue(self.settings.get("ai.video_mode", "full") == "full")
         sizer.Add(self.video_mode_cb, 0, wx.ALL, 5)
-        sizer.Add(wx.StaticText(panel, label=t("settings.video_mode_hint"),
-                                name="video_mode_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.video_mode_hint"), name="video_mode_hint"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.video_mode_cb.Bind(wx.EVT_CHECKBOX, self._on_video_mode_toggle)
 
         # Fast one-shot mode: burn-in timestamps + ALL frames in ONE AI
         # request (GLM via OpenRouter). Mutually exclusive with
         # full-video mode; frame-per-frame stays the fallback.
-        self.fast_mode_cb = wx.CheckBox(
-            panel, label=t("settings.fast_mode"), name="fast_mode")
-        self.fast_mode_cb.SetValue(
-            bool(self.settings.get("ai.fast_mode", False)))
+        self.fast_mode_cb = wx.CheckBox(panel, label=t("settings.fast_mode"), name="fast_mode")
+        self.fast_mode_cb.SetValue(bool(self.settings.get("ai.fast_mode", False)))
         sizer.Add(self.fast_mode_cb, 0, wx.ALL, 5)
-        sizer.Add(wx.StaticText(panel, label=t("settings.fast_mode_hint"),
-                                name="fast_mode_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.fast_mode_hint"), name="fast_mode_hint"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.fast_mode_cb.Bind(wx.EVT_CHECKBOX, self._on_fast_mode_toggle)
 
         # v2.1.0 (owner, 5 Oct 2026): names for the people, one each
         # (core/characters.py). On by default after measuring; this is
         # the way back if accuracy is heard to drop.
-        self.characters_cb = wx.CheckBox(
-            panel, label=t("settings.characters"), name="characters")
+        self.characters_cb = wx.CheckBox(panel, label=t("settings.characters"), name="characters")
         self.characters_cb.SetValue(bool(self.settings.get("ai.characters", True)))
         sizer.Add(self.characters_cb, 0, wx.ALL, 5)
-        sizer.Add(wx.StaticText(panel, label=t("settings.characters_hint"),
-                                name="characters_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.characters_hint"), name="characters_hint"),
+            0,
+            wx.ALL,
+            5,
+        )
 
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
@@ -285,17 +299,25 @@ class SettingsDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Engine
-        sizer.Add(wx.StaticText(panel, label=t("settings.tts_engine"), name="tts_engine_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.tts_engine"), name="tts_engine_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.tts_engine_choice = wx.Choice(panel, name="tts_engine")
         self.tts_engine_choice.SetLabel(t("settings.tts_engine"))
         # Friendly engine names on screen; raw ids stay for the
         # "tts.engines.<id>" settings keys.
-        self._set_choice_labels(self.tts_engine_choice, [
-            ("edge", t("settings.engine_edge")),
-            ("sapi5", t("settings.engine_sapi5")),
-            ("openai", t("settings.engine_openai")),
-            ("screen_reader", self._screen_reader_label()),
-        ])
+        self._set_choice_labels(
+            self.tts_engine_choice,
+            [
+                ("edge", t("settings.engine_edge")),
+                ("sapi5", t("settings.engine_sapi5")),
+                ("openai", t("settings.engine_openai")),
+                ("screen_reader", self._screen_reader_label()),
+            ],
+        )
         sizer.Add(self.tts_engine_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Voice
@@ -310,15 +332,16 @@ class SettingsDialog(wx.Dialog):
         # static texts created right before the trackbar, so NVDA named
         # the slider "10" (heard: "10 slider 33"). The value is shown
         # after it instead, where it cannot take the name.
-        self.speed_slider = wx.Slider(panel, value=10, minValue=5, maxValue=20,
-                                      style=wx.SL_HORIZONTAL,
-                                      name="tts_speed")
+        self.speed_slider = wx.Slider(
+            panel, value=10, minValue=5, maxValue=20, style=wx.SL_HORIZONTAL, name="tts_speed"
+        )
         sizer.Add(self.speed_slider, 0, wx.ALL | wx.EXPAND, 5)
         self.speed_value = wx.StaticText(panel, label="1.0x", name="speed_value")
         sizer.Add(self.speed_value, 0, wx.LEFT, 10)
         self.speed_slider.Bind(
-            wx.EVT_SLIDER, lambda e: self.speed_value.SetLabel(
-                f"{self.speed_slider.GetValue() / 10:.1f}x"))
+            wx.EVT_SLIDER,
+            lambda e: self.speed_value.SetLabel(f"{self.speed_slider.GetValue() / 10:.1f}x"),
+        )
 
         sizer.AddStretchSpacer()
         panel.SetSizer(sizer)
@@ -330,7 +353,12 @@ class SettingsDialog(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Language
-        sizer.Add(wx.StaticText(panel, label=t("settings.language"), name="general_lang_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.language"), name="general_lang_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.lang_choice = wx.Choice(panel, name="language")
         self.lang_choice.SetLabel(t("settings.language"))
         sizer.Add(self.lang_choice, 0, wx.ALL | wx.EXPAND, 5)
@@ -339,16 +367,18 @@ class SettingsDialog(wx.Dialog):
         # v1.6.2: built from the locale files present, so a new
         # language appears here by dropping locales/<code>.json — no
         # code change. Each file names itself in its own language.
-        self._set_choice_labels(self.lang_choice, [
-            (code, I18n.language_name(code))
-            for code in I18n.available_languages()
-        ])
+        self._set_choice_labels(
+            self.lang_choice,
+            [(code, I18n.language_name(code)) for code in I18n.available_languages()],
+        )
         # v1.5.2: description output language (AI answers)
-        sizer.Add(wx.StaticText(
-            panel, label=t("settings.desc_language"),
-            name="desc_lang_label"), 0, wx.ALL, 5)
-        self.desc_lang_choice = wx.Choice(
-            panel, name="desc_language")
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.desc_language"), name="desc_lang_label"),
+            0,
+            wx.ALL,
+            5,
+        )
+        self.desc_lang_choice = wx.Choice(panel, name="desc_language")
         self.desc_lang_choice.SetLabel(t("settings.desc_language"))
         # Friendly labels; "system" follows the UI language. Raw ids
         # ("system"/"ms"/"en") stay for settings storage.
@@ -356,25 +386,36 @@ class SettingsDialog(wx.Dialog):
         # also offered, because the language you read the app in is not
         # always the language you want the descriptions in (sharing an
         # SRT with someone else, for instance).
-        self._set_choice_labels(self.desc_lang_choice, [
-            ("system", t("settings.lang_system")),
-        ] + [
-            (code, I18n.language_name(code))
-            for code in I18n.available_languages()
-        ])
+        self._set_choice_labels(
+            self.desc_lang_choice,
+            [
+                ("system", t("settings.lang_system")),
+            ]
+            + [(code, I18n.language_name(code)) for code in I18n.available_languages()],
+        )
         # v1.9.6: on screen in CREATION order (= Tab order, pitfall 34),
         # each box under its own label. The boxes were added in the
         # opposite order, so "Language" sat below "Description language".
         sizer.Add(self.desc_lang_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Frame rate
-        sizer.Add(wx.StaticText(panel, label=t("settings.frame_rate"), name="frame_rate_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.frame_rate"), name="frame_rate_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.fps_choice = wx.Choice(panel, choices=["1", "2", "5", "10"], name="frame_rate")
         self.fps_choice.SetLabel(t("settings.frame_rate"))
         sizer.Add(self.fps_choice, 0, wx.ALL | wx.EXPAND, 5)
 
         # Frame cap (0 = no limit; default keeps current behaviour)
-        sizer.Add(wx.StaticText(panel, label=t("settings.frame_cap"), name="frame_cap_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.frame_cap"), name="frame_cap_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.frame_cap_spin = wx.SpinCtrl(panel, min=0, max=100000, initial=0, name="frame_cap")
         sizer.Add(self.frame_cap_spin, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -382,71 +423,111 @@ class SettingsDialog(wx.Dialog):
         # frame for any stretch that does not change, so a 100-second
         # held shot left the AI with nothing to look at and nothing to
         # describe. 0 turns it off.
-        sizer.Add(wx.StaticText(panel, label=t("settings.max_frame_gap"),
-                                name="max_frame_gap_label"), 0, wx.ALL, 5)
-        self.max_gap_spin = wx.SpinCtrl(panel, min=0, max=600, initial=30,
-                                        name="max_frame_gap")
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.max_frame_gap"), name="max_frame_gap_label"),
+            0,
+            wx.ALL,
+            5,
+        )
+        self.max_gap_spin = wx.SpinCtrl(panel, min=0, max=600, initial=30, name="max_frame_gap")
         self.max_gap_spin.SetToolTip(t("settings.max_frame_gap_hint"))
         sizer.Add(self.max_gap_spin, 0, wx.ALL | wx.EXPAND, 5)
 
         # v1.4.1: chunk length for full-video mode (seconds per part).
-        sizer.Add(wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.chunk_seconds"), name="chunk_seconds_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.chunk_spin = wx.SpinCtrl(panel, min=60, max=3600, initial=300, name="chunk_seconds")
         sizer.Add(self.chunk_spin, 0, wx.ALL | wx.EXPAND, 5)
 
         # v1.8.8: check descriptions against the picture. The label is
         # created right before the Choice so NVDA names it (pitfall 53).
-        sizer.Add(wx.StaticText(panel, label=t("settings.review_mode"),
-                                name="review_mode_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.review_mode"), name="review_mode_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.review_choice = wx.Choice(
-            panel, choices=[t(f"settings.review_{m}") for m in
-                            ["off", "auto", "accurate", "most", "keep"]],
-            name="review_mode")
+            panel,
+            choices=[
+                t(f"settings.review_{m}") for m in ["off", "auto", "accurate", "most", "keep"]
+            ],
+            name="review_mode",
+        )
         sizer.Add(self.review_choice, 0, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(wx.StaticText(panel, label=t("settings.review_hint"),
-                                name="review_mode_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.review_hint"), name="review_mode_hint"),
+            0,
+            wx.ALL,
+            5,
+        )
 
         self.preserve_res_check = wx.CheckBox(
-            panel, label=t("settings.preserve_resolution"),
-            name="preserve_resolution")
+            panel, label=t("settings.preserve_resolution"), name="preserve_resolution"
+        )
         sizer.Add(self.preserve_res_check, 0, wx.ALL, 5)
-        sizer.Add(wx.StaticText(panel,
-                                label=t("settings.preserve_resolution_hint"),
-                                name="preserve_resolution_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(
+                panel, label=t("settings.preserve_resolution_hint"), name="preserve_resolution_hint"
+            ),
+            0,
+            wx.ALL,
+            5,
+        )
 
         # 2.1.3: offer a newer DescriVox Agent at every start (owner's
         # choice); Help > Check for Updates works either way.
         self.app_update_check_cb = wx.CheckBox(
-            panel, label=t("settings.check_app_updates"),
-            name="check_app_updates")
+            panel, label=t("settings.check_app_updates"), name="check_app_updates"
+        )
         sizer.Add(self.app_update_check_cb, 0, wx.ALL, 5)
 
         # v1.6.1: speech-to-text. The default AI provider cannot hear the
         # video, so this is what lets it know what was said when there
         # are no published or embedded subtitles.
-        sizer.Add(wx.StaticText(panel, label=t("settings.transcription"),
-                                name="transcription_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.transcription"), name="transcription_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         self.transcribe_choice = wx.Choice(
             panel,
-            choices=[t("settings.transcribe_auto"),
-                     t("settings.transcribe_whisper"),
-                     t("settings.transcribe_grok"),
-                     t("settings.transcribe_off")],
-            name="transcription_backend")
+            choices=[
+                t("settings.transcribe_auto"),
+                t("settings.transcribe_whisper"),
+                t("settings.transcribe_grok"),
+                t("settings.transcribe_off"),
+            ],
+            name="transcription_backend",
+        )
         self.transcribe_choice.SetLabel(t("settings.transcription"))
         sizer.Add(self.transcribe_choice, 0, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(wx.StaticText(panel, label=t("settings.transcription_hint"),
-                                name="transcription_hint"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.transcription_hint"), name="transcription_hint"),
+            0,
+            wx.ALL,
+            5,
+        )
 
-        sizer.Add(wx.StaticText(panel, label=t("settings.xai_key"),
-                                name="xai_key_label"), 0, wx.ALL, 5)
-        self.xai_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD,
-                                        name="xai_api_key")
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.xai_key"), name="xai_key_label"), 0, wx.ALL, 5
+        )
+        self.xai_key_text = wx.TextCtrl(panel, style=wx.TE_PASSWORD, name="xai_api_key")
         self.xai_key_text.SetName(t("settings.xai_key"))
         sizer.Add(self.xai_key_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Output directory
-        sizer.Add(wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"), 0, wx.ALL, 5)
+        sizer.Add(
+            wx.StaticText(panel, label=t("settings.output_dir"), name="output_dir_label"),
+            0,
+            wx.ALL,
+            5,
+        )
         out_row = wx.BoxSizer(wx.HORIZONTAL)
         self.output_text = wx.TextCtrl(panel, name="output_dir")
         # Accessible label (was "..."): screen readers announce a real name,
@@ -524,15 +605,15 @@ class SettingsDialog(wx.Dialog):
         is_hidden = getattr(self, "_key_hidden", True)
         if sys.platform == "win32":
             import ctypes
+
             EM_SETPASSWORDCHAR = 0x00CC
             # 0 removes ES_PASSWORD; U+25CF is the bullet Windows uses.
             ctypes.windll.user32.SendMessageW(
-                self.api_key_text.GetHandle(), EM_SETPASSWORDCHAR,
-                0 if is_hidden else 0x25CF, 0)
+                self.api_key_text.GetHandle(), EM_SETPASSWORDCHAR, 0 if is_hidden else 0x25CF, 0
+            )
             self.api_key_text.Refresh()
             self._key_hidden = not is_hidden
-            self.show_key_btn.SetLabel(t("settings.hide") if is_hidden
-                                      else t("settings.show"))
+            self.show_key_btn.SetLabel(t("settings.hide") if is_hidden else t("settings.show"))
             return
         is_hidden = (self.api_key_text.GetWindowStyleFlag() & wx.TE_PASSWORD) != 0
         value = self.api_key_text.GetValue()
@@ -551,8 +632,7 @@ class SettingsDialog(wx.Dialog):
         proportion = sizer.GetItem(self.api_key_text).GetProportion()
 
         new_style = 0 if is_hidden else wx.TE_PASSWORD
-        new_ctrl = wx.TextCtrl(parent, value=value, style=new_style,
-                               name="api_key_input")
+        new_ctrl = wx.TextCtrl(parent, value=value, style=new_style, name="api_key_input")
         # SetHint clears the value on some platforms, so re-apply afterwards
         new_ctrl.SetHint(t("settings.api_key_placeholder"))
         new_ctrl.ChangeValue(value)
@@ -564,8 +644,7 @@ class SettingsDialog(wx.Dialog):
         # layout: the PANEL's sizer, not only the dialog's.
         new_ctrl.MoveAfterInTabOrder(self._api_key_label)
         self._key_hidden = not is_hidden
-        self.show_key_btn.SetLabel(t("settings.hide") if is_hidden
-                                  else t("settings.show"))
+        self.show_key_btn.SetLabel(t("settings.hide") if is_hidden else t("settings.show"))
         parent.Layout()
         self.Layout()
 
@@ -610,14 +689,17 @@ class SettingsDialog(wx.Dialog):
             if provider == "glm":
                 # v1.8.1: the list fetched last time, kept between visits.
                 from ..core.model_catalog import load_cache
+
                 rows = load_cache()[0]
             elif provider == "gemini":
                 from ..core.model_catalog import GEMINI_CACHE_NAME, load_cache
+
                 rows = load_cache(GEMINI_CACHE_NAME)[0]
             prov_config = self.settings.get_ai_provider(provider)
             self._fill_models(
                 rows or [{"id": m} for m in PROVIDER_MODELS.get(provider, [])],
-                prov_config.get("model", ""))
+                prov_config.get("model", ""),
+            )
             # Video-only list + Fetch models: OpenRouter and Gemini (v1.9.3);
             # Test agent mode: the agent's providers (OpenRouter, Gemini).
             self.fetch_models_btn.Enable(provider in ("glm", "gemini"))
@@ -632,8 +714,7 @@ class SettingsDialog(wx.Dialog):
         # Full-video mode checkbox is enabled for providers that accept
         # a whole video: native upload (Gemini, MiniMax) or base64
         # video_url (GLM via OpenRouter, empirically verified).
-        self.video_mode_cb.Enable(
-            provider in ("gemini", "minimax", "glm"))
+        self.video_mode_cb.Enable(provider in ("gemini", "minimax", "glm"))
         if provider not in ("gemini", "minimax", "glm"):
             self.video_mode_cb.SetValue(False)
         # Fast one-shot mode is only offered for GLM (OpenRouter,
@@ -672,8 +753,7 @@ class SettingsDialog(wx.Dialog):
         shows friendly labels, but callers reason in plain ids
         ("glm", "gemini", ...).
         """
-        self.provider_choice.SetStringSelection(
-            self._provider_labels.get(provider_id, provider_id))
+        self.provider_choice.SetStringSelection(self._provider_labels.get(provider_id, provider_id))
         self._on_provider_changed(None)
 
     def _on_fetch_models(self, event):
@@ -690,26 +770,32 @@ class SettingsDialog(wx.Dialog):
         def fetch():
             try:
                 from ..core.model_catalog import fetch_catalog, save_cache
+
                 models = fetch_catalog()
                 if models:
                     save_cache(models)
                     wx.CallAfter(self._apply_fetched_models, models)
-                    wx.CallAfter(self._show_test_result,
-                                 t("settings.fetch_models_ok",
-                                   count=len(models),
-                                   audio=sum(1 for m in models if m["audio"])))
+                    wx.CallAfter(
+                        self._show_test_result,
+                        t(
+                            "settings.fetch_models_ok",
+                            count=len(models),
+                            audio=sum(1 for m in models if m["audio"]),
+                        ),
+                    )
                 else:
-                    wx.CallAfter(self._show_test_result,
-                                 t("settings.fetch_models_none"))
+                    wx.CallAfter(self._show_test_result, t("settings.fetch_models_none"))
             except Exception as e:
                 logger.warning("Fetch models failed: %s", e)
-                wx.CallAfter(self._show_test_result,
-                             t("settings.fetch_models_error",
-                               error=user_error_text(str(e))))
+                wx.CallAfter(
+                    self._show_test_result,
+                    t("settings.fetch_models_error", error=user_error_text(str(e))),
+                )
             finally:
                 wx.CallAfter(self._fetch_done)
 
         import threading
+
         threading.Thread(target=fetch, daemon=True).start()
 
     def _fetch_gemini_models(self):
@@ -723,26 +809,28 @@ class SettingsDialog(wx.Dialog):
 
         def fetch():
             try:
-                from ..core.model_catalog import (
-                    GEMINI_CACHE_NAME, fetch_gemini_models, save_cache)
+                from ..core.model_catalog import GEMINI_CACHE_NAME, fetch_gemini_models, save_cache
+
                 models = fetch_gemini_models(api_key)
                 if models:
                     save_cache(models, GEMINI_CACHE_NAME)
                     wx.CallAfter(self._apply_fetched_models, models)
-                    wx.CallAfter(self._show_test_result,
-                                 t("settings.fetch_gemini_ok", count=len(models)))
+                    wx.CallAfter(
+                        self._show_test_result, t("settings.fetch_gemini_ok", count=len(models))
+                    )
                 else:
-                    wx.CallAfter(self._show_test_result,
-                                 t("settings.fetch_models_none"))
+                    wx.CallAfter(self._show_test_result, t("settings.fetch_models_none"))
             except Exception as e:
                 logger.warning("Fetch Gemini models failed: %s", e)
-                wx.CallAfter(self._show_test_result,
-                             t("settings.fetch_models_error",
-                               error=user_error_text(str(e))))
+                wx.CallAfter(
+                    self._show_test_result,
+                    t("settings.fetch_models_error", error=user_error_text(str(e))),
+                )
             finally:
                 wx.CallAfter(self._fetch_done)
 
         import threading
+
         threading.Thread(target=fetch, daemon=True).start()
 
     def _apply_fetched_models(self, models):
@@ -761,23 +849,28 @@ class SettingsDialog(wx.Dialog):
         """What NVDA reads for a model: name, whether it hears the
         soundtrack, and its input price — not a bare id."""
         from ..core.model_catalog import RECOMMENDED
+
         if "name" not in row:
             label = row["id"]
         elif row.get("gemini"):
             # Every model Google lists here takes video; whether one
             # HEARS is for Test this model to say, not the list.
-            label = (t("settings.gemini_model_label", name=row["name"],
-                       price=f"{row['price_in']:.2f}")
-                     if row.get("price_in") else row["name"])
+            label = (
+                t("settings.gemini_model_label", name=row["name"], price=f"{row['price_in']:.2f}")
+                if row.get("price_in")
+                else row["name"]
+            )
         else:
             if row.get("tested"):
                 hears = row.get("hears")
             else:
                 hears = row.get("audio")
-            label = t("settings.model_label", name=row["name"],
-                      audio=t("settings.model_hears") if hears
-                      else t("settings.model_video_only"),
-                      price=f"{row.get('price_in', 0):.2f}")
+            label = t(
+                "settings.model_label",
+                name=row["name"],
+                audio=t("settings.model_hears") if hears else t("settings.model_video_only"),
+                price=f"{row.get('price_in', 0):.2f}",
+            )
         # v1.8.5: said FIRST, so it is heard before the details.
         if row["id"] in RECOMMENDED or f"google/{row['id']}" in RECOMMENDED:
             label = t("settings.model_recommended", label=label)
@@ -785,6 +878,7 @@ class SettingsDialog(wx.Dialog):
 
     def _fill_models(self, rows, selected: str) -> None:
         from ..core.model_catalog import recommended_rank
+
         # A list cached by an older version is in the old order.
         rows = sorted(rows, key=lambda r: recommended_rank(r["id"]))
         ids = [r["id"] for r in rows]
@@ -793,8 +887,7 @@ class SettingsDialog(wx.Dialog):
             rows = list(rows) + [{"id": selected}]
             ids.append(selected)
         self._model_catalog = ids
-        self._set_choice_labels(self.model_choice,
-                                [(r["id"], self._model_label(r)) for r in rows])
+        self._set_choice_labels(self.model_choice, [(r["id"], self._model_label(r)) for r in rows])
         if selected:
             self.model_choice.SetSelection(ids.index(selected))
         elif ids:
@@ -807,8 +900,11 @@ class SettingsDialog(wx.Dialog):
         values (the old Test Connection only asked for "OK")."""
         provider = self._selected_provider()
         custom = provider == "custom"
-        model = (self.custom_model_text.GetValue().strip() if custom
-                 else self._choice_value(self.model_choice))
+        model = (
+            self.custom_model_text.GetValue().strip()
+            if custom
+            else self._choice_value(self.model_choice)
+        )
         api_key = self.api_key_text.GetValue().strip()
         if not model:
             self._show_test_result(t("settings.probe_needs_model"))
@@ -823,29 +919,36 @@ class SettingsDialog(wx.Dialog):
         self._show_test_result(t("settings.probing_model", model=model))
 
         if provider == "glm":
+
             def work():
                 from ..core.model_catalog import probe_model, record_probe
+
                 result = probe_model(api_key, model)
                 record_probe(model, result)
                 wx.CallAfter(self._probe_done, model, result)
         else:
             from ..core.ai_engine import AIEngine
+
             engine = AIEngine()
             if custom:
                 engine.set_provider(
-                    "custom", api_key=api_key,
+                    "custom",
+                    api_key=api_key,
                     base_url=self.base_url_text.GetValue().strip(),
                     model=model,
-                    api_format=API_FORMATS[self.format_choice.GetSelection()][0])
+                    api_format=API_FORMATS[self.format_choice.GetSelection()][0],
+                )
             else:
                 engine.set_provider(provider, api_key=api_key, model=model)
 
             def work():
                 from ..core.model_catalog import probe_engine
+
                 result = probe_engine(engine, provider, model)
                 wx.CallAfter(self._probe_done, model, result)
 
         import threading
+
         threading.Thread(target=work, daemon=True).start()
 
     def _on_test_agent(self, event):
@@ -854,6 +957,7 @@ class SettingsDialog(wx.Dialog):
         model = self._choice_value(self.model_choice)
         api_key = self.api_key_text.GetValue().strip()
         from ..core.agent import AGENT_PROVIDERS
+
         if provider not in AGENT_PROVIDERS or not model:
             self._show_test_result(t("settings.agent_openrouter_only"))
             return
@@ -866,10 +970,10 @@ class SettingsDialog(wx.Dialog):
         def work():
             import asyncio
             from ..core.agent import probe
+
             loop = asyncio.new_event_loop()
             try:
-                result = loop.run_until_complete(
-                    probe(api_key, model, provider=provider))
+                result = loop.run_until_complete(probe(api_key, model, provider=provider))
             except Exception as e:
                 logger.warning("Agent test failed: %s", e)
                 result = {"ok": False, "error": str(e)}
@@ -878,6 +982,7 @@ class SettingsDialog(wx.Dialog):
             wx.CallAfter(self._test_agent_done, model, result)
 
         import threading
+
         threading.Thread(target=work, daemon=True).start()
 
     def _test_agent_done(self, model, result) -> None:
@@ -891,9 +996,11 @@ class SettingsDialog(wx.Dialog):
             text = t("settings.agent_pass", model=model)
         else:
             passed = [m for m in passed if m != model]
-            text = (t("settings.agent_error", model=model,
-                      error=user_error_text(result["error"]))
-                    if result.get("error") else t("settings.agent_fail", model=model))
+            text = (
+                t("settings.agent_error", model=model, error=user_error_text(result["error"]))
+                if result.get("error")
+                else t("settings.agent_fail", model=model)
+            )
         self.settings.set("ai.agent_models", passed)
         self._show_test_result(text)
 
@@ -903,16 +1010,15 @@ class SettingsDialog(wx.Dialog):
         self.probe_model_btn.Enable()
         if result["error"]:
             logger.warning("Probe of %s failed: %s", model, result["error"])
-            text = t("settings.probe_error", model=model,
-                     error=user_error_text(result["error"]))
+            text = t("settings.probe_error", model=model, error=user_error_text(result["error"]))
         elif result.get("picture"):
-            text = (t("settings.probe_sees_picture", model=model)
-                    if result["sees"] else
-                    t("settings.probe_blind", model=model,
-                      answer=result["answer"][:80]))
+            text = (
+                t("settings.probe_sees_picture", model=model)
+                if result["sees"]
+                else t("settings.probe_blind", model=model, answer=result["answer"][:80])
+            )
         elif not result["sees"]:
-            text = t("settings.probe_blind", model=model,
-                     answer=result["answer"][:80])
+            text = t("settings.probe_blind", model=model, answer=result["answer"][:80])
         elif result["hears"]:
             text = t("settings.probe_sees_hears", model=model)
         elif result["hears"] is None:
@@ -924,6 +1030,7 @@ class SettingsDialog(wx.Dialog):
             return
         # The label now reflects what was measured, not the catalog.
         from ..core.model_catalog import load_cache
+
         rows = load_cache()[0]
         if rows:
             self._fill_models(rows, model)
@@ -936,10 +1043,10 @@ class SettingsDialog(wx.Dialog):
         """
         try:
             from ..core.speech import get_speech
+
             speech = get_speech()
             if speech.available:
-                return t("settings.engine_screen_reader_named").format(
-                    backend=speech.backend_name)
+                return t("settings.engine_screen_reader_named").format(backend=speech.backend_name)
         except Exception as e:
             logger.debug("Could not name the screen reader: %s", e)
         return t("settings.engine_screen_reader")
@@ -1013,8 +1120,9 @@ class SettingsDialog(wx.Dialog):
             api_format = API_FORMATS[self.format_choice.GetSelection()][0]
             api_key = self.api_key_text.GetValue().strip()
             if not model:
-                wx.MessageBox(t("settings.enter_model_name"), t("settings.title"),
-                              wx.OK | wx.ICON_WARNING)
+                wx.MessageBox(
+                    t("settings.enter_model_name"), t("settings.title"), wx.OK | wx.ICON_WARNING
+                )
                 return
             config = self.settings.get_ai_provider("custom")
             config["api_key"] = api_key
@@ -1034,8 +1142,7 @@ class SettingsDialog(wx.Dialog):
 
         # Full-video mode (persisted for the processing pipeline; the
         # pipeline itself double-checks provider supports full-video).
-        self.settings.set(
-            "ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
+        self.settings.set("ai.video_mode", "full" if self.video_mode_cb.GetValue() else "frames")
         self.settings.set("ai.fast_mode", bool(self.fast_mode_cb.GetValue()))
         self.settings.set("ai.characters", bool(self.characters_cb.GetValue()))
 
@@ -1072,16 +1179,12 @@ class SettingsDialog(wx.Dialog):
         self.settings.set("general.frame_rate", int(fps))
 
         self.settings.set("general.frame_cap", int(self.frame_cap_spin.GetValue()))
-        self.settings.set("general.max_frame_gap",
-                          int(self.max_gap_spin.GetValue()))
+        self.settings.set("general.max_frame_gap", int(self.max_gap_spin.GetValue()))
 
-        self.settings.set("general.chunk_seconds",
-                          int(self.chunk_spin.GetValue()))
+        self.settings.set("general.chunk_seconds", int(self.chunk_spin.GetValue()))
 
-        self.settings.set("general.preserve_resolution",
-                          bool(self.preserve_res_check.GetValue()))
-        self.settings.set("updates.check_app_at_start",
-                          bool(self.app_update_check_cb.GetValue()))
+        self.settings.set("general.preserve_resolution", bool(self.preserve_res_check.GetValue()))
+        self.settings.set("updates.check_app_at_start", bool(self.app_update_check_cb.GetValue()))
 
         review_modes = ["off", "auto", "accurate", "most", "keep"]
         idx = self.review_choice.GetSelection()
@@ -1103,8 +1206,7 @@ class SettingsDialog(wx.Dialog):
             self.settings.set("general.output_dir", output_dir)
 
         self._load_values()
-        wx.MessageBox(t("settings.saved"), t("settings.title"),
-                      wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(t("settings.saved"), t("settings.title"), wx.OK | wx.ICON_INFORMATION)
         if self.IsModal():
             self.EndModal(wx.ID_OK)
         else:
@@ -1129,16 +1231,17 @@ class SettingsDialog(wx.Dialog):
         default_provider = self.settings.get("ai.default_provider", "") or "glm"
         # The dropdown shows friendly labels; map the stored machine id.
         self.provider_choice.SetStringSelection(
-            self._provider_labels.get(default_provider, default_provider))
+            self._provider_labels.get(default_provider, default_provider)
+        )
         self._on_provider_changed(None)  # Refresh model list + fields
-        self.fast_mode_cb.SetValue(
-            bool(self.settings.get("ai.fast_mode", False)))
+        self.fast_mode_cb.SetValue(bool(self.settings.get("ai.fast_mode", False)))
         self.characters_cb.SetValue(bool(self.settings.get("ai.characters", True)))
 
         # TTS
         default_tts = self.settings.get("tts.default_engine", "edge")
         self.tts_engine_choice.SetStringSelection(
-            self._choice_label(self.tts_engine_choice, default_tts))
+            self._choice_label(self.tts_engine_choice, default_tts)
+        )
         self._refresh_voice_list(default_tts)
         # Select saved voice by id (match display name)
         saved_voice = self.settings.get(f"tts.engines.{default_tts}.voice", "")
@@ -1160,14 +1263,12 @@ class SettingsDialog(wx.Dialog):
 
         # General
         lang = self.settings.get("general.language", "en")
-        self.lang_choice.SetStringSelection(
-            self._choice_label(self.lang_choice, lang))
+        self.lang_choice.SetStringSelection(self._choice_label(self.lang_choice, lang))
         # v1.5.2: description language selection
-        _dl = str(self.settings.get(
-            "general.description_language", "") or "")
+        _dl = str(self.settings.get("general.description_language", "") or "")
         self.desc_lang_choice.SetStringSelection(
-            self._choice_label(self.desc_lang_choice,
-                               _dl if _dl in ("ms", "en") else "system"))
+            self._choice_label(self.desc_lang_choice, _dl if _dl in ("ms", "en") else "system")
+        )
 
         fps = str(self.settings.get("general.frame_rate", 5))
         fps_items = [self.fps_choice.GetString(i) for i in range(self.fps_choice.GetCount())]
@@ -1175,27 +1276,25 @@ class SettingsDialog(wx.Dialog):
             self.fps_choice.SetStringSelection(fps)
 
         self.frame_cap_spin.SetValue(int(self.settings.get("general.frame_cap", 0) or 0))
-        self.max_gap_spin.SetValue(
-            int(self.settings.get("general.max_frame_gap", 30) or 0))
+        self.max_gap_spin.SetValue(int(self.settings.get("general.max_frame_gap", 30) or 0))
 
         chunk_val = int(self.settings.get("general.chunk_seconds", 300) or 300)
         self.chunk_spin.SetValue(max(60, chunk_val))
 
         review_modes = ["off", "auto", "accurate", "most", "keep"]
         saved = str(self.settings.get("general.review_mode", "off") or "off")
-        self.review_choice.SetSelection(
-            review_modes.index(saved) if saved in review_modes else 0)
+        self.review_choice.SetSelection(review_modes.index(saved) if saved in review_modes else 0)
 
-        self.preserve_res_check.SetValue(bool(self.settings.get(
-            "general.preserve_resolution", False)))
-        self.app_update_check_cb.SetValue(bool(self.settings.get(
-            "updates.check_app_at_start", True)))
+        self.preserve_res_check.SetValue(
+            bool(self.settings.get("general.preserve_resolution", False))
+        )
+        self.app_update_check_cb.SetValue(
+            bool(self.settings.get("updates.check_app_at_start", True))
+        )
 
         backends = ["auto", "whisper", "grok", "off"]
-        current = str(self.settings.get(
-            "general.transcription_backend", "auto") or "auto")
-        self.transcribe_choice.SetSelection(
-            backends.index(current) if current in backends else 0)
+        current = str(self.settings.get("general.transcription_backend", "auto") or "auto")
+        self.transcribe_choice.SetSelection(backends.index(current) if current in backends else 0)
         if (self.settings.get_ai_provider("xai") or {}).get("api_key"):
             self.xai_key_text.SetValue("*" * 12)
 
@@ -1204,5 +1303,3 @@ class SettingsDialog(wx.Dialog):
             self.output_text.SetValue(output_dir)
 
         I18n.set_language(lang)
-
-

@@ -1,15 +1,21 @@
 """Regression tests round 3: voice cache, ask-more history, apply close."""
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
+
 
 def check(name, fn):
     global ok, fail
@@ -21,6 +27,7 @@ def check(name, fn):
         print(f"FAIL: {name}: {e}")
         traceback.print_exc()
         fail += 1
+
 
 # 1. Edge voices cache: fetch once, second call served from cache
 def test_edge_voice_cache():
@@ -40,10 +47,17 @@ def test_edge_voice_cache():
     # failed on 6 Oct 2026 for a network blip, not a bug.
     async def counting_list_voices(*args, **kwargs):
         call_count["n"] += 1
-        return [{"ShortName": "en-US-AriaNeural", "Locale": "en-US",
-                 "Gender": "Female", "FriendlyName": "Aria"}]
+        return [
+            {
+                "ShortName": "en-US-AriaNeural",
+                "Locale": "en-US",
+                "Gender": "Female",
+                "FriendlyName": "Aria",
+            }
+        ]
 
     import edge_tts
+
     real_list_voices = edge_tts.list_voices
     edge_tts.list_voices = counting_list_voices
     try:
@@ -57,7 +71,10 @@ def test_edge_voice_cache():
         assert call_count["n"] == 1, f"list_voices called {call_count['n']} times, cache not used"
     finally:
         edge_tts.list_voices = real_list_voices
+
+
 check("EdgeTTSEngine voices cached after first fetch", test_edge_voice_cache)
+
 
 # 2. AskMoreDialog records assistant replies in history
 def test_askmore_history():
@@ -76,6 +93,7 @@ def test_askmore_history():
     dlg._on_submit(None)
     # Wait for background thread
     import time
+
     deadline = time.time() + 10
     while time.time() < deadline:
         if len(dlg._history) >= 2:
@@ -86,7 +104,10 @@ def test_askmore_history():
     assert dlg._history[1]["role"] == "assistant", dlg._history
     assert dlg._history[1]["content"] == "echo:hello?", dlg._history
     dlg.Destroy()
+
+
 check("AskMoreDialog stores assistant replies", test_askmore_history)
+
 
 # 3. AskMoreDialog history includes prior context in follow-up calls
 def test_askmore_context_passed():
@@ -103,10 +124,12 @@ def test_askmore_context_passed():
             return "ok"
 
     dlg = AskMoreDialog(None, FakeEngine())
-    dlg._history.extend([
-        {"role": "user", "content": "q1"},
-        {"role": "assistant", "content": "a1"},
-    ])
+    dlg._history.extend(
+        [
+            {"role": "user", "content": "q1"},
+            {"role": "assistant", "content": "a1"},
+        ]
+    )
     dlg.question_text.SetValue("q2")
     dlg._on_submit(None)
     deadline = time.time() + 10
@@ -116,7 +139,10 @@ def test_askmore_context_passed():
     h = received.get("history", [])
     assert {"role": "user", "content": "q1"} in h and {"role": "assistant", "content": "a1"} in h, h
     dlg.Destroy()
+
+
 check("AskMoreDialog passes prior context to AI", test_askmore_context_passed)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

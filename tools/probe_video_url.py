@@ -8,6 +8,7 @@ Steps:
 
 No GUI involved. Prints everything needed to decide size limits.
 """
+
 import base64
 import io
 import json
@@ -18,8 +19,9 @@ from pathlib import Path
 
 import requests
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.settings_store import SettingsStore
@@ -48,18 +50,37 @@ def main() -> int:
     mods = entry["architecture"]["input_modalities"]
     print(f"[2] catalog input_modalities = {mods}")
     if "video" not in mods:
-        print("PROBE_NOTE: catalog says NO video input for this model; "
-              "continuing anyway to observe the live error")
+        print(
+            "PROBE_NOTE: catalog says NO video input for this model; "
+            "continuing anyway to observe the live error"
+        )
 
     # 3. tiny synthetic video: 60 s, 640x360, 1 fps, h264
     mp4 = TMP / "probe_60s.mp4"
     if not mp4.exists() or mp4.stat().st_size < 10_000:
-        subprocess.run([
-            "ffmpeg", "-y", "-v", "error",
-            "-f", "lavfi", "-i", "testsrc=duration=60:size=640x360:rate=1",
-            "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "30", "-pix_fmt", "yuv420p", str(mp4),
-        ], check=True, timeout=300)
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=60:size=640x360:rate=1",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "30",
+                "-pix_fmt",
+                "yuv420p",
+                str(mp4),
+            ],
+            check=True,
+            timeout=300,
+        )
     size_mb = mp4.stat().st_size / 1e6
     print(f"[3] test video: {mp4.name} = {size_mb:.2f} MB")
 
@@ -70,17 +91,23 @@ def main() -> int:
     payload = {
         "model": model,
         "max_tokens": 6000,
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": (
-                    "This is a 60-second synthetic test pattern video. "
-                    "Reply with 3 short lines, each in the format "
-                    "'[MM:SS] description', describing what the pattern "
-                    "shows at those moments.")},
-                {"type": "video_url", "video_url": {"url": data_url}},
-            ],
-        }],
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "This is a 60-second synthetic test pattern video. "
+                            "Reply with 3 short lines, each in the format "
+                            "'[MM:SS] description', describing what the pattern "
+                            "shows at those moments."
+                        ),
+                    },
+                    {"type": "video_url", "video_url": {"url": data_url}},
+                ],
+            }
+        ],
     }
     headers = {
         "Authorization": f"Bearer {key}",
@@ -94,19 +121,16 @@ def main() -> int:
         print(f"PROBE_TRANSPORT_ERROR after {time.time() - t0:.0f}s: {e!r}")
         return 1
     dt = time.time() - t0
-    print(f"[5] HTTP {r.status_code} in {dt:.0f}s, "
-          f"response bytes = {len(r.content)}")
+    print(f"[5] HTTP {r.status_code} in {dt:.0f}s, response bytes = {len(r.content)}")
     try:
         body = r.json()
     except Exception:
-        print("PROBE_FAIL: non-JSON response:",
-              r.text[:500])
+        print("PROBE_FAIL: non-JSON response:", r.text[:500])
         return 1
 
     if r.status_code != 200:
         err = body.get("error", {})
-        print(f"PROBE_REJECTED: code={err.get('code')} "
-              f"message={err.get('message', '')[:400]}")
+        print(f"PROBE_REJECTED: code={err.get('code')} message={err.get('message', '')[:400]}")
         meta = body.get("metadata") or {}
         if meta:
             print(f"    metadata={json.dumps(meta)[:400]}")
@@ -121,12 +145,13 @@ def main() -> int:
     print(content[:1200])
     print("----")
     if reasoning:
-        print(f"(reasoning field present, {len(reasoning)} chars, "
-              f"preview: {reasoning[:300]!r})")
-    print(f"usage: prompt={usage.get('prompt_tokens')} "
-          f"completion={usage.get('completion_tokens')} "
-          f"total={usage.get('total_tokens')} "
-          f"details={json.dumps(usage.get('prompt_tokens_details', {}))}")
+        print(f"(reasoning field present, {len(reasoning)} chars, preview: {reasoning[:300]!r})")
+    print(
+        f"usage: prompt={usage.get('prompt_tokens')} "
+        f"completion={usage.get('completion_tokens')} "
+        f"total={usage.get('total_tokens')} "
+        f"details={json.dumps(usage.get('prompt_tokens_details', {}))}"
+    )
     print("PROBE_PASS")
     return 0
 

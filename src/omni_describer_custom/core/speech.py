@@ -41,11 +41,24 @@ logger = logging.getLogger(__name__)
 # Backends that are somebody's screen reader rather than a plain
 # synthesiser. When one of these is live the app must NOT duplicate
 # its announcements: the user already hears the focus change.
-_SCREEN_READER_BACKENDS = frozenset({
-    "NVDA", "JAWS", "ZDSR", "ZoomText", "BoyPCReader", "PCTalker",
-    "SenseReader", "SystemAccess", "WindowEyes", "Orca", "VoiceOver",
-    "SpeechDispatcher", "AndroidScreenReader", "UIA",
-})
+_SCREEN_READER_BACKENDS = frozenset(
+    {
+        "NVDA",
+        "JAWS",
+        "ZDSR",
+        "ZoomText",
+        "BoyPCReader",
+        "PCTalker",
+        "SenseReader",
+        "SystemAccess",
+        "WindowEyes",
+        "Orca",
+        "VoiceOver",
+        "SpeechDispatcher",
+        "AndroidScreenReader",
+        "UIA",
+    }
+)
 
 
 # Process image names for screen readers whose audio can be metered to
@@ -72,6 +85,7 @@ def _estimate_seconds(text: str) -> float:
     the description.
     """
     from .timeline_io import speaking_seconds
+
     return speaking_seconds(text, 1.0)
 
 
@@ -111,8 +125,7 @@ class PrismSpeech:
             forced = os.environ.get("ODC_PRISM_BACKEND", "").strip()
             if forced:
                 backend = ctx.create(ctx.id_of(forced))
-                logger.info("Prism backend forced to %s by "
-                            "ODC_PRISM_BACKEND", forced)
+                logger.info("Prism backend forced to %s by ODC_PRISM_BACKEND", forced)
             else:
                 backend = ctx.create_best()
             self._ctx = ctx
@@ -121,9 +134,11 @@ class PrismSpeech:
             self.backend_name = backend.name
             self.available = True
             logger.info(
-                "Prism speech ready: %s (screen reader: %s, can report "
-                "speaking: %s)", self.backend_name, self.is_screen_reader,
-                self.can_report_speaking)
+                "Prism speech ready: %s (screen reader: %s, can report speaking: %s)",
+                self.backend_name,
+                self.is_screen_reader,
+                self.can_report_speaking,
+            )
         except Exception as e:
             self.unavailable_reason = f"no usable backend ({e})"
             logger.info("Prism speech unavailable: %s", self.unavailable_reason)
@@ -166,6 +181,7 @@ class PrismSpeech:
         if not names:
             return None
         from . import audio_meter
+
         if not audio_meter.available():
             return None
         return audio_meter.ReaderMeter(names)
@@ -230,13 +246,16 @@ class PrismSpeech:
             # The meter must be ready BEFORE the speech starts, so it is
             # handed the speak call rather than following it.
             limit = min(timeout, max(15.0, _estimate_seconds(text) * 3))
-            outcome = meter.speak_and_wait(
-                lambda: self.speak(text, interrupt=True), limit)
+            outcome = meter.speak_and_wait(lambda: self.speak(text, interrupt=True), limit)
             # INFO, not DEBUG: whether the meter heard the end or fell
             # back to an estimate is the first question any report of
             # "the pause was wrong" will need answering.
-            logger.info("Speech end via audio meter on %s: %s (%.1fs)",
-                         self.backend_name, outcome, time.monotonic() - t0)
+            logger.info(
+                "Speech end via audio meter on %s: %s (%.1fs)",
+                self.backend_name,
+                outcome,
+                time.monotonic() - t0,
+            )
             if outcome == "not-spoken":
                 return False
             if outcome in ("finished", "timeout"):

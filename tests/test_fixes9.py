@@ -14,24 +14,31 @@ Closes the honest gap left by test_fixes8 (whose AI calls were stubbed):
    the modal dialog pump (proven separately on a real dialog in
    test_fixes7/8).
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, asyncio, traceback, tempfile, shutil, time
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
 _app = None  # keep a reference: an unreferenced wx.App is garbage collected
 
+
 def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -41,11 +48,26 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def make_jpeg(path: Path) -> None:
     subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
-         "-i", "color=black:s=64x64:d=0.1", "-frames:v", "1", str(path)],
-        capture_output=True, check=True)
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=black:s=64x64:d=0.1",
+            "-frames:v",
+            "1",
+            str(path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
 
 def make_video(path: Path) -> None:
     """Render a real 3-second mp4 of RANDOM noise frames with audio.
@@ -55,21 +77,52 @@ def make_video(path: Path) -> None:
     like testsrc collapse to one surviving frame - measured in probing).
     """
     import random
+
     w, h, fps, dur = 320, 240, 10, 3
     raw = Path(str(path) + ".raw")
     raw.write_bytes(random.randbytes(w * h * 3 * fps * dur))
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error",
-             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}",
-             "-r", str(fps), "-i", str(raw),
-             "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
-             "-map", "0:v", "-map", "1:a",
-             "-c:v", "mpeg4", "-q:v", "3", "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-shortest", str(path)],
-            capture_output=True, check=True)
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-s",
+                f"{w}x{h}",
+                "-r",
+                str(fps),
+                "-i",
+                str(raw),
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=3",
+                "-map",
+                "0:v",
+                "-map",
+                "1:a",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "3",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(path),
+            ],
+            capture_output=True,
+            check=True,
+        )
     finally:
         raw.unlink(missing_ok=True)
+
 
 class LoopbackAI:
     """A REAL HTTP server that speaks the OpenAI-compatible vision format.
@@ -77,6 +130,7 @@ class LoopbackAI:
     Runs in its own thread+loop. Records every request so tests can assert
     on the actual wire payload (auth header, model, JPEG bytes).
     """
+
     def __init__(self):
         self.hits = 0
         self.auth = None
@@ -104,9 +158,11 @@ class LoopbackAI:
             url = data["messages"][0]["content"][1]["image_url"]["url"]
             b64 = url.split("base64,", 1)[1]
             import base64
+
             self.jpeg_payloads.append(base64.b64decode(b64))
             return web.json_response(
-                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]})
+                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]}
+            )
 
         app = web.Application()
         app.router.add_post("/v1/chat/completions", handler)
@@ -133,6 +189,7 @@ class LoopbackAI:
             self._loop.call_soon_threadsafe(self._set_stop)
         self._thread.join(10)
 
+
 # 1. REAL HTTP: CustomProvider (real class, real aiohttp client) vs real server.
 def test_real_http_ai_roundtrip():
     srv = LoopbackAI()
@@ -145,16 +202,22 @@ def test_real_http_ai_roundtrip():
             paths.append(str(p))
 
         from omni_describer_custom.core.ai_engine import AIEngine
+
         engine = AIEngine()
-        engine.set_provider("custom", api_key="test-key-123",
-                            base_url=srv.base_url(), model="loop-model")
+        engine.set_provider(
+            "custom", api_key="test-key-123", base_url=srv.base_url(), model="loop-model"
+        )
 
         progress = []
+
         async def run():
             return await engine.describe_frames(
-                paths, "describe this frame",
+                paths,
+                "describe this frame",
                 on_progress=lambda d, t: progress.append((d, t)),
-                is_cancelled=lambda: False)
+                is_cancelled=lambda: False,
+            )
+
         descs = asyncio.run(run())
 
         assert srv.hits == 3, srv.hits
@@ -167,12 +230,19 @@ def test_real_http_ai_roundtrip():
     finally:
         srv.stop()
         shutil.rmtree(tmp, ignore_errors=True)
-check("REAL HTTP AI: wire format, auth, JPEG bytes, progress over the wire", test_real_http_ai_roundtrip)
+
+
+check(
+    "REAL HTTP AI: wire format, auth, JPEG bytes, progress over the wire",
+    test_real_http_ai_roundtrip,
+)
+
 
 # 2. REAL end-to-end acceptance: real video -> real extraction -> real AI
 #    HTTP -> real SQLite -> frames copied to project.
 def test_full_real_pipeline():
     import wx  # noqa: F401 (checks the name still exists)
+
     srv = LoopbackAI()
     tmp = tempfile.mkdtemp(prefix="e2e_")
     try:
@@ -184,18 +254,17 @@ def test_full_real_pipeline():
         from omni_describer_custom.ui.main_frame import MainFrame
 
         engine = AIEngine()
-        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
-                            model="loop-model")
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(), model="loop-model")
 
         frame = MainFrame()
         try:
             frame.ai_engine = engine
-            frame.project_store = ProjectStore(
-                projects_dir=str(Path(tmp) / "projects"))
+            frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
             frame.settings = {"general.frame_rate": 2, "general.min_description_gap": 0}
             frame._processing = True
 
             import glob
+
             before = set(glob.glob(str(Path(tempfile.gettempdir()) / "odc_frames_*")))
             frame._process_video(str(video), "describe each frame")
             after = set(glob.glob(str(Path(tempfile.gettempdir()) / "odc_frames_*")))
@@ -222,7 +291,13 @@ def test_full_real_pipeline():
     finally:
         srv.stop()
         shutil.rmtree(tmp, ignore_errors=True)
-check("REAL pipeline: mp4 -> ffmpeg frames -> HTTP AI -> SQLite -> permanent frames", test_full_real_pipeline)
+
+
+check(
+    "REAL pipeline: mp4 -> ffmpeg frames -> HTTP AI -> SQLite -> permanent frames",
+    test_full_real_pipeline,
+)
+
 
 # 3. THE end-user observable outcome: after the real pipeline, the Player
 #    window opens through the REAL _open_player path and shows real AI
@@ -230,6 +305,7 @@ check("REAL pipeline: mp4 -> ffmpeg frames -> HTTP AI -> SQLite -> permanent fra
 #    original complaint: empty player after the frame-deletion bug).
 def test_player_shows_real_descriptions():
     import wx
+
     srv = LoopbackAI()
     tmp = tempfile.mkdtemp(prefix="player_")
     try:
@@ -242,15 +318,13 @@ def test_player_shows_real_descriptions():
         from omni_describer_custom.ui.player_window import PlayerWindow
 
         engine = AIEngine()
-        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
-                            model="loop-model")
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(), model="loop-model")
 
         frame = MainFrame()
         player = None
         try:
             frame.ai_engine = engine
-            frame.project_store = ProjectStore(
-                projects_dir=str(Path(tmp) / "projects"))
+            frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
             frame.settings = {"general.frame_rate": 2, "general.min_description_gap": 0}
             frame._processing = True
             frame._process_video(str(video), "describe each frame")
@@ -265,13 +339,12 @@ def test_player_shows_real_descriptions():
             # Real path used by _processing_done: _open_player. We are on
             # the main GUI thread here, so call it synchronously.
             frame._open_player()
-            player = next(
-                (w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)),
-                None)
+            player = next((w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)), None)
             assert player is not None, "PlayerWindow never opened"
             text = player.current_desc_text.GetValue()
-            assert text and not text.startswith("No descriptions"), \
+            assert text and not text.startswith("No descriptions"), (
                 f"player looks EMPTY to the user: {text!r}"
+            )
             assert text.startswith("loopback desc"), text
             # Timeline shows the real ffprobe duration
             assert player.project.video_duration > 2.9
@@ -288,19 +361,27 @@ def test_player_shows_real_descriptions():
     finally:
         srv.stop()
         shutil.rmtree(tmp, ignore_errors=True)
-check("Player opens via real path and SHOWS real AI text (not empty)", test_player_shows_real_descriptions)
+
+
+check(
+    "Player opens via real path and SHOWS real AI text (not empty)",
+    test_player_shows_real_descriptions,
+)
+
 
 # 4. THE user's actual first action: a YouTube URL. One continuous run:
 #    real yt-dlp download -> real extraction -> loopback AI -> SQLite ->
 #    _processing_done auto-opens the real PlayerWindow with real text.
 def test_full_url_to_player():
     import subprocess as sp
+
     try:
         sp.run(["yt-dlp", "--version"], capture_output=True, check=True)
     except Exception:
         print("  (yt-dlp not on PATH, skipping)")
         return
     import wx
+
     srv = LoopbackAI()
     tmp = tempfile.mkdtemp(prefix="url2player_")
     player = None
@@ -312,17 +393,14 @@ def test_full_url_to_player():
         from omni_describer_custom.ui.player_window import PlayerWindow
 
         engine = AIEngine()
-        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
-                            model="loop-model")
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(), model="loop-model")
         frame = MainFrame()
         frame.ai_engine = engine
-        frame.project_store = ProjectStore(
-            projects_dir=str(Path(tmp) / "projects"))
+        frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
         frame.settings = {"general.frame_rate": 1, "general.min_description_gap": 0}
         frame._processing = True
 
-        frame._process_video("https://www.youtube.com/watch?v=jNQXAC9IVRw",
-                             "describe each frame")
+        frame._process_video("https://www.youtube.com/watch?v=jNQXAC9IVRw", "describe each frame")
         proj = frame.project_store.current
         assert proj is not None, "project not created from URL"
         assert proj.descriptions, "no descriptions from real URL pipeline"
@@ -341,9 +419,7 @@ def test_full_url_to_player():
         while player is None and time.monotonic() < deadline:
             wx.GetApp().ProcessPendingEvents()
             time.sleep(0.02)
-            player = next(
-                (w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)),
-                None)
+            player = next((w for w in wx.GetTopLevelWindows() if isinstance(w, PlayerWindow)), None)
         assert player is not None, "player did not auto-open"
         text = player.current_desc_text.GetValue()
         assert text.startswith("loopback desc"), f"player text: {text!r}"
@@ -360,7 +436,12 @@ def test_full_url_to_player():
             pass
         srv.stop()
         shutil.rmtree(tmp, ignore_errors=True)
-check("REAL YouTube URL -> download -> extract -> AI -> save -> player auto-opens", test_full_url_to_player)
+
+
+check(
+    "REAL YouTube URL -> download -> extract -> AI -> save -> player auto-opens",
+    test_full_url_to_player,
+)
 
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
@@ -371,4 +452,5 @@ print(f"TOTAL: {ok} passed, {fail} failed")
 sys.stdout.flush()
 sys.stderr.flush()
 import os
+
 os._exit(1 if fail else 0)

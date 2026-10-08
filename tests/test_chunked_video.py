@@ -1,6 +1,7 @@
 """Unit tests for chunked full-video mode (split long videos into
 parts, upload part by part, offset timestamps by part start).
 Run: python tests/test_chunked_video.py  → prints PASS lines."""
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import base64
@@ -12,8 +13,10 @@ import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.ai_engine import (
@@ -27,16 +30,32 @@ def _make_video(seconds: int) -> str:
     d = tempfile.mkdtemp(prefix="odc_chunktest_")
     out = Path(d) / f"clip{seconds}.mp4"
     subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
-         "-i", f"testsrc=duration={seconds}:size=320x240:rate=10",
-         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-         str(out)],
-        check=True, timeout=120)
+        [
+            "ffmpeg",
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=duration={seconds}:size=320x240:rate=10",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            str(out),
+        ],
+        check=True,
+        timeout=120,
+    )
     return str(out)
 
 
 class _Loopback(HTTPServer):
     """Records the last request body for assertions."""
+
     last_body = None
 
 
@@ -50,8 +69,9 @@ class _Handler(BaseHTTPRequestHandler):
             _Loopback.last_body = body_in
         # Reply with lines at part-local times 0:01 and 0:03.
         body = {
-            "id": "x", "choices": [{"message": {
-                "content": "[0:01] part event a\n[0:03] part event b"}}]}
+            "id": "x",
+            "choices": [{"message": {"content": "[0:01] part event a\n[0:03] part event b"}}],
+        }
         data = json.dumps(body).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -68,8 +88,7 @@ def main() -> int:
     assert Path(video).stat().st_size > 0
     srv = _Loopback(("127.0.0.1", 0), _Handler)
     port = srv.server_address[1]
-    threading_ok = __import__("threading").Thread(
-        target=srv.serve_forever, daemon=True)
+    threading_ok = __import__("threading").Thread(target=srv.serve_forever, daemon=True)
     threading_ok.start()
 
     eng = AIEngine()
@@ -83,7 +102,8 @@ def main() -> int:
 
     async def run() -> list[tuple[float, str]]:
         return await eng.describe_video_full(
-            video, "p",
+            video,
+            "p",
             on_status=statuses.append,
             on_part=lambda i, n: parts.append((i, n)),
             on_split_progress=splits.append,
@@ -109,8 +129,9 @@ def main() -> int:
     body = _Loopback.last_body
     blocks = body["messages"][0]["content"]
     vids = [b for b in blocks if b.get("type") == "video_url"]
-    assert vids and vids[0]["video_url"]["url"].startswith(
-        "data:video/mp4;base64,"), "no video_url in request"
+    assert vids and vids[0]["video_url"]["url"].startswith("data:video/mp4;base64,"), (
+        "no video_url in request"
+    )
     b64 = vids[0]["video_url"]["url"].split(",", 1)[1]
     raw = base64.b64decode(b64)
     # MP4 boxes: 4-byte size then 'ftyp' (brand may be isom/mp42/...).
@@ -121,7 +142,9 @@ def main() -> int:
     assert splits, "no on_split_progress ticks at all"
     assert splits[-1] == 100.0, splits[-5:]
     assert all(a <= b for a, b in zip(splits, splits[1:], strict=False)), (
-        "non-monotonic split progress", splits)
+        "non-monotonic split progress",
+        splits,
+    )
     # Part-completion ticks must be present: 3 parts → 40, 70, 100
     # (the split phase itself already reaches ~10%).
     for expected in (40.0, 70.0, 100.0):

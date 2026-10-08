@@ -30,8 +30,7 @@ def all_dbs(projects_dir: Path = REAL_PROJECTS) -> list[Path]:
     v1.7.6 moved them from "project_48.db" into "<name> (48)/project.db";
     a bare glob("*.db") finds nothing in the new layout.
     """
-    found = list(projects_dir.glob("project_*.db")) + \
-        list(projects_dir.glob("*/project.db"))
+    found = list(projects_dir.glob("project_*.db")) + list(projects_dir.glob("*/project.db"))
     return sorted(found, key=lambda p: p.stat().st_mtime)
 
 
@@ -64,8 +63,10 @@ class ProjectsGuard:
                 if self.store.delete_project(row["id"]):
                     removed.append(row["id"])
                 else:
-                    print(f"could not remove test project {row['id']} "
-                          f"({row['name']}) — a file in it is still open")
+                    print(
+                        f"could not remove test project {row['id']} "
+                        f"({row['name']}) — a file in it is still open"
+                    )
         if removed:
             print(f"removed this run's test project(s): {removed}")
         return removed

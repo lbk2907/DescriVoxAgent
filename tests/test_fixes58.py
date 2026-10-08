@@ -10,6 +10,7 @@
    handler test replaced the dialog, so the line never ran. This checks
    every `wx.<Name>` in the source against the real wxPython.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ast
 import io
@@ -18,10 +19,14 @@ import sys
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 
 ROOT = Path(__file__).resolve().parent.parent
 results: list[tuple[str, bool]] = []
@@ -44,27 +49,34 @@ def test_every_test_isolates_first():
         if p.name in ("isolate.py", "test_build_smoke.py"):
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
-        imports = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))
-                   and getattr(n, "module", None) != "__future__"]
-        if not imports or not (isinstance(imports[0], ast.Import)
-                               and imports[0].names[0].name == "isolate"):
+        imports = [
+            n
+            for n in tree.body
+            if isinstance(n, (ast.Import, ast.ImportFrom))
+            and getattr(n, "module", None) != "__future__"
+        ]
+        if not imports or not (
+            isinstance(imports[0], ast.Import) and imports[0].names[0].name == "isolate"
+        ):
             bad.append(p.name)
     assert not bad, f"these tests can touch the owner's real data: {bad}"
 
 
 def test_isolate_sets_every_variable():
     import os
-    for name in ("ODC_CONFIG_DIR", "ODC_PROJECTS_DIR", "ODC_LOCALES_DIR",
-                 "ODC_TOOLS_DIR"):
+
+    for name in ("ODC_CONFIG_DIR", "ODC_PROJECTS_DIR", "ODC_LOCALES_DIR", "ODC_TOOLS_DIR"):
         assert os.environ.get(name), name
     sys.path.insert(0, str(ROOT / "src"))
     from omni_describer_custom.core.settings_store import _get_config_dir
+
     assert Path(os.environ["ODC_CONFIG_DIR"]) == Path(_get_config_dir())
 
 
 def test_every_wx_name_exists():
     import importlib
     import wx
+
     for sub in ("adv", "html", "lib", "media", "richtext", "grid", "dataview"):
         try:
             importlib.import_module(f"wx.{sub}")
@@ -84,10 +96,8 @@ def test_every_wx_name_exists():
 
 
 def main() -> int:
-    check("every test isolates the owner's data first",
-          test_every_test_isolates_first)
-    check("isolate sets config, projects, locales and tools",
-          test_isolate_sets_every_variable)
+    check("every test isolates the owner's data first", test_every_test_isolates_first)
+    check("isolate sets config, projects, locales and tools", test_isolate_sets_every_variable)
     check("every wx.<Name> in the source exists", test_every_wx_name_exists)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

@@ -61,18 +61,32 @@ SCRIPTS = {
     },
 }
 
-VAD = {"threshold": 0.3, "min_speech_duration_ms": 100,
-       "speech_pad_ms": 400}
+VAD = {"threshold": 0.3, "min_speech_duration_ms": 100, "speech_pad_ms": 400}
 
 CONFIGS = [
-    ("base  current", "base",
-     dict(beam_size=1)),
-    ("base  temp0+VAD", "base",
-     dict(beam_size=1, temperature=0.0, condition_on_previous_text=False,
-          vad_filter=True, vad_parameters=VAD)),
-    ("small temp0+VAD", "small",
-     dict(beam_size=1, temperature=0.0, condition_on_previous_text=False,
-          vad_filter=True, vad_parameters=VAD)),
+    ("base  current", "base", dict(beam_size=1)),
+    (
+        "base  temp0+VAD",
+        "base",
+        dict(
+            beam_size=1,
+            temperature=0.0,
+            condition_on_previous_text=False,
+            vad_filter=True,
+            vad_parameters=VAD,
+        ),
+    ),
+    (
+        "small temp0+VAD",
+        "small",
+        dict(
+            beam_size=1,
+            temperature=0.0,
+            condition_on_previous_text=False,
+            vad_filter=True,
+            vad_parameters=VAD,
+        ),
+    ),
 ]
 
 # Whisper's own threshold for "this text is a repeat loop".
@@ -82,13 +96,16 @@ RUNS = 2
 
 # ── Building the clips ───────────────────────────────────────────
 
+
 async def _speak(text: str, voice: str, out: Path) -> None:
     import edge_tts
+
     await edge_tts.Communicate(text, voice).save(str(out))
 
 
 def _ffmpeg() -> str:
     from omni_describer_custom.core.tools import find_tool
+
     return find_tool("ffmpeg")
 
 
@@ -111,22 +128,41 @@ def build_tts_clip(name: str, spec: dict) -> Path:
         # +1 because input 0 is the still picture; pointing the filter
         # at [0:a] asked the video for an audio track it does not have
         # and ffmpeg failed the whole command.
-        filters.append(f"[{index + 1}:a]adelay={int(at * 1000)}|"
-                       f"{int(at * 1000)}[d{index}]")
+        filters.append(f"[{index + 1}:a]adelay={int(at * 1000)}|{int(at * 1000)}[d{index}]")
     mix = "".join(f"[d{i}]" for i in range(len(pieces)))
     filters.append(f"{mix}amix=inputs={len(pieces)}:normalize=0[a]")
 
     out = BENCH / f"{name}.mp4"
-    cmd = [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
-           "-f", "lavfi", "-i", "color=c=navy:s=320x240:d=40"]
+    cmd = [
+        _ffmpeg(),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=navy:s=320x240:d=40",
+    ]
     cmd += inputs
-    cmd += ["-filter_complex", ";".join(filters),
-            "-map", "0:v", "-map", "[a]",
-            "-c:v", "libx264", "-t", "40", "-shortest", str(out)]
+    cmd += [
+        "-filter_complex",
+        ";".join(filters),
+        "-map",
+        "0:v",
+        "-map",
+        "[a]",
+        "-c:v",
+        "libx264",
+        "-t",
+        "40",
+        "-shortest",
+        str(out),
+    ]
     subprocess.run(cmd, check=True, capture_output=True)
     (BENCH / f"{name}.truth.json").write_text(
-        json.dumps({"lines": spec["lines"], "duration": 40.0}, indent=2),
-        encoding="utf-8")
+        json.dumps({"lines": spec["lines"], "duration": 40.0}, indent=2), encoding="utf-8"
+    )
     return out
 
 
@@ -142,8 +178,8 @@ def build_clips(source: str = "") -> list[Path]:
             # Clip kept, ground truth missing: write it, or the
             # accuracy column reads "-" and nobody notices why.
             (BENCH / f"{name}.truth.json").write_text(
-                json.dumps({"lines": spec["lines"], "duration": 40.0},
-                           indent=2), encoding="utf-8")
+                json.dumps({"lines": spec["lines"], "duration": 40.0}, indent=2), encoding="utf-8"
+            )
         built.append(clip)
 
     # Every other clip already in the folder. Cutting three pieces out
@@ -160,8 +196,10 @@ def build_clips(source: str = "") -> list[Path]:
 
 # ── Measuring ────────────────────────────────────────────────────
 
+
 def transcribe(clip: Path, model_size: str, kw: dict):
     from faster_whisper import WhisperModel
+
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     segments, _ = model.transcribe(str(clip), **kw)
     return [s for s in segments if s.text and s.text.strip()]
@@ -170,10 +208,21 @@ def transcribe(clip: Path, model_size: str, kw: dict):
 def _duration(clip: Path) -> float:
     """Real length, because the clips are no longer all the same."""
     from omni_describer_custom.core.tools import find_tool
+
     out = subprocess.run(
-        [find_tool("ffprobe"), "-v", "error", "-show_entries",
-         "format=duration", "-of", "default=nw=1:nk=1", str(clip)],
-        capture_output=True, text=True)
+        [
+            find_tool("ffprobe"),
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nw=1:nk=1",
+            str(clip),
+        ],
+        capture_output=True,
+        text=True,
+    )
     try:
         return float(out.stdout.strip().splitlines()[0])
     except (ValueError, IndexError):
@@ -230,10 +279,8 @@ def _speech_spans(name: str) -> list[tuple[float, float]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--build", action="store_true",
-                        help="only build the clips")
-    parser.add_argument("--source", default="",
-                        help="a real video to cut extra clips from")
+    parser.add_argument("--build", action="store_true", help="only build the clips")
+    parser.add_argument("--source", default="", help="a real video to cut extra clips from")
     args = parser.parse_args()
 
     print("Building clips ...", flush=True)
@@ -242,9 +289,11 @@ def main() -> int:
     if args.build:
         return 0
 
-    print(f"{'clip':<14}{'config':<18}{'segments':>12}{'coverage':>16}"
-          f"{'spread':>8}{'halluc':>8}{'false silence':>15}{'secs':>7}",
-          flush=True)
+    print(
+        f"{'clip':<14}{'config':<18}{'segments':>12}{'coverage':>16}"
+        f"{'spread':>8}{'halluc':>8}{'false silence':>15}{'secs':>7}",
+        flush=True,
+    )
     print("-" * 100, flush=True)
 
     for clip in clips:
@@ -256,21 +305,24 @@ def main() -> int:
                 try:
                     found = transcribe(clip, size, kw)
                 except Exception as e:
-                    print(f"{clip.stem:<14}{label:<18}  ERROR "
-                          f"{type(e).__name__}: {str(e)[:40]}", flush=True)
+                    print(
+                        f"{clip.stem:<14}{label:<18}  ERROR {type(e).__name__}: {str(e)[:40]}",
+                        flush=True,
+                    )
                     found = []
                 counts.append(len(found))
-                covs.append(sum(s.end - s.start for s in found)
-                            / duration * 100)
+                covs.append(sum(s.end - s.start for s in found) / duration * 100)
                 halluc += sum(
-                    1 for s in found
-                    if getattr(s, "compression_ratio", 0) > COMPRESSION_LIMIT)
+                    1 for s in found if getattr(s, "compression_ratio", 0) > COMPRESSION_LIMIT
+                )
                 errs = gap_error(found, clip.stem, duration)
             spread = max(covs) - min(covs) if covs else 0
-            print(f"{clip.stem:<14}{label:<18}{str(counts):>12}"
-                  f"{str([round(c) for c in covs]):>16}{spread:7.0f}pp"
-                  f"{halluc:8d}{errs:>15}{time.monotonic() - t0:7.0f}",
-                  flush=True)
+            print(
+                f"{clip.stem:<14}{label:<18}{str(counts):>12}"
+                f"{str([round(c) for c in covs]):>16}{spread:7.0f}pp"
+                f"{halluc:8d}{errs:>15}{time.monotonic() - t0:7.0f}",
+                flush=True,
+            )
         print(flush=True)
     return 0
 

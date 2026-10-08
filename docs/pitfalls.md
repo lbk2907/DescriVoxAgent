@@ -444,3 +444,12 @@ would also have accepted a browser or a terminal. The main-window check
 (`nvda_accessibility_check.py --frozen`) needed the same front-and-wait step for the
 2.1.3 release: safe_keys refused its first Tab while Claude was in front.
 
+### 104. A test that reads source text must ignore whitespace
+
+8 Oct 2026 (phase 37.5): `ruff format` changed no file's meaning (the AST of
+all 182 files was identical), yet two tests failed: test_fixes23 and
+test_fixes65 looked for an exact substring of `main_frame.py` /
+`player_window.py`, and the formatter had wrapped that call onto two lines. An
+AST comparison cannot catch this. A test that checks source text strips the
+whitespace first (`"".join(src.split())`) and compares against a
+whitespace-free needle; better still, test the behaviour.

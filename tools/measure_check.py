@@ -31,15 +31,23 @@ def judge(contract: dict, digest: str, results: dict, frozen_at: str) -> C.Verdi
     v = C.Verdict(contract["contract_id"], digest)
     created = str(results.get("created", ""))
     if not created or created < frozen_at:
-        v.results.append(C.Result("frozen_first", C.UNKNOWN,
-                                  f"results ({created or 'no time'}) are older than the "
-                                  f"contract ({frozen_at}) - freeze the rule BEFORE measuring"))
+        v.results.append(
+            C.Result(
+                "frozen_first",
+                C.UNKNOWN,
+                f"results ({created or 'no time'}) are older than the "
+                f"contract ({frozen_at}) - freeze the rule BEFORE measuring",
+            )
+        )
         return v
     v.results.append(C.Result("frozen_first", C.PASS, f"contract {frozen_at}, results {created}"))
     runs = int(results.get("runs", 0))
     need = int(contract.get("min_runs", 1))
-    v.results.append(C.Result("enough_runs", C.PASS if runs >= need else C.UNKNOWN,
-                              f"{runs} run(s), {need} needed"))
+    v.results.append(
+        C.Result(
+            "enough_runs", C.PASS if runs >= need else C.UNKNOWN, f"{runs} run(s), {need} needed"
+        )
+    )
     for m in contract.get("metrics", []):
         req = bool(m.get("required", True))
         got = results.get("metrics", {}).get(m["metric"])
@@ -61,8 +69,14 @@ def judge(contract: dict, digest: str, results: dict, frozen_at: str) -> C.Verdi
             continue
         ok = ("min" not in m or value >= m["min"]) and ("max" not in m or value <= m["max"])
         bound = " ".join(f"{k} {m[k]}" for k in ("min", "max") if k in m)
-        v.results.append(C.Result(m["id"], C.PASS if ok else C.FAIL,
-                                  f"{m['metric']} {m['compare']} = {value:.2f} ({bound})", req))
+        v.results.append(
+            C.Result(
+                m["id"],
+                C.PASS if ok else C.FAIL,
+                f"{m['metric']} {m['compare']} = {value:.2f} ({bound})",
+                req,
+            )
+        )
     return v
 
 

@@ -8,6 +8,7 @@ output with ffmpeg's -fs flag, which stops the muxer at the exact size.
 Duration and frame count stay fixed (60 frames) so prompt tokens stay
 ~9k per request (<1 cent each). Climb until rejection.
 """
+
 import base64
 import io
 import subprocess
@@ -17,8 +18,9 @@ from pathlib import Path
 
 import requests
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.settings_store import SettingsStore
@@ -31,15 +33,35 @@ TARGETS_MB = [8, 24, 48, 96, 150]
 
 
 def make_video(path: Path, target_mb: int) -> float:
-    subprocess.run([
-        "ffmpeg", "-y", "-v", "error",
-        "-f", "lavfi",
-        "-i", "nullsrc=s=1920x1080:r=1",
-        "-vf", "noise=alls=100:allf=t",
-        "-t", "60",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "0",
-        "-pix_fmt", "yuv420p", "-fs", f"{target_mb}M", str(path),
-    ], check=True, timeout=1800)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "nullsrc=s=1920x1080:r=1",
+            "-vf",
+            "noise=alls=100:allf=t",
+            "-t",
+            "60",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            "-fs",
+            f"{target_mb}M",
+            str(path),
+        ],
+        check=True,
+        timeout=1800,
+    )
     return path.stat().st_size / 1e6
 
 
@@ -60,28 +82,36 @@ def main() -> int:
         payload = {
             "model": model,
             "max_tokens": 3000,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": (
-                        "Reply with exactly one line in the format "
-                        "'[MM:SS] what you see'. Nothing else.")},
-                    {"type": "video_url",
-                     "video_url": {"url": f"data:video/mp4;base64,{b64}"}},
-                ],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Reply with exactly one line in the format "
+                                "'[MM:SS] what you see'. Nothing else."
+                            ),
+                        },
+                        {"type": "video_url", "video_url": {"url": f"data:video/mp4;base64,{b64}"}},
+                    ],
+                }
+            ],
         }
-        headers = {"Authorization": f"Bearer {key}",
-                   "Content-Type": "application/json"}
-        print(f"== target {target}MB -> file {actual:.1f}MB, "
-              f"payload {payload_mb:.1f}MB; uploading...", flush=True)
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        print(
+            f"== target {target}MB -> file {actual:.1f}MB, "
+            f"payload {payload_mb:.1f}MB; uploading...",
+            flush=True,
+        )
         t0 = time.time()
         try:
-            r = requests.post(CHAT, headers=headers, json=payload,
-                              timeout=1800)
+            r = requests.post(CHAT, headers=headers, json=payload, timeout=1800)
         except Exception as e:
-            print(f"   TRANSPORT ERROR after {time.time() - t0:.0f}s: "
-                  f"{type(e).__name__}: {str(e)[:200]}")
+            print(
+                f"   TRANSPORT ERROR after {time.time() - t0:.0f}s: "
+                f"{type(e).__name__}: {str(e)[:200]}"
+            )
             mp4.unlink(missing_ok=True)
             return 0
         dt = time.time() - t0
@@ -92,18 +122,21 @@ def main() -> int:
         if r.status_code == 200 and "error" not in body:
             usage = body.get("usage", {})
             cost = usage.get("prompt_tokens", 0) * 0.000000075
-            print(f"   HTTP 200 in {dt:.0f}s, "
-                  f"prompt_tokens={usage.get('prompt_tokens')} "
-                  f"(~${cost:.4f})")
+            print(
+                f"   HTTP 200 in {dt:.0f}s, "
+                f"prompt_tokens={usage.get('prompt_tokens')} "
+                f"(~${cost:.4f})"
+            )
             mp4.unlink(missing_ok=True)
             continue
         err = body.get("error", {})
-        print(f"   REJECTED HTTP {r.status_code} code={err.get('code')} "
-              f"after {dt:.0f}s: {str(err.get('message') or '')[:300]}")
+        print(
+            f"   REJECTED HTTP {r.status_code} code={err.get('code')} "
+            f"after {dt:.0f}s: {str(err.get('message') or '')[:300]}"
+        )
         mp4.unlink(missing_ok=True)
         return 0
-    print("ALL TARGETS OK - limit is above "
-          f"{TARGETS_MB[-1]}MB files")
+    print(f"ALL TARGETS OK - limit is above {TARGETS_MB[-1]}MB files")
     return 0
 
 

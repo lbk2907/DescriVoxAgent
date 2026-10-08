@@ -99,6 +99,11 @@ interface stays in English and Malay.
 | `ODC_LOCALES_DIR` | user language files |
 | `ODC_PRISM_BACKEND` | forces a speech backend (SAPI, NVDA, OneCore) |
 
+- Style: `ruff format .` (standard style, line length 100) and `ruff check .`
+  (bug-catching rules, `pyproject.toml`). CI runs both. The one-off commit
+  that formatted the whole repo (phase 37.5) is listed in
+  `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile
+  .git-blame-ignore-revs` once so local `git blame` skips it too.
 - Type checking is optional and not part of the gate: `pyrightconfig.json`
   tells pyright (and editors or agents that use it as a language server)
   that tests and tools import from `src`, `tools` and `tests`, because the

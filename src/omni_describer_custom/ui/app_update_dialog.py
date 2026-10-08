@@ -28,32 +28,38 @@ logger = logging.getLogger(__name__)
 
 
 class AppUpdateDialog(wx.Dialog):
-    def __init__(self, parent, settings=None, release=None,
-                 check_on_open: bool = True):
-        super().__init__(parent, title=t("app_update.title"), size=(600, 460),
-                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    def __init__(self, parent, settings=None, release=None, check_on_open: bool = True):
+        super().__init__(
+            parent,
+            title=t("app_update.title"),
+            size=(600, 460),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self.settings = settings
         self.release: app_update.Release | None = release
-        self.staged = None      # set when a verified update is unpacked
+        self.staged = None  # set when a verified update is unpacked
         self._busy = False
         self._spoken_quarter = -1
 
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(wx.StaticText(panel, label=t("app_update.status_label")),
-                  0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("app_update.status_label")), 0, wx.ALL, 5)
         self.status_box = wx.TextCtrl(
-            panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(-1, 90),
-            name=t("app_update.status_label"))
+            panel,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            size=(-1, 90),
+            name=t("app_update.status_label"),
+        )
         sizer.Add(self.status_box, 0, wx.ALL | wx.EXPAND, 5)
-        self.gauge = wx.Gauge(panel, range=100,
-                              name=t("app_update.progress_label"))
+        self.gauge = wx.Gauge(panel, range=100, name=t("app_update.progress_label"))
         sizer.Add(self.gauge, 0, wx.ALL | wx.EXPAND, 5)
-        sizer.Add(wx.StaticText(panel, label=t("app_update.notes_label")),
-                  0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, label=t("app_update.notes_label")), 0, wx.ALL, 5)
         self.notes_box = wx.TextCtrl(
-            panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(-1, 160),
-            name=t("app_update.notes_label"))
+            panel,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            size=(-1, 160),
+            name=t("app_update.notes_label"),
+        )
         sizer.Add(self.notes_box, 1, wx.ALL | wx.EXPAND, 5)
 
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -62,8 +68,7 @@ class AppUpdateDialog(wx.Dialog):
         self.skip_btn = wx.Button(panel, label=t("app_update.skip_btn"))
         self.check_btn = wx.Button(panel, label=t("app_update.check_btn"))
         self.close_btn = wx.Button(panel, wx.ID_CLOSE, t("close"))
-        for btn in (self.install_btn, self.page_btn, self.skip_btn,
-                    self.check_btn):
+        for btn in (self.install_btn, self.page_btn, self.skip_btn, self.check_btn):
             row.Add(btn, 0, wx.ALL, 5)
         row.AddStretchSpacer()
         row.Add(self.close_btn, 0, wx.ALL, 5)
@@ -74,8 +79,7 @@ class AppUpdateDialog(wx.Dialog):
         self.page_btn.Bind(wx.EVT_BUTTON, lambda e: self.open_page())
         self.skip_btn.Bind(wx.EVT_BUTTON, lambda e: self.skip_version())
         self.check_btn.Bind(wx.EVT_BUTTON, lambda e: self.start_check())
-        self.close_btn.Bind(wx.EVT_BUTTON,
-                            lambda e: self.EndModal(wx.ID_CLOSE))
+        self.close_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CLOSE))
         self.SetEscapeId(wx.ID_CLOSE)
         self._refresh_buttons()
 
@@ -96,6 +100,7 @@ class AppUpdateDialog(wx.Dialog):
             self.status_box.SetFocus()
         try:
             from ..core.speech import announce
+
             announce(text)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -142,6 +147,7 @@ class AppUpdateDialog(wx.Dialog):
             self._refresh_buttons()
             self.notes_box.SetValue("")
             from .. import __version__
+
             self._announce(t("app_update.up_to_date", version=__version__))
         else:
             self.show_release(release)
@@ -150,11 +156,11 @@ class AppUpdateDialog(wx.Dialog):
         if not self:
             return
         from .. import __version__
+
         self.release = release
         self._refresh_buttons()
         self.notes_box.SetValue(release.notes or t("app_update.no_notes"))
-        self._announce(t("app_update.available", latest=release.version,
-                         current=__version__))
+        self._announce(t("app_update.available", latest=release.version, current=__version__))
 
     # ── Other buttons ────────────────────────────────────────────
 
@@ -186,14 +192,12 @@ class AppUpdateDialog(wx.Dialog):
         self._set_busy(True)
         self._spoken_quarter = -1
         self.gauge.SetValue(0)
-        self._announce(t("app_update.downloading", version=release.version,
-                         percent=0))
+        self._announce(t("app_update.downloading", version=release.version, percent=0))
 
         def progress(done: int, total: int) -> None:
             total = total or release.zip_size
             if total:
-                wx.CallAfter(self._progress, release.version,
-                             min(100, int(done * 100 / total)))
+                wx.CallAfter(self._progress, release.version, min(100, int(done * 100 / total)))
 
         def work():
             try:
@@ -235,9 +239,10 @@ class AppUpdateDialog(wx.Dialog):
         self.staged = staged
         self._announce(t("app_update.verified", version=release.version))
         from .dialogs import ask_yes_no
-        if ask_yes_no(self, t("app_update.ready_question",
-                              version=release.version),
-                      t("app_update.title")):
+
+        if ask_yes_no(
+            self, t("app_update.ready_question", version=release.version), t("app_update.title")
+        ):
             # The main window restarts the app once this dialog is gone.
             self.EndModal(wx.ID_OK)
         else:

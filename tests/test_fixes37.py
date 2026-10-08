@@ -24,6 +24,7 @@ Each check pins a defect found by running it, not by reading:
 
 No network. bin/ffmpeg.exe synthesises the one real video used.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -34,10 +35,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -47,7 +52,9 @@ os.environ.setdefault("ODC_CONFIG_DIR", str(TMP / "config"))
 from omni_describer_custom.core import timeline_io as T  # noqa: E402
 from omni_describer_custom.core import video_processor as VPM  # noqa: E402
 from omni_describer_custom.core.project_store import (  # noqa: E402
-    Description as D, ProjectStore)
+    Description as D,
+    ProjectStore,
+)
 from omni_describer_custom.core.video_processor import VideoProcessor  # noqa: E402
 
 FFMPEG = ROOT / "bin" / "ffmpeg.exe"
@@ -92,17 +99,35 @@ def _write(name, data):
 # 1 ────────────────────────────────────────────────────────────────
 def test_frames_past_9999_keep_their_order():
     import subprocess
+
     if not FFMPEG.exists():
         raise AssertionError(f"bundled ffmpeg missing: {FFMPEG}")
     src = TMP / "hf.mp4"
     # 1000 fps for 10.02 s = 10,020 frames: past 9,999 in seconds.
-    subprocess.run([str(FFMPEG), "-v", "error", "-y", "-f", "lavfi", "-i",
-                    "color=c=gray:size=16x16:rate=1000:duration=10.02",
-                    "-c:v", "libx264", "-preset", "ultrafast", str(src)],
-                   check=True, timeout=120)
-    frames = asyncio.run(_vp().extract_frames(
-        str(src), fps=1000, output_dir=str(TMP / "hf_frames"),
-        detect_scene_changes=False))
+    subprocess.run(
+        [
+            str(FFMPEG),
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=gray:size=16x16:rate=1000:duration=10.02",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            str(src),
+        ],
+        check=True,
+        timeout=120,
+    )
+    frames = asyncio.run(
+        _vp().extract_frames(
+            str(src), fps=1000, output_dir=str(TMP / "hf_frames"), detect_scene_changes=False
+        )
+    )
     assert len(frames) > 9999, len(frames)
     for i, f in enumerate(frames):
         number = int(Path(f.path).stem.split("_")[1])
@@ -113,24 +138,25 @@ def test_frames_past_9999_keep_their_order():
 
 
 def test_frame_sort_key_is_numeric():
-    names = ["frame_1001.jpg", "frame_10000.jpg", "frame_1000.jpg",
-             "frame_0002.jpg"]
-    got = [p.name for p in sorted((Path(n) for n in names),
-                                  key=VideoProcessor._frame_number)]
-    assert got == ["frame_0002.jpg", "frame_1000.jpg", "frame_1001.jpg",
-                   "frame_10000.jpg"], got
+    names = ["frame_1001.jpg", "frame_10000.jpg", "frame_1000.jpg", "frame_0002.jpg"]
+    got = [p.name for p in sorted((Path(n) for n in names), key=VideoProcessor._frame_number)]
+    assert got == ["frame_0002.jpg", "frame_1000.jpg", "frame_1001.jpg", "frame_10000.jpg"], got
 
 
 # 2 ────────────────────────────────────────────────────────────────
 def test_paragraph_break_survives_srt_and_vtt():
-    descs = [D(start_time=3661.9996, end_time=3665.5,
-               text="First para.\r\n\r\nSecond para.\rThird line.")]
+    descs = [
+        D(
+            start_time=3661.9996,
+            end_time=3665.5,
+            text="First para.\r\n\r\nSecond para.\rThird line.",
+        )
+    ]
     for name, writer in (("para.srt", T.to_srt), ("para.vtt", T.to_vtt)):
         p = _write(name, writer(descs))
         back = T.parse_any(p)
         assert len(back) == 1, (name, back)
-        assert back[0].text == "First para.\nSecond para.\nThird line.", \
-            (name, back[0].text)
+        assert back[0].text == "First para.\nSecond para.\nThird line.", (name, back[0].text)
         assert abs(back[0].start_time - 3662.0) < 1e-6, back[0].start_time
 
 
@@ -165,6 +191,7 @@ def test_utf8_bom_crlf_no_trailing_blank_still_imports():
 # 4 ────────────────────────────────────────────────────────────────
 def test_broken_project_db_is_not_left_locked():
     import sqlite3
+
     store = ProjectStore(str(TMP / "ps_lock"))
     store.create_project("fine", "src")
     bad = store.projects_dir / "project_50.db"
@@ -188,8 +215,7 @@ def test_deleted_project_id_is_not_reused_and_media_goes():
     assert not (store.projects_dir / f"project_{a.id}.db").exists()
     b = store.create_project("B", "https://example.invalid/b")
     assert b.id != a.id, (a.id, b.id)
-    assert VideoProcessor.completed_download(
-        str(store.media_dir(b.id))) == ""
+    assert VideoProcessor.completed_download(str(store.media_dir(b.id))) == ""
     # Survives a fresh store (the counter is on disk, not in memory).
     store.delete_project(b.id)
     c = ProjectStore(str(TMP / "ps_reuse")).create_project("C", "x")
@@ -271,21 +297,20 @@ def test_subtitle_timeout_kills_the_child():
     vp = _vp(ytdlp_path="yt-dlp.exe")
     t0 = time.time()
     result, calls = _run_with_fake_exec(
-        lambda: vp._ytdlp_subtitles("https://example.invalid/v"), hang=True)
+        lambda: vp._ytdlp_subtitles("https://example.invalid/v"), hang=True
+    )
     assert result == [] and time.time() - t0 < 10
     assert calls and calls[0][1].killed, "timed-out yt-dlp was not killed"
 
     local = _write("dummy.mp4", b"not really a video")
-    result, calls = _run_with_fake_exec(
-        lambda: vp._embedded_subtitles(str(local)), hang=True)
+    result, calls = _run_with_fake_exec(lambda: vp._embedded_subtitles(str(local)), hang=True)
     assert result == [] and calls[0][1].killed, "timed-out ffmpeg not killed"
 
 
 def test_ytdlp_arguments_are_safe():
     vp = _vp(ytdlp_path="yt-dlp.exe")
     url = "https://www.youtube.com/watch?v=X&list=PL1"
-    _, calls = _run_with_fake_exec(lambda: vp._ytdlp_subtitles(url),
-                                   hang=False)
+    _, calls = _run_with_fake_exec(lambda: vp._ytdlp_subtitles(url), hang=False)
     args = list(calls[0][0])
     for flag in ("--no-playlist", "--write-subs", "--write-auto-sub"):
         assert flag in args, (flag, args)
@@ -301,12 +326,16 @@ def test_txt_with_an_arrow_is_still_simple_text():
     p = _write("arrow.txt", "0:05 Arrow --> points left\n0:10 Next\n")
     back = T.parse_any(p)
     assert [(d.start_time, d.text) for d in back] == [
-        (5.0, "Arrow --> points left"), (10.0, "Next")], back
+        (5.0, "Arrow --> points left"),
+        (10.0, "Next"),
+    ], back
 
 
 def test_prose_number_is_not_a_timestamp():
-    p = _write("prose.txt", "0:05 Opening shot\n2024 was a good year\n"
-                            "0:20 Next\n90s Ninety\n12.5 Decimal\n")
+    p = _write(
+        "prose.txt",
+        "0:05 Opening shot\n2024 was a good year\n0:20 Next\n90s Ninety\n12.5 Decimal\n",
+    )
     back = T.parse_any(p)
     starts = [d.start_time for d in back]
     assert 2024.0 not in starts, starts
@@ -328,11 +357,15 @@ def test_end_before_start_is_exported_valid():
 
 
 def test_vtt_without_milliseconds_and_long_hours():
-    p = _write("noms.vtt", "WEBVTT\n\n00:00:03 --> 00:00:04\nno ms\n\n"
-                           "100:00:00,000 --> 100:00:02,000\nlong\n")
+    p = _write(
+        "noms.vtt",
+        "WEBVTT\n\n00:00:03 --> 00:00:04\nno ms\n\n100:00:00,000 --> 100:00:02,000\nlong\n",
+    )
     back = T.parse_any(p)
     assert [(d.start_time, d.end_time, d.text) for d in back] == [
-        (3.0, 4.0, "no ms"), (360000.0, 360002.0, "long")], back
+        (3.0, 4.0, "no ms"),
+        (360000.0, 360002.0, "long"),
+    ], back
 
 
 def test_failed_conversion_does_not_leak_the_tts_clip():
@@ -350,8 +383,7 @@ def test_failed_conversion_does_not_leak_the_tts_clip():
     T._to_wav = boom
     try:
         try:
-            T.export_audio([D(start_time=0, end_time=1, text="x")],
-                           TMP / "out.mp3", _TTS())
+            T.export_audio([D(start_time=0, end_time=1, text="x")], TMP / "out.mp3", _TTS())
         except RuntimeError:
             pass
     finally:
@@ -367,9 +399,9 @@ def test_project_names_are_safe_on_windows():
     assert s("com1") == "_com1" and s("LPT9.mp4") == "_LPT9.mp4"
     assert s("Console wars") == "Console wars"
     assert s("COM10") == "COM10"
-    assert s("evil\u202Egnp.exe") == "evilgnp.exe"
+    assert s("evil\u202egnp.exe") == "evilgnp.exe"
     assert s("a\u200bb\u2066c") == "abc"
-    assert s("\u202E") == "video"
+    assert s("\u202e") == "video"
     assert s('a/b:c*?"<>|d') == "a b c d"
 
 

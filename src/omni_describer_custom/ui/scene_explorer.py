@@ -76,24 +76,30 @@ class SceneExplorer(wx.Frame):
 
         # Frame info
         self.frame_info = wx.StaticText(
-            panel, label=t("scene.frame_info", index=0, total=0),
-            name="frame_info")
+            panel, label=t("scene.frame_info", index=0, total=0), name="frame_info"
+        )
         sizer.Add(self.frame_info, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
         # Description area
         desc_box = wx.StaticBox(panel, label=t("explorer.description"))
         desc_sizer = wx.StaticBoxSizer(desc_box, wx.VERTICAL)
 
-        self.desc_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
-                                     size=(-1, 100), name="scene_description")
+        self.desc_text = wx.TextCtrl(
+            panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(-1, 100), name="scene_description"
+        )
         desc_sizer.Add(self.desc_text, 1, wx.ALL | wx.EXPAND, 5)
         sizer.Add(desc_sizer, 0, wx.ALL | wx.EXPAND, 10)
 
         # Objects list — v1.8.2: labelled; NVDA read nothing here.
-        sizer.Add(wx.StaticText(panel, label=t("explorer.objects_label"),
-                                name="objects_label"), 0, wx.LEFT, 10)
-        self.objects_text = wx.TextCtrl(panel, style=wx.TE_READONLY, size=(-1, 60),
-                                        name="objects_list")
+        sizer.Add(
+            wx.StaticText(panel, label=t("explorer.objects_label"), name="objects_label"),
+            0,
+            wx.LEFT,
+            10,
+        )
+        self.objects_text = wx.TextCtrl(
+            panel, style=wx.TE_READONLY, size=(-1, 60), name="objects_list"
+        )
         sizer.Add(self.objects_text, 0, wx.ALL | wx.EXPAND, 10)
 
         # Status — TWO labels taking turns (v1.8.2). NVDA speaks when
@@ -135,6 +141,7 @@ class SceneExplorer(wx.Frame):
         shown.SetFocus()
         try:
             from ..core.speech import announce as _speak_status
+
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -170,6 +177,7 @@ class SceneExplorer(wx.Frame):
         self._announce(t("scene.loading"))
         self._loading = True
         import asyncio, tempfile
+
         fps = self._frames_per_second(self.video_path)
 
         def run():
@@ -181,9 +189,14 @@ class SceneExplorer(wx.Frame):
             try:
                 self.frames = [
                     {"path": f.path, "time": f.timestamp}
-                    for f in loop.run_until_complete(vp.extract_frames(
-                        self.video_path, fps=fps, output_dir=tmp,
-                        is_cancelled=lambda: self._closing))
+                    for f in loop.run_until_complete(
+                        vp.extract_frames(
+                            self.video_path,
+                            fps=fps,
+                            output_dir=tmp,
+                            is_cancelled=lambda: self._closing,
+                        )
+                    )
                 ]
             except SourceError as e:
                 # Real reason: bad URL, private video, network failure...
@@ -200,11 +213,13 @@ class SceneExplorer(wx.Frame):
                     # v1.9.6: the window closed while extracting; it
                     # never learned this folder, so it is deleted here.
                     import shutil
+
                     shutil.rmtree(tmp, ignore_errors=True)
             if self._closing:
                 return
             # Always notify the UI thread, success or failure
             wx.CallAfter(self._frames_loaded, self.frames, tmp, error_msg)
+
         threading.Thread(target=run, daemon=True).start()
 
     # About this many frames at most: 2 a second for a short video, fewer
@@ -218,6 +233,7 @@ class SceneExplorer(wx.Frame):
             return 2.0
         try:
             from ..core.timeline_io import _ffprobe_duration
+
             seconds = float(_ffprobe_duration(video_path) or 0.0)
         except Exception:
             seconds = 0.0
@@ -229,6 +245,7 @@ class SceneExplorer(wx.Frame):
         """Called on the UI thread when background extraction finishes."""
         if not self or self._closing:
             import shutil
+
             shutil.rmtree(frames_dir, ignore_errors=True)
             return
         self._loading = False
@@ -245,9 +262,7 @@ class SceneExplorer(wx.Frame):
         """No video available — leave frame list empty and inform the user."""
         self.frames = []
         self.frame_info.SetLabel(t("scene.frame_info", index=0, total=0))
-        self.status_text.SetLabel(
-            t("scene.no_video_loaded")
-        )
+        self.status_text.SetLabel(t("scene.no_video_loaded"))
         logger.info("SceneExplorer opened without a video source")
 
     def _show_frame(self, idx: int):
@@ -260,6 +275,7 @@ class SceneExplorer(wx.Frame):
         # Load image
         try:
             from PIL import Image
+
             img = Image.open(frame["path"])
             # Resize to fit
             img.thumbnail((854, 480))
@@ -269,8 +285,7 @@ class SceneExplorer(wx.Frame):
             logger.error("Frame display error: %s", e)
 
         self.frame_info.SetLabel(
-            f"{t('scene.frame_info', index=idx + 1, total=len(self.frames))}"
-            f" | {frame['time']:.1f}s"
+            f"{t('scene.frame_info', index=idx + 1, total=len(self.frames))} | {frame['time']:.1f}s"
         )
         self.desc_text.SetValue("")
         self.objects_text.SetValue("")
@@ -285,9 +300,9 @@ class SceneExplorer(wx.Frame):
             self._show_frame(max(0, self._current_idx - 1))
         elif key == wx.WXK_RIGHT:
             self._show_frame(min(len(self.frames) - 1, self._current_idx + 1))
-        elif key == ord('D') or key == ord('d'):
+        elif key == ord("D") or key == ord("d"):
             self._describe_frame()
-        elif key == ord('L') or key == ord('l'):
+        elif key == ord("L") or key == ord("l"):
             self._list_objects()
         elif key == wx.WXK_RETURN:
             self._describe_nearest()
@@ -338,19 +353,17 @@ class SceneExplorer(wx.Frame):
 
         def run():
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                result = loop.run_until_complete(
-                    self.ai.describe_frame(frame["path"], prompt)
-                )
+                result = loop.run_until_complete(self.ai.describe_frame(frame["path"], prompt))
                 wx.CallAfter(self._set_text, "desc_text", result)
                 wx.CallAfter(self._announce, t("status.ready"))
             except Exception as e:
                 logger.error("Describe frame failed: %s", e)
                 said = user_error_text(str(e))
-                wx.CallAfter(self._set_text, "desc_text",
-                             t("scene.error", msg=said))
+                wx.CallAfter(self._set_text, "desc_text", t("scene.error", msg=said))
                 wx.CallAfter(self._announce, t("status.error", error=said))
             finally:
                 loop.close()
@@ -367,6 +380,7 @@ class SceneExplorer(wx.Frame):
 
         def run():
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -376,8 +390,9 @@ class SceneExplorer(wx.Frame):
                 wx.CallAfter(self._set_text, "objects_text", result)
             except Exception as e:
                 logger.error("List objects failed: %s", e)
-                wx.CallAfter(self._set_text, "objects_text",
-                             t("scene.error", msg=user_error_text(str(e))))
+                wx.CallAfter(
+                    self._set_text, "objects_text", t("scene.error", msg=user_error_text(str(e)))
+                )
             finally:
                 loop.close()
 
@@ -398,6 +413,7 @@ class SceneExplorer(wx.Frame):
         self._closing = True
         if self._frames_dir:
             import shutil
+
             shutil.rmtree(self._frames_dir, ignore_errors=True)
             self._frames_dir = ""
         self.Destroy()

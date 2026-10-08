@@ -35,7 +35,10 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 
 from e2e_full_verify import (  # noqa: E402
-    answer_file_dialog, bridge_ready, focus_and_activate)
+    answer_file_dialog,
+    bridge_ready,
+    focus_and_activate,
+)
 
 WORK = Path(os.environ["TEMP"]) / "odc_frozen_hold"
 LOG = Path(os.environ["LOCALAPPDATA"]) / "OmniDescriber" / "logs" / "omni_describer.log"
@@ -61,6 +64,7 @@ def main() -> int:
     safe_keys.allow(proc.pid)
 
     from pywinauto import Desktop
+
     desktop = Desktop(backend="uia")
     win = None
     for _ in range(120):
@@ -91,6 +95,7 @@ def main() -> int:
         # "Found hold_test.srt next to this video. Use it?" — Enter takes
         # the default, which is "Use this file".
         from pywinauto.keyboard import send_keys
+
         time.sleep(2.0)
         send_keys("{ENTER}")
         time.sleep(4.0)
@@ -125,9 +130,9 @@ def main() -> int:
                 f.seek(log_start)
                 fresh = f.read().decode("utf-8", "replace")
             meter = meter or re.search(
-                r"Speech end via audio meter on (\w+): (\S+) \(([\d.]+)s\)", fresh)
-            released = re.search(
-                r"Narration hold released after ([\d.]+)s \(voice: (\S+)\)", fresh)
+                r"Speech end via audio meter on (\w+): (\S+) \(([\d.]+)s\)", fresh
+            )
+            released = re.search(r"Narration hold released after ([\d.]+)s \(voice: (\S+)\)", fresh)
     finally:
         proc.terminate()
 
@@ -143,12 +148,18 @@ def main() -> int:
         print("  hold:  no release line in the log")
 
     passed = bool(
-        released and meter
+        released
+        and meter
         and released.group(2) == "screen_reader"
         and meter.group(2) == "finished"
-        and 2.0 < float(released.group(1)) < 20.0)
-    print("\nRESULT:", "PASS — the shipped build holds the video while NVDA "
-          "speaks, and resumes when it stops" if passed else "FAIL")
+        and 2.0 < float(released.group(1)) < 20.0
+    )
+    print(
+        "\nRESULT:",
+        "PASS — the shipped build holds the video while NVDA speaks, and resumes when it stops"
+        if passed
+        else "FAIL",
+    )
     return 0 if passed else 1
 
 

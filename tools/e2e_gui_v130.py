@@ -34,6 +34,7 @@ v1.4.0 checks:
 
 Run:  python tools/e2e_gui_v130.py
 """
+
 from __future__ import annotations
 
 import json
@@ -51,7 +52,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 import e2e_gui_phase as phase  # reuse the proven helpers
 
-BASE = phase.SANDBOX              # v1.9.6: never the owner's real folders
+BASE = phase.SANDBOX  # v1.9.6: never the owner's real folders
 PROJECTS_DIR = phase.PROJECTS_DIR
 EXT_SRT = BASE / "e2e_ext_srt.srt"
 EXT_CUES = [
@@ -82,8 +83,7 @@ def win32_child_texts(frame_hwnd: int, cls: str | None = None) -> list[str]:
     return out
 
 
-def wait_win32_text(frame_hwnd: int, predicate, timeout: float,
-                    what: str) -> str:
+def wait_win32_text(frame_hwnd: int, predicate, timeout: float, what: str) -> str:
     deadline = time.time() + timeout
     seen_last: list[str] = []
     while time.time() < deadline:
@@ -101,15 +101,16 @@ def wait_win32_text(frame_hwnd: int, predicate, timeout: float,
 def list_app_dialogs() -> list[str]:
     out = []
     for hwnd in phase.enum_top_windows():
-        if (user32.IsWindowVisible(hwnd)
-                and phase._pid_of(hwnd) == phase.APP_PID
-                and phase._window_class(hwnd) == "#32770"):
+        if (
+            user32.IsWindowVisible(hwnd)
+            and phase._pid_of(hwnd) == phase.APP_PID
+            and phase._window_class(hwnd) == "#32770"
+        ):
             out.append(phase._window_title(hwnd))
     return out
 
 
-def click_until_dialog(button_label: str, dialog_title: str,
-                       attempts: int = 3, wait: float = 8.0):
+def click_until_dialog(button_label: str, dialog_title: str, attempts: int = 3, wait: float = 8.0):
     """Click a main-window button (UIA-proven path) and wait for the
     dialog it should open; retries with escalating waits."""
     last_err = None
@@ -123,10 +124,10 @@ def click_until_dialog(button_label: str, dialog_title: str,
             return phase.find_dialog_win32(dialog_title, timeout=wait)
         except RuntimeError as e:
             last_err = e
-            phase.log(f"dialog '{dialog_title}' not seen; "
-                      f"other dialogs: {list_app_dialogs() or 'none'}")
-    raise RuntimeError(
-        f"dialog '{dialog_title}' never appeared: {last_err}")
+            phase.log(
+                f"dialog '{dialog_title}' not seen; other dialogs: {list_app_dialogs() or 'none'}"
+            )
+    raise RuntimeError(f"dialog '{dialog_title}' never appeared: {last_err}")
 
 
 def step_youtube() -> None:
@@ -154,9 +155,11 @@ def step_verify_persistence() -> tuple[Path, list[str]]:
     Also returns the sidecar cue texts (used as the t5 overlay oracle)."""
     phase.log("== VERIFY v1.3.0 PERSISTENCE ==")
     from e2e_projects import media_dir_of, newest_db
-    db = newest_db(PROJECTS_DIR)   # either project layout
+
+    db = newest_db(PROJECTS_DIR)  # either project layout
     assert db, "no project db found"
     import sqlite3
+
     conn = sqlite3.connect(str(db))
     name, vp = conn.execute(
         "SELECT name, video_path FROM projects ORDER BY id DESC LIMIT 1"
@@ -168,10 +171,8 @@ def step_verify_persistence() -> tuple[Path, list[str]]:
     assert vp, "video_path empty"
     p = Path(vp)
     assert p.exists(), f"persisted video missing: {vp}"
-    assert p.parent == media_dir_of(db), \
-        f"not in this project's media folder: {vp}"
-    assert "media" in {seg.lower() for seg in p.parts}, \
-        f"not in media dir: {vp}"
+    assert p.parent == media_dir_of(db), f"not in this project's media folder: {vp}"
+    assert "media" in {seg.lower() for seg in p.parts}, f"not in media dir: {vp}"
     assert p.stat().st_size > 0, "persisted video is empty"
     media = p.parent
     srt = media / "descriptions.srt"
@@ -179,12 +180,15 @@ def step_verify_persistence() -> tuple[Path, list[str]]:
     srt_text = srt.read_text(encoding="utf-8")
     assert "-->" in srt_text, "SRT sidecar has no timestamps"
     from omni_describer_custom.core.timeline_io import parse_srt
+
     cues = parse_srt(srt)
     texts = [_norm(c.text) for c in cues if _norm(c.text)]
     assert texts, "sidecar has no cue texts"
-    phase.log(f"persisted video: {p.name} ({p.stat().st_size} bytes), "
-              f"srt sidecar: {srt.name} ({len(srt_text)} bytes, "
-              f"{len(texts)} cues)")
+    phase.log(
+        f"persisted video: {p.name} ({p.stat().st_size} bytes), "
+        f"srt sidecar: {srt.name} ({len(srt_text)} bytes, "
+        f"{len(texts)} cues)"
+    )
     phase.log("PERSIST_OK")
     return p, texts
 
@@ -216,10 +220,17 @@ def press_play_toggle(hwnd: int) -> str:
 def ffplay_parent_pids() -> set[int]:
     """Parent PIDs of running ffplay.exe processes (PowerShell CIM)."""
     out = subprocess.run(
-        ["powershell", "-NoProfile", "-Command",
-         "Get-CimInstance Win32_Process -Filter \"Name='ffplay.exe'\" | "
-         "ForEach-Object { $_.ParentProcessId }"],
-        capture_output=True, text=True, timeout=25)
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='ffplay.exe'\" | "
+            "ForEach-Object { $_.ParentProcessId }",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=25,
+    )
     pids: set[int] = set()
     for line in out.stdout.split():
         line = line.strip()
@@ -237,8 +248,9 @@ def wait_ffplay(alive: bool, timeout: float, what: str) -> None:
             phase.log(f"{what} (ffplay running={last})")
             return
         time.sleep(0.6)
-    raise RuntimeError(f"{what} FAILED: ffplay running={last}, "
-                       f"expected {'alive' if alive else 'gone'}")
+    raise RuntimeError(
+        f"{what} FAILED: ffplay running={last}, expected {'alive' if alive else 'gone'}"
+    )
 
 
 def step_player_t5(sidecar_texts: list[str]) -> None:
@@ -250,14 +262,15 @@ def step_player_t5(sidecar_texts: list[str]) -> None:
 
     # 1) DIRECT evidence of auto-load: status static right after the
     # player opened, before we touch anything.
-    wait_win32_text(hwnd, lambda t: t.startswith("Subtitles loaded:"),
-                    10.0, "auto-load status")
+    wait_win32_text(hwnd, lambda t: t.startswith("Subtitles loaded:"), 10.0, "auto-load status")
     phase.log("AUTOLOAD_STATUS_OK (direct evidence)")
 
     # 2) Single toggle button exists and NO separate pause button.
-    btns = [_norm(phase._window_title(c))
-            for c in phase.enum_children(hwnd)
-            if phase._window_class(c) == "Button"]
+    btns = [
+        _norm(phase._window_title(c))
+        for c in phase.enum_children(hwnd)
+        if phase._window_class(c) == "Button"
+    ]
     assert not any(b == "Pause" for b in btns), f"separate Pause button: {btns}"
     press_play_toggle(hwnd)  # Play -> starts (was 'Play' or 'Main')
     phase.log("TOGGLE_SINGLE_OK (no separate Pause button)")
@@ -267,8 +280,7 @@ def step_player_t5(sidecar_texts: list[str]) -> None:
     def _is_sidecar_cue(t: str) -> bool:
         return any(t.startswith(txt[:30]) for txt in sidecar_texts)
 
-    wait_win32_text(hwnd, _is_sidecar_cue, 30.0,
-                    "sidecar cue in subtitle overlay")
+    wait_win32_text(hwnd, _is_sidecar_cue, 30.0, "sidecar cue in subtitle overlay")
     phase.log("AUTOLOAD_BEHAVIORAL_OK (sidecar cue rendered on Play)")
 
     # 4) v1.4.0: REAL audio while playing (ffplay child of the app).
@@ -302,15 +314,15 @@ def step_player_t6() -> None:
     time.sleep(0.4)
     phase.press_button(fd, "Open")
     time.sleep(1.0)
-    wait_win32_text(hwnd, lambda t: t.startswith("Subtitles loaded: 3"),
-                    10.0, "external load status")
+    wait_win32_text(
+        hwnd, lambda t: t.startswith("Subtitles loaded: 3"), 10.0, "external load status"
+    )
     phase.log("LOAD_SRT_DIALOG_OK (3 cues)")
 
     phase.press_button(hwnd, "Stop")  # reset to 0; toggle label -> Play
     time.sleep(0.8)
     press_play_toggle(hwnd)
-    wait_win32_text(hwnd, lambda t: "E2E EXT SUB" in t, 30.0,
-                    "external cue in subtitle overlay")
+    wait_win32_text(hwnd, lambda t: "E2E EXT SUB" in t, 30.0, "external cue in subtitle overlay")
     wait_ffplay(True, 10.0, "AUDIO_PLAYING_T6_OK")
     press_play_toggle(hwnd)
     wait_ffplay(False, 10.0, "AUDIO_PAUSED_T6_OK")
@@ -323,8 +335,7 @@ def step_close_player() -> None:
     user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
     time.sleep(2.0)
     for h in phase.enum_top_windows():
-        if (phase._pid_of(h) == phase.APP_PID
-                and "Described Video Player" in phase._window_title(h)):
+        if phase._pid_of(h) == phase.APP_PID and "Described Video Player" in phase._window_title(h):
             raise RuntimeError("player window still open")
     wait_ffplay(False, 5.0, "AUDIO_CLEANUP_ON_CLOSE_OK")
     phase.log("player closed cleanly")
@@ -332,11 +343,12 @@ def step_close_player() -> None:
 
 def main() -> int:
     from e2e_projects import ProjectsGuard
+
     guard = ProjectsGuard(PROJECTS_DIR)
     try:
         return _run()
     finally:
-        guard.cleanup()   # only the project this run created
+        guard.cleanup()  # only the project this run created
 
 
 def _run() -> int:

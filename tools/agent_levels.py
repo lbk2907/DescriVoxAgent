@@ -44,8 +44,13 @@ CAP = ag.COST_CAP
 
 
 def make_agent(provider: str, model: str, key: str, level: str, cues, at):
-    ctx = ag.Context(video=str(CLIP), length=LENGTH, descriptions=cues,
-                     get_position=lambda: at, language="English")
+    ctx = ag.Context(
+        video=str(CLIP),
+        length=LENGTH,
+        descriptions=cues,
+        get_position=lambda: at,
+        language="English",
+    )
     agent = ag.Agent(key, model, ctx, provider=provider)
     if level == "shipped":
         return agent
@@ -60,6 +65,7 @@ def make_agent(provider: str, model: str, key: str, level: str, cues, at):
         else:
             body["reasoning"] = {"effort": level}
         return body
+
     agent._payload = payload
     return agent
 
@@ -69,22 +75,29 @@ async def one(provider, model, key, level, cues, index, kind) -> dict:
     agent = make_agent(provider, model, key, level, cues, at)
     started = time.monotonic()
     try:
-        reply = await agent.ask(cost_cap=CAP, question=
-            f"The description [{index}] at {at:.1f}s says: \"{text}\". Is it "
-            "right for what is on screen then? Check it and fix it if needed.")
+        reply = await agent.ask(
+            cost_cap=CAP,
+            question=f'The description [{index}] at {at:.1f}s says: "{text}". Is it '
+            "right for what is on screen then? Check it and fix it if needed.",
+        )
     finally:
         agent.close()
     changes = [p for p in reply.proposals if p.action != "keep"]
     # Stopped at the cost cap = no decision, not "kept" (1 Oct 2026: Gemini
     # 3.8 Flash looked 8 times, hit $0.02, and was scored as keeping).
     decided = not reply.needs_confirmation and not reply.error
-    return {"kind": kind, "index": index, "looked": agent._looked,
-            "changes": [p.__dict__ for p in changes],
-            "outcome": decided and (bool(changes) if kind == "wrong" else not changes),
-            "answer": reply.answer[:300], "error": reply.error[:200],
-            "cost": round(reply.cost, 5),
-            "seconds": round(time.monotonic() - started, 1),
-            "stopped_at_cap": reply.needs_confirmation}
+    return {
+        "kind": kind,
+        "index": index,
+        "looked": agent._looked,
+        "changes": [p.__dict__ for p in changes],
+        "outcome": decided and (bool(changes) if kind == "wrong" else not changes),
+        "answer": reply.answer[:300],
+        "error": reply.error[:200],
+        "cost": round(reply.cost, 5),
+        "seconds": round(time.monotonic() - started, 1),
+        "stopped_at_cap": reply.needs_confirmation,
+    }
 
 
 def main() -> int:
@@ -93,8 +106,12 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--levels", required=True)
     parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument("--cap", type=float, default=ag.COST_CAP,
-                        help="cost cap per question (the app asks 'continue?' there)")
+    parser.add_argument(
+        "--cap",
+        type=float,
+        default=ag.COST_CAP,
+        help="cost cap per question (the app asks 'continue?' there)",
+    )
     parser.add_argument("--tag", default="", help="suffix for the level key")
     args = parser.parse_args()
     global CAP
@@ -112,16 +129,17 @@ def main() -> int:
                     k = f"{args.model}|{level}{args.tag}|{kind}{index}|{run}"
                     if k in done and not done[k].get("error"):
                         continue
-                    done[k] = await one(args.provider, args.model, key, level,
-                                        cues, index, kind)
-                    OUT.write_text(json.dumps(done, indent=1, ensure_ascii=False),
-                                   encoding="utf-8")
+                    done[k] = await one(args.provider, args.model, key, level, cues, index, kind)
+                    OUT.write_text(json.dumps(done, indent=1, ensure_ascii=False), encoding="utf-8")
                     r = done[k]
-                    print(f"{args.model[:24]:24} {level:7} {kind:5} [{index:2}] "
-                          f"outcome={r['outcome']!s:5} looked={r['looked']!s:5} "
-                          f"${r['cost']:.4f} {r['seconds']:5.1f}s {r['error'][:50]}",
-                          flush=True)
+                    print(
+                        f"{args.model[:24]:24} {level:7} {kind:5} [{index:2}] "
+                        f"outcome={r['outcome']!s:5} looked={r['looked']!s:5} "
+                        f"${r['cost']:.4f} {r['seconds']:5.1f}s {r['error'][:50]}",
+                        flush=True,
+                    )
         summary(args.model)
+
     asyncio.run(run_all())
     return 0
 
@@ -133,8 +151,19 @@ def summary(model: str) -> None:
         m, level, _task, _run = k.split("|")
         if m != model:
             continue
-        s = rows.setdefault(level, {"n": 0, "ok": 0, "wrong_ok": 0, "right_ok": 0,
-                                    "looked": 0, "cost": 0.0, "sec": 0.0, "err": 0})
+        s = rows.setdefault(
+            level,
+            {
+                "n": 0,
+                "ok": 0,
+                "wrong_ok": 0,
+                "right_ok": 0,
+                "looked": 0,
+                "cost": 0.0,
+                "sec": 0.0,
+                "err": 0,
+            },
+        )
         s["n"] += 1
         s["ok"] += r["outcome"] and not r["error"]
         s["wrong_ok"] += r["kind"] == "wrong" and r["outcome"] and not r["error"]
@@ -146,9 +175,11 @@ def summary(model: str) -> None:
     print(f"\n{model}")
     print("level    n  right-call  wrong-fixed  correct-kept  looked  err/cap  cost     avg s")
     for level, s in rows.items():
-        print(f"{level:7} {s['n']:2}  {s['ok']:>10}  {s['wrong_ok']:>11}  "
-              f"{s['right_ok']:>12}  {s['looked']:>6}  {s['err']:>6}  "
-              f"${s['cost']:.4f}  {s['sec'] / max(1, s['n']):5.1f}")
+        print(
+            f"{level:7} {s['n']:2}  {s['ok']:>10}  {s['wrong_ok']:>11}  "
+            f"{s['right_ok']:>12}  {s['looked']:>6}  {s['err']:>6}  "
+            f"${s['cost']:.4f}  {s['sec'] / max(1, s['n']):5.1f}"
+        )
 
 
 if __name__ == "__main__":

@@ -37,28 +37,29 @@ from typing import Callable
 logger = logging.getLogger(__name__)
 
 MODES = ("off", "auto", "accurate", "most", "keep")
-SPAN = 20.0              # seconds either side of a description
-TILES = 12               # a 4 x 3 sheet
+SPAN = 20.0  # seconds either side of a description
+TILES = 12  # a 4 x 3 sheet
 STEP = 2 * SPAN / (TILES - 1)
 # An earlier match moves a description back only from 1.5 s: the
 # measured sheets had no tile closer than 1.8 s, so smaller nudges were
 # never part of what was measured (and are noise from the frame grid).
 BACK = 1.5
-AHEAD = 3.0              # a later match only when well ahead
+AHEAD = 3.0  # a later match only when well ahead
 CONCURRENCY = 8
 
 PROMPT = (
     "You check one audio description for a blind viewer. The twelve "
     "frames come from the video, in time order, each labelled with its "
     "time. The description is currently placed at {at}.\n\n"
-    "Description: \"{text}\"\n\n"
+    'Description: "{text}"\n\n'
     "First: is what it describes visible in the frames within about four "
     "seconds AFTER {at} (where it is placed now)? Then: find the frame "
     "where it is MOST clearly visible. Judge only what you can see; "
     "ignore sound and style.\n"
-    "Reply with JSON only: {{\"here\": true|false, \"best\": \"M:SS.S\" "
-    "or \"none\", \"why\": \"<one short sentence>\"}}. Use \"none\" "
-    "only if what it describes is visible in NONE of the frames.")
+    'Reply with JSON only: {{"here": true|false, "best": "M:SS.S" '
+    'or "none", "why": "<one short sentence>"}}. Use "none" '
+    "only if what it describes is visible in NONE of the frames."
+)
 
 
 def resolve_mode(mode: str, parts: int) -> str:
@@ -135,36 +136,49 @@ class FrameStrip:
     description — about 1,400 for a 15-minute film.
     """
 
-    def __init__(self, video: str, length: float,
-                 is_cancelled: Callable[[], bool] | None = None):
+    def __init__(self, video: str, length: float, is_cancelled: Callable[[], bool] | None = None):
         from .tools import find_tool
+
         self.dir = Path(tempfile.mkdtemp(prefix="odc_review_"))
         self.length = length
         try:
-            self._extract(find_tool("ffmpeg"), video,
-                          max(600, int(length * 2)), is_cancelled)
+            self._extract(find_tool("ffmpeg"), video, max(600, int(length * 2)), is_cancelled)
         except BaseException:
             self.close()
             raise
-        self.frames = sorted(self.dir.glob("f_*.jpg"),
-                             key=lambda p: int(p.stem.split("_")[1]))
+        self.frames = sorted(self.dir.glob("f_*.jpg"), key=lambda p: int(p.stem.split("_")[1]))
         if not self.frames:
             raise RuntimeError("no frames could be read from the video")
 
-    def _extract(self, ffmpeg: str, video: str, timeout: float,
-                 is_cancelled: Callable[[], bool] | None) -> None:
+    def _extract(
+        self, ffmpeg: str, video: str, timeout: float, is_cancelled: Callable[[], bool] | None
+    ) -> None:
         """Decode the whole video once. v1.9.6: Popen polled every 0.5 s
         so Cancel stops it (subprocess.run decoded a 24-minute film for
         up to 48 minutes with Cancel ignored)."""
         import time
+
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         proc = subprocess.Popen(
-            [ffmpeg, "-hide_banner", "-nostdin", "-y", "-v",
-             "error", "-i", video, "-vf",
-             f"fps=1/{STEP:.4f},scale=400:-2", "-q:v", "5",
-             str(self.dir / "f_%05d.jpg")],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-            creationflags=flags)
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-nostdin",
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                video,
+                "-vf",
+                f"fps=1/{STEP:.4f},scale=400:-2",
+                "-q:v",
+                "5",
+                str(self.dir / "f_%05d.jpg"),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=flags,
+        )
         deadline = time.monotonic() + timeout
         try:
             while True:
@@ -185,9 +199,7 @@ class FrameStrip:
                 except Exception:
                     pass
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError(
-                proc.returncode, ffmpeg,
-                stderr=(err or b"")[-400:])
+            raise subprocess.CalledProcessError(proc.returncode, ffmpeg, stderr=(err or b"")[-400:])
 
     def frame_at(self, seconds: float) -> Path:
         index = int(round(seconds / STEP))
@@ -196,6 +208,7 @@ class FrameStrip:
     def sheet(self, t: float, out: Path) -> list[float]:
         """A labelled 4 x 3 sheet around t; returns the tile times."""
         from PIL import Image, ImageDraw, ImageFont
+
         times = sheet_times(t, len(self.frames))
         # The model reads these times; the measured sheets used 24 px.
         try:
@@ -211,8 +224,7 @@ class FrameStrip:
             sheet.paste(tile.resize((w, h)), (x, y))
             label = _clock(at)
             box = draw.textbbox((x + 8, y + 6), label, font=font)
-            draw.rectangle([box[0] - 4, box[1] - 3, box[2] + 4, box[3] + 3],
-                           fill="black")
+            draw.rectangle([box[0] - 4, box[1] - 3, box[2] + 4, box[3] + 3], fill="black")
             draw.text((x + 8, y + 6), label, fill="yellow", font=font)
         sheet.save(out, quality=80)
         return times
@@ -221,18 +233,21 @@ class FrameStrip:
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
-async def review(engine, video: str, pairs: list[tuple[float, str]],
-                 mode: str, length: float,
-                 on_progress: Callable[[int, int], None] | None = None,
-                 is_cancelled: Callable[[], bool] | None = None,
-                 ) -> tuple[list[tuple[float, str]], dict]:
+async def review(
+    engine,
+    video: str,
+    pairs: list[tuple[float, str]],
+    mode: str,
+    length: float,
+    on_progress: Callable[[int, int], None] | None = None,
+    is_cancelled: Callable[[], bool] | None = None,
+) -> tuple[list[tuple[float, str]], dict]:
     """Check each (time, text); return the kept pairs and a summary.
 
     Never loses the job: a description whose check fails is kept as it
     was. Raises RuntimeError("cancelled") on Cancel.
     """
-    summary = {"checked": 0, "moved": 0, "removed": 0, "failed": 0,
-               "mode": mode}
+    summary = {"checked": 0, "moved": 0, "removed": 0, "failed": 0, "mode": mode}
     if mode == "off" or not pairs:
         return list(pairs), summary
     strip = await asyncio.to_thread(FrameStrip, video, length, is_cancelled)
@@ -251,10 +266,10 @@ async def review(engine, video: str, pairs: list[tuple[float, str]],
                 # v1.9.6: Cancel abandons a look in flight (up to
                 # CONCURRENCY of them used to run to the end first).
                 from .ai_engine import _run_cancellable
+
                 answer = await _run_cancellable(
-                    engine.look(str(sheet),
-                                PROMPT.format(at=_clock(t), text=text)),
-                    is_cancelled)
+                    engine.look(str(sheet), PROMPT.format(at=_clock(t), text=text)), is_cancelled
+                )
                 results[i] = decide(mode, parse_answer(answer, times), t)
             except Exception as e:
                 if str(e) == "cancelled" or (is_cancelled and is_cancelled()):
@@ -265,8 +280,7 @@ async def review(engine, video: str, pairs: list[tuple[float, str]],
             if on_progress:
                 on_progress(done, len(pairs))
 
-    tasks = [asyncio.ensure_future(one(i, float(t), text))
-             for i, (t, text) in enumerate(pairs)]
+    tasks = [asyncio.ensure_future(one(i, float(t), text)) for i, (t, text) in enumerate(pairs)]
     try:
         await asyncio.gather(*tasks)
     finally:

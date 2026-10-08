@@ -83,6 +83,7 @@ class SourceError(RuntimeError):
 @dataclass
 class VideoInfo:
     """Video metadata."""
+
     path: str
     duration: float = 0.0
     width: int = 0
@@ -96,6 +97,7 @@ class VideoInfo:
 @dataclass
 class Frame:
     """Extracted video frame."""
+
     path: str
     timestamp: float  # seconds
     scene_hash: str = ""  # for change detection
@@ -104,6 +106,7 @@ class Frame:
 @dataclass
 class TranscriptSegment:
     """Transcript segment with timing."""
+
     start: float
     end: float
     text: str
@@ -112,12 +115,13 @@ class TranscriptSegment:
 @dataclass
 class DownloadProgress:
     """Parsed yt-dlp progress for one download phase (video/audio/merge)."""
-    phase: str            # "preparing", "video", "audio", "merge"
-    percent: float        # 0..100; -1 when unknown
+
+    phase: str  # "preparing", "video", "audio", "merge"
+    percent: float  # 0..100; -1 when unknown
     downloaded_mb: float  # -1 when unknown
-    total_mb: float       # -1 when unknown
-    speed: str = ""       # human-readable, e.g. "3.51MiB/s"
-    eta: str = ""         # human-readable, e.g. "00:10"
+    total_mb: float  # -1 when unknown
+    speed: str = ""  # human-readable, e.g. "3.51MiB/s"
+    eta: str = ""  # human-readable, e.g. "00:10"
 
 
 class VideoProcessor:
@@ -126,8 +130,7 @@ class VideoProcessor:
     Uses yt-dlp for download + ffmpeg for frame extraction.
     """
 
-    def __init__(self, ffmpeg_path: str = "", ytdlp_path: str = "",
-                 settings=None):
+    def __init__(self, ffmpeg_path: str = "", ytdlp_path: str = "", settings=None):
         self.ffmpeg = ffmpeg_path or self._find_ffmpeg()
         self.ytdlp = ytdlp_path or self._find_ytdlp()
         # v1.6.1: transcription needs settings (which backend, which
@@ -140,6 +143,7 @@ class VideoProcessor:
     def settings(self):
         if self._settings is None:
             from .settings_store import SettingsStore
+
             self._settings = SettingsStore()
         return self._settings
 
@@ -152,11 +156,19 @@ class VideoProcessor:
         """
         text = stderr.decode("utf-8", errors="replace")
         lines = [
-            ln for ln in text.splitlines()
-            if ln.strip() and not ln.startswith((
-                "ffmpeg version", "ffprobe version", "built with",
-                "configuration:", "libav", "  ",
-            ))
+            ln
+            for ln in text.splitlines()
+            if ln.strip()
+            and not ln.startswith(
+                (
+                    "ffmpeg version",
+                    "ffprobe version",
+                    "built with",
+                    "configuration:",
+                    "libav",
+                    "  ",
+                )
+            )
         ]
         return "\n".join(lines)[-limit:]
 
@@ -170,6 +182,7 @@ class VideoProcessor:
         back when nothing usable remains.
         """
         import re as _re
+
         text = (title or "").strip()
         if not text:
             return fallback
@@ -179,8 +192,8 @@ class VideoProcessor:
         # zero-width joiners...) make a name that reads differently
         # from what it is; control characters are illegal in paths.
         import unicodedata as _ud
-        text = "".join(ch for ch in text
-                       if _ud.category(ch) not in ("Cf", "Cc"))
+
+        text = "".join(ch for ch in text if _ud.category(ch) not in ("Cf", "Cc"))
         text = _re.sub(r"\s+", " ", text).strip(" .")
         if not text:
             return fallback
@@ -212,9 +225,7 @@ class VideoProcessor:
         """Find yt-dlp — bundled copy first, then PATH."""
         return find_tool("yt-dlp")
 
-    async def _probe_url(
-            self, url: str,
-            is_cancelled: Callable[[], bool] | None = None) -> dict:
+    async def _probe_url(self, url: str, is_cancelled: Callable[[], bool] | None = None) -> dict:
         """Fetch remote metadata via yt-dlp --dump-json (no download).
 
         v1.5.1: honours is_cancelled — the probe can block up to 120s
@@ -224,8 +235,11 @@ class VideoProcessor:
         """
         proc = await asyncio.create_subprocess_exec(
             self.ytdlp,
-            "--dump-json", "--no-playlist", "--no-warnings",
-            "--", url,
+            "--dump-json",
+            "--no-playlist",
+            "--no-warnings",
+            "--",
+            url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -250,8 +264,7 @@ class VideoProcessor:
                         pass
                     raise SourceError(f"Download cancelled ({url})") from None
                 try:
-                    return await asyncio.wait_for(
-                        asyncio.shield(comm_task), timeout=0.5)
+                    return await asyncio.wait_for(asyncio.shield(comm_task), timeout=0.5)
                 except asyncio.TimeoutError:
                     waited += 0.5
                     if waited >= deadline:
@@ -261,7 +274,8 @@ class VideoProcessor:
                         except Exception:
                             pass
                         raise SourceError(
-                            f"Could not reach video metadata for {url} (timeout)") from None
+                            f"Could not reach video metadata for {url} (timeout)"
+                        ) from None
 
         try:
             stdout, stderr = await _wait_cancellable()
@@ -270,15 +284,16 @@ class VideoProcessor:
             raise SourceError(f"Could not reach video metadata for {url} (timeout)") from None
         if proc.returncode != 0:
             raise SourceError(
-                self._ytdlp_error_text(url, stderr, fallback="video metadata unavailable"))
+                self._ytdlp_error_text(url, stderr, fallback="video metadata unavailable")
+            )
         try:
             return json.loads(stdout.decode("utf-8", errors="replace"))
         except json.JSONDecodeError as e:
             raise SourceError(f"Could not parse video metadata for {url}: {e}") from e
 
     async def get_video_info(
-            self, path_or_url: str,
-            is_cancelled: Callable[[], bool] | None = None) -> VideoInfo:
+        self, path_or_url: str, is_cancelled: Callable[[], bool] | None = None
+    ) -> VideoInfo:
         """Get video metadata using ffprobe (local) or yt-dlp (remote URL).
 
         v1.5.1: is_cancelled is forwarded to the yt-dlp metadata probe so
@@ -292,16 +307,16 @@ class VideoProcessor:
             try:
                 # v1.5.1: pass the cancel flag into the metadata probe so
                 # Cancel reacts within ~0.5s even before the download starts.
-                meta = await self._probe_url(
-                    path_or_url,
-                    is_cancelled=is_cancelled)
+                meta = await self._probe_url(path_or_url, is_cancelled=is_cancelled)
             except SourceError as e:
                 logger.error("yt-dlp metadata failed: %s", e)
                 raise
             info.title = str(meta.get("title", "")) or "video"
             info.duration = float(meta.get("duration") or 0.0)
             if meta.get("filesize") or meta.get("filesize_approx"):
-                info.file_size_mb = float(meta.get("filesize") or meta.get("filesize_approx")) / (1024 * 1024)
+                info.file_size_mb = float(meta.get("filesize") or meta.get("filesize_approx")) / (
+                    1024 * 1024
+                )
             return info
 
         if Path(path_or_url).exists():
@@ -313,9 +328,12 @@ class VideoProcessor:
         try:
             proc = await asyncio.create_subprocess_exec(
                 ffprobe,
-                "-v", "quiet",
-                "-print_format", "json",
-                "-show_format", "-show_streams",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                "-show_streams",
                 info.path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -348,7 +366,9 @@ class VideoProcessor:
     @staticmethod
     def _ytdlp_error_text(url: str, stderr: bytes, fallback: str = "download failed") -> str:
         """User-presentable message from yt-dlp stderr (skip download progress lines)."""
-        lines = [ln.strip() for ln in stderr.decode("utf-8", errors="replace").splitlines() if ln.strip()]
+        lines = [
+            ln.strip() for ln in stderr.decode("utf-8", errors="replace").splitlines() if ln.strip()
+        ]
         for ln in reversed(lines):
             if ln.startswith("ERROR:"):
                 return f"{ln} ({url})"
@@ -379,7 +399,9 @@ class VideoProcessor:
         return DownloadProgress(
             phase="preparing",
             percent=float(m.group("pct")),
-            downloaded_mb=amt_mb if m.group("tilde") is None else amt_mb * float(m.group("pct")) / 100.0,
+            downloaded_mb=amt_mb
+            if m.group("tilde") is None
+            else amt_mb * float(m.group("pct")) / 100.0,
             total_mb=-1.0 if m.group("tilde") else amt_mb,
             speed=speed,
             eta=m.group("eta") or "",
@@ -393,8 +415,7 @@ class VideoProcessor:
         and continues the parts by itself.
         """
         try:
-            return sum(p.stat().st_size
-                       for p in Path(out_dir).glob("*.part") if p.is_file())
+            return sum(p.stat().st_size for p in Path(out_dir).glob("*.part") if p.is_file())
         except OSError:
             return 0
 
@@ -456,8 +477,7 @@ class VideoProcessor:
         # resolve_source() already gates this for the GUI flow, but
         # download_video() is public).
         if not url.lower().startswith(("http://", "https://")):
-            raise SourceError(
-                f"Unsupported video URL (http/https only): {url[:80]}")
+            raise SourceError(f"Unsupported video URL (http/https only): {url[:80]}")
         # v1.6.7: a caller that passes out_dir gets RESUMABLE downloads.
         # yt-dlp continues a .part file by default (-c is its default),
         # but every attempt used to land in a fresh mkdtemp, so the
@@ -471,20 +491,27 @@ class VideoProcessor:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         resuming = self._partial_bytes(out_dir)
         if resuming:
-            logger.info("Resuming an interrupted download: %s already on "
-                        "disk in %s", f"{resuming / 1e6:.1f} MB", out_dir)
+            logger.info(
+                "Resuming an interrupted download: %s already on disk in %s",
+                f"{resuming / 1e6:.1f} MB",
+                out_dir,
+            )
         out_tmpl = str(Path(out_dir) / "video.%(ext)s")
         args = [
             self.ytdlp,
-            "-f", f"bv*[height<={max_height}]+ba/b",  # merge-capable; height cap keeps it fast
+            "-f",
+            f"bv*[height<={max_height}]+ba/b",  # merge-capable; height cap keeps it fast
             # v1.8.5: prefer H.264 + AAC. yt-dlp's own ranking picks AV1
             # + Opus first (Big Buck Bunny: av01 1080p), and MiMo and
             # Nemotron could not open it ("Failed to load video") while
             # GLM, Qwen and Gemini could. H.264 is offered at the same
             # height, so nothing is lost; other codecs stay the fallback.
-            "-S", "vcodec:h264,res,acodec:m4a",
-            "--merge-output-format", "mp4",
-            "-o", out_tmpl,
+            "-S",
+            "vcodec:h264,res,acodec:m4a",
+            "--merge-output-format",
+            "mp4",
+            "-o",
+            out_tmpl,
             "--no-playlist",
             "--newline",  # one progress line per update, parseable
         ]
@@ -547,8 +574,9 @@ class VideoProcessor:
                     except ProcessLookupError:
                         pass
 
-                task = asyncio.ensure_future(asyncio.gather(
-                    pump(proc.stdout), pump(proc.stderr, True), proc.wait()))
+                task = asyncio.ensure_future(
+                    asyncio.gather(pump(proc.stdout), pump(proc.stderr, True), proc.wait())
+                )
                 loop = asyncio.get_running_loop()
                 deadline = loop.time() + 1800
                 try:
@@ -572,11 +600,15 @@ class VideoProcessor:
                     raise SourceError(f"Download timed out after 30 minutes ({url})")
                 if proc.returncode != 0:
                     msg = self._ytdlp_error_text(
-                        url, "\n".join(err_lines).encode("utf-8", "replace"))
+                        url, "\n".join(err_lines).encode("utf-8", "replace")
+                    )
                     if is_forbidden_error(msg) and attempt < DOWNLOAD_ATTEMPTS:
-                        logger.warning("YouTube refused the download (attempt "
-                                       "%d of %d); trying again: %s",
-                                       attempt, DOWNLOAD_ATTEMPTS, msg)
+                        logger.warning(
+                            "YouTube refused the download (attempt %d of %d); trying again: %s",
+                            attempt,
+                            DOWNLOAD_ATTEMPTS,
+                            msg,
+                        )
                         await asyncio.sleep(2.0 * attempt)
                         continue
                     raise SourceError(msg)
@@ -599,7 +631,8 @@ class VideoProcessor:
         leftovers = sorted(p.name for p in Path(out_dir).glob("video.*"))
         raise SourceError(
             f"Download finished but no merged video file in {out_dir} "
-            f"({url}); found only {leftovers or 'nothing'}")
+            f"({url}); found only {leftovers or 'nothing'}"
+        )
 
     async def resolve_source(
         self,
@@ -634,8 +667,8 @@ class VideoProcessor:
                 logger.info("Video already downloaded, skipping: %s", done)
                 return done
         return await self.download_video(
-            path_or_url, out_dir=out_dir, on_progress=on_progress,
-            is_cancelled=is_cancelled)
+            path_or_url, out_dir=out_dir, on_progress=on_progress, is_cancelled=is_cancelled
+        )
 
     async def _probe_source_fps(self, video_path: str) -> float:
         """The video's own frame rate, or 0.0 when it cannot be read.
@@ -646,10 +679,15 @@ class VideoProcessor:
         """
         try:
             proc = await asyncio.create_subprocess_exec(
-                self._ffprobe_path(), "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=r_frame_rate",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                self._ffprobe_path(),
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=r_frame_rate",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 video_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -692,8 +730,8 @@ class VideoProcessor:
         run and seeing an empty project media folder.
         """
         video_path = await self.resolve_source(
-            video_path, on_progress=on_progress, is_cancelled=is_cancelled,
-            out_dir=download_dir)
+            video_path, on_progress=on_progress, is_cancelled=is_cancelled, out_dir=download_dir
+        )
         output = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="odc_frames_"))
         output.mkdir(parents=True, exist_ok=True)
 
@@ -711,9 +749,13 @@ class VideoProcessor:
         # time and twice the disk for not one extra pixel of information.
         source_fps = await self._probe_source_fps(video_path)
         if source_fps and fps > source_fps:
-            logger.info("Frame rate %d exceeds the source's %.0f fps; "
-                        "using %.0f (higher only duplicates frames)",
-                        fps, source_fps, source_fps)
+            logger.info(
+                "Frame rate %d exceeds the source's %.0f fps; "
+                "using %.0f (higher only duplicates frames)",
+                fps,
+                source_fps,
+                source_fps,
+            )
             fps = max(1, int(source_fps))
 
         # ffmpeg frame extraction
@@ -721,9 +763,12 @@ class VideoProcessor:
         try:
             proc = await asyncio.create_subprocess_exec(
                 self.ffmpeg,
-                "-i", video_path,
-                "-vf", f"fps={fps},scale=512:-1",
-                "-q:v", "4",
+                "-i",
+                video_path,
+                "-vf",
+                f"fps={fps},scale=512:-1",
+                "-q:v",
+                "4",
                 "-y",
                 pattern,
                 stdout=asyncio.subprocess.PIPE,
@@ -748,22 +793,19 @@ class VideoProcessor:
                             pass
                         # kill closes the pipes, so comm_task ends promptly
                     try:
-                        await asyncio.wait_for(
-                            asyncio.shield(comm_task), timeout=1.0)
+                        await asyncio.wait_for(asyncio.shield(comm_task), timeout=1.0)
                         break
                     except asyncio.TimeoutError:
                         continue
                 if cancelled_ff:
-                    raise SourceError(
-                        f"Download cancelled ({video_path})")
+                    raise SourceError(f"Download cancelled ({video_path})")
                 _, stderr = comm_task.result()
                 if proc.returncode != 0:
                     # Log the TAIL of stderr: ffmpeg puts the real error last,
                     # the head is only the version banner.
                     logger.error(
-                        "ffmpeg error (rc=%d): %s",
-                        proc.returncode,
-                        self._stderr_tail(stderr))
+                        "ffmpeg error (rc=%d): %s", proc.returncode, self._stderr_tail(stderr)
+                    )
                     return []
             except SourceError:
                 raise
@@ -782,8 +824,7 @@ class VideoProcessor:
         # ffmpeg writes frame_10000.jpg, which sorts as text between
         # frame_1000 and frame_1001 and shifted every later timestamp
         # (a 17-minute video at 10 fps put its ending at 100 s).
-        frames = sorted(output.glob("frame_*.jpg"),
-                        key=self._frame_number)
+        frames = sorted(output.glob("frame_*.jpg"), key=self._frame_number)
         result = []
 
         for i, frame_path in enumerate(frames):
@@ -791,17 +832,18 @@ class VideoProcessor:
             frame_hash = ""
             if detect_scene_changes:
                 frame_hash = self._hash_frame(frame_path)
-            result.append(Frame(
-                path=str(frame_path),
-                timestamp=timestamp,
-                scene_hash=frame_hash,
-            ))
+            result.append(
+                Frame(
+                    path=str(frame_path),
+                    timestamp=timestamp,
+                    scene_hash=frame_hash,
+                )
+            )
 
         # Deduplicate similar frames if scene detection enabled
         if detect_scene_changes and result:
             try:
-                max_gap = float(self.settings.get(
-                    "general.max_frame_gap", 30.0) or 0.0)
+                max_gap = float(self.settings.get("general.max_frame_gap", 30.0) or 0.0)
             except (TypeError, ValueError):
                 max_gap = 30.0
             result = self._deduplicate_frames(result, max_gap=max_gap)
@@ -826,8 +868,7 @@ class VideoProcessor:
             if not kept or frame.timestamp - kept[-1].timestamp >= min_spacing:
                 kept.append(frame)
         if len(kept) < len(frames):
-            logger.info("Spacing %.1fs kept %d of %d frames",
-                        min_spacing, len(kept), len(frames))
+            logger.info("Spacing %.1fs kept %d of %d frames", min_spacing, len(kept), len(frames))
         return kept
 
     @staticmethod
@@ -840,6 +881,7 @@ class VideoProcessor:
         """Simple perceptual hash for scene change detection."""
         try:
             from PIL import Image
+
             img = Image.open(frame_path)
             # Downscale to 16x16 grayscale for fast comparison
             small = img.resize((16, 16)).convert("L")
@@ -852,8 +894,7 @@ class VideoProcessor:
             return ""
 
     @staticmethod
-    def _apply_coverage_floor(kept: list[Frame], every: list[Frame],
-                              max_gap: float) -> list[Frame]:
+    def _apply_coverage_floor(kept: list[Frame], every: list[Frame], max_gap: float) -> list[Frame]:
         """Put frames back wherever deduplication left the model blind.
 
         Deduplication compares each frame only with the last one it
@@ -898,13 +939,17 @@ class VideoProcessor:
         filled.sort(key=lambda f: f.timestamp)
         added = len(filled) - len(kept)
         if added:
-            logger.info("Coverage floor added %d frame(s) so no stretch "
-                        "longer than %.0fs is left undescribed",
-                        added, max_gap)
+            logger.info(
+                "Coverage floor added %d frame(s) so no stretch "
+                "longer than %.0fs is left undescribed",
+                added,
+                max_gap,
+            )
         return filled
 
-    def _deduplicate_frames(self, frames: list[Frame], threshold: float = 0.85,
-                            max_gap: float = 30.0) -> list[Frame]:
+    def _deduplicate_frames(
+        self, frames: list[Frame], threshold: float = 0.85, max_gap: float = 30.0
+    ) -> list[Frame]:
         """Remove near-duplicate consecutive frames based on hash similarity."""
         if len(frames) < 2:
             return frames
@@ -925,15 +970,19 @@ class VideoProcessor:
 
         removed = len(frames) - len(deduped)
         if removed > 0:
-            logger.info("Dedup removed %d similar frames (%d → %d)", removed, len(frames), len(deduped))
+            logger.info(
+                "Dedup removed %d similar frames (%d → %d)", removed, len(frames), len(deduped)
+            )
         return self._apply_coverage_floor(deduped, frames, max_gap)
 
-    async def get_transcript(self, source: str,
-                             local_path: str = "",
-                             is_cancelled: Callable[[], bool] | None = None,
-                             cache_path: str | Path | None = None,
-                             on_progress: Callable[[float], None] | None = None,
-                             ) -> list[TranscriptSegment]:
+    async def get_transcript(
+        self,
+        source: str,
+        local_path: str = "",
+        is_cancelled: Callable[[], bool] | None = None,
+        cache_path: str | Path | None = None,
+        on_progress: Callable[[float], None] | None = None,
+    ) -> list[TranscriptSegment]:
         """Get what is SAID in the video, as timed segments.
 
         v1.6.1: pass the ORIGINAL source here — the URL for a download,
@@ -960,11 +1009,11 @@ class VideoProcessor:
         # once per attempt.
         cached = self._read_transcript_cache(cache_path)
         if cached:
-            logger.info("Transcript: %d segments from the project cache",
-                        len(cached))
+            logger.info("Transcript: %d segments from the project cache", len(cached))
             return cached
-        segments = await self._fresh_transcript(source, local_path, is_cancelled,
-                                                on_progress=on_progress)
+        segments = await self._fresh_transcript(
+            source, local_path, is_cancelled, on_progress=on_progress
+        )
         self._write_transcript_cache(cache_path, segments)
         return segments
 
@@ -974,11 +1023,12 @@ class VideoProcessor:
             return []
         try:
             rows = json.loads(Path(cache_path).read_text(encoding="utf-8"))
-            return [TranscriptSegment(start=float(r["start"]), end=float(r["end"]),
-                                      text=str(r["text"])) for r in rows]
+            return [
+                TranscriptSegment(start=float(r["start"]), end=float(r["end"]), text=str(r["text"]))
+                for r in rows
+            ]
         except (OSError, ValueError, TypeError, KeyError):
-            logger.warning("Transcript cache unreadable, making a new one: %s",
-                           cache_path)
+            logger.warning("Transcript cache unreadable, making a new one: %s", cache_path)
             return []
 
     @staticmethod
@@ -987,15 +1037,23 @@ class VideoProcessor:
             return
         try:
             Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-            Path(cache_path).write_text(json.dumps(
-                [{"start": s.start, "end": s.end, "text": s.text}
-                 for s in segments], ensure_ascii=False), encoding="utf-8")
+            Path(cache_path).write_text(
+                json.dumps(
+                    [{"start": s.start, "end": s.end, "text": s.text} for s in segments],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
         except OSError as e:
             logger.warning("Could not keep the transcript: %s", e)
 
-    async def _fresh_transcript(self, source: str, local_path: str,
-                                is_cancelled, on_progress=None,
-                                ) -> list[TranscriptSegment]:
+    async def _fresh_transcript(
+        self,
+        source: str,
+        local_path: str,
+        is_cancelled,
+        on_progress=None,
+    ) -> list[TranscriptSegment]:
         is_url = "://" in source
         try:
             if is_url:
@@ -1003,8 +1061,11 @@ class VideoProcessor:
             else:
                 segments = await self._embedded_subtitles(source, is_cancelled)
             if segments:
-                logger.info("Transcript: %d segments from %s",
-                            len(segments), "subtitles" if is_url else "file")
+                logger.info(
+                    "Transcript: %d segments from %s",
+                    len(segments),
+                    "subtitles" if is_url else "file",
+                )
                 return segments
         except Exception as e:
             if str(e) == "cancelled":
@@ -1023,22 +1084,24 @@ class VideoProcessor:
                 # transcribe_audio in tests take (path, is_cancelled).
                 extra = {"on_progress": on_progress} if on_progress else {}
                 segments = await self.transcribe_audio(
-                    audio_source, is_cancelled=is_cancelled, **extra)
+                    audio_source, is_cancelled=is_cancelled, **extra
+                )
                 if segments:
                     return segments
             except Exception as e:
                 if str(e) == "cancelled":
-                    raise           # Cancel must stop the job, not be logged
+                    raise  # Cancel must stop the job, not be logged
                 logger.warning("Speech-to-text failed: %s", e)
 
-        logger.info("No transcript available for %s",
-                    "URL" if is_url else "local file")
+        logger.info("No transcript available for %s", "URL" if is_url else "local file")
         return []
 
-    async def transcribe_audio(self, video_path: str,
-                               is_cancelled: Callable[[], bool] | None = None,
-                               on_progress: Callable[[float], None] | None = None,
-                               ) -> list[TranscriptSegment]:
+    async def transcribe_audio(
+        self,
+        video_path: str,
+        is_cancelled: Callable[[], bool] | None = None,
+        on_progress: Callable[[float], None] | None = None,
+    ) -> list[TranscriptSegment]:
         """Turn the spoken audio into timed text.
 
         Backends, in the order they are tried when set to "auto":
@@ -1053,8 +1116,7 @@ class VideoProcessor:
         to pin one; "auto" (the default) uses Grok when a key exists and
         falls back to Whisper.
         """
-        backend = str(self.settings.get(
-            "general.transcription_backend", "auto") or "auto").lower()
+        backend = str(self.settings.get("general.transcription_backend", "auto") or "auto").lower()
         if backend == "off":
             return []
 
@@ -1074,7 +1136,8 @@ class VideoProcessor:
         if backend in ("auto", "whisper"):
             if on_progress is not None:
                 return await self._whisper_transcribe(
-                    video_path, is_cancelled, on_progress=on_progress)
+                    video_path, is_cancelled, on_progress=on_progress
+                )
             return await self._whisper_transcribe(video_path, is_cancelled)
         return []
 
@@ -1105,6 +1168,7 @@ class VideoProcessor:
         model benchmark, 29 Sep 2026).
         """
         import zlib
+
         text = str(getattr(segment, "text", "") or "").strip()
         if not text:
             return False
@@ -1112,10 +1176,12 @@ class VideoProcessor:
         ratio = len(data) / len(zlib.compress(data))
         return ratio > WHISPER_COMPRESSION_LIMIT
 
-    async def _whisper_transcribe(self, video_path: str,
-                                  is_cancelled: Callable[[], bool] | None = None,
-                                  on_progress: Callable[[float], None] | None = None,
-                                  ) -> list[TranscriptSegment]:
+    async def _whisper_transcribe(
+        self,
+        video_path: str,
+        is_cancelled: Callable[[], bool] | None = None,
+        on_progress: Callable[[float], None] | None = None,
+    ) -> list[TranscriptSegment]:
         """Local faster-whisper. Imported lazily: the app must still run
         (and describe) on a machine where it was never installed.
 
@@ -1124,21 +1190,18 @@ class VideoProcessor:
         try:
             from faster_whisper import WhisperModel
         except ImportError:
-            logger.info("faster-whisper is not installed; no local "
-                        "transcription")
+            logger.info("faster-whisper is not installed; no local transcription")
             return []
 
-        size = str(self.settings.get(
-            "general.whisper_model", "base") or "base")
+        size = str(self.settings.get("general.whisper_model", "base") or "base")
 
         def _run() -> list[TranscriptSegment]:
             model = WhisperModel(size, device="cpu", compute_type="int8")
             if is_cancelled is not None and is_cancelled():
-                raise RuntimeError("cancelled")     # model load can take a while
-            segments, info = model.transcribe(
-                video_path, beam_size=1, **WHISPER_DECODE)
+                raise RuntimeError("cancelled")  # model load can take a while
+            segments, info = model.transcribe(video_path, beam_size=1, **WHISPER_DECODE)
             if is_cancelled is not None and is_cancelled():
-                raise RuntimeError("cancelled")     # VAD + language detection
+                raise RuntimeError("cancelled")  # VAD + language detection
             kept: list[TranscriptSegment] = []
             dropped = 0
             length = float(getattr(info, "duration", 0.0) or 0.0)
@@ -1159,19 +1222,22 @@ class VideoProcessor:
                 if self._looks_hallucinated(s):
                     dropped += 1
                     continue
-                kept.append(TranscriptSegment(start=float(s.start),
-                                              end=float(s.end), text=text))
-            logger.info("Whisper(%s): %d segments (%d dropped as "
-                        "hallucination), %.0fs of %s audio",
-                        size, len(kept), dropped, info.duration, info.language)
+                kept.append(TranscriptSegment(start=float(s.start), end=float(s.end), text=text))
+            logger.info(
+                "Whisper(%s): %d segments (%d dropped as hallucination), %.0fs of %s audio",
+                size,
+                len(kept),
+                dropped,
+                info.duration,
+                info.language,
+            )
             return kept
 
         # Whisper is CPU-bound and blocks for minutes on a long video;
         # off the event loop it goes, or the cancel button dies with it.
         return await asyncio.get_running_loop().run_in_executor(None, _run)
 
-    async def _grok_transcribe(self, video_path: str,
-                               api_key: str) -> list[TranscriptSegment]:
+    async def _grok_transcribe(self, video_path: str, api_key: str) -> list[TranscriptSegment]:
         """xAI speech-to-text (grok-voice-transcribe-2.0).
 
         POST /v1/stt, multipart, with `file` last — the API requires that
@@ -1182,15 +1248,15 @@ class VideoProcessor:
 
         path = Path(video_path)
         if path.stat().st_size > 500 * 1024 * 1024:
-            logger.warning("Grok STT limit is 500 MB; file is %.0f MB",
-                           path.stat().st_size / 1e6)
+            logger.warning("Grok STT limit is 500 MB; file is %.0f MB", path.stat().st_size / 1e6)
             return []
 
         form = aiohttp.FormData()
         form.add_field("model", "grok-voice-transcribe-2.0")
         form.add_field("response_format", "verbose_json")
-        form.add_field("file", path.read_bytes(), filename=path.name,
-                       content_type="application/octet-stream")
+        form.add_field(
+            "file", path.read_bytes(), filename=path.name, content_type="application/octet-stream"
+        )
         timeout = aiohttp.ClientTimeout(total=1800)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
@@ -1200,22 +1266,26 @@ class VideoProcessor:
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
-                    raise RuntimeError(f"Grok STT HTTP {resp.status}: "
-                                       f"{body[:200]}")
+                    raise RuntimeError(f"Grok STT HTTP {resp.status}: {body[:200]}")
                 data = await resp.json()
 
         segments = data.get("segments") or data.get("words") or []
         out = [
-            TranscriptSegment(start=float(s.get("start", 0.0)),
-                              end=float(s.get("end", 0.0)),
-                              text=str(s.get("text", "")).strip())
-            for s in segments if str(s.get("text", "")).strip()
+            TranscriptSegment(
+                start=float(s.get("start", 0.0)),
+                end=float(s.get("end", 0.0)),
+                text=str(s.get("text", "")).strip(),
+            )
+            for s in segments
+            if str(s.get("text", "")).strip()
         ]
         if not out and data.get("text"):
             # No timings came back: one block is still better than none.
-            out = [TranscriptSegment(start=0.0,
-                                     end=float(data.get("duration", 0.0)),
-                                     text=str(data["text"]).strip())]
+            out = [
+                TranscriptSegment(
+                    start=0.0, end=float(data.get("duration", 0.0)), text=str(data["text"]).strip()
+                )
+            ]
         logger.info("Grok STT: %d segments", len(out))
         return out
 
@@ -1232,8 +1302,7 @@ class VideoProcessor:
         except Exception:
             pass
 
-    async def _communicate_cancellable(self, proc, timeout: float,
-                                       is_cancelled=None) -> None:
+    async def _communicate_cancellable(self, proc, timeout: float, is_cancelled=None) -> None:
         """proc.communicate() that stops within 0.5 s of a Cancel (v1.9.6:
         the subtitle steps ignored Cancel for up to 60 and 120 s).
         Raises asyncio.TimeoutError at the deadline, RuntimeError on Cancel;
@@ -1255,8 +1324,9 @@ class VideoProcessor:
                 task.cancel()
                 raise asyncio.TimeoutError()
 
-    async def _embedded_subtitles(self, video_path: str,
-                                  is_cancelled=None) -> list[TranscriptSegment]:
+    async def _embedded_subtitles(
+        self, video_path: str, is_cancelled=None
+    ) -> list[TranscriptSegment]:
         """Pull a subtitle track out of a local file with ffmpeg.
 
         Many downloaded or ripped files carry one; when they do it is
@@ -1268,8 +1338,15 @@ class VideoProcessor:
         try:
             out = str(Path(tmp) / "track.vtt")
             proc = await asyncio.create_subprocess_exec(
-                self.ffmpeg, "-y", "-i", video_path,
-                "-map", "0:s:0", "-f", "webvtt", out,
+                self.ffmpeg,
+                "-y",
+                "-i",
+                video_path,
+                "-map",
+                "0:s:0",
+                "-f",
+                "webvtt",
+                out,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -1288,10 +1365,10 @@ class VideoProcessor:
             return []
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
-    async def _ytdlp_subtitles(self, video_url: str,
-                               is_cancelled=None) -> list[TranscriptSegment]:
+    async def _ytdlp_subtitles(self, video_url: str, is_cancelled=None) -> list[TranscriptSegment]:
         """Fetch subtitles for a URL (uploaded or auto-generated).
 
         v1.6.1: the guard here used to be `if not Path(...).exists()`,
@@ -1306,13 +1383,18 @@ class VideoProcessor:
                 # ones. --no-playlist: a watch?v=X&list=... URL would
                 # otherwise fetch captions for the whole list and the
                 # first file found could belong to another video.
-                "--write-subs", "--write-auto-sub",
+                "--write-subs",
+                "--write-auto-sub",
                 "--no-playlist",
-                "--sub-lang", "en,ms,id",
-                "--sub-format", "vtt",
+                "--sub-lang",
+                "en,ms,id",
+                "--sub-format",
+                "vtt",
                 "--skip-download",
-                "-o", str(Path(tmp) / "%(id)s.%(ext)s"),
-                "--", video_url,
+                "-o",
+                str(Path(tmp) / "%(id)s.%(ext)s"),
+                "--",
+                video_url,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -1339,6 +1421,7 @@ class VideoProcessor:
             return []
         finally:
             import shutil
+
             shutil.rmtree(tmp, ignore_errors=True)
 
     def _parse_vtt(self, vtt_path: str) -> list[TranscriptSegment]:
@@ -1361,7 +1444,7 @@ class VideoProcessor:
                 # Strip trailing cue settings (e.g. "align:start position:50%")
                 end_raw = parts[1].strip().split()[0] if parts[1].strip() else "00:00:00.000"
                 end = self._parse_time(end_raw)
-                cue_text = " ".join(lines[ts_idx + 1:]).strip()
+                cue_text = " ".join(lines[ts_idx + 1 :]).strip()
                 if cue_text:
                     segments.append(TranscriptSegment(start=start, end=end, text=cue_text))
         except Exception as e:

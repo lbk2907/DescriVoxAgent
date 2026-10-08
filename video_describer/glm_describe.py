@@ -7,6 +7,7 @@ Requests above MAX_FRAMES_PER_REQUEST frames are split into batches so
 a single request stays inside practical limits; batch results are
 merged by timestamp. Zhipu limits: 5 MB per image, 6000x6000 px max.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,6 +60,7 @@ class GLMError(RuntimeError):
 def check_frame_limits(paths: list[Path]) -> None:
     """Raise GLMError when any frame breaks the documented API limits."""
     from PIL import Image
+
     for p in paths:
         size = p.stat().st_size
         if size > MAX_IMAGE_BYTES:
@@ -76,20 +78,26 @@ def encode_frame(path: str | Path) -> str:
 
 
 def _chunks(seq: list, n: int) -> list[list]:
-    return [seq[i:i + n] for i in range(0, len(seq), n)]
+    return [seq[i : i + n] for i in range(0, len(seq), n)]
 
 
 async def _one_request(
     session: aiohttp.ClientSession,
-    api_key: str, base_url: str, model: str,
-    frames: list[Path], prompt: str, temperature: float,
+    api_key: str,
+    base_url: str,
+    model: str,
+    frames: list[Path],
+    prompt: str,
+    temperature: float,
 ) -> str:
     content: list[dict] = []
     for f in frames:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{encode_frame(f)}"},
-        })
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{encode_frame(f)}"},
+            }
+        )
     content.append({"type": "text", "text": prompt})
     payload = {
         "model": model,
@@ -129,17 +137,18 @@ async def describe_video(
     if len(batches) == 1:
         async with aiohttp.ClientSession() as session:
             text = await _one_request(
-                session, api_key, base_url, model, batches[0],
-                prompt, temperature)
+                session, api_key, base_url, model, batches[0], prompt, temperature
+            )
         return parse_events(text)
 
     # Batched: requests run concurrently, results merged by timestamp
     async with aiohttp.ClientSession() as session:
-        texts = await asyncio.gather(*[
-            _one_request(session, api_key, base_url, model, b,
-                         prompt, temperature)
-            for b in batches
-        ])
+        texts = await asyncio.gather(
+            *[
+                _one_request(session, api_key, base_url, model, b, prompt, temperature)
+                for b in batches
+            ]
+        )
     merged: list[tuple[float, str]] = []
     for t in texts:
         merged.extend(parse_events(t))

@@ -24,6 +24,7 @@ on any machine, NVDA or not. The real-NVDA measurements live in round
      were reported as "no sound".
   3. Meter looked up AFTER speaking -> the same miss, from the order.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
@@ -31,10 +32,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core import audio_meter  # noqa: E402
@@ -80,8 +85,7 @@ class Fast:
     """Shrink the timings so a test takes a fraction of a second."""
 
     def __init__(self, **overrides):
-        self.overrides = {"START_GRACE": 0.3, "SILENCE_TO_FINISH": 0.15,
-                          "_POLL": 0.01, **overrides}
+        self.overrides = {"START_GRACE": 0.3, "SILENCE_TO_FINISH": 0.15, "_POLL": 0.01, **overrides}
         self.saved = {}
 
     def __enter__(self):
@@ -103,14 +107,18 @@ def run(script, timeout=3.0, speak_result=True, meters=None):
     try:
         meter = audio_meter.ReaderMeter(("nvda.exe",))
         t0 = time.monotonic()
-        outcome = meter._listen(list(fake), timeout) if speak_result is None \
+        outcome = (
+            meter._listen(list(fake), timeout)
+            if speak_result is None
             else meter.speak_and_wait(lambda: speak_result, timeout)
+        )
         return outcome, time.monotonic() - t0
     finally:
         audio_meter._meters = original
 
 
 # ── The four answers ─────────────────────────────────────────────
+
 
 def test_speech_then_silence_is_finished():
     with Fast():
@@ -123,12 +131,12 @@ def test_a_pause_at_a_comma_does_not_end_the_sentence():
     """A reader breathes at punctuation; that is not the end."""
     with Fast(SILENCE_TO_FINISH=0.3):
         # sound, a 0.15 s pause, sound again, then real silence
-        outcome, secs = run([(0.0, 0.3), (0.2, 0.0), (0.35, 0.3),
-                             (0.8, 0.0)])
+        outcome, secs = run([(0.0, 0.3), (0.2, 0.0), (0.35, 0.3), (0.8, 0.0)])
     assert outcome == "finished", outcome
     assert secs >= 0.8, (
         f"ended at {secs:.2f}s, inside the comma pause — the video would "
-        f"resume before the second half of the sentence")
+        f"resume before the second half of the sentence"
+    )
 
 
 def test_hearing_nothing_says_so():
@@ -155,6 +163,7 @@ def test_a_failed_speak_is_reported_not_waited_on():
 
 # ── The three faults found building it ───────────────────────────
 
+
 def test_the_meter_is_found_before_the_speech_starts():
     """Fault 3: looking it up afterwards missed short sentences."""
     order = []
@@ -168,11 +177,13 @@ def test_the_meter_is_found_before_the_speech_starts():
     try:
         with Fast():
             audio_meter.ReaderMeter(("nvda.exe",)).speak_and_wait(
-                lambda: order.append("speak") or True, 2.0)
+                lambda: order.append("speak") or True, 2.0
+            )
     finally:
         audio_meter._meters = original
     assert order[:2] == ["meters", "speak"], (
-        f"order was {order}; the meter must be ready before the speech")
+        f"order was {order}; the meter must be ready before the speech"
+    )
 
 
 def test_no_slow_process_listing_in_the_hot_path():
@@ -181,17 +192,20 @@ def test_no_slow_process_listing_in_the_hot_path():
     # this test searched for the word and failed on the docstring that
     # explains WHY tasklist was removed.
     import ast
+
     text = (SRC / "core" / "audio_meter.py").read_text(encoding="utf-8")
     tree = ast.parse(text)
-    imported = {alias.name for node in ast.walk(tree)
-                if isinstance(node, (ast.Import, ast.ImportFrom))
-                for alias in node.names}
-    imported |= {node.module for node in ast.walk(tree)
-                 if isinstance(node, ast.ImportFrom) and node.module}
-    assert "subprocess" not in imported, (
-        "the meter spawns a process to find the reader again")
-    assert "QueryFullProcessImageNameW" in text, (
-        "process names are not read straight from Win32")
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    imported |= {
+        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
+    }
+    assert "subprocess" not in imported, "the meter spawns a process to find the reader again"
+    assert "QueryFullProcessImageNameW" in text, "process names are not read straight from Win32"
 
 
 def test_every_output_device_is_searched():
@@ -199,8 +213,8 @@ def test_every_output_device_is_searched():
     text = (SRC / "core" / "audio_meter.py").read_text(encoding="utf-8")
     body = text.split("def _meters(")[1].split("class ReaderMeter")[0]
     assert "EnumAudioEndpoints" in body, (
-        "only the default device is searched; a reader routed to its "
-        "own device is never found")
+        "only the default device is searched; a reader routed to its own device is never found"
+    )
     assert "GetDefaultAudioEndpoint" not in body
 
 
@@ -211,14 +225,12 @@ def test_a_session_that_appears_late_is_still_found():
 
     def late(names):
         calls["n"] += 1
-        return [] if calls["n"] < 3 else [
-            FakeMeter([(0.0, 0.3), (0.2, 0.0)])]
+        return [] if calls["n"] < 3 else [FakeMeter([(0.0, 0.3), (0.2, 0.0)])]
 
     audio_meter._meters = late
     try:
         with Fast(START_GRACE=1.0):
-            outcome = audio_meter.ReaderMeter(("nvda.exe",)).speak_and_wait(
-                lambda: True, 3.0)
+            outcome = audio_meter.ReaderMeter(("nvda.exe",)).speak_and_wait(lambda: True, 3.0)
     finally:
         audio_meter._meters = original
     assert outcome == "finished", outcome
@@ -226,12 +238,12 @@ def test_a_session_that_appears_late_is_still_found():
 
 # ── Safe everywhere ──────────────────────────────────────────────
 
+
 def test_without_audio_metering_it_says_so():
     saved = audio_meter._AVAILABLE
     audio_meter._AVAILABLE = False
     try:
-        outcome = audio_meter.ReaderMeter(("nvda.exe",)).speak_and_wait(
-            lambda: True, 1.0)
+        outcome = audio_meter.ReaderMeter(("nvda.exe",)).speak_and_wait(lambda: True, 1.0)
     finally:
         audio_meter._AVAILABLE = saved
     assert outcome == "no-meter", outcome
@@ -248,7 +260,7 @@ def test_a_meter_that_throws_does_not_throw_out():
 
 
 def test_prism_falls_back_to_an_estimate_when_it_hears_nothing():
-    """"no-sound" must still pause the video for about the right time."""
+    """ "no-sound" must still pause the video for about the right time."""
     text = (SRC / "core" / "speech.py").read_text(encoding="utf-8")
     body = text.split("def speak_and_wait")[1][:3000]
     assert "_estimate_seconds" in body, "no fallback when the meter is deaf"
@@ -258,6 +270,7 @@ def test_prism_falls_back_to_an_estimate_when_it_hears_nothing():
 def test_only_named_readers_are_metered():
     """A process name is not claimed without a reason to believe it."""
     from omni_describer_custom.core.speech import _READER_PROCESSES
+
     assert _READER_PROCESSES.get("NVDA") == ("nvda.exe",)
     for name, images in _READER_PROCESSES.items():
         assert all(i.endswith(".exe") for i in images), (name, images)
@@ -265,30 +278,35 @@ def test_only_named_readers_are_metered():
 
 if __name__ == "__main__":
     print("Round 33: hearing when a screen reader stops\n")
-    check("speech then silence is finished",
-          test_speech_then_silence_is_finished)
-    check("a pause at a comma does not end the sentence",
-          test_a_pause_at_a_comma_does_not_end_the_sentence)
+    check("speech then silence is finished", test_speech_then_silence_is_finished)
+    check(
+        "a pause at a comma does not end the sentence",
+        test_a_pause_at_a_comma_does_not_end_the_sentence,
+    )
     check("hearing nothing says so", test_hearing_nothing_says_so)
-    check("a reader that never stops is cut off at the limit",
-          test_a_reader_that_never_stops_is_cut_off_at_the_limit)
-    check("a failed speak is reported, not waited on",
-          test_a_failed_speak_is_reported_not_waited_on)
-    check("the meter is found before the speech starts",
-          test_the_meter_is_found_before_the_speech_starts)
-    check("no slow process listing in the hot path",
-          test_no_slow_process_listing_in_the_hot_path)
-    check("every output device is searched",
-          test_every_output_device_is_searched)
-    check("a session that appears late is still found",
-          test_a_session_that_appears_late_is_still_found)
-    check("without audio metering it says so",
-          test_without_audio_metering_it_says_so)
-    check("a meter that throws does not throw out",
-          test_a_meter_that_throws_does_not_throw_out)
-    check("prism falls back to an estimate when it hears nothing",
-          test_prism_falls_back_to_an_estimate_when_it_hears_nothing)
-    check("only named readers are metered",
-          test_only_named_readers_are_metered)
+    check(
+        "a reader that never stops is cut off at the limit",
+        test_a_reader_that_never_stops_is_cut_off_at_the_limit,
+    )
+    check(
+        "a failed speak is reported, not waited on", test_a_failed_speak_is_reported_not_waited_on
+    )
+    check(
+        "the meter is found before the speech starts",
+        test_the_meter_is_found_before_the_speech_starts,
+    )
+    check("no slow process listing in the hot path", test_no_slow_process_listing_in_the_hot_path)
+    check("every output device is searched", test_every_output_device_is_searched)
+    check(
+        "a session that appears late is still found",
+        test_a_session_that_appears_late_is_still_found,
+    )
+    check("without audio metering it says so", test_without_audio_metering_it_says_so)
+    check("a meter that throws does not throw out", test_a_meter_that_throws_does_not_throw_out)
+    check(
+        "prism falls back to an estimate when it hears nothing",
+        test_prism_falls_back_to_an_estimate_when_it_hears_nothing,
+    )
+    check("only named readers are metered", test_only_named_readers_are_metered)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

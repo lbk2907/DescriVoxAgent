@@ -12,14 +12,16 @@ from .settings_store import SettingsStore
 
 
 def _language_prefixes() -> tuple[str, ...]:
-    """"<code>_" for every locale in i18n/locales, plus en/ms always."""
+    """ "<code>_" for every locale in i18n/locales, plus en/ms always."""
     codes = {"en", "ms"}
     try:
         from ..i18n.strings import I18n
+
         codes.update(I18n.available_languages())
     except Exception:
         pass  # the prefixes above still cover the shipped presets
     return tuple(f"{code}_" for code in sorted(codes))
+
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +66,8 @@ _AD_CORE_EN = (
     "- Never describe dialogue, music or sound effects; they are already "
     "audible.\n"
     "- Present tense, third person, active voice.\n"
-    "- Report what is observable, not what it means: \"she lowers her eyes "
-    "and turns away\", not \"she is ashamed\".\n"
+    '- Report what is observable, not what it means: "she lowers her eyes '
+    'and turns away", not "she is ashamed".\n'
     "- Prioritise who is present, what they do, where they are, and any "
     "change the story depends on. Leave out decorative detail.\n"
     "- Read on-screen text when it carries information.\n"
@@ -88,7 +90,7 @@ _AD_CORE_EN = (
     "Measured with a real voice, a 21-word line needs 11 seconds to speak "
     "and arrives on top of the next one.\n"
     "- Do not narrate film technique: no camera moves, cuts, zooms, angles "
-    "or \"the video shows\". Saying someone speaks or looks to camera is "
+    'or "the video shows". Saying someone speaks or looks to camera is '
     "fine when they address the viewer directly."
 )
 
@@ -99,8 +101,8 @@ _AD_CORE_MS = (
     "- Jangan huraikan dialog, muzik atau kesan bunyi — semua itu sudah "
     "kedengaran.\n"
     "- Kala kini, orang ketiga, ayat aktif.\n"
-    "- Nyatakan apa yang kelihatan, bukan tafsirannya: \"dia menundukkan "
-    "pandangan dan berpaling\", bukan \"dia berasa malu\".\n"
+    '- Nyatakan apa yang kelihatan, bukan tafsirannya: "dia menundukkan '
+    'pandangan dan berpaling", bukan "dia berasa malu".\n'
     "- Utamakan siapa yang ada, apa yang mereka buat, di mana, dan "
     "perubahan penting kepada cerita. Tinggalkan butiran hiasan.\n"
     "- Baca teks pada skrin bila ia membawa maklumat.\n"
@@ -124,25 +126,25 @@ _AD_CORE_MS = (
     "sasaran, tetapi siling. Diukur dengan suara sebenar, baris 21 patah "
     "perkataan perlu 11 saat dan bertindih dengan penerangan seterusnya.\n"
     "- Jangan menceritakan teknik filem: tiada pergerakan kamera, potongan, "
-    "zum, sudut atau \"video ini menunjukkan\". Menyebut seseorang bercakap "
+    'zum, sudut atau "video ini menunjukkan". Menyebut seseorang bercakap '
     "atau memandang ke kamera dibenarkan bila dia menyapa penonton terus."
 )
 
 DEFAULT_PROMPTS = {
     # 1. The standard. Use this unless something specific says otherwise.
     "default": _AD_CORE_EN,
-
     # 2. Dense dialogue: the gaps are tiny, so spend them carefully.
-    "tight": _AD_CORE_EN + (
+    "tight": _AD_CORE_EN
+    + (
         "\n\nThis video talks almost continuously. Gaps are very short, so "
         "describe ONLY what makes the dialogue make sense: who is speaking "
         "to whom, who enters or leaves, and anything the words refer to but "
         "do not name. Skip everything else. Keep each description to a "
         "short phrase."
     ),
-
     # 3. W3C extended description: slow or information-dense material.
-    "extended": _AD_CORE_EN + (
+    "extended": _AD_CORE_EN
+    + (
         "\n\nThis video has long stretches without speech, so there is room "
         "for fuller description. Use it for information the viewer needs "
         "and cannot hear: the layout of a space, what a diagram or chart "
@@ -151,14 +153,14 @@ DEFAULT_PROMPTS = {
         "permission to interpret. Here the ceiling rises to 25 words, "
         "but only where the silence genuinely allows it."
     ),
-
     # 4. Audio subtitling: the recognised service for foreign speech.
-    "foreign": _AD_CORE_EN + (
+    "foreign": _AD_CORE_EN
+    + (
         "\n\nThe people in this video speak a language the listener may not "
         "understand. In addition to the visual description, convey what is "
         "said: give the meaning briefly in the language you are writing in, "
-        "attributing it to the speaker (\"the woman says she is leaving "
-        "tonight\"). Summarise rather than translating word for word, and "
+        'attributing it to the speaker ("the woman says she is leaving '
+        'tonight"). Summarise rather than translating word for word, and '
         "read any subtitles on screen. CONVEYING SPEECH IS THE MAIN JOB of "
         "this preset: whenever someone says something that matters, say "
         "what they said — that outranks describing what you can see. The "
@@ -167,27 +169,27 @@ DEFAULT_PROMPTS = {
         "order. Do not write the speech first and the visuals afterwards, "
         "and do not produce two passes."
     ),
-
     # 5. Netflix names this genre explicitly: silence carries the tension.
-    "suspense": _AD_CORE_EN + (
+    "suspense": _AD_CORE_EN
+    + (
         "\n\nThis video builds tension through silence and music. Do not "
         "fill dramatic pauses — a held silence is information too. Never "
         "reveal what is about to happen before the video shows it: describe "
         "the shadow, not the killer waiting behind the door. Short, plain "
         "sentences; let the soundtrack do its work."
     ),
-
     # 6. The other genre the standard names: tone follows the audience.
-    "children": _AD_CORE_EN + (
+    "children": _AD_CORE_EN
+    + (
         "\n\nThis video is for children. Use simple everyday words and short "
         "sentences, and name colours, animals and actions plainly. Keep a "
         "warm, friendly tone without becoming excited or silly, and never "
         "explain the joke or the lesson — describe what happens and let the "
         "child work it out."
     ),
-
     # 7. Tutorials, slides, anything where the screen IS the content.
-    "onscreen_text": _AD_CORE_EN + (
+    "onscreen_text": _AD_CORE_EN
+    + (
         "\n\nThe screen in this video carries text and graphics that matter: "
         "slides, menus, code, forms, charts. Read the text as written, in "
         "reading order, and say where it sits when position matters (which "
@@ -196,19 +198,18 @@ DEFAULT_PROMPTS = {
         "what the user is doing: what they click, type or select. Text "
         "read verbatim may exceed 12 words; your own wording may not."
     ),
-
     # ── Malay versions (same strategies, same rules) ──────────────
     "ms_default": _AD_CORE_MS,
-
-    "ms_tight": _AD_CORE_MS + (
+    "ms_tight": _AD_CORE_MS
+    + (
         "\n\nVideo ini bercakap hampir tanpa henti. Celah amat pendek, jadi "
         "huraikan HANYA apa yang menjadikan dialog itu difahami: siapa "
         "bercakap dengan siapa, siapa masuk atau keluar, dan apa yang "
         "dirujuk oleh percakapan tetapi tidak dinamakan. Tinggalkan yang "
         "lain. Pendekkan setiap penerangan kepada satu frasa."
     ),
-
-    "ms_extended": _AD_CORE_MS + (
+    "ms_extended": _AD_CORE_MS
+    + (
         "\n\nVideo ini ada tempoh panjang tanpa percakapan, jadi ada ruang "
         "untuk penerangan lebih penuh. Gunakannya untuk maklumat yang "
         "diperlukan tetapi tidak boleh didengar: susun atur ruang, apa yang "
@@ -218,13 +219,13 @@ DEFAULT_PROMPTS = {
         "Di sini siling naik kepada 25 patah perkataan, tetapi hanya bila "
         "kesenyapan benar-benar mengizinkannya."
     ),
-
-    "ms_foreign": _AD_CORE_MS + (
+    "ms_foreign": _AD_CORE_MS
+    + (
         "\n\nOrang dalam video ini bercakap dalam bahasa yang mungkin tidak "
         "difahami pendengar. Selain penerangan visual, sampaikan apa yang "
         "dikatakan: beri maksudnya secara ringkas dalam bahasa penulisan "
-        "anda, dengan menyebut siapa yang berkata (\"wanita itu berkata dia "
-        "akan pergi malam ini\"). Ringkaskan, jangan terjemah perkataan "
+        'anda, dengan menyebut siapa yang berkata ("wanita itu berkata dia '
+        'akan pergi malam ini"). Ringkaskan, jangan terjemah perkataan '
         "demi perkataan, dan baca sari kata yang ada pada skrin. "
         "MENYAMPAIKAN PERTUTURAN ADALAH KERJA UTAMA preset ini: setiap "
         "kali seseorang berkata sesuatu yang penting, nyatakan apa yang "
@@ -235,24 +236,24 @@ DEFAULT_PROMPTS = {
         "urutan masa. Jangan tulis pertuturan dahulu kemudian visual "
         "kemudian, dan jangan hasilkan dua pusingan."
     ),
-
-    "ms_suspense": _AD_CORE_MS + (
+    "ms_suspense": _AD_CORE_MS
+    + (
         "\n\nVideo ini membina ketegangan melalui kesenyapan dan muzik. "
         "Jangan penuhi jeda dramatik — senyap itu sendiri maklumat. Jangan "
         "dedahkan apa yang bakal berlaku sebelum video menunjukkannya: "
         "huraikan bayang itu, bukan pembunuh yang menunggu di balik pintu. "
         "Ayat pendek dan mudah; biar bunyi melakukan kerjanya."
     ),
-
-    "ms_children": _AD_CORE_MS + (
+    "ms_children": _AD_CORE_MS
+    + (
         "\n\nVideo ini untuk kanak-kanak. Guna perkataan harian yang mudah "
         "dan ayat pendek, dan namakan warna, haiwan serta perbuatan secara "
         "jelas. Kekalkan nada mesra tanpa menjadi terlalu teruja, dan "
         "jangan terangkan jenaka atau pengajarannya — huraikan apa yang "
         "berlaku dan biar kanak-kanak itu memahaminya sendiri."
     ),
-
-    "ms_onscreen_text": _AD_CORE_MS + (
+    "ms_onscreen_text": _AD_CORE_MS
+    + (
         "\n\nSkrin dalam video ini membawa teks dan grafik yang penting: "
         "slaid, menu, kod, borang, carta. Baca teks seperti tertulis "
         "mengikut urutan bacaan, dan nyatakan kedudukannya bila itu penting "
@@ -330,8 +331,7 @@ class PromptManager:
                 # Same NAME as a current preset but still holding the old
                 # wording (e.g. "default"): upgrade it in place.
                 self.settings.set_prompt(name, text)
-                logger.info("Upgraded prompt preset to v1.6.0 wording: %s",
-                            name)
+                logger.info("Upgraded prompt preset to v1.6.0 wording: %s", name)
 
     @property
     def language(self) -> str:
@@ -359,7 +359,7 @@ class PromptManager:
             # Include language-specific or universal prompts
             if name.startswith(lang_prefix) or not name.startswith(lang_prefixes):
                 # Strip language prefix for display
-                display_name = name[len(lang_prefix):] if name.startswith(lang_prefix) else name
+                display_name = name[len(lang_prefix) :] if name.startswith(lang_prefix) else name
                 filtered[display_name] = text
         return filtered
 
@@ -387,8 +387,7 @@ class PromptManager:
         lang_key = f"{self._language}_{name}"
         # A universal preset (no language prefix) is listed under its
         # bare name, so deleting by that name must reach it too.
-        return (self.settings.delete_prompt(lang_key)
-                or self.settings.delete_prompt(name))
+        return self.settings.delete_prompt(lang_key) or self.settings.delete_prompt(name)
 
     def get_default_prompt(self) -> str:
         """Get the default prompt for current language."""

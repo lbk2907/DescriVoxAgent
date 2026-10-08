@@ -8,6 +8,7 @@ compressed videos were already re-encoded; this closes the last path.
 Real clips are made with the bundled ffmpeg; only the AI call is
 replaced, so what is checked is the file that would actually be sent.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -18,10 +19,14 @@ import tempfile
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_t51_"))
 
@@ -45,9 +50,22 @@ def check(name, fn):
 
 def make_clip(name: str, codec_args: list[str]) -> Path:
     out = TMP / name
-    subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
-                    "-i", "testsrc=size=320x240:rate=10:duration=4",
-                    *codec_args, str(out)], check=True, timeout=180)
+    subprocess.run(
+        [
+            find_tool("ffmpeg"),
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x240:rate=10:duration=4",
+            *codec_args,
+            str(out),
+        ],
+        check=True,
+        timeout=180,
+    )
     return out
 
 
@@ -62,8 +80,7 @@ def sent_codec(clip: Path, preserve: bool = False) -> tuple[str, bool]:
         return [(0.0, "A test pattern.")]
 
     prov._describe_one_part = fake_part
-    asyncio.run(prov.describe_video_full(str(clip), "describe",
-                                         preserve_resolution=preserve))
+    asyncio.run(prov.describe_video_full(str(clip), "describe", preserve_resolution=preserve))
     return seen["codec"], seen["path"] == clip
 
 
@@ -75,8 +92,7 @@ def test_av1_goes_up_as_h264():
 
 
 def test_hevc_goes_up_as_h264_keeping_resolution():
-    clip = make_clip("hevc.mp4", ["-c:v", "libx265", "-x265-params",
-                                  "log-level=error"])
+    clip = make_clip("hevc.mp4", ["-c:v", "libx265", "-x265-params", "log-level=error"])
     assert GLMProvider._video_codec(clip) == "hevc"
     codec, original = sent_codec(clip, preserve=True)
     assert codec == "h264" and not original, (codec, original)
@@ -90,8 +106,9 @@ def test_h264_is_sent_untouched():
 
 def main() -> int:
     check("AV1 goes up as H.264", test_av1_goes_up_as_h264)
-    check("HEVC goes up as H.264 (preserve resolution)",
-          test_hevc_goes_up_as_h264_keeping_resolution)
+    check(
+        "HEVC goes up as H.264 (preserve resolution)", test_hevc_goes_up_as_h264_keeping_resolution
+    )
     check("H.264 is sent untouched", test_h264_is_sent_untouched)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

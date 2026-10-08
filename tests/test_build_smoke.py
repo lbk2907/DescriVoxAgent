@@ -10,6 +10,7 @@ Checks:
 
 Exits 0 on pass, 1 on failure. Prints SMOKE_<CHECK> markers.
 """
+
 import os
 import subprocess
 import sys
@@ -19,7 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "dist" / "DescriVox" / "DescriVox.exe"
 INTERNAL = ROOT / "dist" / "DescriVox" / "_internal"
-LOG = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OmniDescriber" / "logs" / "omni_describer.log"
+LOG = (
+    Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+    / "OmniDescriber"
+    / "logs"
+    / "omni_describer.log"
+)
 
 
 def fail(msg: str) -> None:
@@ -44,13 +50,14 @@ def main() -> None:
     # can quietly drop, so check for the real payload, not just the
     # Python package directory.
     whisper_pkg = INTERNAL / "faster_whisper"
-    ct2_dll = list(INTERNAL.glob("**/ctranslate2*.dll")) + \
-        list(INTERNAL.glob("**/libctranslate2*"))
+    ct2_dll = list(INTERNAL.glob("**/ctranslate2*.dll")) + list(INTERNAL.glob("**/libctranslate2*"))
     if not whisper_pkg.exists():
         fail(f"faster_whisper not bundled: {whisper_pkg}")
     if not ct2_dll:
-        fail("ctranslate2 native library not bundled; Whisper would fail "
-             "at runtime with an import error")
+        fail(
+            "ctranslate2 native library not bundled; Whisper would fail "
+            "at runtime with an import error"
+        )
     print("SMOKE_WHISPER_OK", flush=True)
 
     # v1.6.2: translations are data files now, and PyInstaller only
@@ -96,24 +103,27 @@ def main() -> None:
             try:
                 import ctypes
                 from ctypes import wintypes
+
                 user32 = ctypes.windll.user32
+
                 def _close_cb(hwnd, _):
                     pid = wintypes.DWORD()
                     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
                     if pid.value == proc.pid:
                         user32.PostMessageW(hwnd, 0x0010, 0, 0)
                     return True
+
                 WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
                 user32.EnumWindows(WNDENUMPROC(_close_cb), 0)
             except Exception:
                 pass
-            subprocess.run(["taskkill", "/PID", str(proc.pid)],
-                           capture_output=True, timeout=30)
+            subprocess.run(["taskkill", "/PID", str(proc.pid)], capture_output=True, timeout=30)
             try:
                 proc.wait(timeout=20)
             except subprocess.TimeoutExpired:
-                subprocess.run(["taskkill", "/F", "/PID", str(proc.pid)],
-                               capture_output=True, timeout=30)
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", str(proc.pid)], capture_output=True, timeout=30
+                )
                 fail("exe did not exit on WM_CLOSE (force-killed)")
 
     if proc.returncode not in (0,):

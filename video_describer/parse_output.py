@@ -8,6 +8,7 @@ Accepted line shapes (lenient on purpose; GLM occasionally decorates):
   00:01 - short form (treated as 00:00:MM:SS-style minutes)
 Output: (seconds, text) pairs sorted by time. Export to JSON or SRT.
 """
+
 from __future__ import annotations
 
 import json
@@ -46,10 +47,12 @@ def parse_events(text: str) -> list[tuple[float, str]]:
         # [^\W_] = any Unicode letter or digit (no \p{L} in Python re)
         if not re.search(r"[^\W_]", text, re.UNICODE):
             continue
-        events.append((
-            _to_seconds(m.group("h"), m.group("m"), m.group("s")),
-            text,
-        ))
+        events.append(
+            (
+                _to_seconds(m.group("h"), m.group("m"), m.group("s")),
+                text,
+            )
+        )
     events.sort(key=lambda x: x[0])
     return events
 
@@ -58,8 +61,7 @@ def require_events(text: str) -> list[tuple[float, str]]:
     """parse_events + guard: empty result raises ParseError."""
     events = parse_events(text)
     if not events:
-        raise ParseError(
-            "model output contained no 'H:MM:SS - description' lines")
+        raise ParseError("model output contained no 'H:MM:SS - description' lines")
     return events
 
 
@@ -83,12 +85,14 @@ def fmt_srt(seconds: float) -> str:
 
 def to_json(events: list[tuple[float, str]]) -> str:
     return json.dumps(
-        [{"start": s, "description": t} for s, t in events],
-        ensure_ascii=False, indent=2)
+        [{"start": s, "description": t} for s, t in events], ensure_ascii=False, indent=2
+    )
 
 
 def write_outputs(
-    events: list[tuple[float, str]], out_dir: str | Path, stem: str,
+    events: list[tuple[float, str]],
+    out_dir: str | Path,
+    stem: str,
 ) -> dict[str, Path]:
     """Write SRT + JSON next to each other; returns written paths."""
     out = Path(out_dir)

@@ -78,47 +78,55 @@ try:
     class _IAudioMeterInformation(IUnknown):
         _iid_ = GUID("{C02216F6-8C67-4B5B-9D00-D008E73E0064}")
         _methods_ = [
-            COMMETHOD([], HRESULT, "GetPeakValue",
-                      (["out"], POINTER(c_float), "peak")),
-            COMMETHOD([], HRESULT, "GetMeteringChannelCount",
-                      (["out"], POINTER(c_uint), "n")),
-            COMMETHOD([], HRESULT, "GetChannelsPeakValues",
-                      (["in"], c_uint, "n"), (["in"], POINTER(c_float), "v")),
-            COMMETHOD([], HRESULT, "QueryHardwareSupport",
-                      (["out"], POINTER(DWORD), "mask")),
+            COMMETHOD([], HRESULT, "GetPeakValue", (["out"], POINTER(c_float), "peak")),
+            COMMETHOD([], HRESULT, "GetMeteringChannelCount", (["out"], POINTER(c_uint), "n")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetChannelsPeakValues",
+                (["in"], c_uint, "n"),
+                (["in"], POINTER(c_float), "v"),
+            ),
+            COMMETHOD([], HRESULT, "QueryHardwareSupport", (["out"], POINTER(DWORD), "mask")),
         ]
 
     class _IAudioSessionControl(IUnknown):
         _iid_ = GUID("{F4B1A599-7266-4319-A8CA-E70ACB11E8CD}")
         _methods_ = [
             COMMETHOD([], HRESULT, "GetState", (["out"], POINTER(c_uint), "s")),
-            COMMETHOD([], HRESULT, "GetDisplayName",
-                      (["out"], POINTER(ctypes.c_wchar_p), "n")),
-            COMMETHOD([], HRESULT, "SetDisplayName",
-                      (["in"], LPCWSTR, "v"), (["in"], POINTER(GUID), "c")),
-            COMMETHOD([], HRESULT, "GetIconPath",
-                      (["out"], POINTER(ctypes.c_wchar_p), "p")),
-            COMMETHOD([], HRESULT, "SetIconPath",
-                      (["in"], LPCWSTR, "v"), (["in"], POINTER(GUID), "c")),
-            COMMETHOD([], HRESULT, "GetGroupingParam",
-                      (["out"], POINTER(GUID), "g")),
-            COMMETHOD([], HRESULT, "SetGroupingParam",
-                      (["in"], POINTER(GUID), "g"), (["in"], POINTER(GUID), "c")),
-            COMMETHOD([], HRESULT, "RegisterAudioSessionNotification",
-                      (["in"], c_void_p, "n")),
-            COMMETHOD([], HRESULT, "UnregisterAudioSessionNotification",
-                      (["in"], c_void_p, "n")),
+            COMMETHOD([], HRESULT, "GetDisplayName", (["out"], POINTER(ctypes.c_wchar_p), "n")),
+            COMMETHOD(
+                [], HRESULT, "SetDisplayName", (["in"], LPCWSTR, "v"), (["in"], POINTER(GUID), "c")
+            ),
+            COMMETHOD([], HRESULT, "GetIconPath", (["out"], POINTER(ctypes.c_wchar_p), "p")),
+            COMMETHOD(
+                [], HRESULT, "SetIconPath", (["in"], LPCWSTR, "v"), (["in"], POINTER(GUID), "c")
+            ),
+            COMMETHOD([], HRESULT, "GetGroupingParam", (["out"], POINTER(GUID), "g")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "SetGroupingParam",
+                (["in"], POINTER(GUID), "g"),
+                (["in"], POINTER(GUID), "c"),
+            ),
+            COMMETHOD([], HRESULT, "RegisterAudioSessionNotification", (["in"], c_void_p, "n")),
+            COMMETHOD([], HRESULT, "UnregisterAudioSessionNotification", (["in"], c_void_p, "n")),
         ]
 
     class _IAudioSessionControl2(_IAudioSessionControl):
         _iid_ = GUID("{BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D}")
         _methods_ = [
-            COMMETHOD([], HRESULT, "GetSessionIdentifier",
-                      (["out"], POINTER(ctypes.c_wchar_p), "i")),
-            COMMETHOD([], HRESULT, "GetSessionInstanceIdentifier",
-                      (["out"], POINTER(ctypes.c_wchar_p), "i")),
-            COMMETHOD([], HRESULT, "GetProcessId",
-                      (["out"], POINTER(DWORD), "pid")),
+            COMMETHOD(
+                [], HRESULT, "GetSessionIdentifier", (["out"], POINTER(ctypes.c_wchar_p), "i")
+            ),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetSessionInstanceIdentifier",
+                (["out"], POINTER(ctypes.c_wchar_p), "i"),
+            ),
+            COMMETHOD([], HRESULT, "GetProcessId", (["out"], POINTER(DWORD), "pid")),
             COMMETHOD([], HRESULT, "IsSystemSoundsSession"),
             COMMETHOD([], HRESULT, "SetDuckingPreference", (["in"], BOOL, "o")),
         ]
@@ -127,39 +135,71 @@ try:
         _iid_ = GUID("{E2F5BB11-0570-40CA-ACDD-3AA01277DEE8}")
         _methods_ = [
             COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(ctypes.c_int), "n")),
-            COMMETHOD([], HRESULT, "GetSession", (["in"], ctypes.c_int, "i"),
-                      (["out"], POINTER(POINTER(_IAudioSessionControl)), "s")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetSession",
+                (["in"], ctypes.c_int, "i"),
+                (["out"], POINTER(POINTER(_IAudioSessionControl)), "s"),
+            ),
         ]
 
     class _IAudioSessionManager2(IUnknown):
         _iid_ = GUID("{77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F}")
         _methods_ = [
-            COMMETHOD([], HRESULT, "GetAudioSessionControl",
-                      (["in"], POINTER(GUID), "g"), (["in"], DWORD, "f"),
-                      (["out"], POINTER(c_void_p), "c")),
-            COMMETHOD([], HRESULT, "GetSimpleAudioVolume",
-                      (["in"], POINTER(GUID), "g"), (["in"], DWORD, "f"),
-                      (["out"], POINTER(c_void_p), "v")),
-            COMMETHOD([], HRESULT, "GetSessionEnumerator",
-                      (["out"], POINTER(POINTER(_IAudioSessionEnumerator)), "e")),
-            COMMETHOD([], HRESULT, "RegisterSessionNotification",
-                      (["in"], c_void_p, "n")),
-            COMMETHOD([], HRESULT, "UnregisterSessionNotification",
-                      (["in"], c_void_p, "n")),
-            COMMETHOD([], HRESULT, "RegisterDuckNotification",
-                      (["in"], LPCWSTR, "s"), (["in"], c_void_p, "n")),
-            COMMETHOD([], HRESULT, "UnregisterDuckNotification",
-                      (["in"], c_void_p, "n")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetAudioSessionControl",
+                (["in"], POINTER(GUID), "g"),
+                (["in"], DWORD, "f"),
+                (["out"], POINTER(c_void_p), "c"),
+            ),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetSimpleAudioVolume",
+                (["in"], POINTER(GUID), "g"),
+                (["in"], DWORD, "f"),
+                (["out"], POINTER(c_void_p), "v"),
+            ),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetSessionEnumerator",
+                (["out"], POINTER(POINTER(_IAudioSessionEnumerator)), "e"),
+            ),
+            COMMETHOD([], HRESULT, "RegisterSessionNotification", (["in"], c_void_p, "n")),
+            COMMETHOD([], HRESULT, "UnregisterSessionNotification", (["in"], c_void_p, "n")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "RegisterDuckNotification",
+                (["in"], LPCWSTR, "s"),
+                (["in"], c_void_p, "n"),
+            ),
+            COMMETHOD([], HRESULT, "UnregisterDuckNotification", (["in"], c_void_p, "n")),
         ]
 
     class _IMMDevice(IUnknown):
         _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
         _methods_ = [
-            COMMETHOD([], HRESULT, "Activate", (["in"], POINTER(GUID), "iid"),
-                      (["in"], DWORD, "ctx"), (["in"], c_void_p, "p"),
-                      (["out"], POINTER(c_void_p), "i")),
-            COMMETHOD([], HRESULT, "OpenPropertyStore", (["in"], DWORD, "a"),
-                      (["out"], POINTER(c_void_p), "p")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "Activate",
+                (["in"], POINTER(GUID), "iid"),
+                (["in"], DWORD, "ctx"),
+                (["in"], c_void_p, "p"),
+                (["out"], POINTER(c_void_p), "i"),
+            ),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "OpenPropertyStore",
+                (["in"], DWORD, "a"),
+                (["out"], POINTER(c_void_p), "p"),
+            ),
             COMMETHOD([], HRESULT, "GetId", (["out"], POINTER(ctypes.c_wchar_p), "i")),
             COMMETHOD([], HRESULT, "GetState", (["out"], POINTER(DWORD), "s")),
         ]
@@ -168,19 +208,34 @@ try:
         _iid_ = GUID("{0BD7A1BE-7A1A-44DB-8397-CC5392387B5E}")
         _methods_ = [
             COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(c_uint), "n")),
-            COMMETHOD([], HRESULT, "Item", (["in"], c_uint, "i"),
-                      (["out"], POINTER(POINTER(_IMMDevice)), "d")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "Item",
+                (["in"], c_uint, "i"),
+                (["out"], POINTER(POINTER(_IMMDevice)), "d"),
+            ),
         ]
 
     class _IMMDeviceEnumerator(IUnknown):
         _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
         _methods_ = [
-            COMMETHOD([], HRESULT, "EnumAudioEndpoints", (["in"], c_uint, "flow"),
-                      (["in"], DWORD, "mask"),
-                      (["out"], POINTER(POINTER(_IMMDeviceCollection)), "d")),
-            COMMETHOD([], HRESULT, "GetDefaultAudioEndpoint",
-                      (["in"], c_uint, "flow"), (["in"], c_uint, "role"),
-                      (["out"], POINTER(POINTER(_IMMDevice)), "d")),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "EnumAudioEndpoints",
+                (["in"], c_uint, "flow"),
+                (["in"], DWORD, "mask"),
+                (["out"], POINTER(POINTER(_IMMDeviceCollection)), "d"),
+            ),
+            COMMETHOD(
+                [],
+                HRESULT,
+                "GetDefaultAudioEndpoint",
+                (["in"], c_uint, "flow"),
+                (["in"], c_uint, "role"),
+                (["out"], POINTER(POINTER(_IMMDevice)), "d"),
+            ),
         ]
 
     _AVAILABLE = True
@@ -233,20 +288,21 @@ def _meters(image_names: tuple[str, ...]) -> list:
     wanted = {name.lower() for name in image_names}
     found = []
     names: dict[int, str] = {}
-    enum = comtypes.CoCreateInstance(_CLSID_MMDeviceEnumerator,
-                                     _IMMDeviceEnumerator, comtypes.CLSCTX_ALL)
+    enum = comtypes.CoCreateInstance(
+        _CLSID_MMDeviceEnumerator, _IMMDeviceEnumerator, comtypes.CLSCTX_ALL
+    )
     devices = enum.EnumAudioEndpoints(_eRender, _DEVICE_STATE_ACTIVE)
     for d in range(devices.GetCount()):
         try:
             raw = devices.Item(d).Activate(
-                byref(_IAudioSessionManager2._iid_), comtypes.CLSCTX_ALL, None)
+                byref(_IAudioSessionManager2._iid_), comtypes.CLSCTX_ALL, None
+            )
             manager = ctypes.cast(raw, POINTER(_IAudioSessionManager2))
             sessions = manager.GetSessionEnumerator()
             for i in range(sessions.GetCount()):
                 control = sessions.GetSession(i)
                 try:
-                    pid = control.QueryInterface(
-                        _IAudioSessionControl2).GetProcessId()
+                    pid = control.QueryInterface(_IAudioSessionControl2).GetProcessId()
                 except Exception:
                     continue
                 if pid not in names:

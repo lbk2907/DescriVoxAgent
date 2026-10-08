@@ -7,6 +7,7 @@
    answer is asked for once more; still empty with proposals, the window
    says how many changes are waiting instead of "no answer".
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -18,8 +19,9 @@ import traceback
 from pathlib import Path
 
 if "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core import agent as ag  # noqa: E402
@@ -43,15 +45,32 @@ def check(name, fn):
 def video() -> Path:
     out = TMP / "v.mp4"
     if not out.exists():
-        subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
-                        "-i", "testsrc=size=160x120:rate=5:duration=20",
-                        "-c:v", "libx264", str(out)], check=True, timeout=120)
+        subprocess.run(
+            [
+                find_tool("ffmpeg"),
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=160x120:rate=5:duration=20",
+                "-c:v",
+                "libx264",
+                str(out),
+            ],
+            check=True,
+            timeout=120,
+        )
     return out
 
 
 def call(name, **args):
-    return {"id": f"c_{name}", "type": "function",
-            "function": {"name": name, "arguments": json.dumps(args)}}
+    return {
+        "id": f"c_{name}",
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(args)},
+    }
 
 
 def turn(*calls, content=""):
@@ -71,24 +90,39 @@ class Script:
 
 
 def make(turns):
-    context = ag.Context(video=str(video()), length=20.0,
-                         descriptions=[(2.0, "A test pattern."), (10.0, "A blue car.")],
-                         characters_file=str(TMP / "characters.json"))
+    context = ag.Context(
+        video=str(video()),
+        length=20.0,
+        descriptions=[(2.0, "A test pattern."), (10.0, "A blue car.")],
+        characters_file=str(TMP / "characters.json"),
+    )
     script = Script(turns)
     return ag.Agent("k", "m", context, post=script), script
 
 
 def test_words_only_fix_is_sent_back_once():
-    agent, script = make([
-        turn(call("look_at", seconds=10)),
-        turn(content="Description 1 should say a red car, not a blue car."),
-        turn(call("propose_change", action="edit", index=1, text="A red car.",
-                  reason="the car is red")),
-        turn(content="Proposed: the car is red."),
-    ])
+    agent, script = make(
+        [
+            turn(call("look_at", seconds=10)),
+            turn(content="Description 1 should say a red car, not a blue car."),
+            turn(
+                call(
+                    "propose_change",
+                    action="edit",
+                    index=1,
+                    text="A red car.",
+                    reason="the car is red",
+                )
+            ),
+            turn(content="Proposed: the car is red."),
+        ]
+    )
     reply = asyncio.run(agent.ask("Is [1] right?"))
-    nudges = [m for m in agent.messages
-              if m.get("role") == "user" and m.get("content") == ag.NUDGE_PROPOSE]
+    nudges = [
+        m
+        for m in agent.messages
+        if m.get("role") == "user" and m.get("content") == ag.NUDGE_PROPOSE
+    ]
     assert len(nudges) == 1, len(nudges)
     assert len(reply.proposals) == 1 and reply.answer == "Proposed: the car is red."
 
@@ -100,10 +134,12 @@ def test_a_plain_answer_is_not_sent_back():
 
 
 def test_never_sent_back_twice():
-    agent, script = make([
-        turn(content="It should say a red car."),
-        turn(content="It should say a red car, I think."),
-    ])
+    agent, script = make(
+        [
+            turn(content="It should say a red car."),
+            turn(content="It should say a red car, I think."),
+        ]
+    )
     reply = asyncio.run(agent.ask("Is [1] right?"))
     assert reply.answer == "It should say a red car, I think." and len(script.payloads) == 2
 
@@ -118,6 +154,7 @@ def test_empty_final_answer_is_asked_again():
 
 def test_window_says_changes_are_waiting():
     from omni_describer_custom.i18n.strings import I18n, t
+
     I18n.set_language("en")
     assert t("agent.no_answer_proposals", count=2).endswith("proposed 2 changes: review them now.")
     assert t("agent.no_answer_proposals", count=1).endswith("proposed 1 change: review it now.")

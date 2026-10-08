@@ -18,6 +18,7 @@ and a spoken report every 30 s was not wanted. Now:
 
 Every check here fails on the code before this round.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import ctypes
@@ -29,10 +30,14 @@ import traceback
 import types
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -101,6 +106,7 @@ class RecordingDialog:
 
 def _main_frame():
     from omni_describer_custom.ui import main_frame as mf
+
     frame = mf.MainFrame()
     spoken = []
     frame._speak_progress = lambda text: spoken.append(text)
@@ -121,8 +127,10 @@ def _close(frame):
 
 # ── (a) the dialog itself ─────────────────────────────────────────────
 
+
 def test_a_dialog_has_a_real_bar_that_never_goes_back():
     from omni_describer_custom.ui.progress_dialog import AccessibleProgressDialog
+
     owner = wx.Frame(None)
     owner.Show()
     dlg = AccessibleProgressDialog("Job", "first", maximum=100, parent=owner)
@@ -197,13 +205,15 @@ def test_a_dialog_has_a_real_bar_that_never_goes_back():
 
 # ── (b) one overall bar through a whole job ───────────────────────────
 
+
 def test_b_a_whole_job_moves_one_bar():
     from omni_describer_custom.core.video_processor import DownloadProgress
     from omni_describer_custom.ui import main_frame as mf
+
     frame, _ = _main_frame()
     clock = Clock()
     real_mono, mf.time.monotonic = mf.time.monotonic, clock
-    seen = []   # (stage, overall, bar)
+    seen = []  # (stage, overall, bar)
 
     def note(stage):
         dlg = frame._dl_dialog
@@ -213,14 +223,17 @@ def test_b_a_whole_job_moves_one_bar():
         frame._ensure_download_progress()
         dlg = frame._dl_dialog
         assert dlg is not None and isinstance(
-            [c for c in dlg.GetChildren() if isinstance(c, wx.Gauge)][0], wx.Gauge)
+            [c for c in dlg.GetChildren() if isinstance(c, wx.Gauge)][0], wx.Gauge
+        )
         for phase in ("video", "audio"):
             for pct in (0, 25, 50, 75, 100):
-                frame._download_progress_tick(DownloadProgress(
-                    phase=phase, percent=pct, downloaded_mb=1, total_mb=4))
+                frame._download_progress_tick(
+                    DownloadProgress(phase=phase, percent=pct, downloaded_mb=1, total_mb=4)
+                )
                 note("download")
-        frame._download_progress_tick(DownloadProgress(
-            phase="merge", percent=-1, downloaded_mb=-1, total_mb=-1))
+        frame._download_progress_tick(
+            DownloadProgress(phase="merge", percent=-1, downloaded_mb=-1, total_mb=-1)
+        )
         note("download")
         frame._video_status_tick("transcript")
         for f in (0.1, 0.5, 0.9, 1.0):
@@ -241,7 +254,7 @@ def test_b_a_whole_job_moves_one_bar():
             clock.now += 1.0
             frame._hb_tick(None)
             note("wait")
-        frame._stage_tick("ai", 1.0)        # the answer is in
+        frame._stage_tick("ai", 1.0)  # the answer is in
         note("answer")
         frame._video_status_tick("reviewing")
         for done in range(1, 5):
@@ -251,8 +264,14 @@ def test_b_a_whole_job_moves_one_bar():
         mf.time.monotonic = real_mono
         _close(frame)
 
-    ranges = {"download": (0, 15), "transcript": (15, 30), "upload": (30, 63),
-              "wait": (62, 94), "answer": (95, 95), "review": (95, 99)}
+    ranges = {
+        "download": (0, 15),
+        "transcript": (15, 30),
+        "upload": (30, 63),
+        "wait": (62, 94),
+        "answer": (95, 95),
+        "review": (95, 99),
+    }
     values = [v for _, v, _ in seen]
     assert values == sorted(values), f"the bar went backwards: {values}"
     for stage, overall, bar in seen:
@@ -270,11 +289,11 @@ def test_b_openrouter_retry_never_pulls_the_bar_back():
         frame._video_status_tick("transcript")
         frame._transcript_tick(1.0)
         frame._video_split_tick(10.0)
-        assert frame._overall_pct() == 36, frame._overall_pct()   # 30 + 65*0.10
+        assert frame._overall_pct() == 36, frame._overall_pct()  # 30 + 65*0.10
         frame._video_part_tick(1, 2)
         frame._video_eta_tick(50.0, 100.0)
         high = frame._overall_pct()
-        frame._video_eta_tick(20.0, 300.0)          # the part is retried
+        frame._video_eta_tick(20.0, 300.0)  # the part is retried
         assert frame._overall_pct() == high, "the bar went back on a retry"
         assert frame._dl_dialog.value == high
         frame._video_part_tick(2, 2)
@@ -287,18 +306,20 @@ def test_b_openrouter_retry_never_pulls_the_bar_back():
 
 # ── (c) Gemini: no percentage, the bar moves by time ──────────────────
 
+
 def test_c_gemini_wait_moves_by_time_and_stops_short():
     from omni_describer_custom.ui import main_frame as mf
+
     frame, _ = _main_frame()
     clock = Clock()
     real_mono, mf.time.monotonic = mf.time.monotonic, clock
     try:
         dlg = frame._dl_dialog = RecordingDialog()
-        frame._wait_basis = ("", 600.0, False)     # 60 + 0.5 * 600 = 360 s
+        frame._wait_basis = ("", 600.0, False)  # 60 + 0.5 * 600 = 360 s
         frame._video_status_tick("uploading")
         frame._video_upload_tick(100.0)
         start = frame._overall_pct()
-        assert start == 62, start                  # half of the AI stage
+        assert start == 62, start  # half of the AI stage
         frame._video_status_tick("processing")
         values = []
         for _ in range(360):
@@ -313,7 +334,8 @@ def test_c_gemini_wait_moves_by_time_and_stops_short():
             clock.now += 1000.0
             frame._hb_tick(None)
         assert frame._overall_pct() < 95, (
-            f"the wait reached {frame._overall_pct()}% before the answer")
+            f"the wait reached {frame._overall_pct()}% before the answer"
+        )
         assert t("video.eta_over") in dlg.texts[-1], dlg.texts[-1]
         # A hundred heartbeats with the same words wrote the text once.
         assert dlg.texts.count(dlg.texts[-1]) == 1, dlg.texts
@@ -334,8 +356,10 @@ def test_c_gemini_wait_moves_by_time_and_stops_short():
 
 # ── (d) no periodic speech, no changing seconds ──────────────────────
 
+
 def test_d_the_heartbeat_says_nothing():
     from omni_describer_custom.ui import main_frame as mf
+
     frame, spoken = _main_frame()
     clock = Clock()
     real_mono, mf.time.monotonic = mf.time.monotonic, clock
@@ -346,11 +370,12 @@ def test_d_the_heartbeat_says_nothing():
         def announce(text, part=False):
             announced.append(text)
             real_announce(text, part)
+
         frame._announce_progress = announce
         dlg = frame._dl_dialog = RecordingDialog()
         frame._hb_start_timer(t("video.phase_transcript"))
         frame._hb_timer.Stop()
-        frame._video_status_tick("transcript")     # a phase change: said once
+        frame._video_status_tick("transcript")  # a phase change: said once
         # The 0.8 s CallLater does not fire without a main loop here.
         frame._announce_timer.Stop()
         frame._announce_flush()
@@ -365,7 +390,8 @@ def test_d_the_heartbeat_says_nothing():
             timer.Stop()
             frame._announce_flush()
         assert len(spoken) == 1 and len(announced) == 1, (
-            f"the heartbeat spoke: {spoken[1:] + announced[1:]}")
+            f"the heartbeat spoke: {spoken[1:] + announced[1:]}"
+        )
         changed = dlg.texts[before:]
         assert not changed, f"the dialog text changed {len(changed)} times: {changed[:3]}"
     finally:
@@ -375,6 +401,7 @@ def test_d_the_heartbeat_says_nothing():
 
 
 # ── (e) Whisper reports its position ─────────────────────────────────
+
 
 class FakeWhisper:
     """faster-whisper stand-in (as in test_fixes59): 1000 one-second
@@ -386,52 +413,63 @@ class FakeWhisper:
     def transcribe(self, path, **kw):
         def gen():
             for i in range(1000):
-                yield types.SimpleNamespace(start=float(i), end=i + 0.9,
-                                            text=f"line {i}")
+                yield types.SimpleNamespace(start=float(i), end=i + 0.9, text=f"line {i}")
+
         return gen(), types.SimpleNamespace(duration=1000.0, language="en")
 
 
 def test_e_whisper_reports_progress():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.core.video_processor import VideoProcessor
+
     sys.modules["faster_whisper"] = types.SimpleNamespace(WhisperModel=FakeWhisper)
     SettingsStore().set("general.transcription_backend", "whisper")
     clip = TMP / "e.mp4"
     clip.write_bytes(b"x")
     cache = TMP / "proj" / "media" / "transcript.json"
     got = []
-    segs = asyncio.run(VideoProcessor().get_transcript(
-        str(clip), local_path=str(clip), cache_path=cache,
-        on_progress=got.append))
+    segs = asyncio.run(
+        VideoProcessor().get_transcript(
+            str(clip), local_path=str(clip), cache_path=cache, on_progress=got.append
+        )
+    )
     assert len(segs) == 1000
     assert len(got) == 1000, len(got)
     assert got == sorted(got) and got[0] < 0.01 and got[-1] >= 0.99, (got[:3], got[-3:])
     # The project cache answers at once: nothing to report, no error.
     got.clear()
-    again = asyncio.run(VideoProcessor().get_transcript(
-        str(clip), local_path=str(clip), cache_path=cache,
-        on_progress=got.append))
+    again = asyncio.run(
+        VideoProcessor().get_transcript(
+            str(clip), local_path=str(clip), cache_path=cache, on_progress=got.append
+        )
+    )
     assert len(again) == 1000 and got == [], got
 
 
 def main() -> int:
     app = wx.App(False)
-    check("(a) the dialog has a real, labelled bar that never goes back; "
-          "Cancel and Esc are recorded",
-          test_a_dialog_has_a_real_bar_that_never_goes_back)
-    check("(b) a whole job moves ONE bar through every stage",
-          test_b_a_whole_job_moves_one_bar)
-    check("(b) an OpenRouter retry never pulls the bar back",
-          test_b_openrouter_retry_never_pulls_the_bar_back)
-    check("(c) Gemini's wait moves by time and stops short of the end",
-          test_c_gemini_wait_moves_by_time_and_stops_short)
-    check("(d) the heartbeat says nothing and leaves the text alone",
-          test_d_the_heartbeat_says_nothing)
-    check("(e) Whisper reports how far it is",
-          test_e_whisper_reports_progress)
+    check(
+        "(a) the dialog has a real, labelled bar that never goes back; Cancel and Esc are recorded",
+        test_a_dialog_has_a_real_bar_that_never_goes_back,
+    )
+    check("(b) a whole job moves ONE bar through every stage", test_b_a_whole_job_moves_one_bar)
+    check(
+        "(b) an OpenRouter retry never pulls the bar back",
+        test_b_openrouter_retry_never_pulls_the_bar_back,
+    )
+    check(
+        "(c) Gemini's wait moves by time and stops short of the end",
+        test_c_gemini_wait_moves_by_time_and_stops_short,
+    )
+    check(
+        "(d) the heartbeat says nothing and leaves the text alone",
+        test_d_the_heartbeat_says_nothing,
+    )
+    check("(e) Whisper reports how far it is", test_e_whisper_reports_progress)
     _drain()
     del app
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

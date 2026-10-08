@@ -59,8 +59,7 @@ def _read_locale(path: Path) -> tuple[dict, dict] | None:
         logger.error("Locale %s is not a JSON object, skipping", path)
         return None
     meta = data.pop("_meta", None)
-    table = {k: v for k, v in data.items()
-             if isinstance(v, str) and not k.startswith("_")}
+    table = {k: v for k, v in data.items() if isinstance(v, str) and not k.startswith("_")}
     return (meta if isinstance(meta, dict) else {}), table
 
 
@@ -93,8 +92,7 @@ def _load_locales() -> tuple[dict[str, dict[str, str]], dict[str, dict]]:
             merged = dict(tables.get(code, {}))
             merged.update({k: v for k, v in table.items() if v.strip()})
             tables[code] = merged
-            metas[code] = {**metas.get(code, {"code": code, "name": code}),
-                           **meta}
+            metas[code] = {**metas.get(code, {"code": code, "name": code}), **meta}
             logger.info("User locale loaded: %s", path)
     logger.info("Locales loaded: %s", ", ".join(sorted(tables)) or "none")
     return tables, metas
@@ -114,8 +112,7 @@ def missing_report(lang: str) -> dict:
     """
     english = EN_STRINGS
     table = I18n._translations.get(lang, {})
-    missing = {k: v for k, v in english.items()
-               if not (table.get(k) or "").strip()}
+    missing = {k: v for k, v in english.items() if not (table.get(k) or "").strip()}
     obsolete = sorted(k for k in table if k not in english)
     return {"missing": missing, "obsolete": obsolete}
 
@@ -136,13 +133,13 @@ def write_missing_report(lang: str) -> tuple[Path, int]:
             f"Lines the {lang} language file does not have yet, with the "
             f"English text. Translate the text on the right, then copy "
             f"those lines into {lang}.json in this folder and restart the "
-            f"app. Keys (on the left) must stay exactly as they are."),
+            f"app. Keys (on the left) must stay exactly as they are."
+        ),
     }
     if report["obsolete"]:
         body["_obsolete_keys_you_can_delete"] = report["obsolete"]
     body.update(report["missing"])
-    path.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8")
+    path.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path, len(report["missing"])
 
 
@@ -184,8 +181,12 @@ class I18n:
         # a language without plurals simply keeps its one line. (":one",
         # not "_one": agent.accept_one etc. are ordinary keys.)
         one = key + ":one" if kwargs.get("count") in (1, "1") else None
-        text = ((one and strings.get(one)) or strings.get(key)
-                or (one and EN_STRINGS.get(one)) or EN_STRINGS.get(key, key))
+        text = (
+            (one and strings.get(one))
+            or strings.get(key)
+            or (one and EN_STRINGS.get(one))
+            or EN_STRINGS.get(key, key)
+        )
         if kwargs:
             try:
                 text = text.format(**kwargs)

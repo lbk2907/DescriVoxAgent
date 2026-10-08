@@ -26,10 +26,13 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . ruff pytest
+          python -m pip install . "ruff==0.16.10" pytest
 
       - name: Ruff (bug-catching rules only)
         run: python -m ruff check .
+
+      - name: Ruff format (every file in the standard style)
+        run: python -m ruff format --check .
 
       - name: Compile everything
         run: python -m compileall -q src tools tests video_describer main.py hooks

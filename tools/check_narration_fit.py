@@ -18,6 +18,7 @@ Usage:
 
 Exit code is 1 when any cue overruns, so this can gate a prompt change.
 """
+
 import asyncio
 import contextlib
 import io
@@ -25,8 +26,9 @@ import sys
 import wave
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.project_store import ProjectStore  # noqa: E402
@@ -67,12 +69,13 @@ def _cues_from_project(project_id: str | None) -> tuple[str, list[tuple[float, s
 
     # list_projects() orders by id, not by time, and old projects can be
     # empty — walk newest-first and take the first one that has cues.
-    for row in sorted(projects, key=lambda r: r.get("updated_at", ""),
-                      reverse=True):
+    for row in sorted(projects, key=lambda r: r.get("updated_at", ""), reverse=True):
         proj = store.open_project(row["id"])
         if proj and proj.descriptions:
-            return (f"{proj.name} (id {row['id']}, {row['updated_at']})",
-                    [(d.start_time, d.text) for d in proj.descriptions])
+            return (
+                f"{proj.name} (id {row['id']}, {row['updated_at']})",
+                [(d.start_time, d.text) for d in proj.descriptions],
+            )
     return "", []
 
 
@@ -84,7 +87,7 @@ def main() -> int:
     if "--speed" in args:
         i = args.index("--speed")
         speed_override = float(args[i + 1])
-        del args[i:i + 2]
+        del args[i : i + 2]
     if args and args[0] == "--srt":
         name = args[1]
         cues = _cues_from_srt(Path(args[1]))
@@ -104,8 +107,9 @@ def main() -> int:
     engine_cfg = (tts_cfg.get("engines") or {}).get(engine_name, {})
     tts = TTSEngine(tts_cfg)
     voice = engine_cfg.get("voice", "") or ""
-    speed = speed_override if speed_override is not None else \
-        float(engine_cfg.get("speed", 1.0) or 1.0)
+    speed = (
+        speed_override if speed_override is not None else float(engine_cfg.get("speed", 1.0) or 1.0)
+    )
     print(f"project: {name}")
     print(f"cues: {len(cues)}   tts engine: {engine_name}  speed: {speed}")
     print("Measuring with YOUR voice and speed — this is what you would hear.\n")
@@ -136,8 +140,7 @@ def main() -> int:
         else:
             verdict = "fits"
         gap_str = "  —  " if gap == float("inf") else f"{gap:5.1f}s"
-        print(f"  [{start:7.2f}s] speak {spoken:5.1f}s / gap {gap_str}  "
-              f"{verdict}   {text[:46]}")
+        print(f"  [{start:7.2f}s] speak {spoken:5.1f}s / gap {gap_str}  {verdict}   {text[:46]}")
 
     print(f"\n{'=' * 64}")
     print(f"cues measured : {len(cues)}")
@@ -146,13 +149,16 @@ def main() -> int:
     print(f"tight (>85%)  : {len(tight)}")
     if overruns:
         print("\nWorst offenders — these are the cues you would lose:")
-        for start, spoken, gap, text in sorted(
-                overruns, key=lambda r: r[1] - r[2], reverse=True)[:5]:
-            print(f"  [{start:.1f}s] needs {spoken:.1f}s, has {gap:.1f}s "
-                  f"({len(text.split())} words)")
+        for start, spoken, gap, text in sorted(overruns, key=lambda r: r[1] - r[2], reverse=True)[
+            :5
+        ]:
+            print(
+                f"  [{start:.1f}s] needs {spoken:.1f}s, has {gap:.1f}s ({len(text.split())} words)"
+            )
             print(f"      {text}")
-        print("\nIf several cues overrun, the prompt needs a harder word "
-              "budget, not a faster voice.")
+        print(
+            "\nIf several cues overrun, the prompt needs a harder word budget, not a faster voice."
+        )
     else:
         print("\nEvery cue fits the gap before the next one.")
     return 1 if overruns else 0

@@ -39,21 +39,23 @@ def problems(repo: Path = REPO, ver: str | None = None) -> list[str]:
 
     changelog = read("CHANGELOG.md")
     if f"## What's new in v{ver}\n" not in changelog:
-        found.append(f"CHANGELOG.md has no \"## What's new in v{ver}\"")
+        found.append(f'CHANGELOG.md has no "## What\'s new in v{ver}"')
 
     readme = read("README.md")
     news = re.findall(r"^## What's new in v([\d.]+)", readme, re.M)
     if not news or news[0] != ver:
-        found.append(f"README.md: the first \"What's new\" is {news[:1]}, not v{ver}")
+        found.append(f'README.md: the first "What\'s new" is {news[:1]}, not v{ver}')
     if len(news) != 3:
-        found.append(f"README.md keeps {len(news)} \"What's new\" sections, not 3")
+        found.append(f'README.md keeps {len(news)} "What\'s new" sections, not 3')
 
     if f"Version {ver}**" not in read("AGENTS.md"):
-        found.append(f"AGENTS.md status does not say \"Version {ver}\"")
+        found.append(f'AGENTS.md status does not say "Version {ver}"')
 
     plan = read("docs/plan.md")
-    rows = {int(m.group(1)): m.group(2).strip()
-            for m in re.finditer(r"^\| (\d+) \| [^|]+\| ([^|]+)\|", plan, re.M)}
+    rows = {
+        int(m.group(1)): m.group(2).strip()
+        for m in re.finditer(r"^\| (\d+) \| [^|]+\| ([^|]+)\|", plan, re.M)
+    }
     if not any(re.search(rf"(^|[ ,]){re.escape(ver)}([ ,(]|$)", r) for r in rows.values()):
         found.append(f"docs/plan.md: no phase row with release {ver}")
     phases = [int(n) for n in re.findall(r"^## Phase (\d+)", read("docs/checklist.md"), re.M)]
@@ -64,11 +66,22 @@ def problems(repo: Path = REPO, ver: str | None = None) -> list[str]:
         m = re.search(r"the next one is \*\*Phase (\d+)\*\*", plan)
         want = max(phases) + 1
         if not m or int(m.group(1)) != want:
-            found.append(f"docs/plan.md: \"the next one is Phase {m.group(1) if m else '?'}\", "
-                         f"should be {want}")
+            found.append(
+                f'docs/plan.md: "the next one is Phase {m.group(1) if m else "?"}", '
+                f"should be {want}"
+            )
 
-    docs = [repo / p for p in ("README.md", "CONTRIBUTING.md", "SECURITY.md", "AGENTS.md",
-                               "CLAUDE.md", ".github/PULL_REQUEST_TEMPLATE.md")]
+    docs = [
+        repo / p
+        for p in (
+            "README.md",
+            "CONTRIBUTING.md",
+            "SECURITY.md",
+            "AGENTS.md",
+            "CLAUDE.md",
+            ".github/PULL_REQUEST_TEMPLATE.md",
+        )
+    ]
     docs += list((repo / "docs").rglob("*.md"))
     for f in docs:
         if not f.exists():

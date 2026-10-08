@@ -20,6 +20,7 @@ Covers:
 7. AIEngine._run_ffmpeg_cancellable actually honours is_cancelled.
 8. i18n EN/MS key parity after the v1.5.4 string additions.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import json
@@ -31,15 +32,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from omni_describer_custom.core.project_store import (  # noqa: E402
-    ProjectStore, Description,
+    ProjectStore,
+    Description,
 )
 from omni_describer_custom.core.settings_store import (  # noqa: E402
-    SettingsStore, _protect_secret, _unprotect_secret, _simple_encrypt,  # noqa: F401 (checks the name still exists)
+    SettingsStore,
+    _protect_secret,  # noqa: F401 (checks the name still exists)
+    _unprotect_secret,
+    _simple_encrypt,  # noqa: F401 (checks the name still exists)
 )
 from omni_describer_custom.core.prompt_manager import PromptManager  # noqa: E402
 from omni_describer_custom.core.ai_engine import snap_timestamps  # noqa: E402
 from omni_describer_custom.core.video_processor import (  # noqa: E402
-    VideoProcessor, VideoInfo, SourceError,
+    VideoProcessor,
+    VideoInfo,
+    SourceError,
 )
 from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS  # noqa: E402
 
@@ -66,8 +73,11 @@ def test_p1_ids():
             Description(start_time=2.0, end_time=3.0, text="c"),
         ]
         ps.save_descriptions(descs)
-        ok("ids assigned after save", [d.id for d in descs] == [1, 2, 3],
-           str([d.id for d in descs]))
+        ok(
+            "ids assigned after save",
+            [d.id for d in descs] == [1, 2, 3],
+            str([d.id for d in descs]),
+        )
         # Player dedup simulation: with distinct ids every cue narrates.
         narrated = set()
         for d in descs:
@@ -77,14 +87,14 @@ def test_p1_ids():
         ok("player dedup narrates every cue", len(narrated) == 3)
         # Editor delete-one simulation: exactly one cue goes.
         ps.delete_description(descs[0].id)
-        ok("delete removes exactly one cue",
-           len(ps.current.descriptions) == 2
-           and [d.id for d in ps.current.descriptions] == [2, 3])
+        ok(
+            "delete removes exactly one cue",
+            len(ps.current.descriptions) == 2 and [d.id for d in ps.current.descriptions] == [2, 3],
+        )
         # Reload from disk: same ids come back.
         ps2 = ProjectStore(projects_dir=td)
         p2 = ps2.open_project(1)
-        ok("reloaded ids match DB",
-           [d.id for d in p2.descriptions] == [2, 3])
+        ok("reloaded ids match DB", [d.id for d in p2.descriptions] == [2, 3])
 
 
 def test_settings_store():
@@ -95,8 +105,7 @@ def test_settings_store():
         ok("DEFAULTS not polluted", SettingsStore.DEFAULTS["general"]["language"] == "en")
         s2 = SettingsStore(config_dir=td)
         ok("second instance sees saved value", s2.get("general.language") == "xx")
-        ok("no .json.tmp left after save",
-           not (Path(td) / "settings.json.tmp").exists())
+        ok("no .json.tmp left after save", not (Path(td) / "settings.json.tmp").exists())
         # Key protection round trip
         s.set_ai_provider("glm", {"api_key": "sk-test-12345", "model": "m"})
         raw = json.loads((Path(td) / "settings.json").read_text(encoding="utf-8"))
@@ -105,14 +114,16 @@ def test_settings_store():
         if sys.platform == "win32":
             try:
                 import win32crypt  # noqa: F401
+
                 ok("DPAPI format used", enc.startswith("dpapi:"), enc[:10])
             except ImportError:
                 pass
         s3 = SettingsStore(config_dir=td)
-        ok("key round-trips through file",
-           s3.get_ai_provider("glm")["api_key"] == "sk-test-12345")
-        ok("legacy XOR value still decryptable",
-           _unprotect_secret(_simple_encrypt("legacy-key-1")) == "legacy-key-1")
+        ok("key round-trips through file", s3.get_ai_provider("glm")["api_key"] == "sk-test-12345")
+        ok(
+            "legacy XOR value still decryptable",
+            _unprotect_secret(_simple_encrypt("legacy-key-1")) == "legacy-key-1",
+        )
 
 
 def test_prompt_manager():
@@ -124,17 +135,19 @@ def test_prompt_manager():
         # A universal preset whose NAME contains an underscore must not be
         # mistaken for a language-prefixed one (the v1.5.4 bug; the preset
         # carrying that property is called onscreen_text since v1.6.0).
-        ok("onscreen_text listed (en)", "onscreen_text" in names_en,
-           str(names_en))
+        ok("onscreen_text listed (en)", "onscreen_text" in names_en, str(names_en))
         ok("extended listed (en)", "extended" in names_en)
         pm.language = "ms"
         names_ms = pm.get_preset_names()
-        ok("onscreen_text listed (ms)", "onscreen_text" in names_ms,
-           str(names_ms))
-        ok("ms_default surfaces as default (ms)",
-           "default" in names_ms and "ms_default" not in names_ms)
-        ok("ms_extended surfaces as extended (ms)",
-           "extended" in names_ms and "ms_extended" not in names_ms)
+        ok("onscreen_text listed (ms)", "onscreen_text" in names_ms, str(names_ms))
+        ok(
+            "ms_default surfaces as default (ms)",
+            "default" in names_ms and "ms_default" not in names_ms,
+        )
+        ok(
+            "ms_extended surfaces as extended (ms)",
+            "extended" in names_ms and "ms_extended" not in names_ms,
+        )
 
 
 def test_snap_timestamps():
@@ -150,6 +163,7 @@ def test_snap_timestamps():
 def test_download_url_guard():
     print("5. download_video rejects non-http(s) URLs")
     vp = VideoProcessor()
+
     async def run():
         try:
             await vp.download_video("ftp://example.invalid/x.mp4")
@@ -158,6 +172,7 @@ def test_download_url_guard():
             return "source-error"
         except Exception as e:  # noqa: BLE001
             return f"other:{type(e).__name__}"
+
     res = asyncio.run(run())
     ok("SourceError raised without network", res == "source-error", res)
     ok("VideoInfo.has_audio defaults to False", VideoInfo(path="x").has_audio is False)
@@ -166,6 +181,7 @@ def test_download_url_guard():
 def test_ffmpeg_cancellable():
     print("6. _run_ffmpeg_cancellable honours cancel")
     from omni_describer_custom.core.ai_engine import GLMProvider
+
     # _run_ffmpeg_cancellable lives on GLMProvider; skip __init__
     eng = GLMProvider.__new__(GLMProvider)
     tick = {"n": 0}
@@ -177,9 +193,21 @@ def test_ffmpeg_cancellable():
     t0 = time.monotonic()
     try:
         eng._run_ffmpeg_cancellable(
-            ["ffmpeg", "-hide_banner", "-nostdin", "-f", "lavfi",
-             "-i", "testsrc=duration=30", "-f", "null", "-"],
-            cancel_soon, 60)
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-nostdin",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=30",
+                "-f",
+                "null",
+                "-",
+            ],
+            cancel_soon,
+            60,
+        )
         ok("cancel raises", False, "no exception raised")
     except RuntimeError as e:
         dt = time.monotonic() - t0
@@ -187,21 +215,44 @@ def test_ffmpeg_cancellable():
         ok("cancel is fast (<10 s)", dt < 10, f"{dt:.1f}s")
     # Sanity: without cancel it completes and returns a code.
     ret, tail = eng._run_ffmpeg_cancellable(
-        ["ffmpeg", "-hide_banner", "-nostdin", "-f", "lavfi",
-         "-i", "testsrc=duration=1", "-f", "null", "-"],
-        None, 60)
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostdin",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=1",
+            "-f",
+            "null",
+            "-",
+        ],
+        None,
+        60,
+    )
     ok("uncancelled ffmpeg completes", ret == 0, f"ret={ret} tail={tail[-80:]!r}")
 
 
 def test_i18n_parity():
     print("7. i18n EN/MS parity")
     en, ms = set(EN_STRINGS), set(MS_STRINGS)
-    ok("key sets identical", en == ms,
-       f"en-only={sorted(en - ms)[:5]} ms-only={sorted(ms - en)[:5]}")
+    ok(
+        "key sets identical",
+        en == ms,
+        f"en-only={sorted(en - ms)[:5]} ms-only={sorted(ms - en)[:5]}",
+    )
     ok("dead key main.no_video removed", "main.no_video" not in en)
-    ok("new a11y keys exist",
-       {"player.ended", "scene.no_ai", "editor.confirm_delete",
-        "ask.empty_question", "settings.saved"} <= en)
+    ok(
+        "new a11y keys exist",
+        {
+            "player.ended",
+            "scene.no_ai",
+            "editor.confirm_delete",
+            "ask.empty_question",
+            "settings.saved",
+        }
+        <= en,
+    )
 
 
 if __name__ == "__main__":

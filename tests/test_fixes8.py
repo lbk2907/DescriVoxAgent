@@ -12,14 +12,19 @@ Real-path tests:
 4. Real MainFrame._process_video pipeline: frames copied into the project
    folder and temp dir cleaned only AFTER AI + save.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, traceback, tempfile, shutil, time
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import asyncio
@@ -27,10 +32,12 @@ import asyncio
 ok = 0
 fail = 0
 
+
 def check(name, fn):
     global ok, fail
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -40,15 +47,31 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def make_jpeg(path: Path) -> None:
     """Render a REAL 64x64 JPEG with the system ffmpeg."""
     subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
-         "-i", "color=black:s=64x64:d=0.1", "-frames:v", "1", str(path)],
-        capture_output=True, check=True)
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=black:s=64x64:d=0.1",
+            "-frames:v",
+            "1",
+            str(path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
 
 from omni_describer_custom.core.ai_engine import AIEngine, CustomProvider
 from omni_describer_custom.ui.main_frame import MainFrame
+
 
 # 1. Frame lifecycle: AI engine reads real files DURING the batch.
 def test_frames_alive_through_ai():
@@ -81,17 +104,22 @@ def test_frames_alive_through_ai():
 
         async def run():
             return await engine.describe_frames(
-                frame_paths, "p",
+                frame_paths,
+                "p",
                 on_progress=lambda d, t: seen["progress"].append((d, t)),
                 is_cancelled=lambda: False,
             )
+
         descs = asyncio.run(run())
         assert seen["missing"] == 0, f"{seen['missing']} frames missing during AI"
         assert descs == ["desc 1", "desc 2", "desc 3", "desc 4"], descs
         assert seen["progress"] == [(1, 4), (2, 4), (3, 4), (4, 4)], seen["progress"]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("Frames exist for every AI call; on_progress fires per frame", test_frames_alive_through_ai)
+
 
 # 2. Cancellation: batch stops early and marks remaining as (cancelled).
 def test_ai_cancel_between_frames():
@@ -110,14 +138,19 @@ def test_ai_cancel_between_frames():
 
     async def run():
         return await engine.describe_frames(
-            [f"f{i}.jpg" for i in range(6)], "p",
+            [f"f{i}.jpg" for i in range(6)],
+            "p",
             is_cancelled=lambda: calls["n"] >= 2,
         )
+
     descs = asyncio.run(run())
     assert descs[:2] == ["d1", "d2"], descs
     assert descs[2:] == ["(cancelled)"] * 4, descs
     assert calls["n"] == 2, calls  # no AI calls after cancel
+
+
 check("AI batch stops between frames on cancel; remaining marked", test_ai_cancel_between_frames)
+
 
 # 3. Real MainFrame + real wx dialog: per-phase messages and Cancel.
 #    KNOWN CONSTRAINT (honest): this wx build's ProgressDialog is fully
@@ -130,6 +163,7 @@ check("AI batch stops between frames on cancel; remaining marked", test_ai_cance
 def test_dialog_phases_via_real_frame():
     import wx
     from omni_describer_custom.i18n.strings import t
+
     _app = wx.GetApp()
     frame = MainFrame()
     msgs = {}
@@ -162,12 +196,19 @@ def test_dialog_phases_via_real_frame():
     assert "1234" in msgs["extract"], msgs["extract"]
     assert "7/120" in msgs["ai"], msgs["ai"]
     assert "Saving" in msgs["save"] or "Menyimpan" in msgs["save"], msgs["save"]
-check("Real dialog: frame count, AI done/total, saving text, Cancel handling", test_dialog_phases_via_real_frame)
+
+
+check(
+    "Real dialog: frame count, AI done/total, saving text, Cancel handling",
+    test_dialog_phases_via_real_frame,
+)
+
 
 # 4. Real MainFrame._process_video: frames copied to project folder, temp
 #    dir cleaned only at the end, descriptions reference copied frames.
 def test_full_pipeline_copies_frames():
     import wx
+
     _app = wx.GetApp()
     frame = MainFrame()
     tmp_src = tempfile.mkdtemp(prefix="odc8_src_")
@@ -198,6 +239,7 @@ def test_full_pipeline_copies_frames():
 
         # Stub VideoProcessor instance used inside _process_video.
         from omni_describer_custom.core.video_processor import VideoProcessor
+
         vp = VideoProcessor.__new__(VideoProcessor)
 
         async def gvi(source, **kwargs):
@@ -207,8 +249,7 @@ def test_full_pipeline_copies_frames():
         # fail this stub: v1.6.7 added download_dir and the mismatch
         # surfaced as "no descriptions saved", which names the symptom
         # and hides the cause.
-        async def ef(source, fps=5, output_dir="", on_progress=None,
-                     is_cancelled=None, **kwargs):
+        async def ef(source, fps=5, output_dir="", on_progress=None, is_cancelled=None, **kwargs):
             if on_progress:
                 on_progress(None)  # touch the dialog path like download does
             for i in range(3):
@@ -219,6 +260,7 @@ def test_full_pipeline_copies_frames():
         vp.extract_frames = ef
 
         import omni_describer_custom.ui.main_frame as mfmod
+
         orig_vp = mfmod.VideoProcessor
         mfmod.VideoProcessor = lambda *a, **k: vp
 
@@ -227,6 +269,7 @@ def test_full_pipeline_copies_frames():
         engine = AIEngine.__new__(AIEngine)
         engine.output_lang = ""
         seen_missing = []
+
         async def df(frames, prompt, provider="", model="", on_progress=None, is_cancelled=None):
             out = []
             for i, fp in enumerate(frames):
@@ -236,16 +279,19 @@ def test_full_pipeline_copies_frames():
                     on_progress(i + 1, len(frames))
                 out.append(f"description {i}")
             return out
+
         engine.describe_frames = df
         frame.ai_engine = engine
 
         from omni_describer_custom.core.project_store import ProjectStore
+
         frame.project_store = ProjectStore(projects_dir=str(Path(proj_dir) / "projects"))
         frame.settings = {"general.frame_rate": 5}
         frame._processing = True
         frame._ai_cancelled = False
 
         import glob
+
         before = set(glob.glob(str(Path(tempfile.gettempdir()) / "odc_frames_*")))
         frame._process_video(str(src), "describe this")
         mfmod.VideoProcessor = orig_vp
@@ -256,8 +302,9 @@ def test_full_pipeline_copies_frames():
         assert not seen_missing, f"frames deleted before AI: {seen_missing}"
         for d in proj.descriptions:
             assert Path(d.frame_path).exists(), f"frame missing after run: {d.frame_path}"
-            assert "frames" in d.frame_path.replace("/", "\\"), \
+            assert "frames" in d.frame_path.replace("/", "\\"), (
                 f"not in project frames dir: {d.frame_path}"
+            )
         # This run must not leak a NEW temp frames dir (cleaned AFTER save,
         # not before AI). Pre-existing dirs from old sessions are ignored.
         after = set(glob.glob(str(Path(tempfile.gettempdir()) / "odc_frames_*")))
@@ -270,8 +317,14 @@ def test_full_pipeline_copies_frames():
             pass
         shutil.rmtree(tmp_src, ignore_errors=True)
         shutil.rmtree(proj_dir, ignore_errors=True)
-check("Real _process_video: frames copied to project, AI sees files, temp cleaned", test_full_pipeline_copies_frames)
+
+
+check(
+    "Real _process_video: frames copied to project, AI sees files, temp cleaned",
+    test_full_pipeline_copies_frames,
+)
 
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

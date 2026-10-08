@@ -37,36 +37,53 @@ sys.path.insert(0, str(REPO / "src"))
 def serve(window: str, work: Path) -> None:
     """Child process: open the requested window and run the wx loop."""
     import wx
-    from omni_describer_custom.core.project_store import (Description,
-                                                          ProjectStore)
+    from omni_describer_custom.core.project_store import Description, ProjectStore
     from omni_describer_custom.core.tools import find_tool
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.player_window import PlayerWindow
 
     clip = work / "clip.mp4"
-    subprocess.run([find_tool("ffmpeg"), "-y", "-loglevel", "error", "-f",
-                    "lavfi", "-i", "color=c=blue:s=320x240:d=30", "-c:v",
-                    "libx264", str(clip)], check=True)
+    subprocess.run(
+        [
+            find_tool("ffmpeg"),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=320x240:d=30",
+            "-c:v",
+            "libx264",
+            str(clip),
+        ],
+        check=True,
+    )
     app = wx.App(False)
     # The window speaks the language the (isolated) settings choose.
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.i18n.strings import I18n
+
     I18n.set_language(SettingsStore().get("general.language", "en") or "en")
     store = ProjectStore(str(work / "projects"))
     store.create_project("A11y check", str(clip))
-    store.save_descriptions([
-        Description(start_time=5.0, end_time=8.0, text="A blue screen."),
-        Description(start_time=12.0, end_time=15.0, text="Still blue."),
-    ])
+    store.save_descriptions(
+        [
+            Description(start_time=5.0, end_time=8.0, text="A blue screen."),
+            Description(start_time=12.0, end_time=15.0, text="Still blue."),
+        ]
+    )
     player = PlayerWindow(None, store, TTSEngine({}))
     player.Show()
     top = player
     if window == "editor":
         from omni_describer_custom.ui.editor_window import EditorWindow
+
         top = EditorWindow(player, store, player.tts)
         top.Show()
     elif window == "updates":
         from omni_describer_custom.ui.update_dialog import UpdateDialog
+
         top = UpdateDialog(player, None)
         top.Show()
     elif window == "app_update":
@@ -74,20 +91,27 @@ def serve(window: str, work: Path) -> None:
         # made-up release so nothing is fetched from GitHub.
         from omni_describer_custom.core.app_update import Release
         from omni_describer_custom.ui.app_update_dialog import AppUpdateDialog
+
         release = Release(
-            version="9.9.9", tag="v9.9.9",
+            version="9.9.9",
+            tag="v9.9.9",
             notes="- The app updates itself.\n- A test release for listening.",
-            page_url="https://example.invalid", zip_url="", zip_size=0,
-            sums_url="")
+            page_url="https://example.invalid",
+            zip_url="",
+            zip_size=0,
+            sums_url="",
+        )
         top = AppUpdateDialog(player, None, release=release)
         top.Show()
     elif window == "explorer":
         from omni_describer_custom.ui.scene_explorer import SceneExplorer
+
         top = SceneExplorer(player, None, str(clip))
         top.Show()
     elif window == "settings":
         from omni_describer_custom.core.settings_store import SettingsStore
         from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
         top = SettingsDialog(player, SettingsStore())
         top.Show()
         provider = os.environ.get("ODC_A11Y_PROVIDER", "")
@@ -98,6 +122,7 @@ def serve(window: str, work: Path) -> None:
             top.provider_choice.SetFocus()
     elif window == "ask":
         from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
+
         top = AskMoreDialog(player, None, store.current.descriptions, 0.0)
         top.Show()
     top.Raise()
@@ -107,12 +132,15 @@ def serve(window: str, work: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--window", choices=["player", "editor", "ask", "updates", "explorer",
-                                 "settings", "app_update"],
-                        required=True)
+    parser.add_argument(
+        "--window",
+        choices=["player", "editor", "ask", "updates", "explorer", "settings", "app_update"],
+        required=True,
+    )
     parser.add_argument("--steps", type=int, default=16)
-    parser.add_argument("--provider", default="",
-                        help="settings only: open the AI tab on this provider")
+    parser.add_argument(
+        "--provider", default="", help="settings only: open the AI tab on this provider"
+    )
     parser.add_argument("--serve", default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -121,6 +149,7 @@ def main() -> int:
         return 0
 
     import nvda_accessibility_check as a11y
+
     alive, detail = a11y.bridge_alive()
     if not alive:
         print(f"NVDA HTTP Bridge not answering: {detail}")
@@ -128,16 +157,20 @@ def main() -> int:
     print(f"Bridge up: {detail}")
 
     work = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
-    env = dict(os.environ, ODC_CONFIG_DIR=str(work / "config"),
-               ODC_A11Y_PROVIDER=args.provider)
+    env = dict(os.environ, ODC_CONFIG_DIR=str(work / "config"), ODC_A11Y_PROVIDER=args.provider)
     log = open(work / "app_log.txt", "w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, __file__, "--window",
-                             args.window, "--serve", str(work)],
-                            env=env, stdout=log, stderr=log)
+    proc = subprocess.Popen(
+        [sys.executable, __file__, "--window", args.window, "--serve", str(work)],
+        env=env,
+        stdout=log,
+        stderr=log,
+    )
     import safe_keys
+
     safe_keys.allow(proc.pid)
     try:
         from pywinauto import Desktop
+
         title_file = work / "title.txt"
         deadline = time.monotonic() + 90
         while not title_file.exists() and time.monotonic() < deadline:
@@ -150,6 +183,7 @@ def main() -> int:
         # A wx dialog sits UNDER its owner frame in the UIA tree, so look
         # it up by its Win32 handle rather than as a top-level window.
         import win32gui
+
         hwnd = 0
         while not hwnd and time.monotonic() < deadline + 30:
             hwnd = win32gui.FindWindow(None, title)
@@ -183,8 +217,7 @@ def main() -> int:
                 break
             time.sleep(0.9)
         if not a11y.nvda_in(a11y.SOURCE_APP_NAMES):
-            print("INCONCLUSIVE: NVDA's focus is not in the window under "
-                  "test; nothing was judged")
+            print("INCONCLUSIVE: NVDA's focus is not in the window under test; nothing was judged")
             return 3
         print(f"Window: {title}")
         seen = a11y.walk_controls(win, args.steps)

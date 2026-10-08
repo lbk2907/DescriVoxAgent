@@ -9,6 +9,7 @@ all 888 seconds. The app tried once and showed the raw English error.
   2. if the site keeps refusing, the user hears what to do, in the app's
      language, instead of "ERROR: unable to download video data".
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -17,10 +18,14 @@ import tempfile
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -42,7 +47,7 @@ def check(name, fn):
 
 # A stand-in for yt-dlp: fails with the given stderr for the first
 # `failures` calls, then writes the merged video.mp4 like the real one.
-_FAKE = r'''
+_FAKE = r"""
 import sys
 from pathlib import Path
 out = Path(sys.argv[1]).parent
@@ -53,7 +58,7 @@ if n <= int(sys.argv[2]):
     sys.stderr.write(sys.argv[3] + "\n")
     sys.exit(1)
 (out / "video.mp4").write_bytes(b"merged")
-'''
+"""
 
 
 def _download(failures: int, error: str):
@@ -62,8 +67,7 @@ def _download(failures: int, error: str):
 
     async def fake_exec(*args, **kwargs):
         tmpl = args[args.index("-o") + 1]
-        return await real_exec(sys.executable, "-c", _FAKE, tmpl,
-                               str(failures), error, **kwargs)
+        return await real_exec(sys.executable, "-c", _FAKE, tmpl, str(failures), error, **kwargs)
 
     real_sleep = asyncio.sleep
     vpm.asyncio.create_subprocess_exec = fake_exec
@@ -113,13 +117,12 @@ def test_downloads_prefer_h264():
     async def spy(*args, **kwargs):
         seen["args"] = list(args)
         tmpl = args[args.index("-o") + 1]
-        return await real_exec(sys.executable, "-c", _FAKE, tmpl, "0", "",
-                               **kwargs)
+        return await real_exec(sys.executable, "-c", _FAKE, tmpl, "0", "", **kwargs)
+
     vpm.asyncio.create_subprocess_exec = spy
     try:
         vp = vpm.VideoProcessor(ffmpeg_path="ffmpeg", ytdlp_path="yt-dlp")
-        asyncio.run(vp.download_video("https://example.com/v",
-                                      tempfile.mkdtemp(prefix="odc_t47_")))
+        asyncio.run(vp.download_video("https://example.com/v", tempfile.mkdtemp(prefix="odc_t47_")))
     finally:
         vpm.asyncio.create_subprocess_exec = real_exec
     args = seen["args"]
@@ -131,11 +134,13 @@ def test_downloads_prefer_h264():
 
 def test_the_user_hears_what_to_do():
     from omni_describer_custom.i18n.strings import I18n, t
-    source = (ROOT / "src" / "omni_describer_custom" / "ui" /
-              "main_frame.py").read_text(encoding="utf-8")
-    assert 'is_forbidden_error(str(e))' in source and \
-        't("error.download_forbidden")' in source, \
+
+    source = (ROOT / "src" / "omni_describer_custom" / "ui" / "main_frame.py").read_text(
+        encoding="utf-8"
+    )
+    assert "is_forbidden_error(str(e))" in source and 't("error.download_forbidden")' in source, (
         "the processing error handler does not translate a 403"
+    )
     I18n.set_language("ms")
     try:
         said = t("error.download_forbidden")
@@ -146,14 +151,10 @@ def test_the_user_hears_what_to_do():
 
 def main() -> int:
     check("a passing 403 is retried", test_a_passing_403_is_retried)
-    check("a lasting 403 gives up after 3 and is named",
-          test_a_lasting_403_gives_up_and_is_named)
-    check("other download errors are not retried",
-          test_other_errors_are_not_retried)
-    check("downloads prefer H.264 every model can open",
-          test_downloads_prefer_h264)
-    check("the user hears what to do, in the app language",
-          test_the_user_hears_what_to_do)
+    check("a lasting 403 gives up after 3 and is named", test_a_lasting_403_gives_up_and_is_named)
+    check("other download errors are not retried", test_other_errors_are_not_retried)
+    check("downloads prefer H.264 every model can open", test_downloads_prefer_h264)
+    check("the user hears what to do, in the app language", test_the_user_hears_what_to_do)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

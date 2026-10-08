@@ -39,8 +39,7 @@ logger = logging.getLogger(__name__)
 URL = "https://openrouter.ai/api/v1/chat/completions"
 # v1.9.2: Gemini with the user's own key, through Google's
 # OpenAI-compatible endpoint (same tool calls and image messages).
-GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/openai/"
-              "chat/completions")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 AGENT_PROVIDERS = ("glm", "gemini")
 # Thinking per OpenRouter model (v1.9.4, pitfall 86). Measured with
 # tools/agent_levels.py, 8 tasks x 2 runs on Tears, GLM 5.3 Flash:
@@ -60,12 +59,15 @@ def gemini_price(model: str) -> tuple[float, float]:
     does not return a cost, so read OpenRouter's catalog price."""
     try:
         from .model_catalog import load_cache
+
         for row in load_cache()[0]:
             if row.get("id") == f"google/{model}" and row.get("price_in"):
                 return float(row["price_in"]), float(row.get("price_out") or 0)
     except Exception:
         pass
     return FALLBACK_PRICE
+
+
 MAX_TURNS = 10
 # 23.8 (v2.1.0): an answer that names a fix but proposed nothing. The
 # person can only accept a change that is PROPOSED; words alone left them
@@ -74,22 +76,23 @@ _FIX_WORDS = re.compile(
     r"\b(should (?:say|read|be)|change (?:it|this|that)? ?to|replace|instead of|"
     r"i (?:would )?(?:suggest|recommend|propose)|better(?: as| to say)?|"
     r"sepatutnya|tukar(?:kan)?|ganti(?:kan)?|cadang(?:kan)?|lebih baik)\b",
-    re.IGNORECASE)
+    re.IGNORECASE,
+)
 NUDGE_PROPOSE = (
     "Your answer describes a change, but you proposed nothing, so the "
     "person cannot accept it. If a description is CLEARLY wrong, call "
     "propose_change now (look first if you have not). If it is not clearly "
-    "wrong, say so in one sentence and propose nothing.")
-COST_CAP = 0.02          # dollars per question before asking "continue?"
-MAX_WORDS = 12           # the app's audio-description rule
+    "wrong, say so in one sentence and propose nothing."
+)
+COST_CAP = 0.02  # dollars per question before asking "continue?"
+MAX_WORDS = 12  # the app's audio-description rule
 PROPOSAL_WORD_LIMIT = 20  # hard refusal above this
 ACTIONS = ("keep", "move", "edit", "remove", "add")
 # Reply.error when a run is refused because another one is still going
 # on this Agent (v1.9.6): two runs on one self.messages would interleave.
 BUSY = "agent busy"
-CANCELLED = "cancelled"   # the same signal as ai_engine._run_cancellable
-ZOOM_AREAS = ("top-left", "top-right", "bottom-left", "bottom-right",
-              "centre", "center")
+CANCELLED = "cancelled"  # the same signal as ai_engine._run_cancellable
+ZOOM_AREAS = ("top-left", "top-right", "bottom-left", "bottom-right", "centre", "center")
 
 SYSTEM = (
     "You help a blind person improve the audio descriptions of a video "
@@ -107,7 +110,8 @@ SYSTEM = (
     "When the person gives someone a name, remember it (characters) and "
     "call propose_rename so every description uses it. "
     "When you are done, answer in one to three short sentences, in "
-    "{language}.")
+    "{language}."
+)
 
 # 34.1 (owner, 6 Oct 2026; idea from Watch Skill's "honest floor"): a blind
 # person cannot check an answer, so a guess is worse than "I cannot see it".
@@ -121,11 +125,12 @@ HONEST_FLOOR = True
 HONEST_FLOOR_TEXT = (
     " When the person asks what is on screen and you looked but still cannot "
     "clearly see it, say so plainly in {language}, beginning with the "
-    "{language} for \"I cannot see that clearly\", and give the times you "
+    '{language} for "I cannot see that clearly", and give the times you '
     "looked at, still within one to three short sentences. Never guess that "
     "answer, and never fill the gap from the descriptions, the dialogue or "
     "general knowledge: the person cannot see the screen to check you. This "
-    "is about answering questions only; when to propose a fix is unchanged.")
+    "is about answering questions only; when to propose a fix is unchanged."
+)
 
 
 def system_prompt(language: str) -> str:
@@ -136,92 +141,156 @@ def system_prompt(language: str) -> str:
 
 
 TOOLS: list[dict] = [
-    {"name": "current_position",
-     "description": "The player's current position in seconds.",
-     "parameters": {"type": "object", "properties": {}}},
-    {"name": "read_descriptions",
-     "description": "Descriptions between two times, each with its index.",
-     "parameters": {"type": "object", "properties": {
-         "start": {"type": "number"}, "end": {"type": "number"}},
-         "required": ["start", "end"]}},
-    {"name": "search_descriptions",
-     "description": "Descriptions containing some words.",
-     "parameters": {"type": "object", "properties": {
-         "query": {"type": "string"}}, "required": ["query"]}},
-    {"name": "look_at",
-     "description": "See the video frame at a time (seconds).",
-     "parameters": {"type": "object", "properties": {
-         "seconds": {"type": "number"}}, "required": ["seconds"]}},
-    {"name": "look_between",
-     "description": "See six frames spread between two times, each "
-                    "labelled with its time.",
-     "parameters": {"type": "object", "properties": {
-         "start": {"type": "number"}, "end": {"type": "number"}},
-         "required": ["start", "end"]}},
-    {"name": "zoom",
-     "description": "See one quarter (or the centre) of a frame enlarged.",
-     "parameters": {"type": "object", "properties": {
-         "seconds": {"type": "number"},
-         "area": {"type": "string", "enum": list(ZOOM_AREAS[:5])}},
-         "required": ["seconds", "area"]}},
-    {"name": "search_video",
-     "description": "Twelve frames spread over a long stretch, to find "
-                    "where something happens. Narrow down with smaller "
-                    "stretches.",
-     "parameters": {"type": "object", "properties": {
-         "start": {"type": "number"}, "end": {"type": "number"}},
-         "required": ["start", "end"]}},
-    {"name": "seek",
-     "description": "Move the player to a time so the person can listen "
-                    "there.",
-     "parameters": {"type": "object", "properties": {
-         "seconds": {"type": "number"}}, "required": ["seconds"]}},
-    {"name": "transcript",
-     "description": "What is said between two times, with times.",
-     "parameters": {"type": "object", "properties": {
-         "start": {"type": "number"}, "end": {"type": "number"}},
-         "required": ["start", "end"]}},
-    {"name": "find_gap",
-     "description": "Stretches with no speech between two times, where a "
-                    "description can be heard.",
-     "parameters": {"type": "object", "properties": {
-         "start": {"type": "number"}, "end": {"type": "number"}},
-         "required": ["start", "end"]}},
-    {"name": "check_rules",
-     "description": "Check a description before proposing it: word "
-                    "count, and whether it fits the silence at that time.",
-     "parameters": {"type": "object", "properties": {
-         "text": {"type": "string"}, "time": {"type": "number"}},
-         "required": ["text", "time"]}},
-    {"name": "characters",
-     "description": "Remembered character names for this video. action "
-                    "'list' to read them, 'remember' to store one the "
-                    "person told you.",
-     "parameters": {"type": "object", "properties": {
-         "action": {"type": "string", "enum": ["list", "remember"]},
-         "name": {"type": "string"},
-         "description": {"type": "string"}},
-         "required": ["action"]}},
-    {"name": "propose_rename",
-     "description": "Propose giving a person a name in EVERY description at "
-                    "once: old = the label or name used now (for example "
-                    "'the man in the grey coat'), new = the name. One "
-                    "proposal; the person approves it.",
-     "parameters": {"type": "object", "properties": {
-         "old": {"type": "string"}, "new": {"type": "string"},
-         "reason": {"type": "string"}},
-         "required": ["old", "new", "reason"]}},
-    {"name": "propose_change",
-     "description": "Propose a change for the person to approve. action: "
-                    "keep, move (index + time), edit (index + text), "
-                    "remove (index), add (time + text).",
-     "parameters": {"type": "object", "properties": {
-         "action": {"type": "string", "enum": list(ACTIONS)},
-         "index": {"type": "integer"},
-         "time": {"type": "number"},
-         "text": {"type": "string"},
-         "reason": {"type": "string"}},
-         "required": ["action", "reason"]}},
+    {
+        "name": "current_position",
+        "description": "The player's current position in seconds.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "read_descriptions",
+        "description": "Descriptions between two times, each with its index.",
+        "parameters": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "search_descriptions",
+        "description": "Descriptions containing some words.",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "look_at",
+        "description": "See the video frame at a time (seconds).",
+        "parameters": {
+            "type": "object",
+            "properties": {"seconds": {"type": "number"}},
+            "required": ["seconds"],
+        },
+    },
+    {
+        "name": "look_between",
+        "description": "See six frames spread between two times, each labelled with its time.",
+        "parameters": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "zoom",
+        "description": "See one quarter (or the centre) of a frame enlarged.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "seconds": {"type": "number"},
+                "area": {"type": "string", "enum": list(ZOOM_AREAS[:5])},
+            },
+            "required": ["seconds", "area"],
+        },
+    },
+    {
+        "name": "search_video",
+        "description": "Twelve frames spread over a long stretch, to find "
+        "where something happens. Narrow down with smaller "
+        "stretches.",
+        "parameters": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "seek",
+        "description": "Move the player to a time so the person can listen there.",
+        "parameters": {
+            "type": "object",
+            "properties": {"seconds": {"type": "number"}},
+            "required": ["seconds"],
+        },
+    },
+    {
+        "name": "transcript",
+        "description": "What is said between two times, with times.",
+        "parameters": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "find_gap",
+        "description": "Stretches with no speech between two times, where a "
+        "description can be heard.",
+        "parameters": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}},
+            "required": ["start", "end"],
+        },
+    },
+    {
+        "name": "check_rules",
+        "description": "Check a description before proposing it: word "
+        "count, and whether it fits the silence at that time.",
+        "parameters": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}, "time": {"type": "number"}},
+            "required": ["text", "time"],
+        },
+    },
+    {
+        "name": "characters",
+        "description": "Remembered character names for this video. action "
+        "'list' to read them, 'remember' to store one the "
+        "person told you.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["list", "remember"]},
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "propose_rename",
+        "description": "Propose giving a person a name in EVERY description at "
+        "once: old = the label or name used now (for example "
+        "'the man in the grey coat'), new = the name. One "
+        "proposal; the person approves it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "old": {"type": "string"},
+                "new": {"type": "string"},
+                "reason": {"type": "string"},
+            },
+            "required": ["old", "new", "reason"],
+        },
+    },
+    {
+        "name": "propose_change",
+        "description": "Propose a change for the person to approve. action: "
+        "keep, move (index + time), edit (index + text), "
+        "remove (index), add (time + text).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": list(ACTIONS)},
+                "index": {"type": "integer"},
+                "time": {"type": "number"},
+                "text": {"type": "string"},
+                "reason": {"type": "string"},
+            },
+            "required": ["action", "reason"],
+        },
+    },
 ]
 LOOKING_TOOLS = ("look_at", "look_between", "zoom", "search_video")
 
@@ -233,7 +302,7 @@ class Proposal:
     index: int | None = None
     time: float | None = None
     text: str = ""
-    old: str = ""          # "rename" (v2.1.0): the label replaced by text
+    old: str = ""  # "rename" (v2.1.0): the label replaced by text
 
 
 @dataclass
@@ -241,13 +310,14 @@ class Reply:
     answer: str = ""
     proposals: list[Proposal] = field(default_factory=list)
     cost: float = 0.0
-    needs_confirmation: bool = False   # cost cap reached: ask "continue?"
+    needs_confirmation: bool = False  # cost cap reached: ask "continue?"
     error: str = ""
 
 
 @dataclass
 class Context:
     """What the agent may see and the one thing it may do (seek)."""
+
     video: str
     length: float
     descriptions: list[tuple[float, str]]
@@ -279,29 +349,46 @@ class Frames:
     def _grab(self, seconds: float, width: int = 640):
         from PIL import Image
         from .tools import find_tool
+
         if self.is_cancelled is not None and self.is_cancelled():
             raise RuntimeError(CANCELLED)
         seconds = max(0.0, min(seconds, max(0.0, self.length - 0.2)))
         out = self.dir / f"f_{seconds:09.2f}_{width}.jpg"
         if not out.exists():
-            subprocess.run([find_tool("ffmpeg"), "-hide_banner", "-nostdin",
-                            "-y", "-v", "error", "-ss", f"{seconds:.2f}",
-                            "-i", self.video, "-frames:v", "1",
-                            "-vf", f"scale={width}:-2", str(out)],
-                           timeout=60, check=True)
+            subprocess.run(
+                [
+                    find_tool("ffmpeg"),
+                    "-hide_banner",
+                    "-nostdin",
+                    "-y",
+                    "-v",
+                    "error",
+                    "-ss",
+                    f"{seconds:.2f}",
+                    "-i",
+                    self.video,
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    f"scale={width}:-2",
+                    str(out),
+                ],
+                timeout=60,
+                check=True,
+            )
         return Image.open(out).convert("RGB"), seconds
 
     @staticmethod
     def _label(image, text: str):
         from PIL import ImageDraw, ImageFont
+
         draw = ImageDraw.Draw(image)
         try:
             font = ImageFont.truetype("arial.ttf", 24)
         except OSError:
             font = ImageFont.load_default()
         box = draw.textbbox((8, 6), text, font=font)
-        draw.rectangle([box[0] - 4, box[1] - 3, box[2] + 4, box[3] + 3],
-                       fill="black")
+        draw.rectangle([box[0] - 4, box[1] - 3, box[2] + 4, box[3] + 3], fill="black")
         draw.text((8, 6), text, fill="yellow", font=font)
         return image
 
@@ -317,6 +404,7 @@ class Frames:
 
     def sheet(self, start: float, end: float, count: int) -> tuple[bytes, list]:
         from PIL import Image
+
         start = max(0.0, start)
         end = min(max(start + 1.0, end), max(1.0, self.length - 0.2))
         times = [start + i * (end - start) / (count - 1) for i in range(count)]
@@ -335,35 +423,41 @@ class Frames:
     def zoom(self, seconds: float, area: str) -> tuple[bytes, float]:
         image, at = self._grab(seconds, width=1280)
         w, h = image.size
-        boxes = {"top-left": (0, 0, w // 2, h // 2),
-                 "top-right": (w // 2, 0, w, h // 2),
-                 "bottom-left": (0, h // 2, w // 2, h),
-                 "bottom-right": (w // 2, h // 2, w, h)}
+        boxes = {
+            "top-left": (0, 0, w // 2, h // 2),
+            "top-right": (w // 2, 0, w, h // 2),
+            "bottom-left": (0, h // 2, w // 2, h),
+            "bottom-right": (w // 2, h // 2, w, h),
+        }
         box = boxes.get(area, (w // 4, h // 4, 3 * w // 4, 3 * h // 4))
-        crop = image.crop(box)   # already 640 wide from a 1280 frame
+        crop = image.crop(box)  # already 640 wide from a 1280 frame
         return self._jpeg(self._label(crop, f"{_clock(at)} {area}")), at
 
     def close(self) -> None:
         import shutil
+
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
 class Agent:
     """One Player session: remembers the conversation until closed."""
 
-    def __init__(self, api_key: str, model: str, ctx: Context,
-                 post: Callable | None = None,
-                 on_step: Callable[[str, dict], None] | None = None,
-                 provider: str = "glm"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        ctx: Context,
+        post: Callable | None = None,
+        on_step: Callable[[str, dict], None] | None = None,
+        provider: str = "glm",
+    ):
         self.api_key, self.model, self.ctx = api_key, model, ctx
         self.provider = provider if provider in AGENT_PROVIDERS else "glm"
-        self._price = (gemini_price(model) if self.provider == "gemini"
-                       else None)
+        self._price = gemini_price(model) if self.provider == "gemini" else None
         self.frames = Frames(ctx.video, ctx.length)
         self.on_step = on_step or (lambda code, args: None)
         self._post = post or self._http_post
-        self.messages: list[dict] = [{"role": "system", "content":
-                                      system_prompt(ctx.language)}]
+        self.messages: list[dict] = [{"role": "system", "content": system_prompt(ctx.language)}]
         self._transcript: list | None = None
         self._looked = False
         self._pending: Reply | None = None
@@ -393,6 +487,7 @@ class Agent:
         """One request, abandoned within 0.5 s of a Stop/Close (v1.9.6):
         a request can take minutes (timeout 180 s, 3 attempts, waits)."""
         from .ai_engine import _run_cancellable
+
         return await _run_cancellable(self._post(payload), is_cancelled)
 
     @staticmethod
@@ -401,6 +496,7 @@ class Agent:
         without JSON, URL or account id (the window turns it into words
         with ai_engine.user_error_text)."""
         from .ai_engine import short_error
+
         text = str(e)
         return text if text == CANCELLED else short_error(text, 300)
 
@@ -412,34 +508,42 @@ class Agent:
         if isinstance(err, dict):
             code = err.get("code") or err.get("status") or ""
             message = str(err.get("message") or "error")
-            head = (f"{label} HTTP {code}" if isinstance(code, int)
-                    else f"{label} error {code}".rstrip())
+            head = (
+                f"{label} HTTP {code}"
+                if isinstance(code, int)
+                else f"{label} error {code}".rstrip()
+            )
             return self._error(f"{head}: {message}")
         return self._error(f"{label} error: {err}")
 
     # ── transport ────────────────────────────────────────────────
     async def _http_post(self, payload: dict) -> dict:
         from .ai_engine import _http_json
+
         gemini = self.provider == "gemini"
         return await _http_json(
-            "POST", GEMINI_URL if gemini else URL,
+            "POST",
+            GEMINI_URL if gemini else URL,
             label="Gemini" if gemini else "OpenRouter",
-            payload=payload, timeout=180,
-            headers={"Authorization": f"Bearer {self.api_key}",
-                     "Content-Type": "application/json"})
+            payload=payload,
+            timeout=180,
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+        )
 
     def _payload(self, tools: bool) -> dict:
-        payload = {"model": self.model, "messages": self.messages,
-                   "temperature": 0, "max_tokens": 3000}
+        payload = {
+            "model": self.model,
+            "messages": self.messages,
+            "temperature": 0,
+            "max_tokens": 3000,
+        }
         if self.provider == "gemini":
             payload["reasoning_effort"] = "low"
         else:
-            payload["reasoning"] = dict(AGENT_REASONING.get(
-                self.model, {"max_tokens": 1000}))
+            payload["reasoning"] = dict(AGENT_REASONING.get(self.model, {"max_tokens": 1000}))
             payload["usage"] = {"include": True}
         if tools:
-            payload["tools"] = [{"type": "function", "function": f}
-                                for f in TOOLS]
+            payload["tools"] = [{"type": "function", "function": f} for f in TOOLS]
         return payload
 
     def _cost(self, data: dict) -> float:
@@ -452,20 +556,25 @@ class Agent:
         return (tokens_in * self._price[0] + tokens_out * self._price[1]) / 1e6
 
     # ── the conversation ─────────────────────────────────────────
-    async def ask(self, question: str, cost_cap: float = COST_CAP,
-                  is_cancelled: Callable[[], bool] | None = None) -> Reply:
+    async def ask(
+        self,
+        question: str,
+        cost_cap: float = COST_CAP,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> Reply:
         """Answer one question; may stop at the cost cap for "continue?".
         `is_cancelled` (v1.9.6) stops it within about half a second, with
         Reply.error "cancelled" and the proposals found so far."""
+
         async def run():
             self._forget_old_images()
             self._looked = False
             # v1.9.6 (owner): every question carries where the player IS,
             # read when it is asked, so "this moment" never depends on the
             # model remembering to call current_position.
-            self.messages.append({"role": "user",
-                                  "content": self._with_position(question)})
+            self.messages.append({"role": "user", "content": self._with_position(question)})
             return await self._loop(Reply(), cost_cap, is_cancelled)
+
         return await self._guarded(run, is_cancelled)
 
     def _with_position(self, question: str) -> str:
@@ -473,20 +582,26 @@ class Agent:
             at = float(self.ctx.get_position())
         except Exception:
             return question
-        return (f"[The player is at {_clock(at)} ({at:.1f} s) of "
-                f"{_clock(self.ctx.length)}.]\n{question}")
+        return (
+            f"[The player is at {_clock(at)} ({at:.1f} s) of "
+            f"{_clock(self.ctx.length)}.]\n{question}"
+        )
 
-    async def resume(self, cost_cap: float = COST_CAP,
-                     is_cancelled: Callable[[], bool] | None = None) -> Reply:
+    async def resume(
+        self, cost_cap: float = COST_CAP, is_cancelled: Callable[[], bool] | None = None
+    ) -> Reply:
         """The person said "continue": carry on from where it stopped."""
+
         async def run():
             reply = self._pending or Reply()
             reply.needs_confirmation = False
             return await self._loop(reply, reply.cost + cost_cap, is_cancelled)
+
         return await self._guarded(run, is_cancelled)
 
-    async def _loop(self, reply: Reply, cap: float,
-                    is_cancelled: Callable[[], bool] | None = None) -> Reply:
+    async def _loop(
+        self, reply: Reply, cap: float, is_cancelled: Callable[[], bool] | None = None
+    ) -> Reply:
         self._pending = None
         stopped = is_cancelled or (lambda: False)
         nudged = False
@@ -505,35 +620,44 @@ class Agent:
                 return reply
             msg = (data.get("choices") or [{}])[0].get("message") or {}
             calls = msg.get("tool_calls") or []
-            self.messages.append({k: v for k, v in msg.items()
-                                  if k in ("role", "content", "tool_calls")})
+            self.messages.append(
+                {k: v for k, v in msg.items() if k in ("role", "content", "tool_calls")}
+            )
             if not calls:
                 reply.answer = (msg.get("content") or "").strip()
-                if (reply.answer and not nudged and not reply.proposals
-                        and _FIX_WORDS.search(reply.answer)
-                        and _turn < MAX_TURNS - 1):
+                if (
+                    reply.answer
+                    and not nudged
+                    and not reply.proposals
+                    and _FIX_WORDS.search(reply.answer)
+                    and _turn < MAX_TURNS - 1
+                ):
                     nudged = True
                     self.messages.append({"role": "user", "content": NUDGE_PROPOSE})
                     continue
                 if reply.answer:
                     return reply
-                break           # an empty answer: ask for one below
+                break  # an empty answer: ask for one below
             images = []
             for k, call in enumerate(calls):
                 if stopped():
                     # Every tool call needs its answer, or the next
                     # question in this session is refused by the API.
                     for rest in calls[k:]:
-                        self.messages.append({
-                            "role": "tool", "tool_call_id": rest.get("id", ""),
-                            "content": "Not run: the person stopped the agent."})
+                        self.messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": rest.get("id", ""),
+                                "content": "Not run: the person stopped the agent.",
+                            }
+                        )
                     self.messages.extend(images)
                     reply.error = CANCELLED
                     return reply
                 result, image = self._run_tool(call, reply)
-                self.messages.append({"role": "tool",
-                                      "tool_call_id": call.get("id", ""),
-                                      "content": result})
+                self.messages.append(
+                    {"role": "tool", "tool_call_id": call.get("id", ""), "content": result}
+                )
                 if image:
                     images.append(image)
             self.messages.extend(images)
@@ -545,10 +669,16 @@ class Agent:
         if stopped():
             reply.error = CANCELLED
             return reply
-        self.messages.append({"role": "user", "content": (
-            "Stop using tools now and answer in one to three sentences: "
-            "what you found and what you proposed, or that you could not "
-            "decide.")})
+        self.messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Stop using tools now and answer in one to three sentences: "
+                    "what you found and what you proposed, or that you could not "
+                    "decide."
+                ),
+            }
+        )
         try:
             # 23.8: the forced answer came back EMPTY now and then (a
             # reasoning model spending the reply on thinking). Ask once
@@ -565,17 +695,24 @@ class Agent:
                 if reply.answer or attempt or stopped():
                     break
                 self.messages.append({"role": "assistant", "content": ""})
-                self.messages.append({"role": "user", "content": (
-                    "Your answer was empty. Write one short sentence now.")})
+                self.messages.append(
+                    {
+                        "role": "user",
+                        "content": ("Your answer was empty. Write one short sentence now."),
+                    }
+                )
             self.messages.append({"role": "assistant", "content": reply.answer})
         except Exception as e:
             reply.error = self._error(e)
         return reply
 
-    async def check_all(self, window: float = 60.0,
-                        on_progress: Callable[[int, int], None] | None = None,
-                        is_cancelled: Callable[[], bool] | None = None,
-                        batch_cap: float = 0.05) -> Reply:
+    async def check_all(
+        self,
+        window: float = 60.0,
+        on_progress: Callable[[int, int], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+        batch_cap: float = 0.05,
+    ) -> Reply:
         """Go through every description, one stretch of video at a time,
         and gather ONE list of proposals (v1.9.1, owner's request).
 
@@ -588,11 +725,10 @@ class Agent:
         paid requests, so checking only between stretches kept spending.
         """
         return await self._guarded(
-            lambda: self._check_all(window, on_progress, is_cancelled,
-                                    batch_cap), is_cancelled)
+            lambda: self._check_all(window, on_progress, is_cancelled, batch_cap), is_cancelled
+        )
 
-    async def _check_all(self, window, on_progress, is_cancelled,
-                         batch_cap) -> Reply:
+    async def _check_all(self, window, on_progress, is_cancelled, batch_cap) -> Reply:
         total_reply = Reply()
         descs = self.ctx.descriptions
         if not descs:
@@ -601,8 +737,7 @@ class Agent:
         stretches = []
         start = 0.0
         while start < end:
-            inside = [i for i, (t, _x) in enumerate(descs)
-                      if start <= t < start + window]
+            inside = [i for i, (t, _x) in enumerate(descs) if start <= t < start + window]
             if inside:
                 stretches.append((start, min(end, start + window), inside))
             start += window
@@ -614,15 +749,20 @@ class Agent:
                     break
                 if on_progress:
                     on_progress(n, len(stretches))
-                self.messages = [saved[0]]           # the system prompt only
+                self.messages = [saved[0]]  # the system prompt only
                 self._looked = False
-                lines = "\n".join(f"[{i}] {descs[i][0]:.1f}s: {descs[i][1]}"
-                                   for i in inside)
-                self.messages.append({"role": "user", "content": (
-                    f"Check these descriptions between {s:.0f}s and {e:.0f}s "
-                    f"against the video. Look first. Propose only what is "
-                    f"CLEARLY wrong or clearly placed at another moment; "
-                    f"leave the rest.\n{lines}")})
+                lines = "\n".join(f"[{i}] {descs[i][0]:.1f}s: {descs[i][1]}" for i in inside)
+                self.messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Check these descriptions between {s:.0f}s and {e:.0f}s "
+                            f"against the video. Look first. Propose only what is "
+                            f"CLEARLY wrong or clearly placed at another moment; "
+                            f"leave the rest.\n{lines}"
+                        ),
+                    }
+                )
                 reply = await self._loop(Reply(), batch_cap, is_cancelled)
                 total_reply.cost += reply.cost
                 total_reply.proposals.extend(reply.proposals)
@@ -649,17 +789,19 @@ class Agent:
         whole conversation is sent with every request."""
         for m in self.messages:
             if m.get("role") == "user" and isinstance(m.get("content"), list):
-                texts = [c.get("text", "") for c in m["content"]
-                         if c.get("type") == "text"]
+                texts = [c.get("text", "") for c in m["content"] if c.get("type") == "text"]
                 m["content"] = " ".join(texts) + " [image no longer shown]"
 
     # ── tools ────────────────────────────────────────────────────
     def _image_message(self, jpeg: bytes, note: str) -> dict:
         data = base64.b64encode(jpeg).decode()
-        return {"role": "user", "content": [
-            {"type": "text", "text": note},
-            {"type": "image_url",
-             "image_url": {"url": f"data:image/jpeg;base64,{data}"}}]}
+        return {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": note},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
+            ],
+        }
 
     def _run_tool(self, call: dict, reply: Reply) -> tuple[str, dict | None]:
         fn = call.get("function") or {}
@@ -687,35 +829,44 @@ class Agent:
         if name == "read_descriptions":
             s, e = self._num(args, "start"), self._num(args, "end", ctx.length)
             self.on_step("reading", {"start": s, "end": e})
-            rows = [f"[{i}] {t:.1f}s: {x}" for i, (t, x)
-                    in enumerate(ctx.descriptions) if s <= t <= e]
+            rows = [
+                f"[{i}] {t:.1f}s: {x}" for i, (t, x) in enumerate(ctx.descriptions) if s <= t <= e
+            ]
             return "\n".join(rows) or "No descriptions there.", None
         if name == "search_descriptions":
-            words = [w for w in re.findall(r"\w+", str(args.get("query", "")).lower())
-                     if len(w) > 2]
-            rows = [f"[{i}] {t:.1f}s: {x}" for i, (t, x) in enumerate(ctx.descriptions)
-                    if words and all(w in x.lower() for w in words)]
+            words = [
+                w for w in re.findall(r"\w+", str(args.get("query", "")).lower()) if len(w) > 2
+            ]
+            rows = [
+                f"[{i}] {t:.1f}s: {x}"
+                for i, (t, x) in enumerate(ctx.descriptions)
+                if words and all(w in x.lower() for w in words)
+            ]
             return "\n".join(rows[:30]) or "None found.", None
         if name in LOOKING_TOOLS:
             self._looked = True
             if name == "look_at":
                 jpeg, at = self.frames.one(self._num(args, "seconds"))
                 self.on_step("looking", {"at": at})
-                return "The frame is in the next message.", \
-                    self._image_message(jpeg, f"Frame at {_clock(at)}:")
+                return "The frame is in the next message.", self._image_message(
+                    jpeg, f"Frame at {_clock(at)}:"
+                )
             if name == "zoom":
                 area = str(args.get("area", "centre"))
                 jpeg, at = self.frames.zoom(self._num(args, "seconds"), area)
                 self.on_step("looking", {"at": at})
-                return "The enlarged area is in the next message.", \
-                    self._image_message(jpeg, f"{area} of {_clock(at)}:")
+                return "The enlarged area is in the next message.", self._image_message(
+                    jpeg, f"{area} of {_clock(at)}:"
+                )
             s, e = self._num(args, "start"), self._num(args, "end", ctx.length)
             count = 12 if name == "search_video" else 6
             jpeg, times = self.frames.sheet(s, e, count)
-            self.on_step("searching" if count == 12 else "looking",
-                         {"at": times[0], "end": times[-1]})
+            self.on_step(
+                "searching" if count == 12 else "looking", {"at": times[0], "end": times[-1]}
+            )
             return "The frames are in the next message.", self._image_message(
-                jpeg, f"{count} frames {_clock(times[0])} to {_clock(times[-1])}:")
+                jpeg, f"{count} frames {_clock(times[0])} to {_clock(times[-1])}:"
+            )
         if name == "seek":
             at = self._num(args, "seconds")
             ctx.seek(at)
@@ -723,17 +874,21 @@ class Agent:
             return f"The player is now at {_clock(at)}.", None
         if name == "transcript":
             s, e = self._num(args, "start"), self._num(args, "end", ctx.length)
-            rows = [f"{seg.start:.1f}-{seg.end:.1f}s: {seg.text}"
-                    for seg in self._speech() if seg.end >= s and seg.start <= e]
+            rows = [
+                f"{seg.start:.1f}-{seg.end:.1f}s: {seg.text}"
+                for seg in self._speech()
+                if seg.end >= s and seg.start <= e
+            ]
             return "\n".join(rows) or "Nothing is said there.", None
         if name == "find_gap":
             s, e = self._num(args, "start"), self._num(args, "end", ctx.length)
             gaps = self._gaps(s, e)
-            return ("\n".join(f"{a:.1f}-{b:.1f}s ({b - a:.1f} s)" for a, b in gaps)
-                    or "No silence of 1.5 s or more there."), None
+            return (
+                "\n".join(f"{a:.1f}-{b:.1f}s ({b - a:.1f} s)" for a, b in gaps)
+                or "No silence of 1.5 s or more there."
+            ), None
         if name == "check_rules":
-            return self._check_rules(str(args.get("text", "")),
-                                     self._num(args, "time")), None
+            return self._check_rules(str(args.get("text", "")), self._num(args, "time")), None
         if name == "characters":
             return self._characters(args), None
         if name == "propose_rename":
@@ -753,8 +908,9 @@ class Agent:
         return self._transcript
 
     def _gaps(self, start: float, end: float, minimum: float = 1.5) -> list:
-        spans = sorted((seg.start, seg.end) for seg in self._speech()
-                       if seg.end >= start and seg.start <= end)
+        spans = sorted(
+            (seg.start, seg.end) for seg in self._speech() if seg.end >= start and seg.start <= end
+        )
         gaps, cursor = [], start
         for a, b in spans:
             if a - cursor >= minimum:
@@ -767,16 +923,25 @@ class Agent:
     def _check_rules(self, text: str, time: float) -> str:
         words = _words(text)
         from .timeline_io import WORDS_PER_SECOND_AT_1X
+
         needs = words / WORDS_PER_SECOND_AT_1X
-        gap = next((b - time for a, b in self._gaps(max(0.0, time - 0.5),
-                                                   min(self.ctx.length, time + 30))
-                    if a <= time + 0.5 < b), 0.0)
-        lines = [f"{words} words (limit {MAX_WORDS}): "
-                 f"{'OK' if words <= MAX_WORDS else 'TOO LONG'}",
-                 f"takes about {needs:.1f} s to say"]
+        gap = next(
+            (
+                b - time
+                for a, b in self._gaps(max(0.0, time - 0.5), min(self.ctx.length, time + 30))
+                if a <= time + 0.5 < b
+            ),
+            0.0,
+        )
+        lines = [
+            f"{words} words (limit {MAX_WORDS}): {'OK' if words <= MAX_WORDS else 'TOO LONG'}",
+            f"takes about {needs:.1f} s to say",
+        ]
         if self._speech():
-            lines.append(f"silence from here: {gap:.1f} s — "
-                         f"{'fits' if gap >= needs else 'does NOT fit, speech follows'}")
+            lines.append(
+                f"silence from here: {gap:.1f} s — "
+                f"{'fits' if gap >= needs else 'does NOT fit, speech follows'}"
+            )
         if re.search(r"\b(says?|said|shouts?|hear|sound|music)\b", text, re.I):
             lines.append("mentions sound or speech — describe only what is seen")
         return "\n".join(lines)
@@ -785,40 +950,48 @@ class Agent:
         # v2.1.0: the same characters.json the describing run builds and
         # the Characters window edits (core/characters.py).
         from . import characters as ch
-        folder = (Path(self.ctx.characters_file).parent
-                  if self.ctx.characters_file else None)
+
+        folder = Path(self.ctx.characters_file).parent if self.ctx.characters_file else None
         cast = ch.load_cast(folder)
         if args.get("action") == "remember" and args.get("name"):
             name = str(args["name"]).strip()[:60]
             look = str(args.get("description", "")).strip()[:200]
             cast = [c for c in cast if c["name"].casefold() != name.casefold()]
             cast.insert(0, {"name": name, "look": look, "by_user": True})
-            ch.save_cast(folder, cast[:ch.MAX_CAST])
+            ch.save_cast(folder, cast[: ch.MAX_CAST])
             return f"Remembered {name}."
-        return ("\n".join(f"{c['name']}: {c.get('look', '')}" for c in cast)
-                or "No characters remembered yet.")
+        return (
+            "\n".join(f"{c['name']}: {c.get('look', '')}" for c in cast)
+            or "No characters remembered yet."
+        )
 
     def _propose_rename(self, args: dict, reply: Reply) -> str:
         """v2.1.0 (owner): a name for someone, in every description, as ONE
         proposal. No frames needed: the name comes from the person."""
         from .characters import rename_in_texts
+
         old = str(args.get("old", "")).strip()
         new = str(args.get("new", "")).strip()[:60]
         if not old or not new:
             return "Refused: give both old (the label used now) and new (the name)."
         _texts, count = rename_in_texts([d for _, d in self.ctx.descriptions], old, new)
         if not count:
-            return (f"Refused: no description says '{old}'. Use read_descriptions "
-                    "or search_descriptions to find the exact words used.")
-        reply.proposals.append(Proposal(action="rename", old=old, text=new,
-                                        reason=str(args.get("reason", ""))[:300]))
+            return (
+                f"Refused: no description says '{old}'. Use read_descriptions "
+                "or search_descriptions to find the exact words used."
+            )
+        reply.proposals.append(
+            Proposal(action="rename", old=old, text=new, reason=str(args.get("reason", ""))[:300])
+        )
         self.on_step("proposing", {"action": "rename"})
         return f"Proposal recorded: '{old}' -> '{new}' in {count} descriptions."
 
     def _propose(self, args: dict, reply: Reply) -> str:
         if not self._looked:
-            return ("Refused: look at the frames first (look_at, look_between, "
-                    "zoom or search_video), then propose.")
+            return (
+                "Refused: look at the frames first (look_at, look_between, "
+                "zoom or search_video), then propose."
+            )
         action = str(args.get("action", ""))
         if action not in ACTIONS:
             return f"Refused: action must be one of {', '.join(ACTIONS)}."
@@ -836,20 +1009,23 @@ class Agent:
             if not text:
                 return "Refused: this change needs the new text."
             if _words(text) > PROPOSAL_WORD_LIMIT:
-                return (f"Refused: {_words(text)} words; keep it to "
-                        f"{MAX_WORDS} or fewer.")
+                return f"Refused: {_words(text)} words; keep it to {MAX_WORDS} or fewer."
+
             # Heard in the first whole-video check: an "edit" carrying the
             # SAME text, next to a move of that description — a change
             # that changes nothing, put in front of the person anyway.
             def _norm(value: str) -> str:
                 return re.sub(r"\W+", " ", value).strip().lower()
-            if action == "edit" and _norm(text) == _norm(
-                    self.ctx.descriptions[index][1]):
+
+            if action == "edit" and _norm(text) == _norm(self.ctx.descriptions[index][1]):
                 return "Refused: the text is unchanged; use move to change the time."
-        proposal = Proposal(action=action, reason=str(args.get("reason", ""))[:300],
-                            index=index if isinstance(index, int) else None,
-                            time=float(time) if isinstance(time, (int, float)) else None,
-                            text=text)
+        proposal = Proposal(
+            action=action,
+            reason=str(args.get("reason", ""))[:300],
+            index=index if isinstance(index, int) else None,
+            time=float(time) if isinstance(time, (int, float)) else None,
+            text=text,
+        )
         if action != "keep":
             reply.proposals.append(proposal)
         self.on_step("proposing", {"action": action})
@@ -861,35 +1037,65 @@ class Agent:
 
 # ── Settings > "Test agent mode" ───────────────────────────────────
 
+
 def make_test_clip(folder: Path) -> tuple[Path, float]:
     """12 s: red with the word RED for 6 s, then blue with BLUE."""
     from .tools import find_tool
+
     out = folder / "agent_test.mp4"
     font = "C\\:/Windows/Fonts/arial.ttf"
 
     def part(colour: str, word: str) -> str:
-        return (f"color=c={colour}:s=640x360:d=6,drawtext=fontfile='{font}':"
-                f"text='{word}':fontsize=90:fontcolor=white:x=(w-tw)/2:y=(h-th)/2")
-    subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error",
-                    "-f", "lavfi", "-i", part("red", "RED"),
-                    "-f", "lavfi", "-i", part("blue", "BLUE"),
-                    "-filter_complex", "[0][1]concat=n=2:v=1[v]", "-map", "[v]",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)],
-                   check=True, timeout=120)
+        return (
+            f"color=c={colour}:s=640x360:d=6,drawtext=fontfile='{font}':"
+            f"text='{word}':fontsize=90:fontcolor=white:x=(w-tw)/2:y=(h-th)/2"
+        )
+
+    subprocess.run(
+        [
+            find_tool("ffmpeg"),
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            part("red", "RED"),
+            "-f",
+            "lavfi",
+            "-i",
+            part("blue", "BLUE"),
+            "-filter_complex",
+            "[0][1]concat=n=2:v=1[v]",
+            "-map",
+            "[v]",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(out),
+        ],
+        check=True,
+        timeout=120,
+    )
     return out, 12.0
 
 
-async def probe(api_key: str, model: str, post: Callable | None = None,
-                provider: str = "glm") -> dict:
+async def probe(
+    api_key: str, model: str, post: Callable | None = None, provider: str = "glm"
+) -> dict:
     """Can this model drive the agent? Judged on behaviour we can check,
     not on its opinion: real tool calls, looked before proposing, valid
     arguments, and a final answer (phase A findings)."""
     folder = Path(tempfile.mkdtemp(prefix="odc_agent_"))
     try:
         clip, length = make_test_clip(folder)
-        ctx = Context(video=str(clip), length=length,
-                      descriptions=[(1.0, "A blue screen shows the word BLUE.")],
-                      get_position=lambda: 1.0)
+        ctx = Context(
+            video=str(clip),
+            length=length,
+            descriptions=[(1.0, "A blue screen shows the word BLUE.")],
+            get_position=lambda: 1.0,
+        )
         agent = Agent(api_key, model, ctx, post=post, provider=provider)
         used_tools = {"n": 0}
         original = agent._run_tool
@@ -897,21 +1103,27 @@ async def probe(api_key: str, model: str, post: Callable | None = None,
         def counting(call, reply):
             used_tools["n"] += 1
             return original(call, reply)
+
         agent._run_tool = counting
         reply = await agent.ask(
-            "Description [0] at 1.0 s says: \"A blue screen shows the word "
-            "BLUE.\" Is it right? Check it and fix it if needed.")
+            'Description [0] at 1.0 s says: "A blue screen shows the word '
+            'BLUE." Is it right? Check it and fix it if needed.'
+        )
         agent.close()
-        ok = (used_tools["n"] > 0 and agent._looked and not reply.error
-              and bool(reply.answer))
-        return {"ok": ok, "tools": used_tools["n"], "looked": agent._looked,
-                "proposals": [p.__dict__ for p in reply.proposals],
-                "answer": reply.answer[:300], "error": reply.error,
-                "cost": round(reply.cost, 5)}
+        ok = used_tools["n"] > 0 and agent._looked and not reply.error and bool(reply.answer)
+        return {
+            "ok": ok,
+            "tools": used_tools["n"],
+            "looked": agent._looked,
+            "proposals": [p.__dict__ for p in reply.proposals],
+            "answer": reply.answer[:300],
+            "error": reply.error,
+            "cost": round(reply.cost, 5),
+        }
     finally:
         import shutil
+
         shutil.rmtree(folder, ignore_errors=True)
 
 
-__all__ = ["Agent", "BUSY", "CANCELLED", "Context", "Proposal", "Reply",
-           "TOOLS", "probe"]
+__all__ = ["Agent", "BUSY", "CANCELLED", "Context", "Proposal", "Reply", "TOOLS", "probe"]

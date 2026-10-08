@@ -79,6 +79,7 @@ def provider_hears_audio(provider: str, model: str = "") -> bool:
         return True
     if provider == "glm" and model:
         from .model_catalog import openrouter_model_hears_audio
+
         return openrouter_model_hears_audio(model)
     return False
 
@@ -128,24 +129,25 @@ async def get_model_price(model: str) -> dict:
     try:
         timeout = aiohttp.ClientTimeout(total=20)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
-                    "https://openrouter.ai/api/v1/models") as resp:
+            async with session.get("https://openrouter.ai/api/v1/models") as resp:
                 if resp.status != 200:
                     return {}
                 data = await resp.json()
         for entry in data.get("data", []):
             if entry.get("id") == model:
                 pricing = entry.get("pricing", {})
-                return {"prompt": float(pricing.get("prompt", 0.0) or 0.0),
-                        "completion": float(pricing.get("completion", 0.0) or 0.0)}
+                return {
+                    "prompt": float(pricing.get("prompt", 0.0) or 0.0),
+                    "completion": float(pricing.get("completion", 0.0) or 0.0),
+                }
     except Exception as e:
         logger.debug("Price lookup failed: %s", e)
     return {}
 
 
-async def estimate_video_cost(duration_seconds: float, model: str,
-                              chunk_seconds: int = 300,
-                              api_key: str = "") -> dict:
+async def estimate_video_cost(
+    duration_seconds: float, model: str, chunk_seconds: int = 300, api_key: str = ""
+) -> dict:
     """What this video will cost before a penny is spent.
 
     v1.6.1: added after a run died mid-way with HTTP 402 ("requires at
@@ -158,8 +160,14 @@ async def estimate_video_cost(duration_seconds: float, model: str,
     completion_tokens = parts * COMPLETION_TOKENS_PER_PART
 
     price = await get_model_price(model) if model else {}
-    usd = (prompt_tokens * price.get("prompt", 0.0)
-           + completion_tokens * price.get("completion", 0.0)) if price else 0.0
+    usd = (
+        (
+            prompt_tokens * price.get("prompt", 0.0)
+            + completion_tokens * price.get("completion", 0.0)
+        )
+        if price
+        else 0.0
+    )
 
     out = {
         "duration": duration,
@@ -188,10 +196,14 @@ async def estimate_video_cost(duration_seconds: float, model: str,
     return out
 
 
-def build_transcript_block(segments, start: float = 0.0,
-                           end: float | None = None,
-                           offset: float = 0.0, limit: int = 120,
-                           words_per_second: float = 2.5) -> str:
+def build_transcript_block(
+    segments,
+    start: float = 0.0,
+    end: float | None = None,
+    offset: float = 0.0,
+    limit: int = 120,
+    words_per_second: float = 2.5,
+) -> str:
     """Render the words spoken in a time range, for the prompt.
 
     v1.6.1: this is how a provider that cannot hear (GLM) still knows
@@ -223,10 +235,9 @@ def build_transcript_block(segments, start: float = 0.0,
         # Keep the ends: the opening sets the scene and the close
         # usually resolves it. Dropping the middle beats blowing the
         # context window on a long video.
-        head, tail = picked[:limit // 2], picked[-(limit // 2):]
+        head, tail = picked[: limit // 2], picked[-(limit // 2) :]
         picked = head + [(head[-1][0], "[...]")] + tail
-    lines = "\n".join(f"[{int(t) // 60:02d}:{int(t) % 60:02d}] {txt}"
-                      for t, txt in picked)
+    lines = "\n".join(f"[{int(t) // 60:02d}:{int(t) % 60:02d}] {txt}" for t, txt in picked)
     return (
         "\n\nWHAT IS SAID IN THIS VIDEO, WITH THE TIMES IT IS SAID "
         "(already audible to the listener). Use it three ways: to "
@@ -235,13 +246,13 @@ def build_transcript_block(segments, start: float = 0.0,
         "descriptions in the gaps between these lines rather than over "
         "them. Do NOT narrate these lines back unless the prompt above "
         "asks you to convey speech:\n"
-        f"{lines}\n"
-        + _gap_budget_block(segments, start, end, offset, words_per_second)
+        f"{lines}\n" + _gap_budget_block(segments, start, end, offset, words_per_second)
     )
 
 
-def _gap_budget_block(segments, start: float, end: float | None,
-                      offset: float, words_per_second: float) -> str:
+def _gap_budget_block(
+    segments, start: float, end: float | None, offset: float, words_per_second: float
+) -> str:
     """Name each silent gap and how many words actually fit in it.
 
     Asking for "12 words maximum" did not work, and asking harder is
@@ -263,7 +274,8 @@ def _gap_budget_block(segments, start: float, end: float | None,
         return (
             "\n\nTHERE IS NO SILENCE IN THIS PART. Someone is speaking "
             "throughout. Describe only what cannot be understood from "
-            "the words alone, and keep it to a few words.\n")
+            "the words alone, and keep it to a few words.\n"
+        )
 
     rows = []
     total = 0
@@ -275,7 +287,8 @@ def _gap_budget_block(segments, start: float, end: float | None,
         rows.append(
             f"  {int((a - offset) // 60):02d}:{int((a - offset) % 60):02d}"
             f"-{int((b - offset) // 60):02d}:{int((b - offset) % 60):02d}"
-            f"  about {words} words fit here")
+            f"  about {words} words fit here"
+        )
     if not rows:
         return ""
     listing = "\n".join(rows)
@@ -290,7 +303,8 @@ def _gap_budget_block(segments, start: float, end: float | None,
         f"Your whole answer must fit in about {total} words across all "
         "of these gaps. Start each description inside a gap and make it "
         "short enough to finish inside the SAME gap. If something will "
-        "not fit, leave it out rather than overrun.\n")
+        "not fit, leave it out rather than overrun.\n"
+    )
 
 
 FULL_VIDEO_TS_PROMPT_SUFFIX = (
@@ -336,15 +350,15 @@ CONTINUITY_RULES = (
 )
 
 
-
 # v1.5.2: explicit output-language directives. Without one, models pick
 # the language from the video CONTENT (speech/on-screen text), which
 # made descriptions randomly switch between Malay and English.
 _LANGUAGE_DIRECTIVES = {
-    "ms": ("\n\nIMPORTANT: Write EVERY description in Bahasa Malaysia "
-           "(Malay). Never mix English words into the descriptions."),
-    "en": ("\n\nIMPORTANT: Write EVERY description in English. "
-           "Do not use any other language."),
+    "ms": (
+        "\n\nIMPORTANT: Write EVERY description in Bahasa Malaysia "
+        "(Malay). Never mix English words into the descriptions."
+    ),
+    "en": ("\n\nIMPORTANT: Write EVERY description in English. Do not use any other language."),
 }
 
 
@@ -366,12 +380,11 @@ def language_directive(lang: str) -> str:
         from ..i18n.strings import I18n
 
         name = I18n.ai_language_name(code)
-    except Exception:       # i18n is not a hard dependency of the engine
+    except Exception:  # i18n is not a hard dependency of the engine
         name = ""
     if not name:
         return ""
-    return (f"\n\nIMPORTANT: Write EVERY description in {name}. "
-            "Do not use any other language.")
+    return f"\n\nIMPORTANT: Write EVERY description in {name}. Do not use any other language."
 
 
 def apply_output_language(prompt: str, lang: str) -> str:
@@ -382,6 +395,7 @@ def apply_output_language(prompt: str, lang: str) -> str:
     if directive.strip() in prompt:
         return prompt  # already applied
     return prompt + directive
+
 
 # Parses one timestamped line, e.g.:
 #   "[00:05] text" / "- 12:34 - text" / "01:02:03.500 text" / "(0:59) text"
@@ -411,8 +425,7 @@ def parse_gemini_timestamp_lines(text: str) -> list[tuple[float, str]]:
         m = _TS_LINE_RE.match(raw)
         if not m:
             continue
-        secs = (int(m.group("h") or 0) * 3600
-                + int(m.group("m")) * 60 + int(m.group("s")))
+        secs = int(m.group("h") or 0) * 3600 + int(m.group("m")) * 60 + int(m.group("s"))
         if m.group("f"):
             secs += float("0." + m.group("f"))
         desc = (m.group("text") or m.group("glued") or "").strip()
@@ -441,8 +454,7 @@ def _strip_think(text: str) -> str:
 # v1.7.4: placeholders a provider returns instead of a description.
 # They are fine in the chat window, but a frame whose "description" is
 # "(empty response)" was saved as a cue and read aloud to the listener.
-_PLACEHOLDER_PREFIXES = ("(error:", "(no response", "(no text",
-                         "(empty response")
+_PLACEHOLDER_PREFIXES = ("(error:", "(no response", "(no text", "(empty response")
 
 
 # v1.8.7: frame mode describes each still frame on its own, with the
@@ -453,13 +465,13 @@ _PLACEHOLDER_PREFIXES = ("(error:", "(no response", "(no text",
 FRAME_FORMAT_SUFFIX = (
     "\n\nThis is ONE still frame from the video. Answer with one plain "
     "sentence of at most 12 words: no markdown, no headings, no "
-    "timestamps, no lists.")
+    "timestamps, no lists."
+)
 
 _MARKDOWN = re.compile(r"\*\*|__|^\s*#+\s*|^\s*[-*\u2022]\s+", re.M)
 _HEADING_LINE = re.compile(r"^[ \t]*#+[^\n]*(?:\n|$)", re.M)
 _STAMPS = re.compile(r"\[\s*\d{1,2}:\d{2}(?::\d{2})?\s*\]")
-_HEADINGS = re.compile(r"^\s*(audio description|description)\b[^\n:]*[:\n]\s*",
-                       re.I)
+_HEADINGS = re.compile(r"^\s*(audio description|description)\b[^\n:]*[:\n]\s*", re.I)
 
 
 def clean_frame_text(text: str) -> str:
@@ -500,8 +512,7 @@ def finalize_frame_descriptions(frames, texts) -> list[tuple]:
 def is_placeholder_text(text: str) -> bool:
     """True when text is not a real description and must not be spoken."""
     t = (text or "").strip()
-    return (not t or t == "(cancelled)"
-            or t.lower().startswith(_PLACEHOLDER_PREFIXES))
+    return not t or t == "(cancelled)" or t.lower().startswith(_PLACEHOLDER_PREFIXES)
 
 
 # v1.7.4: every provider retries a provider-side wobble, not just GLM.
@@ -558,8 +569,7 @@ def _server_wait(body: str, retry_after: str | None) -> float | None:
         return None
 
 
-async def _sleep_cancellable(seconds: float,
-                             is_cancelled: Callable[[], bool] | None) -> None:
+async def _sleep_cancellable(seconds: float, is_cancelled: Callable[[], bool] | None) -> None:
     loop = asyncio.get_running_loop()
     end = loop.time() + seconds
     while True:
@@ -572,8 +582,12 @@ async def _sleep_cancellable(seconds: float,
 
 
 async def _http_json(
-    method: str, url: str, *, label: str,
-    headers: dict | None = None, payload: Any = None,
+    method: str,
+    url: str,
+    *,
+    label: str,
+    headers: dict | None = None,
+    payload: Any = None,
     timeout: float = 60.0,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> dict:
@@ -588,12 +602,16 @@ async def _http_json(
     for attempt in range(1, HTTP_RETRIES + 1):
         if is_cancelled is not None and is_cancelled():
             raise RuntimeError("cancelled")
+
         # v1.9.6: the request itself is abandoned within 0.5 s of a
         # Cancel (Gemini generate could hold a job for 600 s).
         async def _once() -> dict:
             async with aiohttp.ClientSession() as session:
                 async with session.request(
-                    method, url, json=payload, headers=headers,
+                    method,
+                    url,
+                    json=payload,
+                    headers=headers,
                     timeout=aiohttp.ClientTimeout(total=timeout),
                 ) as resp:
                     body = await resp.text()
@@ -601,30 +619,28 @@ async def _http_json(
                         raise RuntimeError(
                             f"{label} HTTP 429: daily quota used up "
                             f"({daily_quota(body)}). It resets at midnight "
-                            "Pacific time; a paid tier raises it.")
+                            "Pacific time; a paid tier raises it."
+                        )
                     if resp.status in _TRANSIENT_STATUSES:
                         raise _TransientHTTPError(
                             f"HTTP {resp.status}: {body[:120]}",
                             _server_wait(body, resp.headers.get("Retry-After"))
-                            if resp.status == 429 else None)
+                            if resp.status == 429
+                            else None,
+                        )
                     if resp.status != 200:
-                        raise RuntimeError(
-                            f"{label} HTTP {resp.status}: {body[:200]}")
+                        raise RuntimeError(f"{label} HTTP {resp.status}: {body[:200]}")
                     try:
                         data = json.loads(body)
                     except ValueError:
-                        raise RuntimeError(
-                            f"{label}: reply was not JSON: {body[:200]}"
-                        ) from None
+                        raise RuntimeError(f"{label}: reply was not JSON: {body[:200]}") from None
                     if not isinstance(data, dict):
-                        raise RuntimeError(
-                            f"{label}: unexpected reply: {body[:200]}")
+                        raise RuntimeError(f"{label}: unexpected reply: {body[:200]}")
                     return data
 
         try:
             return await _run_cancellable(_once(), is_cancelled)
-        except (_TransientHTTPError, aiohttp.ClientError,
-                asyncio.TimeoutError, OSError) as e:
+        except (_TransientHTTPError, aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             last = e
             if attempt >= HTTP_RETRIES:
                 break
@@ -635,15 +651,20 @@ async def _http_json(
             asked = getattr(e, "wait", None)
             if asked is not None:
                 if asked > MAX_RETRY_WAIT:
-                    break           # a daily quota: waiting will not help
+                    break  # a daily quota: waiting will not help
                 wait = max(wait, asked + 1.0)
-            logger.warning("%s: %s on attempt %d/%d; retrying in %.0fs",
-                           label, str(e) or type(e).__name__,
-                           attempt, HTTP_RETRIES, wait)
+            logger.warning(
+                "%s: %s on attempt %d/%d; retrying in %.0fs",
+                label,
+                str(e) or type(e).__name__,
+                attempt,
+                HTTP_RETRIES,
+                wait,
+            )
             await _sleep_cancellable(wait, is_cancelled)
     raise RuntimeError(
-        f"{label} request failed after {HTTP_RETRIES} attempts: "
-        f"{str(last) or type(last).__name__}")
+        f"{label} request failed after {HTTP_RETRIES} attempts: {str(last) or type(last).__name__}"
+    )
 
 
 def is_daily_quota_error(message: str) -> bool:
@@ -662,7 +683,7 @@ def short_error(message: str, limit: int = 160) -> str:
     URL (they can carry tokens), no OpenRouter user id."""
     text = str(message or "").strip()
     if "{" in text:
-        text = text[:text.index("{")].rstrip(" :")
+        text = text[: text.index("{")].rstrip(" :")
     text = _URL.sub("<url>", text)
     text = _USER_ID.sub("<id>", text)
     return text[:limit] or "?"
@@ -674,6 +695,7 @@ def user_error_text(message: str) -> str:
     with what to do, in the app language; anything else is shortened by
     short_error() so no JSON, URL or account id is read out."""
     from ..i18n.strings import t
+
     text = str(message or "")
     low = text.lower()
     if text == "cancelled":
@@ -682,23 +704,42 @@ def user_error_text(message: str) -> str:
         return t("error.ai_daily_quota")
     if is_busy_error(text):
         return t("error.ai_busy")
-    if ("http 413" in low or "payload too large" in low
-            or "payload_too_large" in low):
+    if "http 413" in low or "payload too large" in low or "payload_too_large" in low:
         return t("error.ai_too_large")
     if re.search(r"\bhttp (401|403)\b", low) and "youtube" not in low:
         return t("error.ai_key")
     if re.search(r"\bhttp 402\b", low) or "insufficient credit" in low:
         return t("error.ai_credit")
     # Before the network check: "ffmpeg timed out" is not a network fault.
-    if any(k in low for k in ("video split failed", "video compression failed",
-                              "video preparation failed", "ffmpeg exit code",
-                              "ffmpeg timed out", "ffmpeg failed")):
+    if any(
+        k in low
+        for k in (
+            "video split failed",
+            "video compression failed",
+            "video preparation failed",
+            "ffmpeg exit code",
+            "ffmpeg timed out",
+            "ffmpeg failed",
+        )
+    ):
         return t("error.video_prepare", detail=short_error(text, 120))
-    if any(k in low for k in ("cannot connect to host", "getaddrinfo",
-                              "name or service not known", "connection reset",
-                              "connection aborted", "server disconnected",
-                              "timed out", "timeouterror", "winerror 10060",
-                              "winerror 10061", "winerror 1236", "winerror 64")):
+    if any(
+        k in low
+        for k in (
+            "cannot connect to host",
+            "getaddrinfo",
+            "name or service not known",
+            "connection reset",
+            "connection aborted",
+            "server disconnected",
+            "timed out",
+            "timeouterror",
+            "winerror 10060",
+            "winerror 10061",
+            "winerror 1236",
+            "winerror 64",
+        )
+    ):
         return t("error.ai_network")
     return t("error.ai_generic", detail=short_error(text))
 
@@ -708,9 +749,13 @@ def is_busy_error(message: str) -> bool:
     503 / "high demand"), which the user can act on by waiting or by
     picking another model -- unlike a bad key or a broken file."""
     text = (message or "").lower()
-    return ("http 503" in text or "http 429" in text
-            or "high demand" in text or "overloaded" in text
-            or "rate limit" in text)
+    return (
+        "http 503" in text
+        or "http 429" in text
+        or "high demand" in text
+        or "overloaded" in text
+        or "rate limit" in text
+    )
 
 
 def _gemini_text(data: dict) -> str:
@@ -723,16 +768,16 @@ def _gemini_text(data: dict) -> str:
     """
     candidates = data.get("candidates") or []
     if not candidates:
-        logger.warning("Gemini returned no candidates (blockReason=%s)",
-                       (data.get("promptFeedback") or {}).get("blockReason"))
+        logger.warning(
+            "Gemini returned no candidates (blockReason=%s)",
+            (data.get("promptFeedback") or {}).get("blockReason"),
+        )
         return ""
     cand = candidates[0] or {}
     parts = (cand.get("content") or {}).get("parts") or []
-    text = "".join(p.get("text", "") for p in parts
-                   if isinstance(p, dict) and not p.get("thought"))
+    text = "".join(p.get("text", "") for p in parts if isinstance(p, dict) and not p.get("thought"))
     if not text.strip():
-        logger.warning("Gemini returned no text (finishReason=%s)",
-                       cand.get("finishReason"))
+        logger.warning("Gemini returned no text (finishReason=%s)", cand.get("finishReason"))
     return text
 
 
@@ -755,15 +800,16 @@ class AIProvider(ABC):
     words_per_second: float = 2.5
 
     @abstractmethod
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         """Describe an image/frame. Returns description text."""
         ...
 
     @abstractmethod
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -776,9 +822,7 @@ class AIProvider(ABC):
         """
         ...
 
-    async def ask_about_scene(
-        self, image_path: str, question: str, model: str = ""
-    ) -> str:
+    async def ask_about_scene(self, image_path: str, question: str, model: str = "") -> str:
         """Ask a specific question about a scene (default: reuse describe_image)."""
         return await self.describe_image(image_path, question, model)
 
@@ -786,9 +830,7 @@ class AIProvider(ABC):
     # ask_about_video); the others are sent still pictures.
     watches_video: bool = False
 
-    async def ask_about_video(
-        self, video_path: str, question: str, model: str = ""
-    ) -> str:
+    async def ask_about_video(self, video_path: str, question: str, model: str = "") -> str:
         """One plain question about a whole video, through the same upload
         path the app uses for descriptions ("Test this model", v1.9.2)."""
         raise NotImplementedError(f"{self.name} does not take a video")
@@ -820,9 +862,7 @@ class GeminiProvider(AIProvider):
         self.api_key = api_key
         self.base_url = base_url or "https://generativelanguage.googleapis.com/v1beta"
 
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("Gemini API key not configured")
         model = model or self.models[0]
@@ -846,9 +886,9 @@ class GeminiProvider(AIProvider):
             "generationConfig": {"maxOutputTokens": 1024},
         }
 
-        data = await _http_json("POST", url, label="Gemini",
-                                headers=self._auth_headers(),
-                                payload=payload, timeout=60)
+        data = await _http_json(
+            "POST", url, label="Gemini", headers=self._auth_headers(), payload=payload, timeout=60
+        )
         if "error" in data:
             raise RuntimeError(f"Gemini error: {data['error']}")
         return _gemini_text(data) or "(empty response)"
@@ -859,7 +899,10 @@ class GeminiProvider(AIProvider):
         return {"x-goog-api-key": self.api_key}
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -870,7 +913,8 @@ class GeminiProvider(AIProvider):
                 return results
             try:
                 desc = await _run_cancellable(
-                    self.describe_image(frame, prompt, model), is_cancelled)
+                    self.describe_image(frame, prompt, model), is_cancelled
+                )
             except Exception as e:
                 logger.warning("Gemini frame error: %s", e)
                 desc = f"(error: {e})"
@@ -888,7 +932,8 @@ class GeminiProvider(AIProvider):
         return mimetypes.guess_type(video_path)[0] or "video/mp4"
 
     async def _upload_video(
-        self, video_path: str,
+        self,
+        video_path: str,
         on_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
@@ -903,8 +948,8 @@ class GeminiProvider(AIProvider):
         for attempt in range(1, HTTP_RETRIES + 1):
             try:
                 return await _run_cancellable(
-                    self._upload_video_once(video_path, on_progress,
-                                            is_cancelled), is_cancelled)
+                    self._upload_video_once(video_path, on_progress, is_cancelled), is_cancelled
+                )
             except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
                 if isinstance(e, FileNotFoundError):
                     raise
@@ -915,14 +960,19 @@ class GeminiProvider(AIProvider):
                 last = e
             if attempt < HTTP_RETRIES:
                 wait = HTTP_RETRY_BACKOFF_SECONDS * (3 ** (attempt - 1))
-                logger.warning("Gemini upload: %s on attempt %d/%d; retrying "
-                               "in %.0fs", last, attempt, HTTP_RETRIES, wait)
+                logger.warning(
+                    "Gemini upload: %s on attempt %d/%d; retrying in %.0fs",
+                    last,
+                    attempt,
+                    HTTP_RETRIES,
+                    wait,
+                )
                 await _sleep_cancellable(wait, is_cancelled)
-        raise RuntimeError(f"Gemini upload failed after {HTTP_RETRIES} "
-                           f"attempts: {last}")
+        raise RuntimeError(f"Gemini upload failed after {HTTP_RETRIES} attempts: {last}")
 
     async def _upload_video_once(
-        self, video_path: str,
+        self,
+        video_path: str,
         on_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
@@ -954,12 +1004,12 @@ class GeminiProvider(AIProvider):
         }
         body = {"file": {"display_name": path.name[:80]}}
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=body, headers=headers,
-                                    timeout=aiohttp.ClientTimeout(total=120)) as resp:
+            async with session.post(
+                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=120)
+            ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    raise RuntimeError(
-                        f"Gemini upload init HTTP {resp.status}: {text[:200]}")
+                    raise RuntimeError(f"Gemini upload init HTTP {resp.status}: {text[:200]}")
                 upload_url = resp.headers.get("X-Goog-Upload-URL", "")
                 if not upload_url:
                     raise RuntimeError("Gemini upload: no upload URL returned")
@@ -976,18 +1026,19 @@ class GeminiProvider(AIProvider):
                         break
                     is_last = uploaded + len(data) >= size
                     up_headers = {
-                        "X-Goog-Upload-Command":
-                            "upload, finalize" if is_last else "upload",
+                        "X-Goog-Upload-Command": "upload, finalize" if is_last else "upload",
                         "X-Goog-Upload-Offset": str(uploaded),
                         "Content-Length": str(len(data)),
                     }
-                    async with session.post(upload_url, data=data,
-                                            headers=up_headers,
-                                            timeout=aiohttp.ClientTimeout(total=600)) as resp:
+                    async with session.post(
+                        upload_url,
+                        data=data,
+                        headers=up_headers,
+                        timeout=aiohttp.ClientTimeout(total=600),
+                    ) as resp:
                         if resp.status not in (200, 201):
                             text = await resp.text()
-                            raise RuntimeError(
-                                f"Gemini upload HTTP {resp.status}: {text[:200]}")
+                            raise RuntimeError(f"Gemini upload HTTP {resp.status}: {text[:200]}")
                         if is_last:
                             # Decoded by hand: resp.json() on a wrong
                             # content type raises with the URL in it.
@@ -998,8 +1049,7 @@ class GeminiProvider(AIProvider):
                             fobj = payload.get("file", {})
                             uri = fobj.get("uri") or fobj.get("name", "")
                             if not uri:
-                                raise RuntimeError(
-                                    "Gemini upload: no file URI in response")
+                                raise RuntimeError("Gemini upload: no file URI in response")
                             if on_progress:
                                 try:
                                     on_progress(100.0)
@@ -1015,12 +1065,15 @@ class GeminiProvider(AIProvider):
         raise RuntimeError("Gemini upload: nothing uploaded")
 
     async def _wait_video_ready(
-        self, uri: str, timeout: float = 300.0,
+        self,
+        uri: str,
+        timeout: float = 300.0,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> None:
         """Poll the Files API until the video state is ACTIVE (Gemini
         finished processing it). Raises RuntimeError on FAILED or timeout."""
         import asyncio as _aio
+
         base = self.base_url.rstrip("/")
         name = uri.split("/v1beta/")[-1] if "/v1beta/" in uri else uri
         url = f"{base}/{name}"
@@ -1029,23 +1082,32 @@ class GeminiProvider(AIProvider):
         while True:
             if is_cancelled is not None and is_cancelled():
                 raise RuntimeError("cancelled")
-            data = await _http_json("GET", url, label="Gemini file status",
-                                    headers=self._auth_headers(),
-                                    timeout=60, is_cancelled=is_cancelled)
+            data = await _http_json(
+                "GET",
+                url,
+                label="Gemini file status",
+                headers=self._auth_headers(),
+                timeout=60,
+                is_cancelled=is_cancelled,
+            )
             state = data.get("state", "")
             if state == "ACTIVE":
                 return
             if state == "FAILED":
                 raise RuntimeError(
                     "Gemini failed to process the video: "
-                    f"{data.get('error', {}).get('message', 'unknown error')}")
+                    f"{data.get('error', {}).get('message', 'unknown error')}"
+                )
             await _aio.sleep(5)
             if loop.time() > deadline:
-                raise RuntimeError(
-                    "Timed out waiting for Gemini to process the video")
+                raise RuntimeError("Timed out waiting for Gemini to process the video")
 
     async def _generate_with_video(
-        self, uri: str, mime: str, prompt: str, model: str,
+        self,
+        uri: str,
+        mime: str,
+        prompt: str,
+        model: str,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
         """One generateContent call carrying the whole video."""
@@ -1054,41 +1116,60 @@ class GeminiProvider(AIProvider):
         config = {"maxOutputTokens": 8192}
         if self.TEMPERATURE is not None:
             config["temperature"] = self.TEMPERATURE
-        thinking = (self.THINKING if self.THINKING is not None
-                    else self.THINKING_BY_MODEL.get(model))
+        thinking = self.THINKING if self.THINKING is not None else self.THINKING_BY_MODEL.get(model)
         if thinking:
             config["thinkingConfig"] = dict(thinking)
         payload = {
-            "contents": [{"parts": [
-                {"text": prompt},
-                {"file_data": {"mime_type": mime, "file_uri": uri}},
-            ]}],
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt},
+                        {"file_data": {"mime_type": mime, "file_uri": uri}},
+                    ]
+                }
+            ],
             "generationConfig": config,
         }
         try:
-            data = await _http_json("POST", url, label="Gemini",
-                                    headers=self._auth_headers(),
-                                    payload=payload, timeout=600,
-                                    is_cancelled=is_cancelled)
+            data = await _http_json(
+                "POST",
+                url,
+                label="Gemini",
+                headers=self._auth_headers(),
+                payload=payload,
+                timeout=600,
+                is_cancelled=is_cancelled,
+            )
         except RuntimeError as e:
             # Thinking levels differ per model and a level a model does
             # not take is HTTP 400 (phase 22: 3.8 Flash refuses
             # "minimal"). Never lose the job to it: once more without.
             if not (thinking and "400" in str(e) and "thinking" in str(e).lower()):
                 raise
-            logger.warning("Gemini refused thinking %s for %s; retrying "
-                           "with the model's default", thinking, model)
+            logger.warning(
+                "Gemini refused thinking %s for %s; retrying with the model's default",
+                thinking,
+                model,
+            )
             config.pop("thinkingConfig", None)
-            data = await _http_json("POST", url, label="Gemini",
-                                    headers=self._auth_headers(),
-                                    payload=payload, timeout=600,
-                                    is_cancelled=is_cancelled)
+            data = await _http_json(
+                "POST",
+                url,
+                label="Gemini",
+                headers=self._auth_headers(),
+                payload=payload,
+                timeout=600,
+                is_cancelled=is_cancelled,
+            )
         if "error" in data:
             raise RuntimeError(f"Gemini error: {data['error']}")
         return _gemini_text(data)
 
     async def describe_video_full(
-        self, video_path: str, prompt: str, model: str = "",
+        self,
+        video_path: str,
+        prompt: str,
+        model: str = "",
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -1118,13 +1199,16 @@ class GeminiProvider(AIProvider):
 
         status("uploading")
         uri = await self._upload_video(
-            video_path, on_progress=on_upload_progress, is_cancelled=is_cancelled)
+            video_path, on_progress=on_upload_progress, is_cancelled=is_cancelled
+        )
         status("processing")
         await self._wait_video_ready(uri, is_cancelled=is_cancelled)
         status("describing")
         text = await self._generate_with_video(
-            uri, self._video_mime(video_path),
-            prompt + FULL_VIDEO_TS_PROMPT_SUFFIX, model,
+            uri,
+            self._video_mime(video_path),
+            prompt + FULL_VIDEO_TS_PROMPT_SUFFIX,
+            model,
             is_cancelled=is_cancelled,
         )
         return parse_gemini_timestamp_lines(text)
@@ -1147,16 +1231,14 @@ class GeminiProvider(AIProvider):
     # {} = send no thinking setting at all.
     THINKING: dict | None = None
 
-    async def ask_about_video(
-        self, video_path: str, question: str, model: str = ""
-    ) -> str:
+    async def ask_about_video(self, video_path: str, question: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("Gemini API key not configured")
         uri = await self._upload_video(video_path)
         await self._wait_video_ready(uri)
         return await self._generate_with_video(
-            uri, self._video_mime(video_path), question,
-            model or self.models[0])
+            uri, self._video_mime(video_path), question, model or self.models[0]
+        )
 
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
@@ -1165,7 +1247,7 @@ class GeminiProvider(AIProvider):
             raise ValueError("Gemini API key not configured")
         model = model or self.models[0]
         contents: list[dict] = []
-        for msg in (history or []):
+        for msg in history or []:
             role = "user" if msg.get("role") == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
         contents.append({"role": "user", "parts": [{"text": question}]})
@@ -1175,13 +1257,12 @@ class GeminiProvider(AIProvider):
             "contents": contents,
             "generationConfig": {"maxOutputTokens": 1024},
         }
-        data = await _http_json("POST", url, label="Gemini",
-                                headers=self._auth_headers(),
-                                payload=payload, timeout=60)
+        data = await _http_json(
+            "POST", url, label="Gemini", headers=self._auth_headers(), payload=payload, timeout=60
+        )
         if "error" in data:
             raise RuntimeError(f"Gemini error: {data['error']}")
         return _gemini_text(data) or "(empty response)"
-
 
 
 class OpenAIProvider(AIProvider):
@@ -1197,9 +1278,7 @@ class OpenAIProvider(AIProvider):
         self.api_key = api_key
         self.base_url = base_url or "https://api.openai.com/v1"
 
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("OpenAI API key not configured")
         model = model or self.models[0]
@@ -1228,8 +1307,9 @@ class OpenAIProvider(AIProvider):
             "Content-Type": "application/json",
         }
 
-        data = await _http_json("POST", url, label="OpenAI", headers=headers,
-                                payload=payload, timeout=60)
+        data = await _http_json(
+            "POST", url, label="OpenAI", headers=headers, payload=payload, timeout=60
+        )
         if "error" in data:
             raise RuntimeError(f"OpenAI error: {data['error']}")
         choices = data.get("choices", [])
@@ -1238,7 +1318,10 @@ class OpenAIProvider(AIProvider):
         return choices[0]["message"]["content"]
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -1249,7 +1332,8 @@ class OpenAIProvider(AIProvider):
                 return results
             try:
                 desc = await _run_cancellable(
-                    self.describe_image(frame, prompt, model), is_cancelled)
+                    self.describe_image(frame, prompt, model), is_cancelled
+                )
             except Exception as e:
                 logger.warning("OpenAI frame error: %s", e)
                 desc = f"(error: {e})"
@@ -1260,6 +1344,7 @@ class OpenAIProvider(AIProvider):
                 except Exception:
                     logger.debug("on_progress raised", exc_info=True)
         return results
+
     async def ask_text(
         self, question: str, history: list[dict] | None = None, model: str = ""
     ) -> str:
@@ -1277,15 +1362,15 @@ class OpenAIProvider(AIProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        data = await _http_json("POST", url, label="OpenAI", headers=headers,
-                                payload=payload, timeout=60)
+        data = await _http_json(
+            "POST", url, label="OpenAI", headers=headers, payload=payload, timeout=60
+        )
         if "error" in data:
             raise RuntimeError(f"OpenAI error: {data['error']}")
         choices = data.get("choices", [])
         if not choices:
             return "(no response from OpenAI)"
         return choices[0]["message"]["content"]
-
 
 
 class MiniMaxProvider(AIProvider):
@@ -1306,9 +1391,7 @@ class MiniMaxProvider(AIProvider):
         self.api_key = api_key
         self.base_url = (base_url or "https://api.minimax.io").rstrip("/")
 
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("MiniMax API key not configured")
         model = model or self.models[0]
@@ -1317,18 +1400,26 @@ class MiniMaxProvider(AIProvider):
             "model": model,
             "max_completion_tokens": 1024,
             "messages": [
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url",
-                     "image_url": {"url": f"data:{mime};base64,{img_b64}"}},
-                ]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{img_b64}"},
+                        },
+                    ],
+                },
             ],
         }
         text = await self._chat(payload, timeout=60)
         return _strip_think(text)
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -1339,7 +1430,8 @@ class MiniMaxProvider(AIProvider):
                 return results
             try:
                 desc = await _run_cancellable(
-                    self.describe_image(frame, prompt, model), is_cancelled)
+                    self.describe_image(frame, prompt, model), is_cancelled
+                )
             except Exception as e:
                 logger.warning("MiniMax frame error: %s", e)
                 desc = f"(error: {e})"
@@ -1363,12 +1455,14 @@ class MiniMaxProvider(AIProvider):
         ]
         messages.append({"role": "user", "content": question})
         text = await self._chat(
-            {"model": model, "max_completion_tokens": 1024,
-             "messages": messages}, timeout=120)
+            {"model": model, "max_completion_tokens": 1024, "messages": messages}, timeout=120
+        )
         return _strip_think(text)
 
     async def _chat(
-        self, payload: dict, timeout: float,
+        self,
+        payload: dict,
+        timeout: float,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
         """POST /v1/chat/completions and return choices[0].message.content."""
@@ -1379,20 +1473,28 @@ class MiniMaxProvider(AIProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        data = await _http_json("POST", url, label="MiniMax", headers=headers,
-                                payload=payload, timeout=timeout,
-                                is_cancelled=is_cancelled)
+        data = await _http_json(
+            "POST",
+            url,
+            label="MiniMax",
+            headers=headers,
+            payload=payload,
+            timeout=timeout,
+            is_cancelled=is_cancelled,
+        )
         base = data.get("base_resp", {}) or {}
         if base.get("status_code", 0) != 0:
-            raise RuntimeError(
-                f"MiniMax error: {base.get('status_msg', data)}")
+            raise RuntimeError(f"MiniMax error: {base.get('status_msg', data)}")
         choices = data.get("choices", [])
         if not choices:
             return "(no response from MiniMax)"
         return choices[0]["message"]["content"]
 
     async def describe_video_full(
-        self, video_path: str, prompt: str, model: str = "",
+        self,
+        video_path: str,
+        prompt: str,
+        model: str = "",
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -1408,6 +1510,7 @@ class MiniMaxProvider(AIProvider):
         2. chat request referencing mm_file://{file_id}
         3. strip <think> and parse the same [MM:SS] lines as Gemini
         """
+
         def status(s: str) -> None:
             if on_status:
                 try:
@@ -1421,45 +1524,49 @@ class MiniMaxProvider(AIProvider):
 
         status("uploading")
         file_id = await self._upload_video(
-            video_path, on_upload_progress=on_upload_progress,
-            is_cancelled=is_cancelled)
+            video_path, on_upload_progress=on_upload_progress, is_cancelled=is_cancelled
+        )
         status("describing")
         payload = {
             "model": model,
             "max_completion_tokens": 4096,
             "messages": [
-                {"role": "user", "content": [
-                    {"type": "video_url",
-                     "video_url": {"url": f"mm_file://{file_id}"}},
-                    {"type": "text",
-                     "text": prompt + FULL_VIDEO_TS_PROMPT_SUFFIX},
-                ]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "video_url", "video_url": {"url": f"mm_file://{file_id}"}},
+                        {"type": "text", "text": prompt + FULL_VIDEO_TS_PROMPT_SUFFIX},
+                    ],
+                },
             ],
         }
-        text = await self._chat(payload, timeout=600,
-                                is_cancelled=is_cancelled)
+        text = await self._chat(payload, timeout=600, is_cancelled=is_cancelled)
         return parse_gemini_timestamp_lines(_strip_think(text))
 
     watches_video = True
 
-    async def ask_about_video(
-        self, video_path: str, question: str, model: str = ""
-    ) -> str:
+    async def ask_about_video(self, video_path: str, question: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("MiniMax API key not configured")
         file_id = await self._upload_video(video_path)
         payload = {
             "model": model or self.models[0],
             "max_completion_tokens": 2048,
-            "messages": [{"role": "user", "content": [
-                {"type": "video_url",
-                 "video_url": {"url": f"mm_file://{file_id}"}},
-                {"type": "text", "text": question}]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "video_url", "video_url": {"url": f"mm_file://{file_id}"}},
+                        {"type": "text", "text": question},
+                    ],
+                }
+            ],
         }
         return _strip_think(await self._chat(payload, timeout=300))
 
     async def _upload_video(
-        self, video_path: str,
+        self,
+        video_path: str,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> str:
@@ -1484,11 +1591,7 @@ class MiniMaxProvider(AIProvider):
         boundary = "----OmniDescriberMiniMax" + uuid.uuid4().hex
         url = f"{self.base_url}/v1/files/upload"
 
-        head1 = (
-            f"--{boundary}\r\n"
-            'Content-Disposition: form-data; name="purpose"\r\n'
-            "\r\n"
-        ).encode()
+        head1 = (f'--{boundary}\r\nContent-Disposition: form-data; name="purpose"\r\n\r\n').encode()
         value1 = b"video_understanding\r\n"
         head2 = (
             f"--{boundary}\r\n"
@@ -1497,8 +1600,7 @@ class MiniMaxProvider(AIProvider):
             "Content-Type: video/mp4\r\n\r\n"
         ).encode()
         tail = f"\r\n--{boundary}--\r\n".encode()
-        content_length = (
-            len(head1) + len(value1) + len(head2) + total + len(tail))
+        content_length = len(head1) + len(value1) + len(head2) + total + len(tail)
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -1507,6 +1609,7 @@ class MiniMaxProvider(AIProvider):
         }
 
         with open(video_path, "rb") as fh:
+
             async def gen():
                 yield head1
                 yield value1
@@ -1525,18 +1628,16 @@ class MiniMaxProvider(AIProvider):
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                        url, data=gen(), headers=headers,
-                        timeout=aiohttp.ClientTimeout(total=600)) as resp:
+                    url, data=gen(), headers=headers, timeout=aiohttp.ClientTimeout(total=600)
+                ) as resp:
                     if resp.status != 200:
                         text = await resp.text()
-                        raise RuntimeError(
-                            f"MiniMax upload HTTP {resp.status}: {text[:200]}")
+                        raise RuntimeError(f"MiniMax upload HTTP {resp.status}: {text[:200]}")
                     data = await resp.json()
 
         base = data.get("base_resp", {}) or {}
         if base.get("status_code", 0) != 0:
-            raise RuntimeError(
-                f"MiniMax upload error: {base.get('status_msg', data)}")
+            raise RuntimeError(f"MiniMax upload error: {base.get('status_msg', data)}")
         file_id = (data.get("file") or {}).get("file_id", "")
         if not file_id:
             raise RuntimeError(f"MiniMax upload: no file_id in response: {data}")
@@ -1588,8 +1689,9 @@ class GLMProvider(AIProvider):
     # Bytes handed to the socket per step while streaming a request.
     _SEND_CHUNK = 256 * 1024
 
-    async def _chat(self, payload: dict, timeout: float,
-                    on_sent: Callable[[float], None] | None = None) -> str:
+    async def _chat(
+        self, payload: dict, timeout: float, on_sent: Callable[[float], None] | None = None
+    ) -> str:
         """POST a chat request; with on_sent, report the share uploaded.
 
         v1.8.4: a video part is ~40 MB of base64 in one JSON body, and
@@ -1610,7 +1712,7 @@ class GLMProvider(AIProvider):
 
         async def stream():
             for start in range(0, len(body), chunk):
-                yield body[start:start + chunk]
+                yield body[start : start + chunk]
                 try:
                     on_sent(min(1.0, (start + chunk) / len(body)))
                 except Exception:
@@ -1620,10 +1722,10 @@ class GLMProvider(AIProvider):
         for attempt in range(1, self._NETWORK_RETRIES + 1):
             try:
                 async with aiohttp.ClientSession() as session:
-                    send = ({"data": stream()} if body is not None
-                            else {"json": payload})
+                    send = {"data": stream()} if body is not None else {"json": payload}
                     async with session.post(
-                        url, headers=headers,
+                        url,
+                        headers=headers,
                         timeout=aiohttp.ClientTimeout(total=timeout),
                         **send,
                     ) as resp:
@@ -1637,25 +1739,26 @@ class GLMProvider(AIProvider):
                                 raise RuntimeError(
                                     f"GLM HTTP 429: daily quota used up "
                                     f"({daily_quota(body)}). It resets at "
-                                    "midnight UTC; adding credit raises it.")
+                                    "midnight UTC; adding credit raises it."
+                                )
                             raise _TransientHTTPError(
                                 f"HTTP {resp.status}: {body[:120]}",
                                 _server_wait(body, resp.headers.get("Retry-After"))
-                                if resp.status == 429 else None)
+                                if resp.status == 429
+                                else None,
+                            )
                         if resp.status != 200:
                             # 4xx (bad key, no credit, payload too big):
                             # retrying cannot help and would burn time.
                             body = await resp.text()
-                            raise RuntimeError(
-                                f"GLM HTTP {resp.status}: {body[:200]}")
+                            raise RuntimeError(f"GLM HTTP {resp.status}: {body[:200]}")
                         # Decoded by hand: resp.json() on a wrong content
                         # type raises with the request URL in its text.
                         raw = await resp.text()
                         try:
                             data = json.loads(raw)
                         except ValueError:
-                            raise RuntimeError(
-                                f"GLM: reply was not JSON: {raw[:200]}") from None
+                            raise RuntimeError(f"GLM: reply was not JSON: {raw[:200]}") from None
                         if "error" in data:
                             err = data["error"]
                             code = err.get("code") if isinstance(err, dict) else None
@@ -1665,8 +1768,7 @@ class GLMProvider(AIProvider):
                                 # end the whole job — a 504 after 15
                                 # minutes threw away every finished part
                                 # (29 Sep 2026). Busy/timeout: retry.
-                                raise aiohttp.ClientError(
-                                    f"HTTP {code} in reply: {str(err)[:120]}")
+                                raise aiohttp.ClientError(f"HTTP {code} in reply: {str(err)[:120]}")
                             raise RuntimeError(f"GLM API error: {err}")
                         choices = data.get("choices", [])
                         if not choices:
@@ -1679,18 +1781,20 @@ class GLMProvider(AIProvider):
                             # cause: usually the reasoning budget ate the
                             # whole allowance (finish_reason "length").
                             usage = data.get("usage", {}) or {}
-                            reasoning = (usage.get("completion_tokens_details")
-                                         or {}).get("reasoning_tokens")
+                            reasoning = (usage.get("completion_tokens_details") or {}).get(
+                                "reasoning_tokens"
+                            )
                             logger.error(
                                 "GLM returned EMPTY content "
                                 "(finish_reason=%s, completion_tokens=%s, "
                                 "reasoning_tokens=%s). The model spent its "
                                 "budget thinking instead of answering.",
                                 choice.get("finish_reason"),
-                                usage.get("completion_tokens"), reasoning)
+                                usage.get("completion_tokens"),
+                                reasoning,
+                            )
                         return content
-            except (_TransientHTTPError, aiohttp.ClientError,
-                    asyncio.TimeoutError, OSError) as e:
+            except (_TransientHTTPError, aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
                 last_error = e
                 if attempt >= self._NETWORK_RETRIES:
                     break
@@ -1698,19 +1802,21 @@ class GLMProvider(AIProvider):
                 asked = getattr(e, "wait", None)
                 if asked is not None:
                     if asked > MAX_RETRY_WAIT:
-                        break       # a daily limit: waiting will not help
+                        break  # a daily limit: waiting will not help
                     wait = max(wait, asked + 1.0)
                 logger.warning(
                     "Network error on attempt %d/%d (%s); retrying in %.0fs",
-                    attempt, self._NETWORK_RETRIES, e, wait)
+                    attempt,
+                    self._NETWORK_RETRIES,
+                    e,
+                    wait,
+                )
                 await asyncio.sleep(wait)
         raise RuntimeError(
-            f"GLM request failed after {self._NETWORK_RETRIES} attempts: "
-            f"{last_error}")
+            f"GLM request failed after {self._NETWORK_RETRIES} attempts: {last_error}"
+        )
 
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("GLM API key not configured")
         model = model or self.models[0]
@@ -1721,11 +1827,16 @@ class GLMProvider(AIProvider):
             # answer; 1024 truncated/emptied replies (pitfall 7).
             "max_tokens": 6000,
             "messages": [
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url",
-                     "image_url": {"url": f"data:{mime};base64,{img_b64}"}},
-                ]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{img_b64}"},
+                        },
+                    ],
+                },
             ],
         }
         return _strip_think(await self._chat(payload, timeout=120))
@@ -1767,7 +1878,7 @@ class GLMProvider(AIProvider):
         """Video size limits that keep the base64 request under body_limit.
         Only ever LOWERS them."""
         base_max, base_compress = self._base_limits()
-        raw = int(body_limit * 0.72)          # 3/4 for base64, less the prompt
+        raw = int(body_limit * 0.72)  # 3/4 for base64, less the prompt
         self._apply_limits(min(base_max, raw), min(base_compress, int(raw * 0.8)))
 
     def _limits_for(self, model: str) -> None:
@@ -1782,8 +1893,12 @@ class GLMProvider(AIProvider):
     def is_too_large_error(error) -> bool:
         """An HTTP 413 refusal, whether or not it names a limit."""
         text = str(error).lower()
-        return ("http 413" in text or "payload too large" in text
-                or "payload_too_large" in text or '"code":413' in text)
+        return (
+            "http 413" in text
+            or "payload too large" in text
+            or "payload_too_large" in text
+            or '"code":413' in text
+        )
 
     @staticmethod
     def body_limit_from_error(error) -> int:
@@ -1806,8 +1921,7 @@ class GLMProvider(AIProvider):
         return 0
 
     @staticmethod
-    def _chunk_seconds_to_fit(path: Path, duration: float,
-                              limit_bytes: int) -> int:
+    def _chunk_seconds_to_fit(path: Path, duration: float, limit_bytes: int) -> int:
         """Seconds per part that keep each piece under the upload limit
         at FULL resolution. 0 when the maths does not work out.
 
@@ -1827,7 +1941,10 @@ class GLMProvider(AIProvider):
             return 0
 
     async def describe_video_full(
-        self, video_path: str, prompt: str, model: str = "",
+        self,
+        video_path: str,
+        prompt: str,
+        model: str = "",
         on_status: Callable[[str], None] | None = None,
         on_upload_progress: Callable[[float], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -1861,8 +1978,7 @@ class GLMProvider(AIProvider):
             # Undecodable/unreadable container: still try one part.
             # The size guard and ffmpeg itself will surface a clear
             # error later if the file is truly broken.
-            logger.debug("duration probe failed; using one part",
-                         exc_info=True)
+            logger.debug("duration probe failed; using one part", exc_info=True)
             duration = 0.0
         parts: list[Path] = []
         try:
@@ -1870,9 +1986,12 @@ class GLMProvider(AIProvider):
                 if on_status:
                     on_status("splitting")
                 starts, parts = self.split_video_for_upload(
-                    path, chunk_seconds,
-                    is_cancelled=is_cancelled, on_status=on_status,
-                    on_split_progress=on_split_progress)
+                    path,
+                    chunk_seconds,
+                    is_cancelled=is_cancelled,
+                    on_status=on_status,
+                    on_split_progress=on_split_progress,
+                )
             else:
                 starts = [0.0]
                 if path.stat().st_size > self.MAX_VIDEO_BYTES:
@@ -1887,26 +2006,31 @@ class GLMProvider(AIProvider):
                     # keeps every pixel and costs one extra request per
                     # part.
                     if preserve_resolution:
-                        fitting = self._chunk_seconds_to_fit(
-                            path, duration, self.MAX_VIDEO_BYTES)
+                        fitting = self._chunk_seconds_to_fit(path, duration, self.MAX_VIDEO_BYTES)
                         if fitting and duration > 0:
                             if on_status:
                                 on_status("splitting")
                             # keep_resolution: the split used to scale
                             # to 360p anyway, undoing this whole branch.
                             starts, parts = self.split_video_for_upload(
-                                path, fitting,
+                                path,
+                                fitting,
                                 is_cancelled=is_cancelled,
                                 on_status=on_status,
                                 on_split_progress=on_split_progress,
-                                keep_resolution=True)
+                                keep_resolution=True,
+                            )
                     if not parts:
                         if on_status:
                             on_status("compressing")
-                        parts = [self.compress_video_for_upload(
-                            path, self.COMPRESS_TARGET_BYTES,
-                            is_cancelled=is_cancelled,
-                            cache_dir=self.upload_cache_dir)]
+                        parts = [
+                            self.compress_video_for_upload(
+                                path,
+                                self.COMPRESS_TARGET_BYTES,
+                                is_cancelled=is_cancelled,
+                                cache_dir=self.upload_cache_dir,
+                            )
+                        ]
                 else:
                     parts = [path]
                     codec = self._video_codec(path)
@@ -1915,62 +2039,74 @@ class GLMProvider(AIProvider):
                         # as it was, and some models cannot open it
                         # (MiMo, Nemotron: "Failed to load video").
                         # Re-encode to H.264 the same way a big file is.
-                        logger.info("Video codec %s: re-encoding to H.264 "
-                                    "for upload", codec)
+                        logger.info("Video codec %s: re-encoding to H.264 for upload", codec)
                         parts = []
                         if preserve_resolution and duration > 0:
                             if on_status:
                                 on_status("splitting")
                             starts, parts = self.split_video_for_upload(
-                                path, int(duration) + 2,
+                                path,
+                                int(duration) + 2,
                                 is_cancelled=is_cancelled,
                                 on_status=on_status,
                                 on_split_progress=on_split_progress,
-                                keep_resolution=True)
+                                keep_resolution=True,
+                            )
                         if not parts:
                             if on_status:
                                 on_status("compressing")
-                            parts = [self.compress_video_for_upload(
-                                path, self.COMPRESS_TARGET_BYTES,
-                                is_cancelled=is_cancelled,
-                                cache_dir=self.upload_cache_dir)]
+                            parts = [
+                                self.compress_video_for_upload(
+                                    path,
+                                    self.COMPRESS_TARGET_BYTES,
+                                    is_cancelled=is_cancelled,
+                                    cache_dir=self.upload_cache_dir,
+                                )
+                            ]
             total = len(parts)
             # v1.7.4: each part's REAL length. chunk_seconds was passed
             # instead, so a 60 s clip was described as if it ran to
             # 10:00 — the gap budget offered ~1,300 words of "silence"
             # after the video ended, and a preserve-resolution part got
             # the next parts' speech. 0 = unknown (probe failed).
-            ends = list(starts[1:len(parts)]) + [duration]
-            part_lens = [max(0.0, e - s) if duration > 0 else 0.0
-                         for s, e in zip(starts, ends, strict=False)]
+            ends = list(starts[1 : len(parts)]) + [duration]
+            part_lens = [
+                max(0.0, e - s) if duration > 0 else 0.0 for s, e in zip(starts, ends, strict=False)
+            ]
             merged: list[tuple[float, str]] = []
             done_parts = 0
             prev_summary = ""
             # v2.1.0: the cast travels through EVERY part (characters.py);
             # the last six lines alone let part 3 rename part 1's people.
             from . import characters as _ch
+
             # None = no cast work at all (the engine's CHARACTERS off).
             cast_now = list(cast) if cast is not None else None
             # v1.8.4: one bar for the whole job. Splitting is the first
             # 10%, each part's share of the rest follows its length.
             from . import timing_store
-            weights = ([max(1.0, x) for x in part_lens]
-                       if part_lens and all(x > 0 for x in part_lens)
-                       else [1.0] * total)
+
+            weights = (
+                [max(1.0, x) for x in part_lens]
+                if part_lens and all(x > 0 for x in part_lens)
+                else [1.0] * total
+            )
             ratio = timing_store.ratio(f"{self.name}:{model or self.models[0]}")
 
             def part_progress(i: int):
                 def cb(fraction: float, eta: float | None) -> None:
                     done = sum(weights[:i]) + weights[i] * fraction
                     overall = 10.0 + 90.0 * done / sum(weights)
-                    later = sum(timing_store.OVERHEAD_SECONDS + x * ratio
-                                for x in part_lens[i + 1:])
+                    later = sum(
+                        timing_store.OVERHEAD_SECONDS + x * ratio for x in part_lens[i + 1 :]
+                    )
                     if eta is not None and eta >= 0:
                         eta += later
                     try:
                         on_eta(overall, eta)
                     except Exception:
                         logger.debug("on_eta raised", exc_info=True)
+
                 return cb
 
             for i, (part, offset) in enumerate(zip(parts, starts, strict=False)):
@@ -1979,19 +2115,25 @@ class GLMProvider(AIProvider):
                 if on_part:
                     on_part(i + 1, total)
                 part_len = part_lens[i] if i < len(part_lens) else 0.0
-                part_prompt = prompt + ("\n" + _ch.cast_block(cast_now)
-                                        if cast_now else "")
+                part_prompt = prompt + ("\n" + _ch.cast_block(cast_now) if cast_now else "")
                 # v1.5.3: pass a short summary of the previous part so
                 # the model keeps its bearings (no "the video starts
                 # with" at minute 20) and keeps one name per character.
                 try:
                     pairs = await self._describe_one_part(
-                        part, part_prompt, model, on_status=on_status,
-                        is_cancelled=is_cancelled, offset=offset,
-                        part_index=i + 1, part_total=total,
-                        prev_summary=prev_summary, transcript=transcript,
+                        part,
+                        part_prompt,
+                        model,
+                        on_status=on_status,
+                        is_cancelled=is_cancelled,
+                        offset=offset,
+                        part_index=i + 1,
+                        part_total=total,
+                        prev_summary=prev_summary,
+                        transcript=transcript,
                         part_seconds=part_len,
-                        on_part_progress=part_progress(i) if on_eta else None)
+                        on_part_progress=part_progress(i) if on_eta else None,
+                    )
                 except RuntimeError as e:
                     # v1.8.6: a provider we have no limit for refused the
                     # size. Learn its limit from the refusal and send the
@@ -2006,18 +2148,29 @@ class GLMProvider(AIProvider):
                             limit = int(getattr(self, "_last_body_bytes", 0) * 0.6)
                         if not limit or self.MAX_VIDEO_BYTES <= int(limit * 0.72):
                             raise err  # noqa: B904 - the provider's own error, as it came
-                        logger.warning("part %d/%d: provider limit is %d bytes; "
-                                       "compressing to fit and retrying",
-                                       i + 1, total, limit)
+                        logger.warning(
+                            "part %d/%d: provider limit is %d bytes; "
+                            "compressing to fit and retrying",
+                            i + 1,
+                            total,
+                            limit,
+                        )
                         self._set_upload_limits(limit)
                         try:
                             pairs = await self._describe_one_part(
-                                part, part_prompt, model, on_status=on_status,
-                                is_cancelled=is_cancelled, offset=offset,
-                                part_index=i + 1, part_total=total,
-                                prev_summary=prev_summary, transcript=transcript,
+                                part,
+                                part_prompt,
+                                model,
+                                on_status=on_status,
+                                is_cancelled=is_cancelled,
+                                offset=offset,
+                                part_index=i + 1,
+                                part_total=total,
+                                prev_summary=prev_summary,
+                                transcript=transcript,
                                 part_seconds=part_len,
-                                on_part_progress=part_progress(i) if on_eta else None)
+                                on_part_progress=part_progress(i) if on_eta else None,
+                            )
                             break
                         except RuntimeError as again:
                             err = again
@@ -2027,32 +2180,40 @@ class GLMProvider(AIProvider):
                     # v1.5.0: a part that parses to zero cues means the
                     # rest of the video is silently dropped. Retry once
                     # before giving up on this part.
-                    logger.warning(
-                        "part %d/%d returned no cues; retrying once",
-                        i + 1, total)
+                    logger.warning("part %d/%d returned no cues; retrying once", i + 1, total)
                     pairs = await self._describe_one_part(
-                        part, part_prompt, model, on_status=on_status,
-                        is_cancelled=is_cancelled, offset=offset,
-                        part_index=i + 1, part_total=total,
-                        prev_summary=prev_summary, transcript=transcript,
-                        part_seconds=part_len)
+                        part,
+                        part_prompt,
+                        model,
+                        on_status=on_status,
+                        is_cancelled=is_cancelled,
+                        offset=offset,
+                        part_index=i + 1,
+                        part_total=total,
+                        prev_summary=prev_summary,
+                        transcript=transcript,
+                        part_seconds=part_len,
+                    )
                 if pairs:
-                    prev_summary = "; ".join(
-                        txt for _, txt in pairs[-6:])
+                    prev_summary = "; ".join(txt for _, txt in pairs[-6:])
                 if pairs and cast_now is not None:
                     # v2.1.0: one text-only request brings the cast up to
                     # date; a failure keeps the cast as it was.
                     spoken_part = ""
                     if transcript:
                         spoken_part = build_transcript_block(
-                            transcript, start=offset,
+                            transcript,
+                            start=offset,
                             end=(offset + part_len) if part_len else None,
                             offset=offset,
-                            words_per_second=self.words_per_second)
+                            words_per_second=self.words_per_second,
+                        )
                     cast_now = await _ch.update_cast(
-                        lambda q: _run_cancellable(
-                            self._ask_capped(q, model), is_cancelled),
-                        cast_now, [txt for _, txt in pairs], spoken_part)
+                        lambda q: _run_cancellable(self._ask_capped(q, model), is_cancelled),
+                        cast_now,
+                        [txt for _, txt in pairs],
+                        spoken_part,
+                    )
                     if on_cast:
                         try:
                             on_cast(list(cast_now))
@@ -2065,8 +2226,7 @@ class GLMProvider(AIProvider):
                         # Overall percentage across ALL parts: splitting
                         # counts as the first 10%, each described part
                         # shares the remaining 90% equally.
-                        on_split_progress(
-                            10.0 + 90.0 * done_parts / max(1, total))
+                        on_split_progress(10.0 + 90.0 * done_parts / max(1, total))
                     except Exception:
                         logger.debug("on_split_progress raised", exc_info=True)
             # v1.6.3: sort before returning, as the Gemini path already
@@ -2080,6 +2240,7 @@ class GLMProvider(AIProvider):
             return merged
         finally:
             import shutil as _shutil
+
             part_dirs: set[Path] = set()
             for p in parts:
                 try:
@@ -2092,8 +2253,7 @@ class GLMProvider(AIProvider):
                     # file was not on disk afterwards.
                     if p != path and not self.is_cached_upload(p):
                         p.unlink(missing_ok=True)
-                        if p.parent.name.startswith(
-                                ("odc_vcompress_", "odc_vsplit_")):
+                        if p.parent.name.startswith(("odc_vcompress_", "odc_vsplit_")):
                             part_dirs.add(p.parent)
                 except OSError:
                     pass
@@ -2101,11 +2261,15 @@ class GLMProvider(AIProvider):
                 _shutil.rmtree(d, ignore_errors=True)
 
     async def _describe_one_part(
-        self, path: Path, prompt: str, model: str,
+        self,
+        path: Path,
+        prompt: str,
+        model: str,
         on_status: Callable[[str], None] | None,
         is_cancelled: Callable[[], bool] | None,
         offset: float = 0.0,
-        part_index: int = 0, part_total: int = 0,
+        part_index: int = 0,
+        part_total: int = 0,
         prev_summary: str = "",
         transcript: list | None = None,
         part_seconds: float = 0.0,
@@ -2123,9 +2287,11 @@ class GLMProvider(AIProvider):
             if is_cancelled and is_cancelled():
                 raise RuntimeError("cancelled")
             path = self.compress_video_for_upload(
-                path, self.COMPRESS_TARGET_BYTES,
+                path,
+                self.COMPRESS_TARGET_BYTES,
                 is_cancelled=is_cancelled,
-                cache_dir=self.upload_cache_dir)
+                cache_dir=self.upload_cache_dir,
+            )
             try:
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
@@ -2163,13 +2329,15 @@ class GLMProvider(AIProvider):
                 f"{part_total} of ONE longer video. This part begins at "
                 f"{offset / 60.0:.1f} minutes into the full video; the "
                 "timestamps you output must be part-local (00:00 = the "
-                "start of THIS part) and are shifted automatically.\n")
+                "start of THIS part) and are shifted automatically.\n"
+            )
             if prev_summary:
                 position += (
                     "What happened just before this part (end of the "
                     f"previous part): {prev_summary}\n"
                     "Continue the story smoothly; do NOT restart the "
-                    "narrative and do NOT say the video starts here.\n")
+                    "narrative and do NOT say the video starts here.\n"
+                )
         # v1.6.1: this provider cannot hear the video (probed: "NO AUDIO
         # ACCESS"), so the words spoken in THIS part are supplied as
         # text. Timestamps are shifted to part-local time to match the
@@ -2178,12 +2346,15 @@ class GLMProvider(AIProvider):
         if transcript:
             part_end = offset + part_seconds if part_seconds else None
             spoken = build_transcript_block(
-                transcript, start=offset, end=part_end, offset=offset,
-                words_per_second=self.words_per_second)
+                transcript,
+                start=offset,
+                end=part_end,
+                offset=offset,
+                words_per_second=self.words_per_second,
+            )
         payload = {
             "model": model or self.models[0],
-            **({"temperature": self.TEMPERATURE}
-               if self.TEMPERATURE is not None else {}),
+            **({"temperature": self.TEMPERATURE} if self.TEMPERATURE is not None else {}),
             "max_tokens": 16000,
             # v1.6.3: CAP THE THINKING. Measured on a real 45-second
             # clip with the `foreign` preset: the model spent 15,995 of
@@ -2197,35 +2368,40 @@ class GLMProvider(AIProvider):
             # max_tokens does not help, because the model simply thinks
             # more. The budget has to be split, not enlarged.
             "reasoning": {"max_tokens": self._REASONING_BUDGET},
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": (
-                        "You are given a full video file. Describe it "
-                        "for a blind viewer.\n"
-                        "Watch the WHOLE video including audio/speech.\n"
-                        "Output one event per line, each line EXACTLY in "
-                        "this format:\n"
-                        "[H:MM:SS] description\n"
-                        "Rules:\n"
-                        "- Timestamps are when the event happens in the "
-                        "video.\n"
-                        "- Order lines by time.\n"
-                        "- WHAT to describe is decided by the prompt "
-                        "above; follow it exactly. Do not add dialogue or "
-                        "sound narration unless it asks for them (v1.6.0: "
-                        "a rule here silently overrode the preset).\n"
-                        "- Use ONE consistent name for the same person, "
-                        "object or place.\n"
-                        "- Never say 'the video starts with' unless this "
-                        "really is the first part.\n"
-                        "- No numbering, no extra text before or after "
-                        "the lines.\n"
-                        + position + spoken)},
-                    {"type": "video_url", "video_url": {"url": data_url}},
-                    {"type": "text", "text": prompt},
-                ],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "You are given a full video file. Describe it "
+                                "for a blind viewer.\n"
+                                "Watch the WHOLE video including audio/speech.\n"
+                                "Output one event per line, each line EXACTLY in "
+                                "this format:\n"
+                                "[H:MM:SS] description\n"
+                                "Rules:\n"
+                                "- Timestamps are when the event happens in the "
+                                "video.\n"
+                                "- Order lines by time.\n"
+                                "- WHAT to describe is decided by the prompt "
+                                "above; follow it exactly. Do not add dialogue or "
+                                "sound narration unless it asks for them (v1.6.0: "
+                                "a rule here silently overrode the preset).\n"
+                                "- Use ONE consistent name for the same person, "
+                                "object or place.\n"
+                                "- Never say 'the video starts with' unless this "
+                                "really is the first part.\n"
+                                "- No numbering, no extra text before or after "
+                                "the lines.\n" + position + spoken
+                            ),
+                        },
+                        {"type": "video_url", "video_url": {"url": data_url}},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
         }
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
@@ -2237,6 +2413,7 @@ class GLMProvider(AIProvider):
         # (core/timing_store). Never reported as finished on a guess.
         import time as _time
         from . import timing_store
+
         timing_key = f"{self.name}:{model or self.models[0]}"
         media = part_seconds or 0.0
         expected = timing_store.expected_seconds(timing_key, media)
@@ -2269,8 +2446,7 @@ class GLMProvider(AIProvider):
                     eta = expected - waited if waited < expected else None
                 else:
                     share, eta = 0.0, -1.0
-                report(self.UPLOAD_SHARE + (1 - self.UPLOAD_SHARE) * share,
-                       eta)
+                report(self.UPLOAD_SHARE + (1 - self.UPLOAD_SHARE) * share, eta)
 
         ticker = asyncio.ensure_future(tick_wait()) if on_part_progress else None
         try:
@@ -2278,16 +2454,16 @@ class GLMProvider(AIProvider):
             # between requests — one part may take 30 minutes (and GLM
             # retries a timeout), so Cancel used to wait up to ~90 minutes.
             text = await _run_cancellable(
-                self._chat(payload, timeout=1800.0,
-                           **({"on_sent": on_sent} if on_part_progress
-                              else {})),
-                is_cancelled)
+                self._chat(
+                    payload, timeout=1800.0, **({"on_sent": on_sent} if on_part_progress else {})
+                ),
+                is_cancelled,
+            )
         finally:
             if ticker is not None:
                 ticker.cancel()
         if sent_at:
-            timing_store.record(timing_key, media,
-                                _time.monotonic() - sent_at[0])
+            timing_store.record(timing_key, media, _time.monotonic() - sent_at[0])
         if is_cancelled and is_cancelled():
             raise RuntimeError("cancelled")
         if on_status:
@@ -2297,26 +2473,31 @@ class GLMProvider(AIProvider):
             # v1.7.4: a time the model invents past the end of this part
             # used to land inside the NEXT part, or after the video had
             # ended. A second of slack covers rounding at the cut.
-            kept = [(min(t, part_seconds), d) for (t, d) in pairs
-                    if t <= part_seconds + 1.0]
+            kept = [(min(t, part_seconds), d) for (t, d) in pairs if t <= part_seconds + 1.0]
             if len(kept) < len(pairs):
-                logger.warning("part %d: dropped %d cue(s) past its end "
-                               "(%.1f s)", part_index,
-                               len(pairs) - len(kept), part_seconds)
+                logger.warning(
+                    "part %d: dropped %d cue(s) past its end (%.1f s)",
+                    part_index,
+                    len(pairs) - len(kept),
+                    part_seconds,
+                )
             pairs = kept
         return [(t + offset, d) for (t, d) in pairs]
 
     @staticmethod
     def _ffmpeg() -> str:
         from .tools import find_tool, tool_available
+
         if not tool_available("ffmpeg"):
             raise RuntimeError(
                 "ffmpeg not found — neither bundled with this app nor on "
-                "PATH; video compression cannot run")
+                "PATH; video compression cannot run"
+            )
         return find_tool("ffmpeg")
 
     def _run_ffmpeg_cancellable(
-        self, cmd: list[str],
+        self,
+        cmd: list[str],
         is_cancelled: Callable[[], bool] | None,
         timeout: float,
     ) -> tuple[int, bytes]:
@@ -2331,6 +2512,7 @@ class GLMProvider(AIProvider):
         import subprocess as _sp
         import threading as _threading
         import time as _time
+
         proc = _sp.Popen(cmd, stdout=_sp.DEVNULL, stderr=_sp.PIPE)
         stderr_tail = bytearray()
         deadline = _time.monotonic() + timeout
@@ -2356,8 +2538,7 @@ class GLMProvider(AIProvider):
                     break
                 if _time.monotonic() > deadline:
                     proc.kill()
-                    raise RuntimeError(
-                        f"ffmpeg timed out after {int(timeout)} s")
+                    raise RuntimeError(f"ffmpeg timed out after {int(timeout)} s")
                 _time.sleep(1.0)
         finally:
             running = proc.poll() is None
@@ -2389,8 +2570,7 @@ class GLMProvider(AIProvider):
             identity = f"{path.name}:{stat.st_size}:{int(stat.st_mtime)}"
         except OSError:
             identity = path.name
-        recipe = (f"{identity}:{target_bytes}:{self._UPLOAD_HEIGHT}"
-                  f":{self._UPLOAD_FPS}")
+        recipe = f"{identity}:{target_bytes}:{self._UPLOAD_HEIGHT}:{self._UPLOAD_FPS}"
         if getattr(self, "_keep_audio", False):
             # v1.8.1: a copy made for a deaf model has no soundtrack, so
             # it must never be served to a model that hears.
@@ -2399,7 +2579,9 @@ class GLMProvider(AIProvider):
         return f"upload_{digest}.mp4"
 
     def compress_video_for_upload(
-        self, path: Path, target_bytes: int,
+        self,
+        path: Path,
+        target_bytes: int,
         is_cancelled: Callable[[], bool] | None = None,
         cache_dir: str = "",
     ) -> Path:
@@ -2421,12 +2603,15 @@ class GLMProvider(AIProvider):
         """
         import tempfile as _tf
         import shutil as _shutil
+
         if cache_dir:
-            cached = Path(cache_dir) / self.upload_cache_name(
-                path, target_bytes)
+            cached = Path(cache_dir) / self.upload_cache_name(path, target_bytes)
             if cached.exists() and cached.stat().st_size > 0:
-                logger.info("Reusing the compressed upload copy (%.1f MB): "
-                            "%s", cached.stat().st_size / 1e6, cached.name)
+                logger.info(
+                    "Reusing the compressed upload copy (%.1f MB): %s",
+                    cached.stat().st_size / 1e6,
+                    cached.name,
+                )
                 return cached
             Path(cache_dir).mkdir(parents=True, exist_ok=True)
             # Encode beside the final name, then rename. A compression
@@ -2436,21 +2621,22 @@ class GLMProvider(AIProvider):
             # ".partial.mp4", not ".part": ffmpeg picks the muxer from
             # the extension, and an unknown one fails outright with
             # "Error initializing the muxer ... Invalid argument".
-            staging = cached.with_name(
-                f"{cached.stem}.partial{cached.suffix}")
+            staging = cached.with_name(f"{cached.stem}.partial{cached.suffix}")
             staging.unlink(missing_ok=True)
             self._compress_to(path, staging, target_bytes, is_cancelled)
             staging.replace(cached)
             # Full path, not just the name: with only the name, "it was
             # kept" could not be told apart from "it was kept somewhere
             # else and then deleted", which is what happened.
-            logger.info("Compressed upload copy kept for retries: %s "
-                        "(%.1f MB)", cached, cached.stat().st_size / 1e6)
+            logger.info(
+                "Compressed upload copy kept for retries: %s (%.1f MB)",
+                cached,
+                cached.stat().st_size / 1e6,
+            )
             return cached
         out_dir = Path(_tf.mkdtemp(prefix="odc_vcompress_"))
         try:
-            return self._compress_to(path, out_dir / path.name,
-                                     target_bytes, is_cancelled)
+            return self._compress_to(path, out_dir / path.name, target_bytes, is_cancelled)
         except Exception:
             _shutil.rmtree(out_dir, ignore_errors=True)
             raise
@@ -2464,29 +2650,30 @@ class GLMProvider(AIProvider):
         """
         # ".partial." is a half-written encode, never something to keep
         # or to upload; it only escapes here if a crash left one behind.
-        return (path.name.startswith("upload_")
-                and ".partial." not in path.name)
+        return path.name.startswith("upload_") and ".partial." not in path.name
 
     def _compress_to(
-        self, path: Path, out: Path, target_bytes: int,
+        self,
+        path: Path,
+        out: Path,
+        target_bytes: int,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> Path:
         """Encode path into out at the upload settings. Raises on failure."""
         duration = 1.0
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(
-                [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
-                 str(path), "-f", "null", "-"],
-                is_cancelled, 600)
+                [self._ffmpeg(), "-hide_banner", "-nostdin", "-i", str(path), "-f", "null", "-"],
+                is_cancelled,
+                600,
+            )
             m = None
             for m in re.finditer(  # noqa: B007 - keeps the LAST match
-                    r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
-                    stderr_tail.decode("utf-8", "replace")):
+                r"time=(\d+):(\d+):(\d+(?:\.\d+)?)", stderr_tail.decode("utf-8", "replace")
+            ):
                 pass  # keep the LAST time= (real duration, not the first)
             if m:
-                duration = (int(m.group(1)) * 3600
-                            + int(m.group(2)) * 60
-                            + float(m.group(3)))
+                duration = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
         except RuntimeError:
             # Only the half-written output goes, never the directory:
             # since v1.6.7 out_dir can be the PROJECT'S media folder,
@@ -2498,46 +2685,69 @@ class GLMProvider(AIProvider):
             logger.debug("duration probe failed", exc_info=True)
         total_bits = target_bytes * 8 * 0.95
         kbps = max(80, int(total_bits / max(duration, 1.0) / 1000))
-        ret, stderr_tail = self._run_ffmpeg_cancellable([
-            self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
-            "error", "-i", str(path),
-            # v1.6.3: encode for a DESCRIBER, not for a viewer.
-            #
-            # -an: this provider cannot hear the video at all (probed:
-            # "NO AUDIO ACCESS"), and since v1.6.1 the words are sent
-            # separately as a transcript. Every audio byte uploaded was
-            # therefore paying postage on something nobody receives.
-            #
-            # fps=5: a describing model samples frames; it does not
-            # watch at 30. Measured on a real 2-minute clip: 3.4 MB at
-            # 30 fps with audio versus 1.1 MB at 5 fps without, and the
-            # leaner file produced MORE detail, not less — it still read
-            # the gravestone text and caught a minibus crossing frame.
-            #
-            # On a 72 KB/s link, which is what the user actually had,
-            # that is the difference between a 5-minute upload and a
-            # 90-second one.
-            "-vf", f"scale=-2:{self._UPLOAD_HEIGHT},fps={self._UPLOAD_FPS}",
-            # v1.8.1: only a model that cannot hear loses the soundtrack;
-            # Qwen/MiMo/Gemini through OpenRouter are given it.
-            *(["-c:a", "aac", "-b:a", "48k", "-ac", "1"]
-              if getattr(self, "_keep_audio", False) else ["-an"]),
-            "-c:v", "libx264", "-preset", "veryfast",
-            "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
-            "-bufsize", f"{int(kbps * 2)}k",
-            "-pix_fmt", "yuv420p", str(out),
-        ], is_cancelled, 1800)
+        ret, stderr_tail = self._run_ffmpeg_cancellable(
+            [
+                self._ffmpeg(),
+                "-hide_banner",
+                "-nostdin",
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                str(path),
+                # v1.6.3: encode for a DESCRIBER, not for a viewer.
+                #
+                # -an: this provider cannot hear the video at all (probed:
+                # "NO AUDIO ACCESS"), and since v1.6.1 the words are sent
+                # separately as a transcript. Every audio byte uploaded was
+                # therefore paying postage on something nobody receives.
+                #
+                # fps=5: a describing model samples frames; it does not
+                # watch at 30. Measured on a real 2-minute clip: 3.4 MB at
+                # 30 fps with audio versus 1.1 MB at 5 fps without, and the
+                # leaner file produced MORE detail, not less — it still read
+                # the gravestone text and caught a minibus crossing frame.
+                #
+                # On a 72 KB/s link, which is what the user actually had,
+                # that is the difference between a 5-minute upload and a
+                # 90-second one.
+                "-vf",
+                f"scale=-2:{self._UPLOAD_HEIGHT},fps={self._UPLOAD_FPS}",
+                # v1.8.1: only a model that cannot hear loses the soundtrack;
+                # Qwen/MiMo/Gemini through OpenRouter are given it.
+                *(
+                    ["-c:a", "aac", "-b:a", "48k", "-ac", "1"]
+                    if getattr(self, "_keep_audio", False)
+                    else ["-an"]
+                ),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-b:v",
+                f"{kbps}k",
+                "-maxrate",
+                f"{int(kbps * 1.4)}k",
+                "-bufsize",
+                f"{int(kbps * 2)}k",
+                "-pix_fmt",
+                "yuv420p",
+                str(out),
+            ],
+            is_cancelled,
+            1800,
+        )
         if ret != 0 or not out.exists():
             tail = stderr_tail.decode("utf-8", "replace")[-300:]
             out.unlink(missing_ok=True)  # never the directory: see above
             raise RuntimeError(f"video compression failed: {tail}")
         if out.stat().st_size > target_bytes * 1.3:
-            logger.warning("compressed video still large: %.1f MB",
-                           out.stat().st_size / 1e6)
+            logger.warning("compressed video still large: %.1f MB", out.stat().st_size / 1e6)
         return out
 
     def _probe_duration(
-        self, path: Path,
+        self,
+        path: Path,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> float:
         """Return the video duration in seconds.
@@ -2558,15 +2768,26 @@ class GLMProvider(AIProvider):
             return probed
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(
-                [self._ffmpeg(), "-hide_banner", "-nostdin", "-i",
-                 str(path), "-map", "0:v:0?", "-f", "null", "-"],
-                is_cancelled, 900)
+                [
+                    self._ffmpeg(),
+                    "-hide_banner",
+                    "-nostdin",
+                    "-i",
+                    str(path),
+                    "-map",
+                    "0:v:0?",
+                    "-f",
+                    "null",
+                    "-",
+                ],
+                is_cancelled,
+                900,
+            )
             best = 0.0
             for m in re.finditer(
-                    r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
-                    stderr_tail.decode("utf-8", "replace")):
-                t = (int(m.group(1)) * 3600 + int(m.group(2)) * 60
-                     + float(m.group(3)))
+                r"time=(\d+):(\d+):(\d+(?:\.\d+)?)", stderr_tail.decode("utf-8", "replace")
+            ):
+                t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
                 best = max(best, t)
             if best <= 0.0:
                 raise RuntimeError("ffmpeg could not read duration")
@@ -2581,12 +2802,25 @@ class GLMProvider(AIProvider):
         """Codec of the first video stream ("h264", "av1", ...), or ""."""
         import subprocess as _sp
         from .tools import find_tool
+
         try:
             out = _sp.run(
-                [find_tool("ffprobe"), "-v", "error", "-select_streams",
-                 "v:0", "-show_entries", "stream=codec_name", "-of",
-                 "default=nw=1:nk=1", str(path)],
-                capture_output=True, text=True, timeout=60)
+                [
+                    find_tool("ffprobe"),
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=codec_name",
+                    "-of",
+                    "default=nw=1:nk=1",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
             return (out.stdout or "").strip().lower()
         except Exception:
             return ""
@@ -2601,17 +2835,30 @@ class GLMProvider(AIProvider):
         durations, or 0.0 when none is declared (or ffprobe is absent)."""
         import subprocess as _sp
         from .tools import find_tool
+
         try:
             out = _sp.run(
-                [find_tool("ffprobe"), "-v", "error", "-show_entries",
-                 "format=duration:stream=codec_type,duration", "-of", "json",
-                 str(path)], capture_output=True, text=True, timeout=60)
+                [
+                    find_tool("ffprobe"),
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration:stream=codec_type,duration",
+                    "-of",
+                    "json",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
             data = json.loads(out.stdout or "{}")
         except Exception:
             return 0.0
         values = [(data.get("format") or {}).get("duration")]
-        values += [s.get("duration") for s in data.get("streams") or []
-                   if s.get("codec_type") == "video"]
+        values += [
+            s.get("duration") for s in data.get("streams") or [] if s.get("codec_type") == "video"
+        ]
         best = 0.0
         for v in values:
             try:
@@ -2621,7 +2868,9 @@ class GLMProvider(AIProvider):
         return best
 
     def split_video_for_upload(
-        self, path: Path, chunk_seconds: int,
+        self,
+        path: Path,
+        chunk_seconds: int,
         is_cancelled: Callable[[], bool] | None = None,
         on_status: Callable[[str], None] | None = None,
         on_split_progress: Callable[[float], None] | None = None,
@@ -2639,14 +2888,22 @@ class GLMProvider(AIProvider):
         """
         import shutil as _shutil
         import tempfile as _tf
+
         duration = self._probe_duration(path, is_cancelled=is_cancelled)
         if duration <= 0:
             raise RuntimeError("cannot split an unreadable video")
         out_dir = Path(_tf.mkdtemp(prefix="odc_vsplit_"))
         try:
-            return self._split_into(path, out_dir, duration, chunk_seconds,
-                                    is_cancelled, on_status,
-                                    on_split_progress, keep_resolution)
+            return self._split_into(
+                path,
+                out_dir,
+                duration,
+                chunk_seconds,
+                is_cancelled,
+                on_status,
+                on_split_progress,
+                keep_resolution,
+            )
         except BaseException:
             # v1.7.4: on cancel or failure the caller never receives the
             # part list, so nobody else can delete these parts.
@@ -2654,7 +2911,10 @@ class GLMProvider(AIProvider):
             raise
 
     def _split_into(
-        self, path: Path, out_dir: Path, duration: float,
+        self,
+        path: Path,
+        out_dir: Path,
+        duration: float,
         chunk_seconds: int,
         is_cancelled: Callable[[], bool] | None,
         on_status: Callable[[str], None] | None,
@@ -2662,6 +2922,7 @@ class GLMProvider(AIProvider):
         keep_resolution: bool,
     ) -> tuple[list[float], list[Path]]:
         import subprocess as _sp
+
         # v1.7.5: each PART is uploaded on its own, so its budget is the
         # per-upload target spread over the PART's length. This used to
         # divide the budget by the part count AND spread it over the whole
@@ -2669,8 +2930,7 @@ class GLMProvider(AIProvider):
         # 2 parts: 171 kbps). Never above the source's own bitrate, and
         # 360p needs no more than ~1 Mbps.
         part_seconds = max(1.0, min(float(chunk_seconds), duration))
-        budget_kbps = int(self.COMPRESS_TARGET_BYTES * 8 * 0.95
-                          / part_seconds / 1000)
+        budget_kbps = int(self.COMPRESS_TARGET_BYTES * 8 * 0.95 / part_seconds / 1000)
         try:
             source_kbps = int(path.stat().st_size * 8 / duration / 1000)
         except OSError:
@@ -2680,29 +2940,49 @@ class GLMProvider(AIProvider):
         if keep_resolution:
             scale = []
             try:
-                kbps = max(80, int(path.stat().st_size * 8 / duration
-                                   / 1000))
+                kbps = max(80, int(path.stat().st_size * 8 / duration / 1000))
             except OSError:
                 pass
         pattern = out_dir / "part_%04d.mp4"
         cmd = [
-            self._ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v",
-            "error", "-progress", "pipe:1", "-i", str(path),
+            self._ffmpeg(),
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-v",
+            "error",
+            "-progress",
+            "pipe:1",
+            "-i",
+            str(path),
             *scale,
-            "-c:v", "libx264", "-preset", "veryfast",
-            "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.4)}k",
-            "-bufsize", f"{int(kbps * 2)}k",
-            "-pix_fmt", "yuv420p",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-b:v",
+            f"{kbps}k",
+            "-maxrate",
+            f"{int(kbps * 1.4)}k",
+            "-bufsize",
+            f"{int(kbps * 2)}k",
+            "-pix_fmt",
+            "yuv420p",
             # The segment muxer only cuts at keyframes; without this,
             # x264's default 250-frame GOP makes cuts up to ~8 s late
             # (or produces a single part for short clips).
-            "-force_key_frames", "expr:gte(t,n_forced*2)",
-            "-f", "segment",
-            "-segment_time", str(chunk_seconds),
-            "-reset_timestamps", "1",
+            "-force_key_frames",
+            "expr:gte(t,n_forced*2)",
+            "-f",
+            "segment",
+            "-segment_time",
+            str(chunk_seconds),
+            "-reset_timestamps",
+            "1",
             str(pattern),
         ]
         import threading as _threading
+
         proc = _sp.Popen(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE)
         stderr_tail: list[bytes] = []
 
@@ -2732,12 +3012,10 @@ class GLMProvider(AIProvider):
                 except Exception:
                     pass
                 raise RuntimeError("cancelled")
-            if (on_split_progress and line.startswith(b"out_time_us=")
-                    and duration > 0):
+            if on_split_progress and line.startswith(b"out_time_us=") and duration > 0:
                 try:
                     us = int(line.split(b"=", 1)[1].strip())
-                    on_split_progress(min(
-                        10.0, max(0.0, us / 1e6 / duration * 10.0)))
+                    on_split_progress(min(10.0, max(0.0, us / 1e6 / duration * 10.0)))
                 except ValueError:
                     pass
         proc.wait(timeout=3600)
@@ -2748,7 +3026,8 @@ class GLMProvider(AIProvider):
             tail = b"".join(stderr_tail).decode("utf-8", "replace").strip()[-300:]
             raise RuntimeError(
                 f"video split failed (ffmpeg exit code {proc.returncode})"
-                + (f": {tail}" if tail else ""))
+                + (f": {tail}" if tail else "")
+            )
         parts = sorted(out_dir.glob("part_*.mp4"))
         if not parts:
             raise RuntimeError("video split produced no parts")
@@ -2764,7 +3043,10 @@ class GLMProvider(AIProvider):
         return starts, parts
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -2775,7 +3057,8 @@ class GLMProvider(AIProvider):
                 return results
             try:
                 desc = await _run_cancellable(
-                    self.describe_image(frame, prompt, model), is_cancelled)
+                    self.describe_image(frame, prompt, model), is_cancelled
+                )
             except Exception as e:
                 logger.warning("GLM frame error: %s", e)
                 desc = f"(error: {e})"
@@ -2807,13 +3090,19 @@ class GLMProvider(AIProvider):
         """A text request with the thinking capped as for descriptions.
         The cast update through ask_text came back EMPTY once (5 Oct
         2026): 6,358 reasoning tokens, no answer (pitfall 7)."""
-        payload = {"model": model or self.models[0], "max_tokens": 4000,
-                   "reasoning": {"max_tokens": self._REASONING_BUDGET},
-                   "messages": [{"role": "user", "content": question}]}
+        payload = {
+            "model": model or self.models[0],
+            "max_tokens": 4000,
+            "reasoning": {"max_tokens": self._REASONING_BUDGET},
+            "messages": [{"role": "user", "content": question}],
+        }
         return _strip_think(await self._chat(payload, timeout=120))
 
     async def describe_video_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_status: Callable[[str], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         expected_times: list[float] | None = None,
@@ -2841,8 +3130,10 @@ class GLMProvider(AIProvider):
                     logger.debug("on_status raised", exc_info=True)
 
         status("describing")
-        batches = [frames[i:i + MAX_IMAGES_PER_REQUEST]
-                   for i in range(0, len(frames), MAX_IMAGES_PER_REQUEST)]
+        batches = [
+            frames[i : i + MAX_IMAGES_PER_REQUEST]
+            for i in range(0, len(frames), MAX_IMAGES_PER_REQUEST)
+        ]
 
         def _batch_note(idx: int) -> str:
             # v1.5.3: batches beyond the first run as separate requests;
@@ -2861,23 +3152,34 @@ class GLMProvider(AIProvider):
                 f"CONTEXT: these frames are from {m:02d}:{sec:02d} "
                 "onwards in the middle of a longer video - they are NOT "
                 "the beginning. Read the burned-in timestamps and "
-                "describe only what happens at each moment.\n")
+                "describe only what happens at each moment.\n"
+            )
 
         # v1.7.5: the batches run together; when one fails (or the user
         # cancels) the rest are cancelled too. A bare gather() left them
         # running — and billing — after the job had already failed.
-        tasks = [asyncio.ensure_future(self._chat({
-                    "model": model,
-                    "temperature": 0.3,
-                    "messages": [{"role": "user",
-                                  "content": _fast_batch_content(
-                                      [Path(f) for f in batch], prompt,
-                                      batch_note=_batch_note(bi))}],
-                }, timeout=900))
-                 for bi, batch in enumerate(batches)]
+        tasks = [
+            asyncio.ensure_future(
+                self._chat(
+                    {
+                        "model": model,
+                        "temperature": 0.3,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": _fast_batch_content(
+                                    [Path(f) for f in batch], prompt, batch_note=_batch_note(bi)
+                                ),
+                            }
+                        ],
+                    },
+                    timeout=900,
+                )
+            )
+            for bi, batch in enumerate(batches)
+        ]
         try:
-            texts = await _run_cancellable(asyncio.gather(*tasks),
-                                           is_cancelled)
+            texts = await _run_cancellable(asyncio.gather(*tasks), is_cancelled)
         except BaseException:
             for task in tasks:
                 task.cancel()
@@ -2906,8 +3208,8 @@ FAST_BATCH_TS_PROMPT_SUFFIX = (
     "H:MM:SS - description\n"
     "Use the burned-in timestamps verbatim. Cover the whole video in "
     "chronological order. Write descriptions for a blind viewer. "
-    + CONTINUITY_RULES +
-    " No numbering, no markdown, no extra commentary."
+    + CONTINUITY_RULES
+    + " No numbering, no markdown, no extra commentary."
 )
 _FAST_BATCH_FONTS = [
     "C:/Windows/Fonts/arial.ttf",
@@ -2924,7 +3226,9 @@ def _find_fast_batch_font() -> str:
             return p
     raise RuntimeError(
         "no TrueType font found for timestamp burn-in (searched: "
-        + ", ".join(_FAST_BATCH_FONTS) + ")")
+        + ", ".join(_FAST_BATCH_FONTS)
+        + ")"
+    )
 
 
 def build_fast_batch_filter(fps: float) -> str:
@@ -2937,29 +3241,28 @@ def build_fast_batch_filter(fps: float) -> str:
 
 
 _FAST_BATCH_DRAWTEXT_BODY = (
-    "text='%{pts\\:hms}':x=10:y=10:fontsize=28:"
-    "fontcolor=white:box=1:boxcolor=black@0.6"
+    "text='%{pts\\:hms}':x=10:y=10:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6"
 )
 
 
 def _fast_batch_content(
-    frames: list[Path], prompt: str, batch_note: str = "",
+    frames: list[Path],
+    prompt: str,
+    batch_note: str = "",
 ) -> list[dict]:
     """OpenAI-compatible multipart content: every frame as a data URL,
     the burn-in reading instructions as the final text block."""
     content: list[dict] = []
     for f in frames:
         b64 = base64.b64encode(f.read_bytes()).decode("ascii")
-        content.append({"type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-    content.append({"type": "text",
-                    "text": batch_note + prompt
-                    + FAST_BATCH_TS_PROMPT_SUFFIX})
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+    content.append({"type": "text", "text": batch_note + prompt + FAST_BATCH_TS_PROMPT_SUFFIX})
     return content
 
 
 def snap_timestamps(
-    events: list[tuple[float, str]], grid: list[float] | None,
+    events: list[tuple[float, str]],
+    grid: list[float] | None,
     max_gap: float = 1.5,
 ) -> list[tuple[float, str]]:
     """Snap model-read timestamps onto the known extraction grid.
@@ -2979,8 +3282,7 @@ def snap_timestamps(
             continue
         i = bisect.bisect_left(times, secs)
         best = times[i] if i < len(times) else None
-        if i > 0 and (best is None
-                      or abs(times[i - 1] - secs) < abs(best - secs)):
+        if i > 0 and (best is None or abs(times[i - 1] - secs) < abs(best - secs)):
             best = times[i - 1]
         if best is not None and abs(best - secs) <= max_gap:
             out.append((float(best), text))
@@ -3008,7 +3310,8 @@ async def fetch_openrouter_video_models(
     """
     async with aiohttp.ClientSession() as session:
         async with session.get(
-            catalog_url, timeout=aiohttp.ClientTimeout(total=60),
+            catalog_url,
+            timeout=aiohttp.ClientTimeout(total=60),
         ) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"catalog HTTP {resp.status}")
@@ -3016,6 +3319,7 @@ async def fetch_openrouter_video_models(
     # v1.8.1: filtered — no ":batch", routers or aliases (see
     # core/model_catalog.py for what each of those did when tested).
     from .model_catalog import parse_catalog
+
     return sorted(row["id"] for row in parse_catalog(data))
 
 
@@ -3054,9 +3358,7 @@ class CustomProvider(AIProvider):
             return FORMAT_ANTHROPIC
         return FORMAT_OPENAI
 
-    async def describe_image(
-        self, image_path: str, prompt: str, model: str = ""
-    ) -> str:
+    async def describe_image(self, image_path: str, prompt: str, model: str = "") -> str:
         if not self.api_key:
             raise ValueError("Custom provider: no API key configured")
         if not self.base_url:
@@ -3076,13 +3378,15 @@ class CustomProvider(AIProvider):
         payload = {
             "model": model,
             "max_tokens": 1024,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
         }
         return await self._post_openai(payload)
 
@@ -3091,20 +3395,30 @@ class CustomProvider(AIProvider):
         payload = {
             "model": model,
             "max_tokens": 1024,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {
-                        "type": "base64", "media_type": mime, "data": img_b64,
-                    }},
-                    {"type": "text", "text": prompt},
-                ],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime,
+                                "data": img_b64,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
         }
         return await self._post_anthropic(payload)
 
     async def describe_frames_batch(
-        self, frames: list[str], prompt: str, model: str = "",
+        self,
+        frames: list[str],
+        prompt: str,
+        model: str = "",
         on_progress: Callable[[int, int], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
@@ -3115,7 +3429,8 @@ class CustomProvider(AIProvider):
                 return results
             try:
                 desc = await _run_cancellable(
-                    self.describe_image(frame, prompt, model), is_cancelled)
+                    self.describe_image(frame, prompt, model), is_cancelled
+                )
             except Exception as e:
                 logger.warning("Custom provider frame error: %s", e)
                 desc = f"(error: {e})"
@@ -3127,9 +3442,7 @@ class CustomProvider(AIProvider):
                     logger.debug("on_progress raised", exc_info=True)
         return results
 
-    async def ask_about_scene(
-        self, image_path: str, question: str, model: str = ""
-    ) -> str:
+    async def ask_about_scene(self, image_path: str, question: str, model: str = "") -> str:
         return await self.describe_image(image_path, question, model)
 
     async def ask_text(
@@ -3149,18 +3462,23 @@ class CustomProvider(AIProvider):
         messages.append({"role": "user", "content": question})
         if fmt == FORMAT_ANTHROPIC:
             return await self._post_anthropic(
-                {"model": model, "max_tokens": 1024, "messages": messages})
-        return await self._post_openai(
-            {"model": model, "max_tokens": 1024, "messages": messages})
+                {"model": model, "max_tokens": 1024, "messages": messages}
+            )
+        return await self._post_openai({"model": model, "max_tokens": 1024, "messages": messages})
 
     async def _post_openai(self, payload: dict) -> str:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        data = await _http_json("POST", f"{self.base_url}/chat/completions",
-                                label="Custom API", headers=headers,
-                                payload=payload, timeout=120)
+        data = await _http_json(
+            "POST",
+            f"{self.base_url}/chat/completions",
+            label="Custom API",
+            headers=headers,
+            payload=payload,
+            timeout=120,
+        )
         if "error" in data:
             raise RuntimeError(f"Custom API error: {data['error']}")
         choices = data.get("choices", [])
@@ -3174,9 +3492,14 @@ class CustomProvider(AIProvider):
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
-        data = await _http_json("POST", f"{self.base_url}/messages",
-                                label="Custom API", headers=headers,
-                                payload=payload, timeout=120)
+        data = await _http_json(
+            "POST",
+            f"{self.base_url}/messages",
+            label="Custom API",
+            headers=headers,
+            payload=payload,
+            timeout=120,
+        )
         for block in data.get("content", []):
             if block.get("type") == "text":
                 return block["text"]
@@ -3205,7 +3528,7 @@ class AIEngine:
 
     def __init__(self):
         self._providers: dict[str, AIProvider] = {}
-        self._models: dict[str, str] = {}   # chosen in Settings, per provider
+        self._models: dict[str, str] = {}  # chosen in Settings, per provider
         self._default_provider: str = ""
         # v1.5.2: default output language for descriptions ('' = model decides).
         self.output_lang: str = ""
@@ -3235,8 +3558,9 @@ class AIEngine:
             try:
                 provider.upload_cache_dir = self._upload_cache_dir
             except Exception:  # a provider stub with no such attribute
-                logger.debug("provider %s rejected the upload cache dir",
-                             getattr(provider, "name", "?"))
+                logger.debug(
+                    "provider %s rejected the upload cache dir", getattr(provider, "name", "?")
+                )
 
     @property
     def words_per_second(self) -> float:
@@ -3260,16 +3584,29 @@ class AIEngine:
             try:
                 provider.words_per_second = self._words_per_second
             except Exception:
-                logger.debug("provider %s rejected the speaking rate",
-                             getattr(provider, "name", "?"))
+                logger.debug(
+                    "provider %s rejected the speaking rate", getattr(provider, "name", "?")
+                )
 
-    def set_provider(self, name: str, api_key: str = "", base_url: str = "", model: str = "", api_format: str = "") -> None:
+    def set_provider(
+        self,
+        name: str,
+        api_key: str = "",
+        base_url: str = "",
+        model: str = "",
+        api_format: str = "",
+    ) -> None:
         """Configure a provider with credentials."""
         if name not in self.PROVIDERS:
             raise ValueError(f"Unknown provider: {name}. Available: {list(self.PROVIDERS)}")
         cls = self.PROVIDERS[name]
         if name == "custom":
-            self._providers[name] = cls(api_key=api_key, base_url=base_url, model=model, api_format=api_format or FORMAT_AUTO)
+            self._providers[name] = cls(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                api_format=api_format or FORMAT_AUTO,
+            )
         else:
             self._providers[name] = cls(api_key=api_key, base_url=base_url)
         self._default_provider = name
@@ -3354,14 +3691,14 @@ class AIEngine:
         prov = self._provider_or_raise(provider or self._default_provider)
         return bool(getattr(prov, "watches_video", False))
 
-    async def ask_about_video(self, video_path: str, question: str,
-                              provider: str = "", model: str = "") -> str:
+    async def ask_about_video(
+        self, video_path: str, question: str, provider: str = "", model: str = ""
+    ) -> str:
         prov = self._provider_or_raise(provider or self._default_provider)
         model = self._model_for(provider, model)
         return await prov.ask_about_video(video_path, question, model)
 
-    async def look(self, image_path: str, prompt: str, provider: str = "",
-                   model: str = "") -> str:
+    async def look(self, image_path: str, prompt: str, provider: str = "", model: str = "") -> str:
         """Ask about an image WITHOUT the description-language wrapper:
         for the app's own checks (core/review.py), which want JSON back."""
         prov = self._provider_or_raise(provider or self._default_provider)
@@ -3384,7 +3721,8 @@ class AIEngine:
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
         prompt += FRAME_FORMAT_SUFFIX
         return await prov.describe_frames_batch(
-            frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled)
+            frames, prompt, model, on_progress=on_progress, is_cancelled=is_cancelled
+        )
 
     async def describe_video_full(
         self,
@@ -3417,7 +3755,8 @@ class AIEngine:
         if fn is None:
             raise ValueError(
                 f"Provider '{prov.name}' does not support full-video mode. "
-                "Use Gemini, or switch back to frame mode.")
+                "Use Gemini, or switch back to frame mode."
+            )
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
         # v2.1.0: one name per person (core/characters.py). A provider
         # that splits the video carries the cast from part to part
@@ -3425,11 +3764,14 @@ class AIEngine:
         carries = "cast" in inspect.signature(fn).parameters
         if self.CHARACTERS:
             from .characters import CHARACTER_RULES, cast_block
+
             prompt = prompt + "\n" + CHARACTER_RULES
             if cast and not carries:
                 prompt += "\n" + cast_block(cast)
         return await fn(
-            video_path, prompt, model,
+            video_path,
+            prompt,
+            model,
             on_status=on_status,
             on_upload_progress=on_upload_progress,
             is_cancelled=is_cancelled,
@@ -3438,19 +3780,28 @@ class AIEngine:
             on_split_progress=on_split_progress,
             # Only providers that accept a transcript get one: Gemini
             # hears the audio itself and has no such parameter.
-            **({"transcript": transcript}
-               if transcript and "transcript" in
-               inspect.signature(fn).parameters else {}),
-            **({"preserve_resolution": True}
-               if preserve_resolution and "preserve_resolution" in
-               inspect.signature(fn).parameters else {}),
+            **(
+                {"transcript": transcript}
+                if transcript and "transcript" in inspect.signature(fn).parameters
+                else {}
+            ),
+            **(
+                {"preserve_resolution": True}
+                if preserve_resolution and "preserve_resolution" in inspect.signature(fn).parameters
+                else {}
+            ),
             # v1.8.4: overall percentage + time left, where the provider
             # can measure it (GLM/OpenRouter).
-            **({"on_eta": on_eta}
-               if on_eta and "on_eta" in
-               inspect.signature(fn).parameters else {}),
-            **({"cast": list(cast or []), "on_cast": on_cast}
-               if carries and self.CHARACTERS else {}),
+            **(
+                {"on_eta": on_eta}
+                if on_eta and "on_eta" in inspect.signature(fn).parameters
+                else {}
+            ),
+            **(
+                {"cast": list(cast or []), "on_cast": on_cast}
+                if carries and self.CHARACTERS
+                else {}
+            ),
         )
 
     async def describe_video_frames_batch(
@@ -3474,10 +3825,13 @@ class AIEngine:
         if fn is None:
             raise ValueError(
                 f"Provider '{prov.name}' does not support the one-shot "
-                "batch mode. Use GLM, or switch back to frame mode.")
+                "batch mode. Use GLM, or switch back to frame mode."
+            )
         prompt = apply_output_language(prompt, output_lang or self.output_lang)
         return await fn(
-            frames, prompt, model,
+            frames,
+            prompt,
+            model,
             on_status=on_status,
             is_cancelled=is_cancelled,
             expected_times=expected_times,

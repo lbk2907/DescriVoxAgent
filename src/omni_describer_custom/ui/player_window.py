@@ -33,10 +33,15 @@ class _TimeSliderAccessible(wx.Accessible):
 
     def GetValue(self, childId):
         try:
-            return (wx.ACC_OK, t("player.slider_value",
-                                 position=self._fmt(self._slider.GetValue()),
-                                 total=self._fmt(self._slider.GetMax())))
-        except RuntimeError:            # the slider is gone
+            return (
+                wx.ACC_OK,
+                t(
+                    "player.slider_value",
+                    position=self._fmt(self._slider.GetValue()),
+                    total=self._fmt(self._slider.GetMax()),
+                ),
+            )
+        except RuntimeError:  # the slider is gone
             return (wx.ACC_NOT_IMPLEMENTED, "")
 
 
@@ -62,7 +67,7 @@ class PlayerWindow(wx.Frame):
         self._timer: wx.Timer | None = None
         self._position = 0.0  # Current playback position in seconds
         self._tick_at: float | None = None  # clock of the last position update
-        self._volume = 100                  # video sound, 0..100 (v1.9.7)
+        self._volume = 100  # video sound, 0..100 (v1.9.7)
         self._vlc = None
         self._vlc_instance = None
         self._vlc_media = None
@@ -83,6 +88,7 @@ class PlayerWindow(wx.Frame):
         if self._settings is None:
             try:
                 from ..core.settings_store import SettingsStore
+
                 self._settings = SettingsStore()
             except Exception:  # settings are a nicety here, not a need
                 self._settings = None
@@ -104,13 +110,18 @@ class PlayerWindow(wx.Frame):
         self._last_slider_val = -1
         self._init_vlc()
 
-        super().__init__(parent, title=f"{t('player.title')} — {self.project.name if self.project else ''}",
-                         size=(1000, 700))
+        super().__init__(
+            parent,
+            title=f"{t('player.title')} — {self.project.name if self.project else ''}",
+            size=(1000, 700),
+        )
 
         self._ensure_duration()
         try:
-            self._volume = max(0, min(100, int(
-                self._settings.get("player.volume", 100) if self._settings else 100)))
+            self._volume = max(
+                0,
+                min(100, int(self._settings.get("player.volume", 100) if self._settings else 100)),
+            )
         except (TypeError, ValueError):
             self._volume = 100
         self._build_ui()
@@ -121,8 +132,7 @@ class PlayerWindow(wx.Frame):
         # refresh the slider scale AFTER that so seeks cover the whole
         # video, not just the duration known at UI-build time.
         if self.project and self.project.video_duration:
-            self._slider_dur = max(
-                0.1, float(self.project.video_duration))
+            self._slider_dur = max(0.1, float(self.project.video_duration))
             self.position_slider.SetMax(max(1, int(round(self._slider_dur))))
         # v1.3.0: in simulated mode _attach_vlc_video returns early, so
         # auto-load the project SRT here as well (VLC path loads its own).
@@ -137,6 +147,7 @@ class PlayerWindow(wx.Frame):
         (description walkthrough with timeline) when VLC is unavailable."""
         try:
             import vlc
+
             self._vlc_instance = vlc.Instance("--no-video-title-show")
             self._vlc = self._vlc_instance.media_player_new()
             self._vlc_available = True
@@ -162,31 +173,43 @@ class PlayerWindow(wx.Frame):
         ffplay now ships beside it.
         """
         from ..core.tools import tool_available
+
         return tool_available("ffplay")
 
     def _start_ffplay(self, seek_seconds: float) -> bool:
         """Start ffplay on the project's local media file (audio with video
         window disabled, ffmpeg's own controls hidden). Returns success."""
-        self._tick_at = time.monotonic()   # the sound restarts from here
+        self._tick_at = time.monotonic()  # the sound restarts from here
         self._stop_ffplay()
         media = self._audio_path()
         if not media:
-            logger.info("No local media file for this project; the player "
-                        "has descriptions but no video audio")
+            logger.info(
+                "No local media file for this project; the player "
+                "has descriptions but no video audio"
+            )
             return False
         if not self._ffplay_available():
             logger.warning(
-                "ffplay not found (neither bundled nor on PATH): the "
-                "video will be silent.")
+                "ffplay not found (neither bundled nor on PATH): the video will be silent."
+            )
             return False
         try:
             import subprocess
             from ..core.tools import find_tool
+
             cmd = [
-                find_tool("ffplay"), "-vn", "-nodisp", "-loglevel", "quiet",
-                "-window_title", "omni_audio",
-                "-autoexit", "-nostats", "-hide_banner",
-                "-volume", str(self._volume),
+                find_tool("ffplay"),
+                "-vn",
+                "-nodisp",
+                "-loglevel",
+                "quiet",
+                "-window_title",
+                "omni_audio",
+                "-autoexit",
+                "-nostats",
+                "-hide_banner",
+                "-volume",
+                str(self._volume),
             ]
             if seek_seconds > 0.5:
                 cmd += ["-ss", f"{seek_seconds:.3f}"]
@@ -194,7 +217,8 @@ class PlayerWindow(wx.Frame):
             self._audio_proc = subprocess.Popen(
                 cmd,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             self._audio_backend = "ffplay"
             logger.info("Audio via ffplay from %.1fs: %s", seek_seconds, media)
@@ -252,8 +276,7 @@ class PlayerWindow(wx.Frame):
         vid = self.project.id if self.project else 0
         return self.store.project_dir(vid) / "media" / "descriptions.srt"
 
-    def _load_srt_file(self, path: str, add_to_vlc: bool = False,
-                       silent: bool = False):
+    def _load_srt_file(self, path: str, add_to_vlc: bool = False, silent: bool = False):
         """v1.3.0: load an SRT/VTT subtitle file.
 
         VLC mode: attaches the file to the media so subtitles render on
@@ -268,20 +291,25 @@ class PlayerWindow(wx.Frame):
             self._announce(t("player.subtitle_failed"))
             if not silent:
                 from ..core.ai_engine import short_error
-                wx.MessageBox(t("player.subtitle_error",
-                                error=short_error(str(e))),
-                              t("player.load_srt"), wx.OK | wx.ICON_ERROR)
+
+                wx.MessageBox(
+                    t("player.subtitle_error", error=short_error(str(e))),
+                    t("player.load_srt"),
+                    wx.OK | wx.ICON_ERROR,
+                )
             return
         if not cues:
             self._announce(t("player.subtitle_empty"))
             if not silent:
-                wx.MessageBox(t("player.subtitle_no_entries"),
-                              t("player.load_srt"), wx.OK | wx.ICON_WARNING)
+                wx.MessageBox(
+                    t("player.subtitle_no_entries"), t("player.load_srt"), wx.OK | wx.ICON_WARNING
+                )
             return
         self._sub_cues = cues
         if add_to_vlc and self._vlc_available and self._vlc_media is not None:
             try:
                 import vlc
+
                 self._vlc_media.slaves_add(
                     vlc.SlaveType.subtitle,
                     Path(path).resolve().as_uri(),
@@ -297,8 +325,7 @@ class PlayerWindow(wx.Frame):
         dlg = wx.FileDialog(
             self,
             message=t("player.load_srt"),
-            wildcard=(f"{t('filter.subtitles')}|*.srt;*.vtt"
-                      f"|{t('filter.all_files')}|*.*"),
+            wildcard=(f"{t('filter.subtitles')}|*.srt;*.vtt|{t('filter.all_files')}|*.*"),
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         if dlg.ShowModal() == wx.ID_OK:
@@ -316,14 +343,14 @@ class PlayerWindow(wx.Frame):
         # v1.9.7 (owner): keys in the video area - Space play/pause, Left/
         # Right 5 s, Ctrl 10 s, Ctrl+Shift 1 min, Up/Down volume. WANTS_CHARS so
         # the arrows reach the panel instead of moving the focus.
-        self.video_panel = wx.Panel(panel, size=(854, 480),
-                                    style=wx.WANTS_CHARS,
-                                    name=t("player.video_area"))
+        self.video_panel = wx.Panel(
+            panel, size=(854, 480), style=wx.WANTS_CHARS, name=t("player.video_area")
+        )
         self.video_panel.SetBackgroundColour(wx.Colour(0, 0, 0))
         # v1.3.0: subtitle overlay for simulated playback (no VLC).
         self._sub_overlay = wx.StaticText(
-            self.video_panel, label="", name="sub_overlay",
-            style=wx.ALIGN_CENTER_HORIZONTAL)
+            self.video_panel, label="", name="sub_overlay", style=wx.ALIGN_CENTER_HORIZONTAL
+        )
         self._sub_overlay.SetForegroundColour(wx.Colour(255, 255, 255))
         self._sub_overlay.SetFont(self._sub_overlay.GetFont().Bold())
         self._active_sub_text = ""  # unwrapped text currently shown
@@ -342,8 +369,7 @@ class PlayerWindow(wx.Frame):
         self.rewind_btn = wx.Button(panel, label="<< 10s", name="rewind")
         self.forward_btn = wx.Button(panel, label="10s >>", name="forward")
         # v1.3.0: manual subtitle loading (SRT/VTT).
-        self.load_srt_btn = wx.Button(panel, label=t("player.load_srt"),
-                                      name="load_srt")
+        self.load_srt_btn = wx.Button(panel, label=t("player.load_srt"), name="load_srt")
 
         # v1.6.1: hold-while-speaking is a preference, not a policy. It
         # lives HERE as well as in Settings because whether it helps
@@ -351,27 +377,24 @@ class PlayerWindow(wx.Frame):
         # a talking head does not — and changing it should not mean
         # leaving the player. Takes effect on the next cue.
         self.pause_narration_check = wx.CheckBox(
-            panel, label=t("player.pause_for_narration"),
-            name="pause_for_narration")
-        self.pause_narration_check.SetValue(bool(
-            self._settings.get("player.pause_for_narration", True)
-            if self._settings else True))
-        self.pause_narration_check.SetToolTip(
-            t("player.pause_for_narration_hint"))
+            panel, label=t("player.pause_for_narration"), name="pause_for_narration"
+        )
+        self.pause_narration_check.SetValue(
+            bool(self._settings.get("player.pause_for_narration", True) if self._settings else True)
+        )
+        self.pause_narration_check.SetToolTip(t("player.pause_for_narration_hint"))
         # v1.6.5: an engine that cannot report when a sentence finished
         # cannot hold the video for it. Disable rather than hide — a
         # checkbox that vanishes leaves the user wondering where the
         # setting went; a disabled one with a reason does not.
         if not self._hold_supported():
             self.pause_narration_check.Enable(False)
-            self.pause_narration_check.SetToolTip(
-                t("player.pause_unavailable"))
+            self.pause_narration_check.SetToolTip(t("player.pause_unavailable"))
 
         controls.Add(self.play_btn, 0, wx.ALL, 5)
         controls.Add(self.stop_btn, 0, wx.ALL, 5)
         controls.AddStretchSpacer()
-        controls.Add(self.pause_narration_check, 0,
-                     wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        controls.Add(self.pause_narration_check, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         controls.Add(self.load_srt_btn, 0, wx.ALL, 5)
         controls.Add(self.rewind_btn, 0, wx.ALL, 5)
         controls.Add(self.forward_btn, 0, wx.ALL, 5)
@@ -395,13 +418,18 @@ class PlayerWindow(wx.Frame):
         # read as a bare number); arrows move 5 s, Page Up/Down 30 s, and
         # the value is spoken as a time ("1:04 of 24:30", owner's request).
         self.position_slider = wx.Slider(
-            panel, value=0, minValue=0,
+            panel,
+            value=0,
+            minValue=0,
             maxValue=max(1, int(round(self._slider_dur))),
-            style=wx.SL_HORIZONTAL, name="timeline")
+            style=wx.SL_HORIZONTAL,
+            name="timeline",
+        )
         self.position_slider.SetLineSize(5)
         self.position_slider.SetPageSize(30)
-        self.position_slider.SetAccessible(_TimeSliderAccessible(
-            self.position_slider, self._format_time))
+        self.position_slider.SetAccessible(
+            _TimeSliderAccessible(self.position_slider, self._format_time)
+        )
         # Accessible name for screen readers: without it NVDA/JAWS announce
         # nothing meaningful for this control.
         self.position_slider.SetLabel(t("player.timeline"))
@@ -415,8 +443,9 @@ class PlayerWindow(wx.Frame):
         self._desc_box = desc_box
         desc_sizer = wx.StaticBoxSizer(desc_box, wx.VERTICAL)
 
-        self.current_desc_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
-                                             size=(-1, 80), name="current_description")
+        self.current_desc_text = wx.TextCtrl(
+            panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(-1, 80), name="current_description"
+        )
         self.current_desc_text.SetValue("")
         desc_sizer.Add(self.current_desc_text, 1, wx.ALL | wx.EXPAND, 5)
 
@@ -424,8 +453,9 @@ class PlayerWindow(wx.Frame):
         upcoming_row = wx.BoxSizer(wx.HORIZONTAL)
         upcoming_label = wx.StaticText(panel, label=t("player.upcoming"), name="upcoming_label")
         self._upcoming_label = upcoming_label
-        self.upcoming_text = wx.TextCtrl(panel, style=wx.TE_READONLY, size=(-1, -1),
-                                         name="upcoming_description")
+        self.upcoming_text = wx.TextCtrl(
+            panel, style=wx.TE_READONLY, size=(-1, -1), name="upcoming_description"
+        )
         upcoming_row.Add(upcoming_label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         upcoming_row.Add(self.upcoming_text, 1, wx.ALL | wx.EXPAND, 5)
         desc_sizer.Add(upcoming_row, 0, wx.EXPAND)
@@ -443,8 +473,8 @@ class PlayerWindow(wx.Frame):
         self.agent_btn = wx.Button(panel, label=t("player.agent"), name="agent")
         speaker = chr(0x1F50A)
         self.speak_btn = wx.Button(
-            panel, label=speaker + " " + t("player.read_description"),
-            name="speak_desc")
+            panel, label=speaker + " " + t("player.read_description"), name="speak_desc"
+        )
 
         action_row.Add(self.edit_btn, 0, wx.ALL, 5)
         action_row.Add(self.cast_btn, 0, wx.ALL, 5)
@@ -480,15 +510,15 @@ class PlayerWindow(wx.Frame):
         # never ran, so F2 was silent everywhere but the video picture.
         self._agent_key_id = wx.NewIdRef()
         self.Bind(wx.EVT_MENU, lambda e: self.open_agent(), id=self._agent_key_id)
-        self.SetAcceleratorTable(wx.AcceleratorTable(
-            [(wx.ACCEL_NORMAL, wx.WXK_F2, self._agent_key_id)]))
+        self.SetAcceleratorTable(
+            wx.AcceleratorTable([(wx.ACCEL_NORMAL, wx.WXK_F2, self._agent_key_id)])
+        )
         # Keys that reach the panel without the window's CHAR_HOOK (a key
         # posted straight to it) are taken here too; a key handled in
         # CHAR_HOOK never arrives, so nothing is done twice.
         self.video_panel.Bind(wx.EVT_KEY_DOWN, self._on_video_key_down)
         self.speak_btn.Bind(wx.EVT_BUTTON, self._on_speak)
-        self.pause_narration_check.Bind(wx.EVT_CHECKBOX,
-                                        self._on_pause_narration_toggle)
+        self.pause_narration_check.Bind(wx.EVT_CHECKBOX, self._on_pause_narration_toggle)
         self.load_srt_btn.Bind(wx.EVT_BUTTON, self._on_load_srt)
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
@@ -511,12 +541,13 @@ class PlayerWindow(wx.Frame):
         if not self:
             return  # v1.9.6: a worker's CallAfter after the window closed
         if self._video_has_focus():
-            self._say_in_video_area(msg)   # v1.9.7: keep the focus there
+            self._say_in_video_area(msg)  # v1.9.7: keep the focus there
             return
         self.status_text.SetLabel(msg)
         self.status_text.SetFocus()
         try:
             from ..core.speech import announce as _speak_status
+
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -536,6 +567,7 @@ class PlayerWindow(wx.Frame):
         self.status_text.SetLabel(msg)
         try:
             from ..core.speech import get_speech
+
             if get_speech().speak(msg, interrupt=True):
                 return
         except Exception:
@@ -549,6 +581,7 @@ class PlayerWindow(wx.Frame):
             return  # a CallLater after the window closed
         try:
             from ..core.speech import get_speech
+
             if get_speech().speak(msg, interrupt=False):
                 return
         except Exception:
@@ -686,8 +719,7 @@ class PlayerWindow(wx.Frame):
             self._sub_overlay.SetLabel(active)
             if active:
                 # Wrap takes PIXELS: keep a margin inside the video panel.
-                self._sub_overlay.Wrap(
-                    max(200, self.video_panel.GetSize().GetWidth() - 60))
+                self._sub_overlay.Wrap(max(200, self.video_panel.GetSize().GetWidth() - 60))
             self.video_panel.Layout()
             self.video_panel.Refresh()
 
@@ -728,8 +760,11 @@ class PlayerWindow(wx.Frame):
         if widget is not None:
             pause_for_narration = bool(widget.GetValue())
         else:
-            pause_for_narration = bool(self._settings.get(
-                "player.pause_for_narration", True)) if self._settings else True
+            pause_for_narration = (
+                bool(self._settings.get("player.pause_for_narration", True))
+                if self._settings
+                else True
+            )
         # v1.6.5: the hold only works for engines that can say when the
         # sentence ended. Asked of the engine every cue, not once at
         # startup, because the user can switch engines while the player
@@ -771,8 +806,7 @@ class PlayerWindow(wx.Frame):
         try:
             return bool(check())
         except Exception as e:
-            logger.warning("Could not ask the TTS engine about the "
-                           "narration hold: %s", e)
+            logger.warning("Could not ask the TTS engine about the narration hold: %s", e)
             return True
 
     def _on_pause_narration_toggle(self, event):
@@ -828,9 +862,11 @@ class PlayerWindow(wx.Frame):
             return  # v1.9.6: the hold ended after the window closed
         started = getattr(self, "_hold_started", None)
         if started is not None:
-            logger.info("Narration hold released after %.2fs (voice: %s)",
-                        time.monotonic() - started,
-                        getattr(self.tts, "_current_engine", "?"))
+            logger.info(
+                "Narration hold released after %.2fs (voice: %s)",
+                time.monotonic() - started,
+                getattr(self.tts, "_current_engine", "?"),
+            )
             self._hold_started = None
         if not self._auto_paused:
             return
@@ -847,8 +883,8 @@ class PlayerWindow(wx.Frame):
             # nothing is, because the hold stopped it.
             if not self._start_ffplay(self._position):
                 logger.warning(
-                    "Could not restart audio after narration; the video "
-                    "will be silent from here")
+                    "Could not restart audio after narration; the video will be silent from here"
+                )
         self._paused_backend = "none"
         self._start_timer()
 
@@ -875,6 +911,7 @@ class PlayerWindow(wx.Frame):
             return
         try:
             from ..core.timeline_io import _ffprobe_duration
+
             seconds = float(_ffprobe_duration(proj.video_path) or 0.0)
         except Exception as e:
             logger.info("Could not measure the video length: %s", e)
@@ -975,8 +1012,10 @@ class PlayerWindow(wx.Frame):
         self.load_srt_btn.SetLabel(t("player.load_srt"))
         self.pause_narration_check.SetLabel(t("player.pause_for_narration"))
         self.pause_narration_check.SetToolTip(
-            t("player.pause_for_narration_hint") if self._hold_supported()
-            else t("player.pause_unavailable"))
+            t("player.pause_for_narration_hint")
+            if self._hold_supported()
+            else t("player.pause_unavailable")
+        )
         self._timeline_label.SetLabel(t("player.timeline") + ":")
         self._desc_box.SetLabel(t("player.current_desc"))
         self._upcoming_label.SetLabel(t("player.upcoming"))
@@ -996,9 +1035,11 @@ class PlayerWindow(wx.Frame):
         total = float(getattr(self, "_slider_dur", 0) or 0)
         position = self._format_time(self._position)
         # "of 00:00" when the length is unknown would only confuse.
-        self._announce(t("player.position", position=position,
-                         total=self._format_time(total)) if total >= 1
-                       else position)
+        self._announce(
+            t("player.position", position=position, total=self._format_time(total))
+            if total >= 1
+            else position
+        )
         wx.CallLater(700, lambda: button and button.SetFocus())
 
     def _on_seek(self, event):
@@ -1013,10 +1054,10 @@ class PlayerWindow(wx.Frame):
     def _on_characters(self, event):
         """v2.1.0: Characters window; a rename there reaches the display."""
         from .characters_dialog import CharactersDialog
+
         if not self.project or self.store.current is None:
             return
-        dlg = CharactersDialog(self, self.store,
-                               on_descriptions_changed=self._load_descriptions)
+        dlg = CharactersDialog(self, self.store, on_descriptions_changed=self._load_descriptions)
         dlg.ShowModal()
         dlg.Destroy()
         self.cast_btn.SetFocus()
@@ -1024,17 +1065,21 @@ class PlayerWindow(wx.Frame):
     def _on_edit(self, event):
         """Open description editor."""
         from .editor_window import EditorWindow
+
         editor = EditorWindow(self, self.store, self.tts)
         editor.Show()
 
     def _on_ask(self, event):
         """Open 'ask more' dialog."""
         from .ask_more_dialog import AskMoreDialog
+
         dlg = AskMoreDialog(
-            self, self.ai_engine,
+            self,
+            self.ai_engine,
             descriptions=self.project.descriptions if self.project else None,
             position=self._position,
-            video_path=self.project.video_path if self.project else "")
+            video_path=self.project.video_path if self.project else "",
+        )
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -1059,9 +1104,11 @@ class PlayerWindow(wx.Frame):
         show_agent = ok or why == "untested"
         show_old = not ok
         changed = False
-        for btn, show in ((self.agent_btn, show_agent),
-                          (self.ask_btn, show_old),
-                          (self.explore_btn, show_old)):
+        for btn, show in (
+            (self.agent_btn, show_agent),
+            (self.ask_btn, show_old),
+            (self.explore_btn, show_old),
+        ):
             if btn.IsShown() != show:
                 if not show and btn.HasFocus():
                     self.play_btn.SetFocus()
@@ -1108,9 +1155,13 @@ class PlayerWindow(wx.Frame):
             self._restart_sound_soon()
         self.position_slider.SetValue(int(pos))
         self._update_desc_display()
-        self._announce(t("player.slider_value",
-                         position=self._format_time(pos),
-                         total=self._format_time(total)))
+        self._announce(
+            t(
+                "player.slider_value",
+                position=self._format_time(pos),
+                total=self._format_time(total),
+            )
+        )
 
     def _change_volume(self, delta: int) -> None:
         """Video sound only; the screen reader's voice is not touched."""
@@ -1126,7 +1177,7 @@ class PlayerWindow(wx.Frame):
             except Exception:
                 logger.debug("VLC volume failed", exc_info=True)
         elif self._audio_backend == "ffplay" and self._playing:
-            self._restart_sound_soon()           # ffplay takes it at start
+            self._restart_sound_soon()  # ffplay takes it at start
         self._announce(t("player.volume", pct=self._volume))
 
     def _restart_sound_soon(self) -> None:
@@ -1156,8 +1207,10 @@ class PlayerWindow(wx.Frame):
             # WANTS_CHARS gives the panel Tab too, so Windows no longer
             # moves on by itself: Tab seemed dead (owner, 3 Oct 2026).
             flags = wx.NavigationKeyEvent.FromTab | (
-                wx.NavigationKeyEvent.IsBackward if event.ShiftDown()
-                else wx.NavigationKeyEvent.IsForward)
+                wx.NavigationKeyEvent.IsBackward
+                if event.ShiftDown()
+                else wx.NavigationKeyEvent.IsForward
+            )
             self.video_panel.Navigate(flags)
             return
         event.Skip()
@@ -1178,10 +1231,12 @@ class PlayerWindow(wx.Frame):
         """(ok, why not): OpenRouter or Gemini (v1.9.2), a key, a model
         that passed Settings > Test agent mode, and a video to look at."""
         import os
+
         st = self._settings
         if st is None:
             return False, "settings"
         from ..core.agent import AGENT_PROVIDERS
+
         provider = st.get("ai.default_provider", "") or ""
         if provider not in AGENT_PROVIDERS:
             return False, "provider"
@@ -1191,13 +1246,15 @@ class PlayerWindow(wx.Frame):
         passed = st.get("ai.agent_models", []) or []
         if (cfg.get("model") or "") not in passed:
             return False, "untested"
-        if not (self.project and self.project.video_path
-                and os.path.exists(self.project.video_path)):
+        if not (
+            self.project and self.project.video_path and os.path.exists(self.project.video_path)
+        ):
             return False, "video"
         return True, ""
 
     def _make_agent(self):
         from ..core.agent import Agent, Context
+
         provider = self._settings.get("ai.default_provider", "") or "glm"
         cfg = self._settings.get_ai_provider(provider)
         proj = self.project
@@ -1212,9 +1269,9 @@ class PlayerWindow(wx.Frame):
             seek=lambda at: wx.CallAfter(self.seek_to, at),
             get_transcript=lambda: self._transcript_for_agent(folder),
             characters_file=str(folder / "characters.json"),
-            language=language)
-        return Agent(cfg["api_key"], cfg.get("model", ""), ctx,
-                     provider=provider)
+            language=language,
+        )
+        return Agent(cfg["api_key"], cfg.get("model", ""), ctx, provider=provider)
 
     def _transcript_for_agent(self, folder):
         """Worker thread: the project's transcript, made once and kept in
@@ -1222,14 +1279,17 @@ class PlayerWindow(wx.Frame):
         import asyncio
         import json
         from types import SimpleNamespace
+
         cache = folder / "media" / "transcript.json"
         if cache.exists():
             try:
-                return [SimpleNamespace(**seg) for seg in
-                        json.loads(cache.read_text(encoding="utf-8"))]
+                return [
+                    SimpleNamespace(**seg) for seg in json.loads(cache.read_text(encoding="utf-8"))
+                ]
             except (ValueError, TypeError):
                 pass
         from ..core.video_processor import VideoProcessor
+
         video = self.project.video_path
         # The agent calls this from INSIDE its own running event loop, so
         # the transcript gets a loop of its own on a helper thread ("Cannot
@@ -1241,13 +1301,15 @@ class PlayerWindow(wx.Frame):
             loop = asyncio.new_event_loop()
             try:
                 got["segs"] = loop.run_until_complete(
-                    VideoProcessor().get_transcript(video, local_path=video,
-                                                    cache_path=cache))
+                    VideoProcessor().get_transcript(video, local_path=video, cache_path=cache)
+                )
             except Exception as e:
                 got["error"] = e
             finally:
                 loop.close()
+
         import threading
+
         worker = threading.Thread(target=work, daemon=True)
         worker.start()
         worker.join()
@@ -1256,9 +1318,13 @@ class PlayerWindow(wx.Frame):
         segs = got.get("segs") or []
         try:
             cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(json.dumps(
-                [{"start": s.start, "end": s.end, "text": s.text} for s in segs],
-                ensure_ascii=False), encoding="utf-8")
+            cache.write_text(
+                json.dumps(
+                    [{"start": s.start, "end": s.end, "text": s.text} for s in segs],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
         except OSError:
             pass
         return segs
@@ -1283,7 +1349,7 @@ class PlayerWindow(wx.Frame):
         if not ok:
             logger.info("Agent not available: %s", why)
             if why == "untested" and self._offer_agent_test():
-                return          # the test runs; the agent opens if it passes
+                return  # the test runs; the agent opens if it passes
             msg = t(f"agent.unavailable_{why}")
             if why in ("untested", "provider"):
                 # Ask More takes the focus at once, so a focus-move
@@ -1302,13 +1368,13 @@ class PlayerWindow(wx.Frame):
         available" — the test lived in Settings. Offer it right here.
         True when the test was started (its result opens the agent)."""
         from .dialogs import ask_yes_no
+
         provider = self._settings.get("ai.default_provider", "") or ""
         cfg = self._settings.get_ai_provider(provider) or {}
         model = cfg.get("model", "") or ""
         if not model or not cfg.get("api_key"):
             return False
-        if not ask_yes_no(self, t("agent.offer_test", model=model),
-                          t("agent.title")):
+        if not ask_yes_no(self, t("agent.offer_test", model=model), t("agent.title")):
             return False
         self._announce(t("settings.testing_agent", model=model))
         key = cfg["api_key"]
@@ -1316,17 +1382,19 @@ class PlayerWindow(wx.Frame):
         def work():
             import asyncio
             from ..core.agent import probe
+
             loop = asyncio.new_event_loop()
             try:
-                result = loop.run_until_complete(
-                    probe(key, model, provider=provider))
+                result = loop.run_until_complete(probe(key, model, provider=provider))
             except Exception as e:
                 logger.warning("Agent test failed: %s", e)
                 result = {"ok": False, "error": str(e)}
             finally:
                 loop.close()
             wx.CallAfter(self._agent_test_done, model, result)
+
         import threading
+
         threading.Thread(target=work, daemon=True).start()
         return True
 
@@ -1343,10 +1411,12 @@ class PlayerWindow(wx.Frame):
             self._open_agent_dialog()
             return
         from ..core.ai_engine import user_error_text
+
         self._announce(
-            t("settings.agent_error", model=model,
-              error=user_error_text(result["error"]))
-            if result.get("error") else t("settings.agent_fail", model=model))
+            t("settings.agent_error", model=model, error=user_error_text(result["error"]))
+            if result.get("error")
+            else t("settings.agent_fail", model=model)
+        )
         self._on_ask(None)
 
     def _open_agent_dialog(self) -> None:
@@ -1357,12 +1427,14 @@ class PlayerWindow(wx.Frame):
             if self._agent is None:
                 self._agent = self._make_agent()
             from .agent_dialog import AgentDialog
+
             dlg = AgentDialog(self, self._agent)
             dlg.ShowModal()
             dlg.Destroy()
         except Exception as e:
             logger.error("Agent failed to open: %s", e)
             from ..core.ai_engine import user_error_text
+
             self._announce(t("agent.error", error=user_error_text(str(e))))
         finally:
             if was_playing:
@@ -1382,6 +1454,7 @@ class PlayerWindow(wx.Frame):
         import shutil
         import time as _time
         from ..core.project_store import Description
+
         proj = self.project
         if not proj or not proposals:
             return 0
@@ -1390,7 +1463,8 @@ class PlayerWindow(wx.Frame):
         srt = self._project_srt_path()
         if not self._agent_backup_done and srt.exists():
             backup = srt.with_name(
-                f"descriptions.before-agent-{_time.strftime('%Y%m%d-%H%M%S')}.srt")
+                f"descriptions.before-agent-{_time.strftime('%Y%m%d-%H%M%S')}.srt"
+            )
             try:
                 shutil.copy2(srt, backup)
                 self._agent_backup_done = True
@@ -1399,8 +1473,9 @@ class PlayerWindow(wx.Frame):
         by_index = list(descs)
         remove, applied = set(), 0
         for p in proposals:
-            target = (by_index[p.index] if p.index is not None
-                      and 0 <= p.index < len(by_index) else None)
+            target = (
+                by_index[p.index] if p.index is not None and 0 <= p.index < len(by_index) else None
+            )
             if p.action == "edit" and target is not None and p.text:
                 target.text, target.edited = p.text, True
             elif p.action == "move" and target is not None and p.time is not None:
@@ -1414,31 +1489,46 @@ class PlayerWindow(wx.Frame):
                 # v2.1.0: one proposal, every description; the name goes
                 # into the cast too, as the person's (never changed by AI).
                 from ..core import characters as ch
-                texts, changed = ch.rename_in_texts([d.text for d in descs],
-                                                    p.old, p.text)
+
+                texts, changed = ch.rename_in_texts([d.text for d in descs], p.old, p.text)
                 if not changed:
                     continue
                 for d, new_text in zip(descs, texts, strict=False):
                     if d.text != new_text:
                         d.text, d.edited = new_text, True
                 folder = self.store.project_dir(proj.id)
-                cast = [c for c in ch.load_cast(folder)
-                        if c["name"].casefold() not in (p.old.casefold(), p.text.casefold())]
-                look = next((c.get("look", "") for c in ch.load_cast(folder)
-                             if c["name"].casefold() == p.old.casefold()), "")
+                cast = [
+                    c
+                    for c in ch.load_cast(folder)
+                    if c["name"].casefold() not in (p.old.casefold(), p.text.casefold())
+                ]
+                look = next(
+                    (
+                        c.get("look", "")
+                        for c in ch.load_cast(folder)
+                        if c["name"].casefold() == p.old.casefold()
+                    ),
+                    "",
+                )
                 ch.save_cast(folder, [{"name": p.text, "look": look, "by_user": True}] + cast)
             elif p.action == "add" and p.time is not None and p.text:
                 from ..core.timeline_io import WORDS_PER_SECOND_AT_1X
+
                 words = len(p.text.split())
-                descs.append(Description(
-                    start_time=float(p.time),
-                    end_time=float(p.time) + max(2.0, words / WORDS_PER_SECOND_AT_1X),
-                    text=p.text, edited=True))
+                descs.append(
+                    Description(
+                        start_time=float(p.time),
+                        end_time=float(p.time) + max(2.0, words / WORDS_PER_SECOND_AT_1X),
+                        text=p.text,
+                        edited=True,
+                    )
+                )
             else:
                 continue
             applied += 1
-        proj.descriptions = sorted((d for d in descs if id(d) not in remove),
-                                   key=lambda d: d.start_time)
+        proj.descriptions = sorted(
+            (d for d in descs if id(d) not in remove), key=lambda d: d.start_time
+        )
         self._save_agent_descriptions()
         return applied
 
@@ -1454,20 +1544,21 @@ class PlayerWindow(wx.Frame):
         self.store.save_descriptions(proj.descriptions)
         try:
             from ..core.timeline_io import to_srt
+
             srt = self._project_srt_path()
             srt.parent.mkdir(parents=True, exist_ok=True)
             srt.write_text(to_srt(proj.descriptions), encoding="utf-8")
         except Exception as e:
             logger.warning("Project SRT rewrite failed: %s", e)
         if self._agent is not None:
-            self._agent.ctx.descriptions = [(d.start_time, d.text)
-                                            for d in proj.descriptions]
+            self._agent.ctx.descriptions = [(d.start_time, d.text) for d in proj.descriptions]
         self._narrated.clear()
         self._update_desc_display()
 
     def _on_explore(self, event):
         """Open scene explorer."""
         from .scene_explorer import SceneExplorer
+
         video_path = ""
         if self.store.current:
             video_path = self.store.current.video_path
@@ -1495,6 +1586,7 @@ class PlayerWindow(wx.Frame):
                 # its wss:// URL with the TrustedClientToken.
                 logger.error("Speak failed: %s", e)
                 from ..core.ai_engine import user_error_text
+
                 err = user_error_text(str(e))
                 wx.CallAfter(lambda: self._announce(t("player.tts_error", error=err)))
 
@@ -1505,6 +1597,7 @@ class PlayerWindow(wx.Frame):
         # v1.7.4: an open editor is a child frame; Destroy() below would
         # take it down without its EVT_CLOSE, losing unsaved edits.
         from .editor_window import EditorWindow
+
         for child in list(self.GetChildren()):
             if isinstance(child, EditorWindow):
                 try:
@@ -1513,7 +1606,7 @@ class PlayerWindow(wx.Frame):
                     logger.error("Saving editor on player close failed: %s", e)
         if self._agent is not None:
             try:
-                self._agent.close()      # its frames; memory ends here
+                self._agent.close()  # its frames; memory ends here
             except Exception:
                 pass
             self._agent = None

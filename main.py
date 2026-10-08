@@ -60,6 +60,7 @@ def main():
 
     # Before anything can start ffmpeg or yt-dlp: no console windows.
     from omni_describer_custom.core.no_console import install as _no_console
+
     _no_console()
 
     try:
@@ -67,8 +68,8 @@ def main():
         # corrupted unzip or an antivirus quarantine can still remove
         # them. Say so once, plainly, instead of letting each feature
         # fail separately later with its own obscure error.
-        from omni_describer_custom.core.tools import (
-            log_tool_status, missing_tools)
+        from omni_describer_custom.core.tools import log_tool_status, missing_tools
+
         log_tool_status()
         absent = missing_tools()
         if absent:
@@ -76,27 +77,29 @@ def main():
             # sets the language, so set it here from the saved settings.
             from omni_describer_custom.core.settings_store import SettingsStore
             from omni_describer_custom.i18n.strings import I18n, t
+
             I18n.set_language(SettingsStore().get("general.language", "en"))
-            logger.error("Missing external tools: %s",
-                         ", ".join(name for name, _ in absent))
+            logger.error("Missing external tools: %s", ", ".join(name for name, _ in absent))
             detail = "\n".join(
-                t("startup.tool_line", name=name, why=t(f"tools.need_{name}"))
-                for name, _ in absent)
-            wx.MessageBox(t("startup.missing_tools", detail=detail),
-                          t("main.title"), wx.OK | wx.ICON_WARNING)
+                t("startup.tool_line", name=name, why=t(f"tools.need_{name}")) for name, _ in absent
+            )
+            wx.MessageBox(
+                t("startup.missing_tools", detail=detail), t("main.title"), wx.OK | wx.ICON_WARNING
+            )
 
         # v1.6.7: a crashed or killed run leaves its temp folders
         # behind and nothing ever came back for them — 806 MB of
         # abandoned downloads had built up on the author's machine.
         # Only this app's own folders, only ones a day old or more.
         try:
-            from omni_describer_custom.core.housekeeping import (
-                sweep_stale_temp)
+            from omni_describer_custom.core.housekeeping import sweep_stale_temp
+
             sweep_stale_temp()
         except Exception as e:
             logger.warning("Temp cleanup skipped: %s", e)
 
         from omni_describer_custom.ui.main_frame import MainFrame
+
         frame = MainFrame()
         frame.Show(True)
         frame.Maximize(True)
@@ -113,6 +116,7 @@ def main():
         logger.error("Application error: %s", e)
         try:
             from omni_describer_custom.i18n.strings import t
+
             text, title = t("startup.error", error=e), t("main.title")
         except Exception:
             text, title = f"Error starting application:\n{e}", "DescriVox Agent"

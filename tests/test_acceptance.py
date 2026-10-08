@@ -11,18 +11,24 @@ Unlike the regression suites (which stub engines), this drives:
 Network note: edge TTS needs internet; if offline the engine's own
 fallback chain uses sapi5 (offline). Either way sound must be produced.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, time, tempfile, shutil, traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
+
 
 def check(name, fn):
     global ok, fail
@@ -35,13 +41,16 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def pump(ms):
     """Pump the real wx event loop for ms milliseconds."""
     import wx
+
     end = time.time() + ms / 1000.0
     while time.time() < end:
         wx.Yield()
         time.sleep(0.02)
+
 
 # ── 1. Settings: real disk persistence round-trip ─────────────────
 def test_settings_persist_on_disk():
@@ -57,6 +66,7 @@ def test_settings_persist_on_disk():
         f = Path(tmp) / "settings.json"
         assert f.exists(), "settings.json not written to disk"
         import json
+
         raw = json.loads(f.read_text(encoding="utf-8"))
         assert raw["tts"]["default_engine"] == "sapi5", raw
 
@@ -66,7 +76,10 @@ def test_settings_persist_on_disk():
         assert abs(s2.get("tts.engines.sapi5.speed") - 1.3) < 1e-9
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("Settings persist to disk and reload (real SettingsStore)", test_settings_persist_on_disk)
+
 
 # ── 2. TTS: real engines, real audible playback ───────────────────
 def test_real_tts_speak_and_play():
@@ -82,7 +95,10 @@ def test_real_tts_speak_and_play():
     dt = time.time() - t0
     print(f"  speak_and_play returned {played} in {dt:.1f}s")
     assert played, "speak_and_play did not produce audible playback"
+
+
 check("TTSEngine.speak_and_play produces real audible audio", test_real_tts_speak_and_play)
+
 
 # ── 3. Project store: real SQLite persistence ─────────────────────
 def test_project_store_sqlite():
@@ -92,7 +108,9 @@ def test_project_store_sqlite():
     try:
         store = ProjectStore(projects_dir=tmp)
         proj = store.create_project("ACCEPTANCE", "C:/nonexistent/video.mp4")
-        store.add_description(Description(start_time=0.0, end_time=30.0, text="A dragon flies over the mountains."))
+        store.add_description(
+            Description(start_time=0.0, end_time=30.0, text="A dragon flies over the mountains.")
+        )
 
         # Reopen as a fresh store would on restart
         store2 = ProjectStore(projects_dir=tmp)
@@ -102,7 +120,10 @@ def test_project_store_sqlite():
         assert loaded.descriptions[0].text.startswith("A dragon")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("ProjectStore persists and reloads via SQLite", test_project_store_sqlite)
+
 
 # ── 4. Full GUI path: MainFrame -> PlayerWindow -> Play -> narration ──
 def test_gui_play_narrates():
@@ -122,16 +143,22 @@ def test_gui_play_narrates():
     store = frame.project_store
     proj = store.create_project("ACCEPTANCE_TEST - delete me", "C:/nonexistent/video.mp4")
     store.set_video_duration(60.0)
-    store.add_description(Description(start_time=0.0, end_time=30.0, text="Acceptance narration one."))
-    store.add_description(Description(start_time=35.0, end_time=60.0, text="Acceptance narration two."))
+    store.add_description(
+        Description(start_time=0.0, end_time=30.0, text="Acceptance narration one.")
+    )
+    store.add_description(
+        Description(start_time=35.0, end_time=60.0, text="Acceptance narration two.")
+    )
 
     # Wrap the real engine's speak_and_play so we can observe narration
     # requests while the REAL generation+playback chain still runs.
     real_speak_and_play = frame.tts_engine.speak_and_play
     spoken = []
+
     def observing_speak_and_play(text, *a, **kw):
         spoken.append(text)
         return real_speak_and_play(text, *a, **kw)
+
     frame.tts_engine.speak_and_play = observing_speak_and_play
 
     try:
@@ -187,7 +214,10 @@ def test_gui_play_narrates():
             store.delete_project(proj.id)
         except Exception:
             pass
+
+
 check("Playback narrates descriptions aloud through real windows", test_gui_play_narrates)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

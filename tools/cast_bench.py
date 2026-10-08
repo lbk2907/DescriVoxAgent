@@ -51,11 +51,48 @@ MODELS = {"glm": "z-ai/glm-5.3-flash", "gemini": "gemini-3.1-flash-lite"}
 PERSON = re.compile(
     r"\b(?:the|a|an|another)\s+((?:[\w-]+\s+){0,3}?"
     r"(?:man|woman|girl|boy|person|figure|soldier|scientist|warrior|child|"
-    r"lady|guy|people|couple|lelaki|wanita|budak|gadis))\b", re.IGNORECASE)
-NOT_NAMES = {"The", "A", "An", "He", "She", "They", "It", "His", "Her", "In", "On",
-             "At", "As", "With", "Text", "Close", "Wide", "Inside", "Outside", "Night",
-             "Day", "Title", "Credits", "Camera", "Later", "Back", "Two", "One", "Three",
-             "Steel", "Tears", "Blender", "Amsterdam", "Earth", "Then", "Now", "Both"}
+    r"lady|guy|people|couple|lelaki|wanita|budak|gadis))\b",
+    re.IGNORECASE,
+)
+NOT_NAMES = {
+    "The",
+    "A",
+    "An",
+    "He",
+    "She",
+    "They",
+    "It",
+    "His",
+    "Her",
+    "In",
+    "On",
+    "At",
+    "As",
+    "With",
+    "Text",
+    "Close",
+    "Wide",
+    "Inside",
+    "Outside",
+    "Night",
+    "Day",
+    "Title",
+    "Credits",
+    "Camera",
+    "Later",
+    "Back",
+    "Two",
+    "One",
+    "Three",
+    "Steel",
+    "Tears",
+    "Blender",
+    "Amsterdam",
+    "Earth",
+    "Then",
+    "Now",
+    "Both",
+}
 
 
 def load() -> dict:
@@ -73,6 +110,7 @@ async def describe(provider: str, clip: str, mode: str, keys: dict) -> dict:
     from omni_describer_custom.core.ai_engine import GeminiProvider, GLMProvider
     from omni_describer_custom.core.characters import CHARACTER_RULES
     from omni_describer_custom.core.prompt_manager import DEFAULT_PROMPTS
+
     prompt = DEFAULT_PROMPTS["default"]
     if mode == "on":
         prompt = prompt + "\n" + CHARACTER_RULES
@@ -86,22 +124,33 @@ async def describe(provider: str, clip: str, mode: str, keys: dict) -> dict:
         else:
             prov = GLMProvider(api_key=keys["glm"])
             pairs = await prov.describe_video_full(
-                video, prompt, MODELS["glm"], transcript=mb._transcript(clip),
+                video,
+                prompt,
+                MODELS["glm"],
+                transcript=mb._transcript(clip),
                 chunk_seconds=300,
-                **({"cast": [], "on_cast": cast_seen.append} if mode == "on" else {}))
-        return {"cues": [[round(t, 2), d] for t, d in pairs], "error": "",
-                "cast": cast_seen[-1] if cast_seen else [],
-                "seconds": round(time.monotonic() - started, 1)}
+                **({"cast": [], "on_cast": cast_seen.append} if mode == "on" else {}),
+            )
+        return {
+            "cues": [[round(t, 2), d] for t, d in pairs],
+            "error": "",
+            "cast": cast_seen[-1] if cast_seen else [],
+            "seconds": round(time.monotonic() - started, 1),
+        }
     except Exception as e:
-        return {"cues": [], "error": f"{type(e).__name__}: {str(e)[:300]}",
-                "seconds": round(time.monotonic() - started, 1)}
+        return {
+            "cues": [],
+            "error": f"{type(e).__name__}: {str(e)[:300]}",
+            "seconds": round(time.monotonic() - started, 1),
+        }
 
 
 def cmd_run(args) -> int:
     keys = mb._prepare_config()
     results = load()
-    jobs = [(p, c, m, r) for r in range(args.runs) for c in CLIPS
-            for p in MODELS for m in ("off", "on")]
+    jobs = [
+        (p, c, m, r) for r in range(args.runs) for c in CLIPS for p in MODELS for m in ("off", "on")
+    ]
     for provider, clip, mode, run in jobs:
         key = f"{provider}|{clip}|{mode}|{run}"
         if key in results and not results[key].get("error"):
@@ -125,21 +174,29 @@ def score(cues: list, names: list[str]) -> dict:
         for w in re.findall(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z]{2,})\b", t):
             if w not in NOT_NAMES and not name_re.fullmatch(w):
                 others.add(w)
-    return {"lines": len(texts), "person_lines": len(person), "named_lines": len(named),
-            "name_rate": round(len(named) / len(person), 3) if person else 0.0,
-            "labels": len(labels), "other_names": sorted(others)[:12]}
+    return {
+        "lines": len(texts),
+        "person_lines": len(person),
+        "named_lines": len(named),
+        "name_rate": round(len(named) / len(person), 3) if person else 0.0,
+        "labels": len(labels),
+        "other_names": sorted(others)[:12],
+    }
 
 
 def summary(results: dict) -> dict:
     """On vs off over every film and provider, for tools/measure_check.py:
     name_rate and wrong_rate in percent, labels and lines as averages."""
     import datetime
+
     judged = {}
     store = mb.BENCH / "cast_judgements.json"
     if store.exists():
         judged = json.loads(store.read_text(encoding="utf-8"))
-    agg = {"on": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0},
-           "off": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0}}
+    agg = {
+        "on": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0},
+        "off": {"n": 0, "name": 0.0, "labels": 0.0, "lines": 0.0, "j": 0, "wrong": 0},
+    }
     runs = set()
     for key, r in results.items():
         if r.get("error"):
@@ -161,11 +218,15 @@ def summary(results: dict) -> dict:
         if agg["on"]["n"] and agg["off"]["n"]:
             metrics[name] = {m: round(agg[m][field] / agg[m]["n"], 3) for m in ("on", "off")}
     if agg["on"]["j"] and agg["off"]["j"]:
-        metrics["wrong_rate"] = {m: round(100 * agg[m]["wrong"] / agg[m]["j"], 3)
-                                 for m in ("on", "off")}
+        metrics["wrong_rate"] = {
+            m: round(100 * agg[m]["wrong"] / agg[m]["j"], 3) for m in ("on", "off")
+        }
     newest = max((p.stat().st_mtime for p in (RESULTS, store) if p.exists()), default=0)
-    return {"created": datetime.datetime.fromtimestamp(newest).isoformat(timespec="seconds"),
-            "runs": len(runs), "metrics": metrics}
+    return {
+        "created": datetime.datetime.fromtimestamp(newest).isoformat(timespec="seconds"),
+        "runs": len(runs),
+        "metrics": metrics,
+    }
 
 
 def cmd_score(args) -> int:
@@ -181,13 +242,17 @@ def cmd_score(args) -> int:
             continue
         s = score(r["cues"], CLIPS[clip])
         rows.setdefault((provider, clip, mode), []).append(s)
-    print(f"\n{'provider':8} {'clip':12} {'mode':4} {'lines':>5} {'person':>6} "
-          f"{'named':>5} {'rate':>5} {'labels':>6}  other capitalised words")
+    print(
+        f"\n{'provider':8} {'clip':12} {'mode':4} {'lines':>5} {'person':>6} "
+        f"{'named':>5} {'rate':>5} {'labels':>6}  other capitalised words"
+    )
     for (provider, clip, mode), ss in sorted(rows.items()):
         avg = lambda k: sum(s[k] for s in ss) / len(ss)  # noqa: E731, B023  (used in this iteration only)
-        print(f"{provider:8} {clip:12} {mode:4} {avg('lines'):5.0f} {avg('person_lines'):6.0f} "
-              f"{avg('named_lines'):5.0f} {avg('name_rate'):5.2f} {avg('labels'):6.1f}  "
-              f"{', '.join(ss[0]['other_names'])}")
+        print(
+            f"{provider:8} {clip:12} {mode:4} {avg('lines'):5.0f} {avg('person_lines'):6.0f} "
+            f"{avg('named_lines'):5.0f} {avg('name_rate'):5.2f} {avg('labels'):6.1f}  "
+            f"{', '.join(ss[0]['other_names'])}"
+        )
     return 0
 
 
@@ -205,7 +270,7 @@ def cmd_judge(args) -> int:
             continue
         step = max(1, len(cues) // args.sample)
         provider, clip, mode, run = key.split("|")
-        for i in range(0, len(cues), step)[:args.sample]:
+        for i in range(0, len(cues), step)[: args.sample]:
             t, text = cues[i]
             grid = grids / f"cast__{provider}__{clip}__{mode}__{run}__{i}.jpg"
             items.append((f"{key}|{i}", clip, float(t), text, grid))
@@ -220,9 +285,12 @@ def cmd_judge(args) -> int:
             if done.get(jkey, {}).get("verdict"):
                 return
             async with sem:
-                done[jkey] = await mb._judge_one("z-ai/glm-5.3-flash", jkey, text,
-                                                 grid, keys["glm"])
+                done[jkey] = await mb._judge_one(
+                    "z-ai/glm-5.3-flash", jkey, text, grid, keys["glm"]
+                )
+
         await asyncio.gather(*[one(it) for it in items])
+
     asyncio.run(run_all())
     store.write_text(json.dumps(done, ensure_ascii=False, indent=1), encoding="utf-8")
     table = {}

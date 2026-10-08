@@ -26,7 +26,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 sys.path.insert(0, str(REPO / "src"))
 
-CHILD = r'''
+CHILD = r"""
 import sys, wx
 sys.path.insert(0, "src")
 from omni_describer_custom.i18n.strings import t
@@ -50,36 +50,44 @@ def step(i=0):
 
 wx.CallLater(2500, step)
 app.MainLoop()
-'''
+"""
 
 
 def main() -> int:
     import nvda_accessibility_check as a11y
+
     alive, detail = a11y.bridge_alive()
     if not alive:
         print(f"NVDA HTTP Bridge not answering: {detail}")
         return 2
     print(f"Bridge up: {detail}")
     box = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
-    env = dict(os.environ, ODC_CONFIG_DIR=str(box / "config"),
-               ODC_PROJECTS_DIR=str(box / "projects"),
-               ODC_LOCALES_DIR=str(box / "locales"))
+    env = dict(
+        os.environ,
+        ODC_CONFIG_DIR=str(box / "config"),
+        ODC_PROJECTS_DIR=str(box / "projects"),
+        ODC_LOCALES_DIR=str(box / "locales"),
+    )
     mark = a11y.speech_now()
-    proc = subprocess.run([sys.executable, "-c", CHILD], cwd=str(REPO),
-                          env=env, timeout=120)
+    proc = subprocess.run([sys.executable, "-c", CHILD], cwd=str(REPO), env=env, timeout=120)
     time.sleep(1.0)
     heard = a11y.speech_since(mark)
     print("NVDA said:")
     for line in heard:
         print("   ", line)
-    percents = sorted({int(m) for line in heard
-                       # NVDA says "40 percent"; a % sign is accepted too.
-                       for m in re.findall(r"\b(\d{1,3})\s*(?:%|percent|peratus)",
-                                           line)})
+    percents = sorted(
+        {
+            int(m)
+            for line in heard
+            # NVDA says "40 percent"; a % sign is accepted too.
+            for m in re.findall(r"\b(\d{1,3})\s*(?:%|percent|peratus)", line)
+        }
+    )
     print(f"\npercentages heard: {percents}")
     ok = proc.returncode == 0 and len(percents) >= 3
-    print("OK: the bar is reported by NVDA" if ok
-          else "NOT OK: fewer than 3 percentages were heard")
+    print(
+        "OK: the bar is reported by NVDA" if ok else "NOT OK: fewer than 3 percentages were heard"
+    )
     return 0 if ok else 1
 
 

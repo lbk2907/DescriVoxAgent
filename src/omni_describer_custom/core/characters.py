@@ -110,7 +110,9 @@ def merge_user_names(ai_cast: list[dict], old_cast: list[dict]) -> list[dict]:
 
 def cast_update_prompt(cast: list[dict], descriptions: list[str], spoken: str = "") -> str:
     known = cast_block(cast) or "KNOWN CHARACTERS: none yet.\n"
-    said = f"\nWords spoken in this part of the video:\n{spoken.strip()}\n" if spoken.strip() else ""
+    said = (
+        f"\nWords spoken in this part of the video:\n{spoken.strip()}\n" if spoken.strip() else ""
+    )
     descs = "\n".join(f"- {d}" for d in descriptions if d.strip())
     return (
         "You keep the list of people in a video for its audio description.\n\n"
@@ -126,8 +128,9 @@ def cast_update_prompt(cast: list[dict], descriptions: list[str], spoken: str = 
     )
 
 
-async def update_cast(ask, cast: list[dict], descriptions: list[str],
-                      spoken: str = "") -> list[dict]:
+async def update_cast(
+    ask, cast: list[dict], descriptions: list[str], spoken: str = ""
+) -> list[dict]:
     """One text-only request; on any failure the cast is kept as it was."""
     if not descriptions:
         return cast
@@ -153,12 +156,18 @@ def load_cast(media_dir: Path | str | None) -> list[dict]:
     if isinstance(data, dict):
         # The Player agent's file before v2.1.0: {name: description},
         # names a person told it - kept as the user's.
-        return [{"name": str(k)[:80], "look": str(v), "by_user": True}
-                for k, v in data.items() if str(k).strip()][:MAX_CAST]
+        return [
+            {"name": str(k)[:80], "look": str(v), "by_user": True}
+            for k, v in data.items()
+            if str(k).strip()
+        ][:MAX_CAST]
     if not isinstance(data, list):
         return []
-    return [{k: v for k, v in c.items() if k in ("name", "look", "by_user")}
-            for c in data if isinstance(c, dict) and str(c.get("name", "")).strip()]
+    return [
+        {k: v for k, v in c.items() if k in ("name", "look", "by_user")}
+        for c in data
+        if isinstance(c, dict) and str(c.get("name", "")).strip()
+    ]
 
 
 def save_cast(media_dir: Path | str | None, cast: list[dict]) -> bool:

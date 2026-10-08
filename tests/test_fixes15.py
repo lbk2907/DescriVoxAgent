@@ -19,6 +19,7 @@ Covered here WITHOUT any network access:
 4. AIEngine wiring + Settings dialog: checkbox only enabled for glm,
    ai.fast_mode persists via SettingsStore.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -32,10 +33,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -47,6 +52,7 @@ def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -58,6 +64,7 @@ def check(name, fn):
 
 
 # ── 1. Verified drawtext recipe ──────────────────────────────────────
+
 
 def test_filter_recipe():
     from omni_describer_custom.core.ai_engine import build_fast_batch_filter
@@ -76,6 +83,7 @@ def test_filter_recipe():
 
 # ── 2. Timestamp snapping ────────────────────────────────────────────
 
+
 def test_snap_timestamps():
     from omni_describer_custom.core.ai_engine import snap_timestamps
 
@@ -93,8 +101,7 @@ def test_snap_timestamps():
         (3.0, "misread 3 -> nearest 3.0"),
     ], out
     # empty grid -> untouched (sorted only)
-    assert snap_timestamps(events, []) == sorted(
-        events, key=lambda x: x[0])
+    assert snap_timestamps(events, []) == sorted(events, key=lambda x: x[0])
     # empty text entries dropped
     assert snap_timestamps([(1.0, "")], grid) == []
     # unsorted grid input is normalized
@@ -105,9 +112,7 @@ def test_snap_timestamps():
 # ── 3. Loopback: the OpenAI-compatible one-shot contract ────────────
 
 REPLY_LINES = (
-    "0:00:00 - Opening scene.\n"
-    "0:00:03 - The man walks in.\n"
-    "0:00:09 - This has no nearby frame.\n"
+    "0:00:00 - Opening scene.\n0:00:03 - The man walks in.\n0:00:09 - This has no nearby frame.\n"
 )
 
 
@@ -120,23 +125,31 @@ class _FastStub(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length) or b"{}")
-        self.__class__.captured.append({
-            "path": self.path,
-            "auth": self.headers.get("Authorization", ""),
-            "body": body,
-        })
+        self.__class__.captured.append(
+            {
+                "path": self.path,
+                "auth": self.headers.get("Authorization", ""),
+                "body": body,
+            }
+        )
         if self.headers.get("Authorization") != "Bearer sk-or-v1-test":
             self.send_response(401)
             self.end_headers()
             self.wfile.write(b'{"error":{"message":"bad key"}}')
             return
-        payload = json.dumps({
-            "id": "chatcmpl-fast1",
-            "model": body.get("model", ""),
-            "choices": [{"index": 0, "finish_reason": "stop",
-                         "message": {"role": "assistant",
-                                     "content": REPLY_LINES}}],
-        }).encode()
+        payload = json.dumps(
+            {
+                "id": "chatcmpl-fast1",
+                "model": body.get("model", ""),
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": REPLY_LINES},
+                    }
+                ],
+            }
+        ).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -155,6 +168,7 @@ def _run(coro_factory):
 
 def _make_images(tmp: Path, n: int) -> list[str]:
     from PIL import Image
+
     out = []
     for i in range(n):
         p = tmp / f"frame_{i:05d}.jpg"
@@ -175,12 +189,13 @@ def test_glm_fast_batch_single():
         th = threading.Thread(target=server.serve_forever, daemon=True)
         th.start()
         try:
-            prov = GLMProvider(api_key="sk-or-v1-test",
-                               base_url=f"http://127.0.0.1:{port}")
+            prov = GLMProvider(api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
             expected = [0.0, 1.0, 2.0]
-            pairs = _run(lambda: prov.describe_video_frames_batch(
-                frames, "Describe the video.",
-                expected_times=expected))
+            pairs = _run(
+                lambda: prov.describe_video_frames_batch(
+                    frames, "Describe the video.", expected_times=expected
+                )
+            )
             # 0:00:00 exact; reply stamp 3s is past the last frame and
             # snaps to 2.0 (|3-2|=1 < |3-1|=2); 9s -> dropped (>1.5s)
             assert pairs == [
@@ -195,11 +210,11 @@ def test_glm_fast_batch_single():
             assert body["model"] == "z-ai/glm-5.3-flash", body["model"]
             content = body["messages"][0]["content"]
             kinds = [b["type"] for b in content]
-            assert kinds == ["image_url", "image_url", "image_url", "text"], \
-                kinds
+            assert kinds == ["image_url", "image_url", "image_url", "text"], kinds
             for b in content[:3]:
-                assert b["image_url"]["url"].startswith(
-                    "data:image/jpeg;base64,"), b["image_url"]["url"][:40]
+                assert b["image_url"]["url"].startswith("data:image/jpeg;base64,"), b["image_url"][
+                    "url"
+                ][:40]
             text = content[3]["text"]
             assert "H:MM:SS" in text and "BURNED" in text.upper(), text
         finally:
@@ -217,12 +232,13 @@ def test_glm_fast_batch_autobatch():
         th = threading.Thread(target=server.serve_forever, daemon=True)
         th.start()
         try:
-            prov = GLMProvider(api_key="sk-or-v1-test",
-                               base_url=f"http://127.0.0.1:{port}")
+            prov = GLMProvider(api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
             expected = [float(i) for i in range(5)]
-            pairs = _run(lambda: prov.describe_video_frames_batch(
-                frames, "Describe the video.",
-                expected_times=expected))
+            pairs = _run(
+                lambda: prov.describe_video_frames_batch(
+                    frames, "Describe the video.", expected_times=expected
+                )
+            )
             # 5 frames <= 150 -> still ONE request, correct contract
             assert len(_FastStub.captured) == 1, len(_FastStub.captured)
             content = _FastStub.captured[0]["body"]["messages"][0]["content"]
@@ -240,8 +256,7 @@ def test_fast_batch_cancelled():
 
     prov = GLMProvider(api_key="sk-or-v1-test")
     try:
-        _run(lambda: prov.describe_video_frames_batch(
-            ["x.jpg"], "p", is_cancelled=lambda: True))
+        _run(lambda: prov.describe_video_frames_batch(["x.jpg"], "p", is_cancelled=lambda: True))
         raise AssertionError("expected RuntimeError for cancelled")
     except RuntimeError as e:
         assert "cancel" in str(e).lower(), e
@@ -259,29 +274,27 @@ def test_glm_video_full_loopback():
         th = threading.Thread(target=server.serve_forever, daemon=True)
         th.start()
         try:
-            prov = GLMProvider(api_key="sk-or-v1-test",
-                               base_url=f"http://127.0.0.1:{port}")
+            prov = GLMProvider(api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
             statuses = []
-            pairs = _run(lambda: prov.describe_video_full(
-                str(video), "Describe the video.",
-                on_status=statuses.append))
-            assert statuses[0] == "encoding" and "parsing" in statuses, \
-                statuses
+            pairs = _run(
+                lambda: prov.describe_video_full(
+                    str(video), "Describe the video.", on_status=statuses.append
+                )
+            )
+            assert statuses[0] == "encoding" and "parsing" in statuses, statuses
             assert (0.0, "Opening scene.") in pairs, pairs
             cap = _FastStub.captured[0]
             content = cap["body"]["messages"][0]["content"]
             kinds = [b["type"] for b in content]
             assert kinds == ["text", "video_url", "text"], kinds
-            assert content[1]["video_url"]["url"].startswith(
-                "data:video/mp4;base64,"), kinds
+            assert content[1]["video_url"]["url"].startswith("data:video/mp4;base64,"), kinds
             # oversized short video (probe fails on fake bytes, so the
             # guard is tripped directly in _describe_one_part) → the
             # compression path runs and fails on fake bytes with a
             # clear error (verifies the path is wired).
             prov.MAX_VIDEO_BYTES = 4
             try:
-                _run(lambda: prov.describe_video_full(
-                    str(video), "p"))
+                _run(lambda: prov.describe_video_full(str(video), "p"))
                 raise AssertionError("expected size guard to trigger")
             except RuntimeError as e:
                 assert "compression failed" in str(e), e
@@ -290,6 +303,7 @@ def test_glm_video_full_loopback():
 
 
 # ── 4. Engine + settings wiring ──────────────────────────────────────
+
 
 def test_engine_wires_fast_batch():
     from omni_describer_custom.core.ai_engine import AIEngine
@@ -303,19 +317,18 @@ def test_engine_wires_fast_batch():
         with tempfile.TemporaryDirectory() as td:
             frames = _make_images(Path(td), 2)
             engine = AIEngine()
-            engine.set_provider(
-                "glm", api_key="sk-or-v1-test",
-                base_url=f"http://127.0.0.1:{port}")
-            pairs = _run(lambda: engine.describe_video_frames_batch(
-                frames, "Describe the video.",
-                expected_times=[0.0, 1.0]))
+            engine.set_provider("glm", api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
+            pairs = _run(
+                lambda: engine.describe_video_frames_batch(
+                    frames, "Describe the video.", expected_times=[0.0, 1.0]
+                )
+            )
             assert pairs and pairs[0][0] == 0.0, pairs
             # a provider without the method raises a clear ValueError
             engine2 = AIEngine()
             engine2.set_provider("openai", api_key="k")
             try:
-                _run(lambda: engine2.describe_video_frames_batch(
-                    frames, "p"))
+                _run(lambda: engine2.describe_video_frames_batch(frames, "p"))
                 raise AssertionError("expected ValueError for openai")
             except ValueError as e:
                 assert "one-shot" in str(e), e
@@ -352,21 +365,25 @@ def test_settings_fast_mode_ui():
 
 
 def test_fetch_openrouter_video_models_loopback():
-    from omni_describer_custom.core.ai_engine import (
-        fetch_openrouter_video_models)
+    from omni_describer_custom.core.ai_engine import fetch_openrouter_video_models
 
     class _CatalogStub(BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
 
         def do_GET(self):
-            body = json.dumps({"data": [
-                {"id": "text/only",
-                 "architecture": {"input_modalities": ["text"]}},
-                {"id": "video/model",
-                 "architecture": {"input_modalities": ["text", "video"]}},
-                {"id": "noarch/model"},
-            ]}).encode()
+            body = json.dumps(
+                {
+                    "data": [
+                        {"id": "text/only", "architecture": {"input_modalities": ["text"]}},
+                        {
+                            "id": "video/model",
+                            "architecture": {"input_modalities": ["text", "video"]},
+                        },
+                        {"id": "noarch/model"},
+                    ]
+                }
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -378,8 +395,9 @@ def test_fetch_openrouter_video_models_loopback():
     th = threading.Thread(target=server.serve_forever, daemon=True)
     th.start()
     try:
-        models = _run(lambda: fetch_openrouter_video_models(
-            catalog_url=f"http://127.0.0.1:{port}/models"))
+        models = _run(
+            lambda: fetch_openrouter_video_models(catalog_url=f"http://127.0.0.1:{port}/models")
+        )
         assert models == ["video/model"], models
     finally:
         server.shutdown()
@@ -412,24 +430,19 @@ def test_provider_labels_and_select():
 
 
 def main() -> int:
-    check("fast-batch drawtext recipe (ffmpeg 8.x verified)",
-          test_filter_recipe)
+    check("fast-batch drawtext recipe (ffmpeg 8.x verified)", test_filter_recipe)
     check("snap_timestamps nearest-grid correction", test_snap_timestamps)
-    check("glm fast batch single request (loopback)",
-          test_glm_fast_batch_single)
-    check("glm fast batch auto-batch + merge (loopback)",
-          test_glm_fast_batch_autobatch)
+    check("glm fast batch single request (loopback)", test_glm_fast_batch_single)
+    check("glm fast batch auto-batch + merge (loopback)", test_glm_fast_batch_autobatch)
     check("fast batch cancelled raises", test_fast_batch_cancelled)
-    check("glm full-video upload via video_url (loopback)",
-          test_glm_video_full_loopback)
-    check("engine wires fast batch + clear ValueError",
-          test_engine_wires_fast_batch)
-    check("settings fast-mode checkbox glm-only + persistence",
-          test_settings_fast_mode_ui)
-    check("fetch video-capable models from catalog (loopback)",
-          test_fetch_openrouter_video_models_loopback)
-    check("provider labels + select_provider helper",
-          test_provider_labels_and_select)
+    check("glm full-video upload via video_url (loopback)", test_glm_video_full_loopback)
+    check("engine wires fast batch + clear ValueError", test_engine_wires_fast_batch)
+    check("settings fast-mode checkbox glm-only + persistence", test_settings_fast_mode_ui)
+    check(
+        "fetch video-capable models from catalog (loopback)",
+        test_fetch_openrouter_video_models_loopback,
+    )
+    check("provider labels + select_provider helper", test_provider_labels_and_select)
     print(f"RESULT: {ok} passed, {fail} failed")
     return 1 if fail else 0
 

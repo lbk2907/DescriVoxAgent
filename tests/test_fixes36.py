@@ -16,6 +16,7 @@ Audit findings (Sep 2026), each reproduced before the fix:
 
 Run: python tests/test_fixes36.py   (exits non-zero on any failure)
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
@@ -26,10 +27,14 @@ import threading
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 _CFG = tempfile.mkdtemp(prefix="odc_f36_env_")
@@ -94,6 +99,7 @@ def test_save_is_atomic_and_leaves_no_temp():
     def spy(src, dst):
         calls.append((str(src), str(dst)))
         return real_replace(src, dst)
+
     ss.os.replace = spy
     try:
         s.set("general.language", "xx")
@@ -112,6 +118,7 @@ def test_failed_write_keeps_old_file():
 
     def boom(src, dst):
         raise OSError("disk full (simulated)")
+
     ss.os.replace = boom
     try:
         s.set("general.language", "zz")
@@ -130,8 +137,9 @@ def test_undecryptable_key_blob_is_kept():
     s = SettingsStore(str(d))
     assert s.get_ai_provider("glm")["api_key"] == "", "getter must give ''"
     s.set("general.language", "ms")
-    assert _raw(d)["ai"]["providers"]["glm"].get("api_key_enc") == "dpapi:AAAA", \
+    assert _raw(d)["ai"]["providers"]["glm"].get("api_key_enc") == "dpapi:AAAA", (
         "blob dropped on save"
+    )
     # Entering a new key replaces it.
     s.set_ai_provider("glm", {"api_key": FAKE, "model": "m"})
     assert _raw(d)["ai"]["providers"]["glm"]["api_key_enc"] != "dpapi:AAAA"
@@ -141,16 +149,16 @@ def test_undecryptable_key_blob_is_kept():
 def test_instances_share_state_no_lost_update():
     d = _dir()
     main = SettingsStore(str(d))
-    player = SettingsStore(str(d))       # opened before the key is set
+    player = SettingsStore(str(d))  # opened before the key is set
     main.set_ai_provider("gemini", {"api_key": FAKE, "model": "m"})
     player.set("player.pause_for_narration", False)
     fresh = SettingsStore(str(d))
-    assert fresh.get_ai_provider("gemini").get("api_key") == FAKE, \
-        "player save lost the key"
+    assert fresh.get_ai_provider("gemini").get("api_key") == FAKE, "player save lost the key"
     assert fresh.get("player.pause_for_narration") is False
     main.set("general.language", "ms")
-    assert SettingsStore(str(d)).get("player.pause_for_narration") is False, \
+    assert SettingsStore(str(d)).get("player.pause_for_narration") is False, (
         "main save undid the player toggle"
+    )
 
 
 def test_file_changed_on_disk_is_reloaded():
@@ -180,6 +188,7 @@ def test_threads_do_not_corrupt():
                 stores[i].set(f"x.k{i}", k)
         except Exception as e:  # pragma: no cover
             errs.append(repr(e))
+
     ts = [threading.Thread(target=work, args=(i,)) for i in range(4)]
     for t in ts:
         t.start()
@@ -192,21 +201,28 @@ def test_threads_do_not_corrupt():
 
 def test_defaults_merged_and_bad_sections_repaired():
     d = _dir()
-    (d / "settings.json").write_text(json.dumps({
-        "general": "oops",
-        "ai": {"providers": {"glm": {"api_key": "", "model": "mine"}}},
-    }), encoding="utf-8")
+    (d / "settings.json").write_text(
+        json.dumps(
+            {
+                "general": "oops",
+                "ai": {"providers": {"glm": {"api_key": "", "model": "mine"}}},
+            }
+        ),
+        encoding="utf-8",
+    )
     s = SettingsStore(str(d))
-    assert s.get("general.chunk_seconds") == 300   # v1.8.6 default
+    assert s.get("general.chunk_seconds") == 300  # v1.8.6 default
     assert s.get("player.pause_for_narration") is True
-    assert s.get_ai_provider("glm") == {"api_key": "", "model": "mine"}, \
+    assert s.get_ai_provider("glm") == {"api_key": "", "model": "mine"}, (
         "saved provider config must not be altered"
+    )
     assert "gemini" in s.get("ai.providers")
-    s.set("general.language", "ms")          # used to raise TypeError
-    s.set("general.language.sub", 1)          # scalar in the way
+    s.set("general.language", "ms")  # used to raise TypeError
+    s.set("general.language.sub", 1)  # scalar in the way
     assert s.get("general.language.sub") == 1
-    assert not list(d.glob("settings.json.corrupt-*")), \
+    assert not list(d.glob("settings.json.corrupt-*")), (
         "a valid file must not be treated as corrupt"
+    )
 
 
 def test_dpapi_failure_does_not_write_xor():
@@ -221,8 +237,8 @@ def test_dpapi_failure_does_not_write_xor():
         def CryptProtectData(*a, **k):
             raise RuntimeError("simulated DPAPI failure")
 
-        CryptUnprotectData = staticmethod(
-            getattr(real, "CryptUnprotectData", lambda *a: None))
+        CryptUnprotectData = staticmethod(getattr(real, "CryptUnprotectData", lambda *a: None))
+
     ss.win32crypt = Broken
     try:
         s.set_ai_provider("glm", {"api_key": FAKE, "model": "m"})
@@ -236,9 +252,12 @@ def test_dpapi_failure_does_not_write_xor():
 
 def test_legacy_xor_blob_still_read_and_migrated():
     d = _dir()
-    (d / "settings.json").write_text(json.dumps({"ai": {"providers": {
-        "glm": {"api_key_enc": ss._simple_encrypt(FAKE), "model": "m"}}}}),
-        encoding="utf-8")
+    (d / "settings.json").write_text(
+        json.dumps(
+            {"ai": {"providers": {"glm": {"api_key_enc": ss._simple_encrypt(FAKE), "model": "m"}}}}
+        ),
+        encoding="utf-8",
+    )
     s = SettingsStore(str(d))
     assert s.get_ai_provider("glm")["api_key"] == FAKE
     s.set("general.language", "ms")
@@ -249,22 +268,17 @@ def test_legacy_xor_blob_still_read_and_migrated():
 
 if __name__ == "__main__":
     print("test_fixes36: settings store safety")
-    check("truncated file is kept, not overwritten",
-          test_truncated_file_is_kept_not_overwritten)
-    check("non-object top level is set aside",
-          test_non_object_top_level_is_set_aside)
+    check("truncated file is kept, not overwritten", test_truncated_file_is_kept_not_overwritten)
+    check("non-object top level is set aside", test_non_object_top_level_is_set_aside)
     check("save is atomic and leaves no temp", test_save_is_atomic_and_leaves_no_temp)
     check("failed write keeps old file", test_failed_write_keeps_old_file)
     check("undecryptable key blob is kept", test_undecryptable_key_blob_is_kept)
-    check("instances share state (no lost update)",
-          test_instances_share_state_no_lost_update)
+    check("instances share state (no lost update)", test_instances_share_state_no_lost_update)
     check("file changed on disk is reloaded", test_file_changed_on_disk_is_reloaded)
     check("ODC_CONFIG_DIR still honoured", test_odc_config_dir_env_still_used)
     check("threads do not corrupt", test_threads_do_not_corrupt)
-    check("defaults merged, bad sections repaired",
-          test_defaults_merged_and_bad_sections_repaired)
+    check("defaults merged, bad sections repaired", test_defaults_merged_and_bad_sections_repaired)
     check("DPAPI failure does not write XOR", test_dpapi_failure_does_not_write_xor)
-    check("legacy XOR blob read and migrated",
-          test_legacy_xor_blob_still_read_and_migrated)
+    check("legacy XOR blob read and migrated", test_legacy_xor_blob_still_read_and_migrated)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

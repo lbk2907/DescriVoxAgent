@@ -15,6 +15,7 @@ one from the app. What must hold, each pinned here:
 No network: "downloads" are served from the real bundled yt-dlp.exe,
 so the checksum and version checks run against a real program.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import hashlib
 import io
@@ -25,10 +26,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_t40_cfg_"))
 os.environ.setdefault("ODC_PROJECTS_DIR", tempfile.mkdtemp(prefix="odc_t40_prj_"))
@@ -58,17 +63,16 @@ def check(name, fn):
 def fake_fetch(sums_sha: str, exe_bytes: bytes):
     def fetch(url: str) -> bytes:
         if url.endswith("SHA2-256SUMS"):
-            return (f"{sums_sha}  yt-dlp.exe\n"
-                    f"{'0' * 64}  yt-dlp\n").encode()
+            return (f"{sums_sha}  yt-dlp.exe\n{'0' * 64}  yt-dlp\n").encode()
         if url.endswith("yt-dlp.exe"):
             return exe_bytes
         raise AssertionError(f"unexpected URL {url}")
+
     return fetch
 
 
 def test_verified_update_is_installed_and_used():
-    version = updater.install(REAL_VERSION,
-                              fetch=fake_fetch(REAL_SHA, REAL_BYTES))
+    version = updater.install(REAL_VERSION, fetch=fake_fetch(REAL_SHA, REAL_BYTES))
     assert version == REAL_VERSION
     installed = tools.user_tools_dir() / "yt-dlp.exe"
     assert installed.is_file()
@@ -105,8 +109,9 @@ def test_tampered_update_is_ignored():
     with open(installed, "ab") as f:
         f.write(b"tamper")
     os.utime(installed, (time.time() + 5, time.time() + 5))
-    assert tools.find_tool("yt-dlp") == REAL, \
+    assert tools.find_tool("yt-dlp") == REAL, (
         "a copy that no longer matches its verified hash was used"
+    )
 
 
 def test_revert_goes_back_to_bundled():
@@ -140,6 +145,7 @@ def test_version_compare_and_weekly_rhythm():
 
 def test_menu_dialog_and_weekly_notice():
     import wx
+
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.ui import update_dialog
     from omni_describer_custom.ui.main_frame import MainFrame
@@ -149,14 +155,16 @@ def test_menu_dialog_and_weekly_notice():
         item = frame.GetMenuBar().FindItemById(frame._id_check_updates)
         assert item is not None, "no Check for Updates menu item"
 
-        dlg = update_dialog.UpdateDialog(frame, frame.settings,
-                                         check_on_open=False)
-        for ctrl in (dlg.check_btn, dlg.update_btn, dlg.revert_btn,
-                     dlg.close_btn):
+        dlg = update_dialog.UpdateDialog(frame, frame.settings, check_on_open=False)
+        for ctrl in (dlg.check_btn, dlg.update_btn, dlg.revert_btn, dlg.close_btn):
             assert ctrl.GetLabel().replace("&", "").strip(), "unlabelled button"
         assert dlg.status_box.GetName().strip(), "status box has no NVDA name"
-        st = {"in_use_version": "2026.08.19", "bundled_version": "2026.08.19",
-              "using_update": False, "in_use_path": REAL}
+        st = {
+            "in_use_version": "2026.08.19",
+            "bundled_version": "2026.08.19",
+            "using_update": False,
+            "in_use_path": REAL,
+        }
         dlg._check_done(st, "2026.10.02", "2026.10.02", "")
         text = dlg.status_box.GetValue()
         assert "2026.10.02" in text and dlg.update_btn.IsEnabled(), text
@@ -171,6 +179,7 @@ def test_menu_dialog_and_weekly_notice():
         def fake_show(self):
             opened["n"] += 1
             return wx.ID_CLOSE
+
         update_dialog.UpdateDialog.ShowModal = fake_show
         real_latest = updater.latest_version
         updater.latest_version = lambda fetch=None: "2026.08.19"
@@ -196,10 +205,12 @@ def test_menu_dialog_and_weekly_notice():
             updater.available_update = real_available
             updater.latest_version = real_latest
         assert "2026.10.02" in frame.GetStatusBar().GetStatusText()
-        assert not (tools.user_tools_dir() / "yt-dlp.exe").exists(), \
+        assert not (tools.user_tools_dir() / "yt-dlp.exe").exists(), (
             "the weekly check downloaded something by itself"
-        assert not updater.weekly_check_due(frame.settings), \
+        )
+        assert not updater.weekly_check_due(frame.settings), (
             "the check was not recorded, so it would run every start"
+        )
     finally:
         for _ in range(30):
             wx.Yield()
@@ -216,8 +227,10 @@ def test_native_menus_open_on_their_real_first_item():
     reads the NATIVE menu, as NVDA does."""
     import win32gui
     import wx
+
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.ui.main_frame import MainFrame
+
     frame = MainFrame()
     try:
         frame.Show()
@@ -230,13 +243,14 @@ def test_native_menus_open_on_their_real_first_item():
             wx_items = frame.GetMenuBar().GetMenu(pos).GetMenuItemCount()
             native = win32gui.GetMenuItemCount(sub)
             import ctypes
+
             buf = ctypes.create_unicode_buffer(256)
             ctypes.windll.user32.GetMenuStringW(sub, 0, buf, 256, 0x400)
             label = buf.value.replace("&", "")
             assert native == wx_items, (
-                f"menu {pos}: Windows shows {native} items, wx has {wx_items}")
-            assert label.startswith(first), (
-                f"menu {pos} opens on {label!r}, not {first!r}")
+                f"menu {pos}: Windows shows {native} items, wx has {wx_items}"
+            )
+            assert label.startswith(first), f"menu {pos} opens on {label!r}, not {first!r}"
     finally:
         frame.Destroy()
         for _ in range(10):
@@ -255,8 +269,7 @@ def main() -> int:
     check("Use bundled version goes back", test_revert_goes_back_to_bundled)
     check("version compare and the weekly rhythm", test_version_compare_and_weekly_rhythm)
     check("menu, dialog and weekly notice", test_menu_dialog_and_weekly_notice)
-    check("menus open on their real first item",
-          test_native_menus_open_on_their_real_first_item)
+    check("menus open on their real first item", test_native_menus_open_on_their_real_first_item)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

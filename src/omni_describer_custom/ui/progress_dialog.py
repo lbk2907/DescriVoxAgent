@@ -40,16 +40,21 @@ from ..i18n.strings import t
 
 logger = logging.getLogger(__name__)
 
-_WRAP = 420          # message width in pixels before it wraps
-_MESSAGE_LINES = 3   # room kept for the message, so the dialog does not jump
+_WRAP = 420  # message width in pixels before it wraps
+_MESSAGE_LINES = 3  # room kept for the message, so the dialog does not jump
 
 
 class AccessibleProgressDialog(wx.Dialog):
     """Drop-in for the subset of wx.ProgressDialog this app uses."""
 
-    def __init__(self, title: str, message: str, maximum: int = 100,
-                 parent: wx.Window | None = None,
-                 style: int = wx.PD_APP_MODAL | wx.PD_CAN_ABORT):
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        maximum: int = 100,
+        parent: wx.Window | None = None,
+        style: int = wx.PD_APP_MODAL | wx.PD_CAN_ABORT,
+    ):
         # `style` is accepted for drop-in compatibility: this dialog is
         # always app-modal and always has Cancel.
         super().__init__(parent, title=title, style=wx.CAPTION)
@@ -64,8 +69,9 @@ class AccessibleProgressDialog(wx.Dialog):
         line_h = self._text.GetCharHeight()
         self._text.SetMinSize((_WRAP, line_h * _MESSAGE_LINES))
         self._bar_label = wx.StaticText(self, label=t("progress.bar_label"))
-        self._gauge = wx.Gauge(self, range=100, size=(_WRAP, -1),
-                               style=wx.GA_HORIZONTAL | wx.GA_SMOOTH)
+        self._gauge = wx.Gauge(
+            self, range=100, size=(_WRAP, -1), style=wx.GA_HORIZONTAL | wx.GA_SMOOTH
+        )
         self._cancel = wx.Button(self, wx.ID_CANCEL, t("cancel"))
 
         box = wx.BoxSizer(wx.VERTICAL)
@@ -141,7 +147,7 @@ class AccessibleProgressDialog(wx.Dialog):
     def _set_message(self, text: str) -> None:
         text = str(text)
         if text == self._message:
-            return          # pitfall 65: never rewrite unchanged text
+            return  # pitfall 65: never rewrite unchanged text
         self._message = text
         self._text.SetLabelText(text)
         self._text.Wrap(_WRAP)

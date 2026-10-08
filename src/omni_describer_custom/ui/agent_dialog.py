@@ -34,6 +34,7 @@ def speak(text: str) -> None:
     off what is being read — the same route as progress phases."""
     try:
         from ..core.speech import get_speech
+
         get_speech().speak(text, interrupt=False)
     except Exception:
         pass
@@ -46,19 +47,21 @@ def describe_proposal(p, descriptions) -> str:
         old = descriptions[p.index][1]
     if p.action == "rename":
         from ..core.characters import rename_in_texts
+
         _texts, count = rename_in_texts([d for _, d in descriptions], p.old, p.text)
-        return t("agent.proposal_rename", old=p.old, new=p.text, count=count,
-                 reason=p.reason)
-    when = _clock(p.time if p.time is not None else
-                  (descriptions[p.index][0] if old else 0))
-    return t(f"agent.proposal_{p.action}", old=old, new=p.text, when=when,
-             reason=p.reason)
+        return t("agent.proposal_rename", old=p.old, new=p.text, count=count, reason=p.reason)
+    when = _clock(p.time if p.time is not None else (descriptions[p.index][0] if old else 0))
+    return t(f"agent.proposal_{p.action}", old=old, new=p.text, when=when, reason=p.reason)
 
 
 class AgentDialog(wx.Dialog):
     def __init__(self, player, agent):
-        super().__init__(player, title=t("agent.title"), size=(620, 480),
-                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(
+            player,
+            title=t("agent.title"),
+            size=(620, 480),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self.player, self.agent = player, agent
         self._busy = False
         self._last_step = ""
@@ -66,14 +69,16 @@ class AgentDialog(wx.Dialog):
 
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(wx.StaticText(panel, label=t("agent.conversation")),
-                  0, wx.ALL, 5)
-        self.log = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
-                               size=(-1, 220), name=t("agent.conversation"))
+        sizer.Add(wx.StaticText(panel, label=t("agent.conversation")), 0, wx.ALL, 5)
+        self.log = wx.TextCtrl(
+            panel,
+            style=wx.TE_MULTILINE | wx.TE_READONLY,
+            size=(-1, 220),
+            name=t("agent.conversation"),
+        )
         sizer.Add(self.log, 1, wx.ALL | wx.EXPAND, 5)
         sizer.Add(wx.StaticText(panel, label=t("agent.question")), 0, wx.ALL, 5)
-        self.question = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER,
-                                    name=t("agent.question"))
+        self.question = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER, name=t("agent.question"))
         sizer.Add(self.question, 0, wx.ALL | wx.EXPAND, 5)
         row = wx.BoxSizer(wx.HORIZONTAL)
         self.ask_btn = wx.Button(panel, label=t("agent.ask_btn"))
@@ -110,10 +115,9 @@ class AgentDialog(wx.Dialog):
     # ── speaking ─────────────────────────────────────────────────
     def _on_step(self, code: str, args: dict) -> None:
         """Called on the worker thread for each tool the agent uses."""
-        text = t(f"agent.step_{code}", at=_clock(args.get("at", 0)),
-                 end=_clock(args.get("end", 0)))
+        text = t(f"agent.step_{code}", at=_clock(args.get("at", 0)), end=_clock(args.get("end", 0)))
         if text == self._last_step:
-            return       # six looks in a row are said once
+            return  # six looks in a row are said once
         self._last_step = text
         wx.CallAfter(self._status, text, True)
 
@@ -132,8 +136,7 @@ class AgentDialog(wx.Dialog):
 
     # ── asking ───────────────────────────────────────────────────
     def submit(self, question: str | None = None) -> None:
-        question = (question if question is not None
-                    else self.question.GetValue()).strip()
+        question = (question if question is not None else self.question.GetValue()).strip()
         if self._busy:
             return
         if not question:
@@ -169,8 +172,7 @@ class AgentDialog(wx.Dialog):
         if not self._busy or self._stop.is_set():
             return
         self._stop.set()
-        speak(t("agent.check_all_stopping") if self._checking
-              else t("agent.stopping"))
+        speak(t("agent.check_all_stopping") if self._checking else t("agent.stopping"))
 
     def close(self) -> None:
         """Close, Esc, Alt+F4: stop whatever is running first (v1.9.6) —
@@ -189,10 +191,12 @@ class AgentDialog(wx.Dialog):
             except Exception as e:
                 logger.error("Agent failed: %s", e)
                 from ..core.agent import Reply
+
                 reply = Reply(error=str(e))
             finally:
                 loop.close()
             wx.CallAfter(self._done, reply)
+
         threading.Thread(target=work, daemon=True).start()
 
     @staticmethod
@@ -200,9 +204,11 @@ class AgentDialog(wx.Dialog):
         """Any failure in words (v1.9.6): the one translator, so no JSON,
         URL or account id is read out."""
         from ..core.agent import BUSY
+
         if error == BUSY:
             return t("agent.still_working")
         from ..core.ai_engine import user_error_text
+
         return user_error_text(error)
 
     def _done(self, reply) -> None:
@@ -218,10 +224,11 @@ class AgentDialog(wx.Dialog):
             self.ask_btn.Enable()
             self.SetTitle(t("agent.title"))
             stopped = reply.error == "cancelled"
-            text = (t("agent.check_all_stopped", count=len(reply.proposals))
-                    if stopped else
-                    t("agent.check_all_done", count=len(reply.proposals),
-                      cost=f"{reply.cost:.3f}"))
+            text = (
+                t("agent.check_all_stopped", count=len(reply.proposals))
+                if stopped
+                else t("agent.check_all_done", count=len(reply.proposals), cost=f"{reply.cost:.3f}")
+            )
             if reply.error and not stopped:
                 text += " " + self._error_text(reply.error)
             self._append(text)
@@ -232,8 +239,8 @@ class AgentDialog(wx.Dialog):
             return
         if reply.needs_confirmation and not self._stop.is_set():
             from .dialogs import ask_yes_no
-            if ask_yes_no(self, t("agent.over_budget", cost=f"{reply.cost:.3f}"),
-                          t("agent.title")):
+
+            if ask_yes_no(self, t("agent.over_budget", cost=f"{reply.cost:.3f}"), t("agent.title")):
                 speak(t("agent.thinking"))
                 self._asking = True
                 self._stop = stop = threading.Event()
@@ -247,7 +254,7 @@ class AgentDialog(wx.Dialog):
         self.ask_btn.Enable()
         self.SetTitle(t("agent.title"))
         if reply.error == "cancelled":
-            text = t("agent.stopped")       # asked for, not a failure
+            text = t("agent.stopped")  # asked for, not a failure
         elif reply.error:
             text = self._error_text(reply.error)
         elif reply.answer:
@@ -281,10 +288,17 @@ class AgentDialog(wx.Dialog):
             return
         stretches = max(1, int(self.agent.ctx.length // 60) + 1)
         from .dialogs import ask_yes_no
-        if not ask_yes_no(self, t("agent.check_all_confirm", count=count,
-                                  minutes=max(1, round(stretches * 20 / 60)),
-                                  cost=f"{stretches * 0.004:.2f}"),
-                          t("agent.title")):
+
+        if not ask_yes_no(
+            self,
+            t(
+                "agent.check_all_confirm",
+                count=count,
+                minutes=max(1, round(stretches * 20 / 60)),
+                cost=f"{stretches * 0.004:.2f}",
+            ),
+            t("agent.title"),
+        ):
             return
         self._busy = self._checking = True
         self._stop = stop = threading.Event()
@@ -293,10 +307,9 @@ class AgentDialog(wx.Dialog):
         self._append(t("agent.check_all_started", count=count))
 
         def progress(n, total):
-            wx.CallAfter(self._status, t("agent.check_all_progress",
-                                         n=n, total=total), True)
-        self._run(lambda: self.agent.check_all(
-            on_progress=progress, is_cancelled=stop.is_set))
+            wx.CallAfter(self._status, t("agent.check_all_progress", n=n, total=total), True)
+
+        self._run(lambda: self.agent.check_all(on_progress=progress, is_cancelled=stop.is_set))
 
     # ── approving ────────────────────────────────────────────────
     def decide(self, proposals) -> int:
@@ -306,14 +319,22 @@ class AgentDialog(wx.Dialog):
         counts = {}
         for p in proposals:
             counts[p.action] = counts.get(p.action, 0) + 1
-        summary = t("agent.summary", count=len(proposals), detail=", ".join(
-            t(f"agent.kind_{k}", n=n) for k, n in counts.items()))
+        summary = t(
+            "agent.summary",
+            count=len(proposals),
+            detail=", ".join(t(f"agent.kind_{k}", n=n) for k, n in counts.items()),
+        )
         lines = "\n".join(f"- {describe_proposal(p, descs)}" for p in proposals)
         speak(summary)
-        dlg = wx.MessageDialog(self, f"{summary}\n\n{lines}", t("agent.title"),
-                               wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
-        dlg.SetYesNoCancelLabels(t("agent.accept_all"), t("agent.review_each"),
-                                 t("agent.reject_all"))
+        dlg = wx.MessageDialog(
+            self,
+            f"{summary}\n\n{lines}",
+            t("agent.title"),
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
+        )
+        dlg.SetYesNoCancelLabels(
+            t("agent.accept_all"), t("agent.review_each"), t("agent.reject_all")
+        )
         choice = dlg.ShowModal()
         dlg.Destroy()
         if choice == wx.ID_YES:
@@ -322,12 +343,19 @@ class AgentDialog(wx.Dialog):
             chosen = []
             for i, p in enumerate(proposals, 1):
                 one = wx.MessageDialog(
-                    self, t("agent.review_one", n=i, total=len(proposals),
-                            text=describe_proposal(p, descs)),
-                    t("agent.title"), wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
-                one.SetYesNoCancelLabels(t("agent.accept_one"),
-                                         t("agent.skip_one"),
-                                         t("agent.stop_review"))
+                    self,
+                    t(
+                        "agent.review_one",
+                        n=i,
+                        total=len(proposals),
+                        text=describe_proposal(p, descs),
+                    ),
+                    t("agent.title"),
+                    wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
+                )
+                one.SetYesNoCancelLabels(
+                    t("agent.accept_one"), t("agent.skip_one"), t("agent.stop_review")
+                )
                 answer = one.ShowModal()
                 one.Destroy()
                 if answer == wx.ID_YES:
@@ -335,10 +363,9 @@ class AgentDialog(wx.Dialog):
                 elif answer == wx.ID_CANCEL:
                     break
         else:
-            chosen = []   # Reject all, Esc
+            chosen = []  # Reject all, Esc
         applied = self.player.apply_agent_changes(chosen) if chosen else 0
-        text = (t("agent.applied", count=applied) if applied
-                else t("agent.nothing_applied"))
+        text = t("agent.applied", count=applied) if applied else t("agent.nothing_applied")
         self._append(text)
         speak(text)
         self.undo_btn.Enable(self.player.can_undo_agent())

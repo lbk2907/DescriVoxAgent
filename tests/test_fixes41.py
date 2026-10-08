@@ -12,6 +12,7 @@
 (The long-video checks in test_fixes16 now make their own 10-minute
 video instead of borrowing the owner's project; that is tested there.)
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -22,10 +23,14 @@ import traceback
 from contextlib import closing
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
@@ -49,6 +54,7 @@ def check(name, fn):
 
 def test_guard_removes_only_what_a_run_created():
     from e2e_projects import ProjectsGuard
+
     d = Path(tempfile.mkdtemp(prefix="odc_t41_"))
     owner = ProjectStore(str(d)).create_project("Owner's own video", "x")
     guard = ProjectsGuard(d)
@@ -60,6 +66,7 @@ def test_guard_removes_only_what_a_run_created():
 
 def test_guard_can_be_told_to_keep():
     from e2e_projects import ProjectsGuard
+
     d = Path(tempfile.mkdtemp(prefix="odc_t41_"))
     guard = ProjectsGuard(d)
     ProjectStore(str(d)).create_project("Inspect me", "y")
@@ -73,12 +80,13 @@ def test_guard_can_be_told_to_keep():
 
 def test_tools_find_the_newest_project_in_both_layouts():
     from e2e_projects import media_dir_of, newest_db
+
     d = Path(tempfile.mkdtemp(prefix="odc_t41_"))
     legacy = d / "project_3.db"
     with closing(sqlite3.connect(str(legacy))) as conn:
         conn.execute("CREATE TABLE t (x)")
         conn.commit()
-    os.utime(legacy, (1, 1))           # older than what follows
+    os.utime(legacy, (1, 1))  # older than what follows
     p = ProjectStore(str(d)).create_project("Sintel", "z")
     newest = newest_db(d)
     assert newest == d / f"Sintel ({p.id})" / "project.db", newest
@@ -95,8 +103,12 @@ def test_third_language_presets_stay_in_their_language():
 
     class Store:
         def __init__(self):
-            self.prompts = {"default": "EN", "ms_default": "MS",
-                            "id_default": "ID", "text_ocr": "universal"}
+            self.prompts = {
+                "default": "EN",
+                "ms_default": "MS",
+                "id_default": "ID",
+                "text_ocr": "universal",
+            }
 
         def get_prompts(self):
             return dict(self.prompts)
@@ -123,13 +135,18 @@ def test_third_language_presets_stay_in_their_language():
 
 
 def main() -> int:
-    check("the E2E guard removes only what a run created",
-          test_guard_removes_only_what_a_run_created)
+    check(
+        "the E2E guard removes only what a run created", test_guard_removes_only_what_a_run_created
+    )
     check("ODC_E2E_KEEP keeps a run's project", test_guard_can_be_told_to_keep)
-    check("the E2E tools find the newest project in both layouts",
-          test_tools_find_the_newest_project_in_both_layouts)
-    check("a third language's presets stay in their language",
-          test_third_language_presets_stay_in_their_language)
+    check(
+        "the E2E tools find the newest project in both layouts",
+        test_tools_find_the_newest_project_in_both_layouts,
+    )
+    check(
+        "a third language's presets stay in their language",
+        test_third_language_presets_stay_in_their_language,
+    )
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

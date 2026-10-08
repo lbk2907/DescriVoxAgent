@@ -1,16 +1,22 @@
 """Regression tests round 5: AIEngine first-run errors + SceneExplorer async loading."""
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil, time, asyncio
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
+
 
 def check(name, fn):
     global ok, fail
@@ -23,17 +29,21 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def pump(app, ms):
     """Pump the real wx event loop."""
     import wx
+
     end = time.time() + ms / 1000.0
     while time.time() < end:
         wx.Yield()
         time.sleep(0.02)
 
+
 # 1. First-run AI errors are clear ValueError, bukan KeyError crash
 def test_ai_no_provider_clear_error():
     from omni_describer_custom.core.ai_engine import AIEngine
+
     eng = AIEngine()  # tiada provider dikonfigurasi
     for coro_fn in (
         lambda: eng.describe_frame("x.jpg", "p"),
@@ -46,11 +56,18 @@ def test_ai_no_provider_clear_error():
             raise AssertionError("expected ValueError")
         except ValueError as e:
             assert "No AI provider configured" in str(e), str(e)
-check("AIEngine raises clear ValueError without provider (no KeyError)", test_ai_no_provider_clear_error)
+
+
+check(
+    "AIEngine raises clear ValueError without provider (no KeyError)",
+    test_ai_no_provider_clear_error,
+)
+
 
 # 2. describe_frames dengan provider tak dikonfigurasi: ValueError, bukan KeyError
 def test_ai_describe_frames_no_provider():
     from omni_describer_custom.core.ai_engine import AIEngine
+
     eng = AIEngine()
     try:
         asyncio.run(eng.describe_frames(["a.jpg"], "p", provider="gemini"))
@@ -59,7 +76,13 @@ def test_ai_describe_frames_no_provider():
         assert "gemini" in str(e), str(e)
     except KeyError as e:
         raise AssertionError(f"KeyError leaked to caller: {e}") from e
-check("describe_frames raises clean ValueError for unconfigured provider", test_ai_describe_frames_no_provider)
+
+
+check(
+    "describe_frames raises clean ValueError for unconfigured provider",
+    test_ai_describe_frames_no_provider,
+)
+
 
 # 3. SceneExplorer: latar belakang ekstraksi dengan video sebenar
 def test_scene_explorer_async_load():
@@ -76,8 +99,18 @@ def test_scene_explorer_async_load():
     try:
         vid = Path(tmp) / "v.mp4"
         subprocess.run(
-            ["ffmpeg", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
-             "-y", str(vid)], capture_output=True, check=True)
+            [
+                "ffmpeg",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=2:size=320x240:rate=10",
+                "-y",
+                str(vid),
+            ],
+            capture_output=True,
+            check=True,
+        )
 
         win = SceneExplorer(None, AIEngine(), str(vid))
         # window harus terus responsif semasa loading (tak sekat)
@@ -110,7 +143,12 @@ def test_scene_explorer_async_load():
         assert not Path(frames_dir).exists(), "temp frames dir not cleaned on close"
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-check("SceneExplorer loads frames in background and cleans temp dir", test_scene_explorer_async_load)
+
+
+check(
+    "SceneExplorer loads frames in background and cleans temp dir", test_scene_explorer_async_load
+)
+
 
 # 4. SceneExplorer tanpa video: mesej jelas, tiada crash
 def test_scene_explorer_no_video():
@@ -126,7 +164,10 @@ def test_scene_explorer_no_video():
     assert "No video" in label or "Could not" in label, label
     win.Close()
     pump(app, 200)
+
+
 check("SceneExplorer shows clear message without video", test_scene_explorer_no_video)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

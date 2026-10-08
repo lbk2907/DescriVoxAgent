@@ -10,6 +10,7 @@ Options (JSON body fields or query string):
     fps (default 1), tts ("1"/"true"), tts_engine ("edge"|"sapi"),
     model, base_url. API key: header X-API-Key or GLM_API_KEY env.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,8 +45,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _query(self) -> dict:
         parsed = urlparse(self.path)
-        return parsed.path, {k: v[0] for k, v in
-                             parse_qs(parsed.query).items()}
+        return parsed.path, {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
     def _body(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
@@ -76,11 +76,10 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/parse":
                 body = self._body()
                 text = body.get("text", "")
-                events = require_events(text) if _truthy(
-                    qs.get("strict")) else parse_events(text)
-                return self._send(200, {
-                    "events": [{"start": s, "description": t}
-                               for s, t in events]})
+                events = require_events(text) if _truthy(qs.get("strict")) else parse_events(text)
+                return self._send(
+                    200, {"events": [{"start": s, "description": t} for s, t in events]}
+                )
             self._send(404, {"error": f"no route {path}"})
         except (ValueError, RuntimeError) as e:
             self._send(400, {"error": str(e)[:400]})
@@ -93,10 +92,12 @@ class _Handler(BaseHTTPRequestHandler):
         if not video:
             return self._send(400, {"error": "video_path required"})
         result = run_pipeline_sync(
-            video, _workdir(),
+            video,
+            _workdir(),
             api_key=self._api_key(body),
-            base_url=body.get("base_url") or qs.get("base_url") or
-            "https://open.bigmodel.cn/api/paas/v4",
+            base_url=body.get("base_url")
+            or qs.get("base_url")
+            or "https://open.bigmodel.cn/api/paas/v4",
             model=body.get("model") or qs.get("model") or "glm-5.3-flash",
             fps=float(body.get("fps", qs.get("fps", 1))),
             tts=_truthy(body.get("tts", qs.get("tts", False))),
@@ -120,10 +121,10 @@ class _Handler(BaseHTTPRequestHandler):
                 fh.write(chunk)
                 remaining -= len(chunk)
         result = run_pipeline_sync(
-            video, work,
+            video,
+            work,
             api_key=self._api_key({}),
-            base_url=qs.get("base_url") or
-            "https://open.bigmodel.cn/api/paas/v4",
+            base_url=qs.get("base_url") or "https://open.bigmodel.cn/api/paas/v4",
             model=qs.get("model") or "glm-5.3-flash",
             fps=float(qs.get("fps", 1)),
             tts=_truthy(qs.get("tts", False)),
@@ -133,15 +134,16 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, self._payload(result))
 
     def _api_key(self, body: dict) -> str:
-        return (body.get("api_key")
-                or self.headers.get("X-API-Key")
-                or os.environ.get("GLM_API_KEY", ""))
+        return (
+            body.get("api_key")
+            or self.headers.get("X-API-Key")
+            or os.environ.get("GLM_API_KEY", "")
+        )
 
     @staticmethod
     def _payload(result) -> dict:
         return {
-            "events": [{"start": s, "description": t}
-                       for s, t in result.events],
+            "events": [{"start": s, "description": t} for s, t in result.events],
             "srt": str(result.srt_path or ""),
             "json": str(result.json_path or ""),
             "audio_dir": str(result.audio_dir or ""),

@@ -91,17 +91,17 @@ def update_dir() -> Path:
 
 def _fetch(url: str, timeout: float = 30.0) -> bytes:
     request = urllib.request.Request(
-        url, headers={"User-Agent": "DescriVox-update-check",
-                      "Accept": "application/vnd.github+json"})
+        url,
+        headers={"User-Agent": "DescriVox-update-check", "Accept": "application/vnd.github+json"},
+    )
     with _open(request, timeout) as response:
         return response.read()
 
 
-def _download(url: str, dest: Path,
-              on_progress: Callable[[int, int], None] | None = None,
-              max_bytes: int = 0) -> None:
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "DescriVox-update-check"})
+def _download(
+    url: str, dest: Path, on_progress: Callable[[int, int], None] | None = None, max_bytes: int = 0
+) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": "DescriVox-update-check"})
     with _open(request, 60) as response, open(dest, "wb") as out:
         total = int(response.headers.get("Content-Length") or 0)
         done = 0
@@ -111,8 +111,9 @@ def _download(url: str, dest: Path,
                 break
             done += len(chunk)
             if max_bytes and done > max_bytes:
-                raise UpdateError("the download is bigger than the release "
-                                  "says; nothing was installed")
+                raise UpdateError(
+                    "the download is bigger than the release says; nothing was installed"
+                )
             out.write(chunk)
             if on_progress:
                 on_progress(done, total)
@@ -174,8 +175,7 @@ def parse_release(data: dict) -> Release:
     sums_asset = assets.get(SUMS_NAME)
     sig_asset = assets.get(SIG_NAME)
     if not zip_asset or not sums_asset or not sig_asset:
-        raise UpdateError(f"release {tag} lacks {zip_name(version)}, "
-                          f"{SUMS_NAME} or {SIG_NAME}")
+        raise UpdateError(f"release {tag} lacks {zip_name(version)}, {SUMS_NAME} or {SIG_NAME}")
     zip_url = zip_asset.get("browser_download_url") or ""
     sums_url = sums_asset.get("browser_download_url") or ""
     sig_url = sig_asset.get("browser_download_url") or ""
@@ -184,26 +184,31 @@ def parse_release(data: dict) -> Release:
         if not url.startswith(prefix):
             raise UpdateError(f"release {tag} points outside {REPO}: {url}")
     return Release(
-        version=version, tag=tag,
+        version=version,
+        tag=tag,
         notes=(data.get("body") or "").strip(),
         page_url=data.get("html_url") or RELEASES_PAGE,
         zip_url=zip_url,
         zip_size=int(zip_asset.get("size") or 0),
-        sums_url=sums_url, sig_url=sig_url)
+        sums_url=sums_url,
+        sig_url=sig_url,
+    )
 
 
 def latest_release(fetch: Callable[[str], bytes] = _fetch) -> Release:
     return parse_release(json.loads(fetch(latest_api()).decode("utf-8")))
 
 
-def newer_release(fetch: Callable[[str], bytes] = _fetch,
-                  current: str = __version__) -> Release | None:
+def newer_release(
+    fetch: Callable[[str], bytes] = _fetch, current: str = __version__
+) -> Release | None:
     """The latest release if it is newer than `current`, else None."""
     release = latest_release(fetch)
     return release if is_newer(release.version, current) else None
 
 
 # ── Where the app is, and whether it may replace itself ──────────
+
 
 def app_dir() -> Path | None:
     """The DescriVox folder of a built copy; None when run from source."""
@@ -216,8 +221,7 @@ def can_self_install(folder: Path | None) -> tuple[bool, str]:
     """(True, "") or (False, why) — why is an i18n key suffix."""
     if folder is None:
         return False, "from_source"
-    if folder.name.lower() != APP_FOLDER.lower() or \
-            not (folder / EXE_NAME).exists():
+    if folder.name.lower() != APP_FOLDER.lower() or not (folder / EXE_NAME).exists():
         return False, "unknown_layout"
     if _UNSAFE_PATH_CHARS & (set(str(folder)) | set(str(update_dir()))):
         return False, "path_chars"
@@ -232,6 +236,7 @@ def can_self_install(folder: Path | None) -> tuple[bool, str]:
 
 # ── Download, verify, unpack ─────────────────────────────────────
 
+
 def expected_sha256(sums_text: str, name: str) -> str:
     for line in sums_text.splitlines():
         parts = line.split()
@@ -240,24 +245,25 @@ def expected_sha256(sums_text: str, name: str) -> str:
     raise UpdateError(f"{name} is not listed in {SUMS_NAME}")
 
 
-def verify_signature(data: bytes, sig_text: bytes,
-                     public_key: str | None = None) -> None:
+def verify_signature(data: bytes, sig_text: bytes, public_key: str | None = None) -> None:
     """UpdateError unless `sig_text` (hex) is the release key's Ed25519
     signature of `data`. No crypto library -> refused, never skipped."""
     try:
         from nacl.exceptions import BadSignatureError
         from nacl.signing import VerifyKey
     except ImportError as e:
-        raise UpdateError("cannot check the release signature (PyNaCl is "
-                          "missing); nothing was installed") from e
+        raise UpdateError(
+            "cannot check the release signature (PyNaCl is missing); nothing was installed"
+        ) from e
     try:
         signature = bytes.fromhex(sig_text.decode("ascii").strip())
-        VerifyKey(bytes.fromhex(public_key or RELEASE_PUBLIC_KEY)).verify(
-            data, signature)
+        VerifyKey(bytes.fromhex(public_key or RELEASE_PUBLIC_KEY)).verify(data, signature)
     except (BadSignatureError, ValueError, UnicodeDecodeError) as e:
-        raise UpdateError("the release signature is not valid: it was not "
-                          "published with the owner's key; nothing was "
-                          "installed") from e
+        raise UpdateError(
+            "the release signature is not valid: it was not "
+            "published with the owner's key; nothing was "
+            "installed"
+        ) from e
 
 
 def sha256_of(path: Path) -> str:
@@ -268,9 +274,12 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download(release: Release, fetch: Callable[[str], bytes] = _fetch,
-             download_to: Callable[..., None] = _download,
-             on_progress: Callable[[int, int], None] | None = None) -> Path:
+def download(
+    release: Release,
+    fetch: Callable[[str], bytes] = _fetch,
+    download_to: Callable[..., None] = _download,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> Path:
     """Download the release zip and check it. Returns its path.
 
     Raises UpdateError (and deletes the file) on a checksum mismatch.
@@ -279,23 +288,21 @@ def download(release: Release, fetch: Callable[[str], bytes] = _fetch,
     """
     sums = fetch(release.sums_url)
     if not release.sig_url:
-        raise UpdateError(f"release {release.tag} is not signed; "
-                          f"nothing was installed")
+        raise UpdateError(f"release {release.tag} is not signed; nothing was installed")
     verify_signature(sums, fetch(release.sig_url))
-    expected = expected_sha256(sums.decode("utf-8", errors="replace"),
-                               zip_name(release.version))
+    expected = expected_sha256(sums.decode("utf-8", errors="replace"), zip_name(release.version))
     folder = update_dir()
     folder.mkdir(parents=True, exist_ok=True)
     dest = folder / zip_name(release.version)
     partial = folder / (zip_name(release.version) + ".part")
     try:
-        download_to(release.zip_url, partial, on_progress,
-                    max_bytes=release.zip_size)
+        download_to(release.zip_url, partial, on_progress, max_bytes=release.zip_size)
         size = partial.stat().st_size
         if release.zip_size and size != release.zip_size:
             raise UpdateError(
                 f"the download is {size} bytes, the release says "
-                f"{release.zip_size}; nothing was installed")
+                f"{release.zip_size}; nothing was installed"
+            )
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
@@ -304,7 +311,8 @@ def download(release: Release, fetch: Callable[[str], bytes] = _fetch,
         partial.unlink(missing_ok=True)
         raise UpdateError(
             f"checksum mismatch: the download does not match the one "
-            f"published for {release.tag}; nothing was installed")
+            f"published for {release.tag}; nothing was installed"
+        )
     os.replace(partial, dest)
     return dest
 
@@ -314,21 +322,25 @@ def _safe_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     for info in members:
         name = info.filename.replace("\\", "/")
         path = PurePosixPath(name)
-        if path.is_absolute() or ".." in path.parts or ":" in name or \
-                not path.parts or path.parts[0] != APP_FOLDER:
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or ":" in name
+            or not path.parts
+            or path.parts[0] != APP_FOLDER
+        ):
             raise UpdateError(
-                f"the update contains an unexpected path ({info.filename}); "
-                f"nothing was installed")
+                f"the update contains an unexpected path ({info.filename}); nothing was installed"
+            )
     names = {m.filename.replace("\\", "/") for m in members}
     if f"{APP_FOLDER}/{EXE_NAME}" not in names:
         raise UpdateError(f"the update has no {EXE_NAME}; nothing was installed")
     if sum(m.file_size for m in members) > MAX_UNPACKED_BYTES:
-        raise UpdateError("the update unpacks to more than 4 GB; nothing "
-                          "was installed")
+        raise UpdateError("the update unpacks to more than 4 GB; nothing was installed")
     return members
 
 
-MAX_UNPACKED_BYTES = 4 * 1024 ** 3   # the real app unpacks to about 900 MB
+MAX_UNPACKED_BYTES = 4 * 1024**3  # the real app unpacks to about 900 MB
 _install_lock = threading.Lock()
 
 
@@ -357,8 +369,9 @@ def stage(zip_path: Path, folder: Path) -> Path:
         try:
             staged_root.mkdir(parents=True)
         except OSError as e:
-            raise UpdateError(f"could not clear the previous unpacked "
-                              f"update ({staged_root}): {e}") from e
+            raise UpdateError(
+                f"could not clear the previous unpacked update ({staged_root}): {e}"
+            ) from e
         archive.extractall(staged_root, members)
     staged = staged_root / APP_FOLDER
     if not (staged / EXE_NAME).exists():
@@ -368,9 +381,10 @@ def stage(zip_path: Path, folder: Path) -> Path:
 
 # ── The swap ─────────────────────────────────────────────────────
 
-def write_apply_script(folder: Path, staged: Path, pid: int,
-                       exe_name: str = EXE_NAME,
-                       wait_seconds: int = 120) -> Path:
+
+def write_apply_script(
+    folder: Path, staged: Path, pid: int, exe_name: str = EXE_NAME, wait_seconds: int = 120
+) -> Path:
     """The cmd script that swaps the folders once process `pid` exits.
 
     Each way out writes its own line to apply.log. If the app has not
@@ -384,8 +398,9 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
     work = update_dir()
     unsafe = _UNSAFE_PATH_CHARS & set(f"{folder}{staged}{work}")
     if unsafe:
-        raise UpdateError(f"a folder path contains {''.join(sorted(unsafe))}, "
-                          f"which the installer cannot handle")
+        raise UpdateError(
+            f"a folder path contains {''.join(sorted(unsafe))}, which the installer cannot handle"
+        )
     work.mkdir(parents=True, exist_ok=True)
     log = work / "apply.log"
     script = work / "apply_update.cmd"
@@ -461,23 +476,27 @@ def write_apply_script(folder: Path, staged: Path, pid: int,
 
 def launch_apply_script(script: Path) -> subprocess.Popen:
     """Start the swap script with no window; it outlives the app."""
-    flags = (getattr(subprocess, "CREATE_NO_WINDOW", 0)
-             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+    )
     # Not inside the app folder (it is about to be renamed) nor inside
     # update_dir() (removed after the update): Windows' own folder.
     neutral = os.environ.get("SystemRoot") or str(Path.home())
-    return subprocess.Popen(["cmd.exe", "/c", str(script)],
-                            creationflags=flags, close_fds=True, cwd=neutral)
+    return subprocess.Popen(
+        ["cmd.exe", "/c", str(script)], creationflags=flags, close_fds=True, cwd=neutral
+    )
 
 
 # ── After the restart ────────────────────────────────────────────
+
 
 def mark_pending(settings, version: str) -> None:
     settings.set("updates.app_pending", version)
 
 
-def finish_pending(settings, current: str = __version__,
-                   folder: Path | None = None) -> tuple[str, bool] | None:
+def finish_pending(
+    settings, current: str = __version__, folder: Path | None = None
+) -> tuple[str, bool] | None:
     """(version, ok) if an update was just attempted, else None.
 
     Removes the downloaded zip once the new version is running; when it
@@ -499,10 +518,28 @@ def finish_pending(settings, current: str = __version__,
     return pending, ok
 
 
-__all__ = ["APP_FOLDER", "EXE_NAME", "RELEASES_PAGE", "Release", "SUMS_NAME",
-           "UpdateError", "app_dir", "can_self_install", "download",
-           "expected_sha256", "finish_pending", "install_lock", "latest_release",
-           "launch_apply_script", "mark_pending", "newer_release",
-           "parse_release", "sha256_of", "stage", "update_dir",
-           "verify_signature",
-           "write_apply_script", "zip_name"]
+__all__ = [
+    "APP_FOLDER",
+    "EXE_NAME",
+    "RELEASES_PAGE",
+    "Release",
+    "SUMS_NAME",
+    "UpdateError",
+    "app_dir",
+    "can_self_install",
+    "download",
+    "expected_sha256",
+    "finish_pending",
+    "install_lock",
+    "latest_release",
+    "launch_apply_script",
+    "mark_pending",
+    "newer_release",
+    "parse_release",
+    "sha256_of",
+    "stage",
+    "update_dir",
+    "verify_signature",
+    "write_apply_script",
+    "zip_name",
+]

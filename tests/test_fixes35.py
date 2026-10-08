@@ -18,6 +18,7 @@ headlessly, not by reading code:
  11. VLC Pause during a narration hold toggled the video back ON.
  12. Settings voice list lost its "Default" entry.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -28,10 +29,14 @@ import traceback
 from pathlib import Path
 
 os.environ["ODC_CONFIG_DIR"] = tempfile.mkdtemp(prefix="odc35_")
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "omni_describer_custom"
 sys.path.insert(0, str(ROOT / "src"))
@@ -79,8 +84,7 @@ class _Store:
         return d
 
     def delete_description(self, i):
-        self.current.descriptions = [
-            x for x in self.current.descriptions if x.id != i]
+        self.current.descriptions = [x for x in self.current.descriptions if x.id != i]
 
 
 class _TTS:
@@ -131,8 +135,7 @@ def test_editor_keeps_edit_when_selection_moves():
     ed._on_select(None)
     ed.desc_list.Select(0)
     ed._on_select(None)
-    assert store.current.descriptions[0].text == "EDITED first", (
-        store.current.descriptions[0].text)
+    assert store.current.descriptions[0].text == "EDITED first", store.current.descriptions[0].text
     assert ed.text_ctrl.GetValue() == "EDITED first"
     ed.Destroy()
     w.Destroy()
@@ -197,8 +200,7 @@ def test_after_last_cue_last_is_current():
     w = _player()
     w._position = 40.0
     w._update_desc_display()
-    assert w.current_desc_text.GetValue() == "second at 20s", (
-        w.current_desc_text.GetValue())
+    assert w.current_desc_text.GetValue() == "second at 20s", w.current_desc_text.GetValue()
     w.Destroy()
     _drain()
 
@@ -233,6 +235,7 @@ def test_failed_tts_leaves_no_temp_file():
 
 def _silent_wav(seconds=4.0):
     import wave
+
     fd, path = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
     with wave.open(path, "wb") as w:
@@ -247,6 +250,7 @@ def test_stop_ends_playback():
     """Silent WAV so nothing is heard. Both winsound and MCI paths."""
     import threading
     from omni_describer_custom.core.tts_engine import TTSEngine
+
     eng = TTSEngine({})
     short = _silent_wav(1.0)
     try:
@@ -267,8 +271,7 @@ def test_stop_ends_playback():
         time.sleep(0.5)
         eng.stop()
         th.join(3)
-        assert not th.is_alive() and time.monotonic() - t0 < 2.5, (
-            "winsound playback not stopped")
+        assert not th.is_alive() and time.monotonic() - t0 < 2.5, "winsound playback not stopped"
         # MCI path: same audio renamed so winsound is skipped
         mp = path[:-4] + ".mci"
         os.replace(path, mp)
@@ -291,8 +294,7 @@ def test_stop_ends_playback():
         assert eng._mci_aliases, "MCI alias not tracked"
         eng.stop()
         th.join(3)
-        assert not th.is_alive() and time.monotonic() - t0 < 2.8, (
-            "MCI playback not stopped")
+        assert not th.is_alive() and time.monotonic() - t0 < 2.8, "MCI playback not stopped"
         assert not eng._mci_aliases
     finally:
         try:
@@ -311,8 +313,10 @@ def test_ask_more_sends_question_once_with_context():
             got.append((q, h))
             return "ans"
 
-    descs = [Description(id=1, start_time=5, end_time=8, text="red car"),
-             Description(id=2, start_time=50, end_time=55, text="far away")]
+    descs = [
+        Description(id=1, start_time=5, end_time=8, text="red car"),
+        Description(id=2, start_time=50, end_time=55, text="far away"),
+    ]
     dlg = AskMoreDialog(None, AI(), descriptions=descs, position=6.0)
     dlg.seconds_ctrl.SetValue("10")
     dlg.question_text.SetValue("what colour is the car?")
@@ -336,9 +340,9 @@ def test_ask_more_sends_question_once_with_context():
 
 def test_read_description_label_translated():
     import json
+
     for code, want in (("en", "Read Description"), ("ms", "Baca Penerangan")):
-        data = json.loads((SRC / "i18n" / "locales" / f"{code}.json")
-                          .read_text(encoding="utf-8"))
+        data = json.loads((SRC / "i18n" / "locales" / f"{code}.json").read_text(encoding="utf-8"))
         assert data.get("player.read_description") == want, code
         assert "{position}" in data.get("ask.context", ""), code
     text = (SRC / "ui" / "player_window.py").read_text(encoding="utf-8")
@@ -420,24 +424,19 @@ def check(name, fn):
 
 
 if __name__ == "__main__":
-    check("editor keeps edit when selection moves",
-          test_editor_keeps_edit_when_selection_moves)
+    check("editor keeps edit when selection moves", test_editor_keeps_edit_when_selection_moves)
     check("player close saves open editor", test_player_close_saves_open_editor)
     check("player uses shared settings", test_player_uses_shared_settings)
-    check("first cue not narrated before start",
-          test_first_cue_not_narrated_before_start)
-    check("after last cue the last is current",
-          test_after_last_cue_last_is_current)
+    check("first cue not narrated before start", test_first_cue_not_narrated_before_start)
+    check("after last cue the last is current", test_after_last_cue_last_is_current)
     check("failed tts leaves no temp file", test_failed_tts_leaves_no_temp_file)
     check("stop ends playback", test_stop_ends_playback)
-    check("ask more sends question once with context",
-          test_ask_more_sends_question_once_with_context)
-    check("read description label translated",
-          test_read_description_label_translated)
-    check("added description kept in time order",
-          test_added_description_kept_in_time_order)
-    check("vlc pause during hold stays paused",
-          test_vlc_pause_during_hold_stays_paused)
+    check(
+        "ask more sends question once with context", test_ask_more_sends_question_once_with_context
+    )
+    check("read description label translated", test_read_description_label_translated)
+    check("added description kept in time order", test_added_description_kept_in_time_order)
+    check("vlc pause during hold stays paused", test_vlc_pause_during_hold_stays_paused)
     check("voice list keeps default", test_voice_list_keeps_default)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

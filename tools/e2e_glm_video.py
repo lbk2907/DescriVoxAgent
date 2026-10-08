@@ -1,13 +1,15 @@
 """E2E: GLMProvider.describe_video_full against the real OpenRouter API
 with the small synthetic video. Verifies the GUI's new send-video path
 returns parsed timestamped descriptions. Cost: ~0.1 cents."""
+
 import asyncio
 import io
 import sys
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.ai_engine import AIEngine
@@ -23,9 +25,12 @@ def main() -> int:
         print("E2E_FAIL: no glm key")
         return 1
     engine = AIEngine()
-    engine.set_provider("glm", api_key=cfg["api_key"],
-                        base_url=cfg.get("base_url") or "",
-                        model=cfg.get("model") or "")
+    engine.set_provider(
+        "glm",
+        api_key=cfg["api_key"],
+        base_url=cfg.get("base_url") or "",
+        model=cfg.get("model") or "",
+    )
     statuses = []
 
     def status(phase: str) -> None:
@@ -35,9 +40,11 @@ def main() -> int:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        pairs = loop.run_until_complete(engine.describe_video_full(
-            str(VIDEO), "Describe what happens in this video.",
-            on_status=status))
+        pairs = loop.run_until_complete(
+            engine.describe_video_full(
+                str(VIDEO), "Describe what happens in this video.", on_status=status
+            )
+        )
     finally:
         loop.close()
     print(f"statuses: {statuses}")

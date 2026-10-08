@@ -27,15 +27,19 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from omni_describer_custom import __version__  # noqa: E402
 from omni_describer_custom.core.app_update import (  # noqa: E402
-    SUMS_NAME, sha256_of, zip_name)
+    SUMS_NAME,
+    sha256_of,
+    zip_name,
+)
 
 
 def notes_for(changelog: str, version: str) -> str:
     """The body of "## What's new in v<version>", without its heading."""
-    m = re.search(rf"^## What's new in v{re.escape(version)}\s*\n(.*?)(?=^## |\Z)",
-                  changelog, re.M | re.S)
+    m = re.search(
+        rf"^## What's new in v{re.escape(version)}\s*\n(.*?)(?=^## |\Z)", changelog, re.M | re.S
+    )
     if not m:
-        raise SystemExit(f"CHANGELOG.md has no \"## What's new in v{version}\"")
+        raise SystemExit(f'CHANGELOG.md has no "## What\'s new in v{version}"')
     return m.group(1).strip() + "\n"
 
 
@@ -44,15 +48,14 @@ def write(dist: Path, version: str, changelog: str) -> tuple[Path, Path]:
     if not archive.exists():
         raise SystemExit(f"{archive} does not exist; build it first")
     sums = dist / SUMS_NAME
-    sums.write_text(f"{sha256_of(archive)}  {archive.name}\n", encoding="utf-8",
-                    newline="\n")
+    sums.write_text(f"{sha256_of(archive)}  {archive.name}\n", encoding="utf-8", newline="\n")
     # Signed with the owner's release key (tools/release_key.py): the app
     # installs nothing whose SHA256SUMS.txt does not verify.
     import release_key
+
     release_key.sign(sums)
     notes = dist / f"release-notes-{version}.md"
-    notes.write_text(notes_for(changelog, version), encoding="utf-8",
-                     newline="\n")
+    notes.write_text(notes_for(changelog, version), encoding="utf-8", newline="\n")
     return sums, notes
 
 

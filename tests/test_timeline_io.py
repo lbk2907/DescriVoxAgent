@@ -3,6 +3,7 @@ and a REAL audio export through the real TTS engine + ffmpeg mix.
 
 Standalone script; exits 0 on success, 1 on failure.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import os
 import sys
@@ -13,11 +14,20 @@ from pathlib import Path
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.timeline_io import (  # noqa: E402
-    fmt_srt_time, fmt_vtt_time, parse_timestamp, parse_srt, parse_vtt,
-    parse_simple, parse_any, to_srt, to_vtt, export_audio,
+    fmt_srt_time,
+    fmt_vtt_time,
+    parse_timestamp,
+    parse_srt,
+    parse_vtt,
+    parse_simple,
+    parse_any,
+    to_srt,
+    to_vtt,
+    export_audio,
 )
 from omni_describer_custom.core.project_store import (  # noqa: E402
-    Description, ProjectStore,
+    Description,
+    ProjectStore,
 )
 
 ok = 0
@@ -72,8 +82,7 @@ def test_parse_srt(tmp):
 
 
 def test_parse_vtt(tmp):
-    p = _mkfile(tmp, "a.vtt",
-                "WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\nFrom VTT\n")
+    p = _mkfile(tmp, "a.vtt", "WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\nFrom VTT\n")
     d = parse_vtt(p)
     assert len(d) == 1 and d[0].text == "From VTT"
     assert abs(d[0].start_time - 1.0) < 0.001
@@ -141,6 +150,7 @@ def test_project_store_roundtrip(tmp):
 def test_export_audio_real(tmp):
     """Real TTS (SAPI5, offline) -> ffmpeg mix -> synchronized output."""
     from omni_describer_custom.core.tts_engine import TTSEngine
+
     eng = TTSEngine({})
     avail = eng.get_available_engines()
     assert "sapi5" in avail, avail
@@ -150,18 +160,19 @@ def test_export_audio_real(tmp):
         Description(start_time=6.0, end_time=9.0, text="Final spoken entry here."),
     ]
     out = Path(tmp) / "described.wav"
-    result = export_audio(descs, out, eng, engine="sapi5",
-                          progress_cb=lambda d, t, s: None)
+    result = export_audio(descs, out, eng, engine="sapi5", progress_cb=lambda d, t, s: None)
     assert result["rendered"] == 3, result
     assert result["skipped"] == 0, result
     assert out.exists() and out.stat().st_size > 10000, out.stat().st_size
 
     # Duration must reach past the last clip's start (>= 6s)
     import subprocess
+
     dur_out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", str(out)],
-        capture_output=True, text=True, timeout=30,
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     duration = float(dur_out.stdout.strip())
     assert duration >= 6.0, duration

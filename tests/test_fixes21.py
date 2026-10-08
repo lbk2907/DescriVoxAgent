@@ -12,6 +12,7 @@ helper cannot be caught by unit-testing the window it was supposed to
 open. So every entry point is invoked here for real, with only the modal
 dialogs replaced by canned answers, and real files written to temp dirs.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
@@ -22,10 +23,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -47,8 +52,7 @@ def check(name, fn):
 
 
 @contextmanager
-def stub_modals(path: str = "", text: str = "", file_result=None,
-                entry_result=None):
+def stub_modals(path: str = "", text: str = "", file_result=None, entry_result=None):
     """Answer every modal this app can raise, without showing one.
 
     Patches the wx module itself (one object shared by every importer),
@@ -145,8 +149,7 @@ def _frame():
     from omni_describer_custom.ui.main_frame import MainFrame
 
     f = MainFrame()
-    f.project_store = ProjectStore(
-        projects_dir=tempfile.mkdtemp(prefix="odc_f21_proj_"))
+    f.project_store = ProjectStore(projects_dir=tempfile.mkdtemp(prefix="odc_f21_proj_"))
     return f
 
 
@@ -168,14 +171,13 @@ def _seed_descriptions(f, name="Demo"):
     from omni_describer_custom.core.project_store import Description
 
     f.project_store.create_project(name, "demo.mp4")
-    f.project_store.add_description(
-        Description(start_time=0.0, end_time=2.0, text="First cue"))
-    f.project_store.add_description(
-        Description(start_time=3.0, end_time=5.0, text="Second cue"))
+    f.project_store.add_description(Description(start_time=0.0, end_time=2.0, text="First cue"))
+    f.project_store.add_description(Description(start_time=3.0, end_time=5.0, text="Second cue"))
     return f.project_store.current
 
 
 # ── Source handlers ──────────────────────────────────────────────
+
 
 def test_local_file_sets_source():
     f = _frame()
@@ -194,8 +196,7 @@ def test_direct_url_sets_source():
     try:
         with stub_modals(text="https://example.com/clip.mp4"):
             f._on_direct_url(None)
-        assert f._current_source == "https://example.com/clip.mp4", \
-            f._current_source
+        assert f._current_source == "https://example.com/clip.mp4", f._current_source
     finally:
         _close(f)
 
@@ -225,6 +226,7 @@ def test_cancelled_dialog_leaves_source_untouched():
 
 
 # ── Project handlers ─────────────────────────────────────────────
+
 
 def test_new_project_creates_it():
     """v2.1.2 (owner): New Project no longer makes an EMPTY project; it
@@ -305,6 +307,7 @@ def test_about_box_builds():
 
 # ── Export / import handlers ─────────────────────────────────────
 
+
 def test_export_srt_writes_real_file():
     f = _frame()
     try:
@@ -370,8 +373,7 @@ def test_import_rejects_garbage_file():
     f = _frame()
     try:
         junk = Path(tempfile.mkdtemp(prefix="odc_f21_junk_")) / "junk.srt"
-        junk.write_text("this is not a subtitle file at all",
-                        encoding="utf-8")
+        junk.write_text("this is not a subtitle file at all", encoding="utf-8")
         with stub_modals(path=str(junk)) as boxes:
             f._on_import_descriptions(None)
         assert boxes, "a garbage import must be reported, not silent"
@@ -405,8 +407,9 @@ def test_export_audio_wiring():
                 wx.GetApp().ProcessPendingEvents()
                 wx.GetApp().Yield()
                 time.sleep(0.05)
-        assert not getattr(f, "_exporting", False), \
+        assert not getattr(f, "_exporting", False), (
             "_exporting stuck True: the UI would refuse every later export"
+        )
         assert Path(out).exists(), "no audio file written"
     finally:
         timeline_io.export_audio = real_export
@@ -421,6 +424,7 @@ def test_export_audio_wiring():
 # at store level in test_fixes19; here it is guarded at the level the
 # user actually meets it — selecting a row and pressing Delete.
 
+
 @contextmanager
 def _messagebox_answer(answer):
     real = wx.MessageBox
@@ -433,6 +437,7 @@ def _messagebox_answer(answer):
     # v1.8.2: Yes/No questions go through ui.dialogs.ask_yes_no, whose
     # buttons follow the app language; answer it the same way.
     from omni_describer_custom.ui import dialogs
+
     real_ask = dialogs.ask_yes_no
 
     def fake_ask(parent, message, *a, **k):
@@ -450,6 +455,7 @@ def _messagebox_answer(answer):
 
 def _editor(f):
     from omni_describer_custom.ui.editor_window import EditorWindow
+
     return EditorWindow(f, f.project_store, f.tts_engine)
 
 
@@ -458,9 +464,9 @@ def test_editor_delete_removes_only_the_selected_cue():
     ed = None
     try:
         from omni_describer_custom.core.project_store import Description
+
         _seed_descriptions(f)
-        f.project_store.add_description(
-            Description(start_time=6.0, end_time=8.0, text="Third cue"))
+        f.project_store.add_description(Description(start_time=6.0, end_time=8.0, text="Third cue"))
         ed = _editor(f)
         ed.desc_list.Select(1)
         ed._on_select(None)
@@ -471,8 +477,9 @@ def test_editor_delete_removes_only_the_selected_cue():
         left = [d.text for d in f.project_store.current.descriptions]
         assert left == ["First cue", "Third cue"], left
         reopened = f.project_store.open_project(f.project_store.current.id)
-        assert [d.text for d in reopened.descriptions] == \
-            ["First cue", "Third cue"], "delete did not survive a reload"
+        assert [d.text for d in reopened.descriptions] == ["First cue", "Third cue"], (
+            "delete did not survive a reload"
+        )
     finally:
         if ed is not None:
             try:
@@ -494,8 +501,9 @@ def test_editor_delete_respects_no():
         with _messagebox_answer(wx.NO) as asked:
             ed._on_delete(None)
         assert asked, "Delete must ask before destroying a cue"
-        assert len(f.project_store.current.descriptions) == 2, \
+        assert len(f.project_store.current.descriptions) == 2, (
             "No means no: cues were deleted anyway"
+        )
     finally:
         if ed is not None:
             try:
@@ -513,13 +521,12 @@ def test_editor_add_then_close_saves_edit():
         ed = _editor(f)
         before = len(f.project_store.current.descriptions)
         ed._on_add(None)
-        assert len(f.project_store.current.descriptions) == before + 1, \
-            "Add did not create a cue"
+        assert len(f.project_store.current.descriptions) == before + 1, "Add did not create a cue"
 
         ed.desc_list.Select(0)
         ed._on_select(None)
         ed.text_ctrl.SetValue("Edited by the user")
-        ed._on_close(None)          # saves and destroys
+        ed._on_close(None)  # saves and destroys
         ed = None
 
         reopened = f.project_store.open_project(f.project_store.current.id)
@@ -541,9 +548,8 @@ def test_editor_tts_on_empty_text_is_announced():
         _seed_descriptions(f)
         ed = _editor(f)
         ed.text_ctrl.SetValue("   ")
-        ed._on_tts(None)            # must not raise, must not speak
-        assert ed.status_text.GetLabel(), \
-            "empty text must be announced, not silently ignored"
+        ed._on_tts(None)  # must not raise, must not speak
+        assert ed.status_text.GetLabel(), "empty text must be announced, not silently ignored"
     finally:
         if ed is not None:
             try:
@@ -560,6 +566,7 @@ def test_editor_tts_on_empty_text_is_announced():
 # buttons had no test. TTS is stubbed: these checks are about the
 # handlers being wired correctly, not about hearing audio (real speech
 # is exercised separately).
+
 
 @contextmanager
 def _silent_tts(engine, spoken: list, result: bool = True):
@@ -584,6 +591,7 @@ def _silent_tts(engine, spoken: list, result: bool = True):
 
 def _player(f):
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     return PlayerWindow(f, f.project_store, f.tts_engine, f.ai_engine)
 
 
@@ -601,13 +609,11 @@ def test_player_play_pause_toggle():
         p._on_play_toggle(None)
         assert p._playing, "first press did not start playback"
         playing_label = p.play_btn.GetLabel()
-        assert playing_label != start_label, \
-            f"button label never changed: {start_label!r}"
+        assert playing_label != start_label, f"button label never changed: {start_label!r}"
 
         p._on_play_toggle(None)
         assert not p._playing, "second press did not pause"
-        assert p.play_btn.GetLabel() == start_label, \
-            f"label did not return to {start_label!r}"
+        assert p.play_btn.GetLabel() == start_label, f"label did not return to {start_label!r}"
     finally:
         if p is not None:
             try:
@@ -680,7 +686,8 @@ def test_player_load_external_srt():
         srt.write_text(
             "1\n00:00:01,000 --> 00:00:03,000\nExternal cue one\n\n"
             "2\n00:00:04,000 --> 00:00:06,000\nExternal cue two\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         with stub_modals(path=str(srt)):
             p._on_load_srt(None)
         loaded = getattr(p, "_sub_cues", None)
@@ -713,8 +720,8 @@ def test_player_opens_editor_explorer_and_ask():
         import omni_describer_custom.ui.editor_window as ed_mod
         import omni_describer_custom.ui.scene_explorer as se_mod
         import omni_describer_custom.ui.ask_more_dialog as am_mod
-        real = (ed_mod.EditorWindow, se_mod.SceneExplorer,
-                am_mod.AskMoreDialog)
+
+        real = (ed_mod.EditorWindow, se_mod.SceneExplorer, am_mod.AskMoreDialog)
 
         def fake(name):
             class Fake:
@@ -729,6 +736,7 @@ def test_player_opens_editor_explorer_and_ask():
 
                 def Destroy(self, *a, **k):
                     pass
+
             return Fake
 
         ed_mod.EditorWindow = fake("editor")
@@ -758,13 +766,13 @@ def test_player_opens_editor_explorer_and_ask():
 # slide's bullets took 9.9s into a 5s gap, so 3 of 4 cues collided and
 # the listener lost them. v1.6.1 pauses playback for the duration.
 
+
 def _player_with_cue(f, text="A long description that takes time to say"):
     from omni_describer_custom.core.project_store import Description
     from omni_describer_custom.ui.player_window import PlayerWindow
 
     f.project_store.create_project("Pause test", "clip.mp4")
-    f.project_store.add_description(
-        Description(start_time=0.0, end_time=2.0, text=text))
+    f.project_store.add_description(Description(start_time=0.0, end_time=2.0, text=text))
     p = PlayerWindow(f, f.project_store, f.tts_engine, f.ai_engine)
     p._playing = True
     p._current_desc_idx = 0
@@ -773,6 +781,7 @@ def _player_with_cue(f, text="A long description that takes time to say"):
 
 def test_narration_holds_playback_then_resumes():
     import time
+
     f = _frame()
     p = None
     try:
@@ -793,8 +802,7 @@ def test_narration_holds_playback_then_resumes():
         f.tts_engine.speak_and_play = slow_speak
         p._maybe_narrate()
         deadline = time.time() + 10
-        while time.time() < deadline and (p._tts_thread and
-                                          p._tts_thread.is_alive()):
+        while time.time() < deadline and (p._tts_thread and p._tts_thread.is_alive()):
             wx.GetApp().Yield()
             time.sleep(0.02)
         for _ in range(10):
@@ -802,8 +810,9 @@ def test_narration_holds_playback_then_resumes():
             wx.GetApp().Yield()
             time.sleep(0.02)
 
-        assert states and states[0][1] is True, \
+        assert states and states[0][1] is True, (
             "playback was not held while the cue was being spoken"
+        )
         assert not p._auto_paused, "hold was never released after the cue"
     finally:
         if p is not None:
@@ -822,8 +831,7 @@ def test_auto_hold_is_not_the_user_pressing_pause():
     try:
         p = _player_with_cue(f)
         p._pause_for_narration()
-        assert not p._paused_by_user, \
-            "an automatic hold was recorded as the user's own pause"
+        assert not p._paused_by_user, "an automatic hold was recorded as the user's own pause"
         assert p._auto_paused
     finally:
         if p is not None:
@@ -841,10 +849,9 @@ def test_user_pause_during_narration_wins():
     try:
         p = _player_with_cue(f)
         p._pause_for_narration()
-        p._paused_by_user = True          # the user intervenes
+        p._paused_by_user = True  # the user intervenes
         p._resume_after_narration()
-        assert not p._playing or p._paused_by_user, \
-            "resume overrode a deliberate pause"
+        assert not p._playing or p._paused_by_user, "resume overrode a deliberate pause"
     finally:
         if p is not None:
             try:
@@ -861,10 +868,8 @@ def test_player_has_a_visible_toggle_for_holding():
     p = None
     try:
         p = _player_with_cue(f)
-        assert hasattr(p, "pause_narration_check"), \
-            "no toggle in the player window"
-        assert p.pause_narration_check.GetLabel(), \
-            "toggle has no label for a screen reader to read"
+        assert hasattr(p, "pause_narration_check"), "no toggle in the player window"
+        assert p.pause_narration_check.GetLabel(), "toggle has no label for a screen reader to read"
     finally:
         if p is not None:
             try:
@@ -889,8 +894,9 @@ def test_toggle_takes_effect_on_the_next_cue():
         p._narrated.clear()
         p._maybe_narrate()
         assert not p._auto_paused, "held despite the toggle being off"
-        assert f.settings.get("player.pause_for_narration") is False, \
+        assert f.settings.get("player.pause_for_narration") is False, (
             "the choice was not remembered"
+        )
 
         p.pause_narration_check.SetValue(True)
         p._on_pause_narration_toggle(None)
@@ -922,8 +928,7 @@ def test_toggle_is_announced_not_just_checked():
         off_text = p.status_text.GetLabel()
         p.pause_narration_check.SetValue(True)
         p._on_pause_narration_toggle(None)
-        assert p.status_text.GetLabel() != off_text, \
-            "on and off are announced identically"
+        assert p.status_text.GetLabel() != off_text, "on and off are announced identically"
     finally:
         f.settings.set("player.pause_for_narration", before)
         if p is not None:
@@ -944,12 +949,13 @@ def test_saved_preference_is_what_the_player_opens_with():
     try:
         f.settings.set("player.pause_for_narration", False)
         p = _player_with_cue(f)
-        assert p.pause_narration_check.GetValue() is False,             "player ignored the saved preference when it opened"
+        assert p.pause_narration_check.GetValue() is False, (
+            "player ignored the saved preference when it opened"
+        )
         spoken = []
         f.tts_engine.speak_and_play = lambda text, *a, **k: spoken.append(text)
         p._maybe_narrate()
-        assert not p._auto_paused, \
-            "playback was held even though the preference is off"
+        assert not p._auto_paused, "playback was held even though the preference is off"
     finally:
         if p is not None:
             try:
@@ -963,6 +969,7 @@ def test_saved_preference_is_what_the_player_opens_with():
 
 
 # ── Reported by the user on the v1.6.3 build ─────────────────────
+
 
 def test_video_audio_returns_after_a_description():
     """The player went silent after the first cue and stayed silent.
@@ -978,15 +985,16 @@ def test_video_audio_returns_after_a_description():
     p = None
     try:
         p = _player_with_cue(f)
-        p._audio_backend = "ffplay"       # as if ffplay were playing
+        p._audio_backend = "ffplay"  # as if ffplay were playing
         started = []
         p._start_ffplay = lambda pos: (started.append(pos), True)[1]
         p._stop_ffplay = lambda: setattr(p, "_audio_backend", "none")
 
         p._pause_for_narration()
         assert p._audio_backend == "none", "the hold did not stop the audio"
-        assert p._paused_backend == "ffplay", \
+        assert p._paused_backend == "ffplay", (
             "the player forgot what it was playing before the hold"
+        )
 
         p._resume_after_narration()
         assert started, "audio was never restarted after the description"
@@ -1000,24 +1008,19 @@ def test_video_audio_returns_after_a_description():
 
 
 def test_a_silent_video_says_why_in_the_log():
-    """"No sound" had to be diagnosed from scratch because a missing
+    """ "No sound" had to be diagnosed from scratch because a missing
     ffplay produced no log line at all."""
-    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(
-        encoding="utf-8")
+    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(encoding="utf-8")
     # v1.6.5: ffplay now ships with the app, so the log says "neither
     # bundled nor on PATH" — PATH alone is no longer the whole story.
-    assert "ffplay not found" in src, \
-        "a missing player is silent about being missing"
-    assert "Audio via ffplay" in src, \
-        "the log never records which audio route started"
+    assert "ffplay not found" in src, "a missing player is silent about being missing"
+    assert "Audio via ffplay" in src, "the log never records which audio route started"
 
 
 def test_stop_ffplay_is_defined_once():
     """It was defined twice; the second shadowed the first."""
-    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(
-        encoding="utf-8")
-    assert src.count("    def _stop_ffplay(self)") == 1, \
-        "duplicate definition is back"
+    src = Path("src/omni_describer_custom/ui/player_window.py").read_text(encoding="utf-8")
+    assert src.count("    def _stop_ffplay(self)") == 1, "duplicate definition is back"
 
 
 def test_progress_dialog_follows_the_real_phase():
@@ -1033,19 +1036,22 @@ def test_progress_dialog_follows_the_real_phase():
     f = _frame()
     try:
         f._hb_phase = "Loading video info..."
-        f._hb_start = _time.monotonic() - 800     # an old, stale phase
+        f._hb_start = _time.monotonic() - 800  # an old, stale phase
 
         f._video_status_tick("uploading")
-        assert f._hb_phase != "Loading video info...", \
+        assert f._hb_phase != "Loading video info...", (
             "the heartbeat still repeats the first phase forever"
-        assert _time.monotonic() - f._hb_start < 5, \
+        )
+        assert _time.monotonic() - f._hb_start < 5, (
             "the counter still shows the age of the whole job"
+        )
 
         # A phase tick counts as progress, so the heartbeat stands down.
         f._last_progress_at = 0.0
         f._video_upload_tick(42.0)
-        assert _time.monotonic() - f._last_progress_at < 5, \
+        assert _time.monotonic() - f._last_progress_at < 5, (
             "upload progress does not hold the heartbeat off"
+        )
     finally:
         _close(f)
 
@@ -1058,6 +1064,7 @@ def test_the_dialog_title_stops_claiming_to_download():
     on a frame the test is tearing down. The title logic is what matters
     and it needs no real window.
     """
+
     class FakeDialog:
         def __init__(self):
             self.title = "Downloading video - 100%"
@@ -1069,7 +1076,7 @@ def test_the_dialog_title_stops_claiming_to_download():
             pass
 
         def Update(self, *a):
-            return (True, False)      # (continue, skipped), as wx returns
+            return (True, False)  # (continue, skipped), as wx returns
 
     f = _frame()
     try:
@@ -1077,22 +1084,22 @@ def test_the_dialog_title_stops_claiming_to_download():
         f._dl_dialog = fake
         f._video_status_tick("processing")
         assert "Downloading" not in fake.title, (
-            "still claims to be downloading during the AI phase: "
-            f"{fake.title!r}")
+            f"still claims to be downloading during the AI phase: {fake.title!r}"
+        )
         assert fake.title.strip(), "the title went blank"
 
         # v1.9.6: the title carries the ONE overall percentage of the job
         # (the upload is the first half of the AI stage, 30-95).
         f._video_upload_tick(42.0)
         assert f._overall_pct() == 43, f._overall_pct()
-        assert "43%" in fake.title, \
-            f"overall progress is missing from the title: {fake.title!r}"
+        assert "43%" in fake.title, f"overall progress is missing from the title: {fake.title!r}"
     finally:
-        f._dl_dialog = None       # never let the frame destroy the stub
+        f._dl_dialog = None  # never let the frame destroy the stub
         _close(f)
 
 
 # ── Scene explorer + Ask More handlers ───────────────────────────
+
 
 def test_scene_explorer_arrow_keys_stay_in_range():
     """Left/Right at the ends must clamp, not raise IndexError."""
@@ -1102,8 +1109,7 @@ def test_scene_explorer_arrow_keys_stay_in_range():
     se = None
     try:
         se = SceneExplorer(f, f.ai_engine, "")
-        se.frames = [{"path": "a.jpg", "time": 0.0},
-                     {"path": "b.jpg", "time": 1.0}]
+        se.frames = [{"path": "a.jpg", "time": 0.0}, {"path": "b.jpg", "time": 1.0}]
         se._current_idx = 0
 
         class KeyEvent:
@@ -1116,10 +1122,10 @@ def test_scene_explorer_arrow_keys_stay_in_range():
             def Skip(self, *a):
                 pass
 
-        se._on_key(KeyEvent(wx.WXK_LEFT))     # already at the first frame
+        se._on_key(KeyEvent(wx.WXK_LEFT))  # already at the first frame
         assert se._current_idx == 0, se._current_idx
         se._on_key(KeyEvent(wx.WXK_RIGHT))
-        se._on_key(KeyEvent(wx.WXK_RIGHT))    # already at the last frame
+        se._on_key(KeyEvent(wx.WXK_RIGHT))  # already at the last frame
         assert se._current_idx == len(se.frames) - 1, se._current_idx
     finally:
         if se is not None:
@@ -1137,7 +1143,7 @@ def test_ask_more_cancel_closes_cleanly():
     dlg = None
     try:
         dlg = AskMoreDialog(f, f.ai_engine)
-        dlg._on_cancel(None)      # must not raise
+        dlg._on_cancel(None)  # must not raise
     finally:
         if dlg is not None:
             try:
@@ -1160,13 +1166,14 @@ def test_ask_more_cancel_closes_cleanly():
 #     "User notes" — nonsense instructions on every describe
 #   - "Status Log" sitting in the log as if it had been logged
 
+
 def test_fresh_launch_has_a_preset_selected():
     f = _frame()
     try:
-        assert f.prompt_choice.GetSelection() != wx.NOT_FOUND, \
+        assert f.prompt_choice.GetSelection() != wx.NOT_FOUND, (
             "no preset selected on a fresh launch: Open would refuse"
-        assert f.prompt_choice.GetStringSelection(), \
-            "preset selection is empty"
+        )
+        assert f.prompt_choice.GetStringSelection(), "preset selection is empty"
     finally:
         _close(f)
 
@@ -1177,10 +1184,10 @@ def test_prompt_box_holds_the_preset_not_a_label():
         value = f.custom_prompt.GetValue().strip()
         name = f.prompt_choice.GetStringSelection()
         expected = f.prompt_mgr.get_preset(name).strip()
-        assert value == expected, (
-            f"prompt box does not hold preset {name!r}: {value[:80]!r}")
-        assert not f.log_text.GetValue().startswith("Status Log"), \
+        assert value == expected, f"prompt box does not hold preset {name!r}: {value[:80]!r}"
+        assert not f.log_text.GetValue().startswith("Status Log"), (
             "the log's own label was written into the log"
+        )
     finally:
         _close(f)
 
@@ -1196,10 +1203,10 @@ def test_open_sends_the_preset_without_invented_notes():
             f._on_preset_open(None)
         assert sent, f"Open did not start processing; boxes={boxes}"
         assert "User notes" not in sent[0], (
-            f"a label leaked into the AI request: {sent[0][-120:]!r}")
+            f"a label leaked into the AI request: {sent[0][-120:]!r}"
+        )
         name = f.prompt_choice.GetStringSelection()
-        assert sent[0].strip() == f.prompt_mgr.get_preset(name).strip(), \
-            sent[0][:120]
+        assert sent[0].strip() == f.prompt_mgr.get_preset(name).strip(), sent[0][:120]
     finally:
         _close(f)
 
@@ -1226,10 +1233,10 @@ def test_language_switch_keeps_preset_and_prompt():
         before_sel = f.prompt_choice.GetStringSelection()
         before_prompt = f.custom_prompt.GetValue()
         f._retranslate_ui()
-        assert f.prompt_choice.GetStringSelection() == before_sel, \
+        assert f.prompt_choice.GetStringSelection() == before_sel, (
             "retranslate cleared the preset selection"
-        assert f.custom_prompt.GetValue() == before_prompt, \
-            "retranslate overwrote the prompt box"
+        )
+        assert f.custom_prompt.GetValue() == before_prompt, "retranslate overwrote the prompt box"
     finally:
         _close(f)
 
@@ -1238,73 +1245,56 @@ if __name__ == "__main__":
     check("local file handler sets source", test_local_file_sets_source)
     check("direct url handler sets source", test_direct_url_sets_source)
     check("youtube url handler sets source", test_youtube_url_sets_source)
-    check("cancel leaves source untouched",
-          test_cancelled_dialog_leaves_source_untouched)
+    check("cancel leaves source untouched", test_cancelled_dialog_leaves_source_untouched)
     check("new project handler creates it", test_new_project_creates_it)
-    check("save with no project is announced",
-          test_save_project_without_project_is_safe)
+    check("save with no project is announced", test_save_project_without_project_is_safe)
     check("save project persists descriptions", test_save_project_with_project)
     check("open project with none saved", test_open_project_with_none_saved)
     check("about box builds", test_about_box_builds)
     check("export srt writes real file", test_export_srt_writes_real_file)
     check("export vtt writes real file", test_export_vtt_writes_real_file)
-    check("export with no descriptions is announced",
-          test_export_without_descriptions_is_announced)
+    check("export with no descriptions is announced", test_export_without_descriptions_is_announced)
     check("import round trip keeps cues", test_import_descriptions_round_trip)
     check("import rejects garbage", test_import_rejects_garbage_file)
     check("export audio wiring survives", test_export_audio_wiring)
-    check("editor delete removes only the selected cue",
-          test_editor_delete_removes_only_the_selected_cue)
+    check(
+        "editor delete removes only the selected cue",
+        test_editor_delete_removes_only_the_selected_cue,
+    )
     check("editor delete respects No", test_editor_delete_respects_no)
-    check("editor add + close saves the edit",
-          test_editor_add_then_close_saves_edit)
-    check("editor TTS announces empty text",
-          test_editor_tts_on_empty_text_is_announced)
-    check("player play/pause toggles state and label",
-          test_player_play_pause_toggle)
-    check("player speak reads the current cue",
-          test_player_speak_reads_current_cue)
-    check("player speak ignores empty text",
-          test_player_speak_ignores_empty_text)
+    check("editor add + close saves the edit", test_editor_add_then_close_saves_edit)
+    check("editor TTS announces empty text", test_editor_tts_on_empty_text_is_announced)
+    check("player play/pause toggles state and label", test_player_play_pause_toggle)
+    check("player speak reads the current cue", test_player_speak_reads_current_cue)
+    check("player speak ignores empty text", test_player_speak_ignores_empty_text)
     check("player loads an external SRT", test_player_load_external_srt)
-    check("player opens editor, explorer and ask",
-          test_player_opens_editor_explorer_and_ask)
-    check("narration holds playback then resumes",
-          test_narration_holds_playback_then_resumes)
-    check("auto hold is not a user pause",
-          test_auto_hold_is_not_the_user_pressing_pause)
-    check("user pause during narration wins",
-          test_user_pause_during_narration_wins)
-    check("player has a visible toggle",
-          test_player_has_a_visible_toggle_for_holding)
-    check("toggle takes effect on the next cue",
-          test_toggle_takes_effect_on_the_next_cue)
-    check("toggle is announced, not just checked",
-          test_toggle_is_announced_not_just_checked)
-    check("saved preference is what the player opens with",
-          test_saved_preference_is_what_the_player_opens_with)
-    check("video audio returns after a description",
-          test_video_audio_returns_after_a_description)
-    check("a silent video says why in the log",
-          test_a_silent_video_says_why_in_the_log)
+    check("player opens editor, explorer and ask", test_player_opens_editor_explorer_and_ask)
+    check("narration holds playback then resumes", test_narration_holds_playback_then_resumes)
+    check("auto hold is not a user pause", test_auto_hold_is_not_the_user_pressing_pause)
+    check("user pause during narration wins", test_user_pause_during_narration_wins)
+    check("player has a visible toggle", test_player_has_a_visible_toggle_for_holding)
+    check("toggle takes effect on the next cue", test_toggle_takes_effect_on_the_next_cue)
+    check("toggle is announced, not just checked", test_toggle_is_announced_not_just_checked)
+    check(
+        "saved preference is what the player opens with",
+        test_saved_preference_is_what_the_player_opens_with,
+    )
+    check("video audio returns after a description", test_video_audio_returns_after_a_description)
+    check("a silent video says why in the log", test_a_silent_video_says_why_in_the_log)
     check("_stop_ffplay defined once", test_stop_ffplay_is_defined_once)
-    check("progress dialog follows the real phase",
-          test_progress_dialog_follows_the_real_phase)
-    check("dialog title stops claiming to download",
-          test_the_dialog_title_stops_claiming_to_download)
-    check("scene explorer arrow keys clamp",
-          test_scene_explorer_arrow_keys_stay_in_range)
-    check("ask more cancel closes cleanly",
-          test_ask_more_cancel_closes_cleanly)
-    check("fresh launch has a preset selected",
-          test_fresh_launch_has_a_preset_selected)
-    check("prompt box holds the preset, not a label",
-          test_prompt_box_holds_the_preset_not_a_label)
-    check("Open sends the preset without invented notes",
-          test_open_sends_the_preset_without_invented_notes)
-    check("accessible names survive the fix",
-          test_accessible_names_survive_the_fix)
-    check("language switch keeps preset and prompt",
-          test_language_switch_keeps_preset_and_prompt)
+    check("progress dialog follows the real phase", test_progress_dialog_follows_the_real_phase)
+    check(
+        "dialog title stops claiming to download", test_the_dialog_title_stops_claiming_to_download
+    )
+    check("scene explorer arrow keys clamp", test_scene_explorer_arrow_keys_stay_in_range)
+    check("ask more cancel closes cleanly", test_ask_more_cancel_closes_cleanly)
+    check("fresh launch has a preset selected", test_fresh_launch_has_a_preset_selected)
+    check("prompt box holds the preset, not a label", test_prompt_box_holds_the_preset_not_a_label)
+    check(
+        "Open sends the preset without invented notes",
+        test_open_sends_the_preset_without_invented_notes,
+    )
+    check("accessible names survive the fix", test_accessible_names_survive_the_fix)
+    check("language switch keeps preset and prompt", test_language_switch_keeps_preset_and_prompt)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

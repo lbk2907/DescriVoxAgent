@@ -13,6 +13,7 @@ What can go wrong, each pinned here:
   - Windows refuses some names ("CON", "a:b");
   - tests wrote into the owner's real projects folder (14 leftovers).
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -23,15 +24,21 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_t39_cfg_"))
 
 from omni_describer_custom.core.project_store import (  # noqa: E402
-    Description, ProjectStore)
+    Description,
+    ProjectStore,
+)
 
 results: list[tuple[str, bool]] = []
 
@@ -63,7 +70,7 @@ def test_new_project_gets_a_named_folder():
 def test_windows_unsafe_names():
     lab = ProjectStore.folder_label
     assert lab("CON", 5) == "CON (5)"
-    assert lab('a:b/c*d?', 2) == "a b c d (2)"
+    assert lab("a:b/c*d?", 2) == "a b c d (2)"
     assert lab("  trailing dots... ", 3) == "trailing dots (3)"
     assert lab("", 4) == "Video (4)"
     assert lab("x\u202egnp.exe", 6) == "xgnp.exe (6)"
@@ -83,21 +90,29 @@ def _legacy_project(root: Path, pid: int, name: str) -> Path:
     # closing(): sqlite3's own "with" commits but leaves the file open,
     # and an open .db cannot be moved on Windows.
     from contextlib import closing
+
     with closing(sqlite3.connect(str(db))) as conn:
-        conn.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY, name "
-                     "TEXT, video_path TEXT, video_duration REAL DEFAULT 0, "
-                     "provider TEXT DEFAULT '', model TEXT DEFAULT '', "
-                     "created_at TEXT, updated_at TEXT, metadata TEXT)")
-        conn.execute("CREATE TABLE descriptions (id INTEGER PRIMARY KEY, "
-                     "project_id INTEGER, start_time REAL, end_time REAL, "
-                     "text TEXT, edited INTEGER DEFAULT 0, created_at TEXT, "
-                     "frame_path TEXT DEFAULT '')")
-        conn.execute("INSERT INTO projects VALUES (?,?,?,0,'','',?,?,'{}')",
-                     (pid, name, str(video), "2026-09-01 10:00:00",
-                      "2026-09-01 10:00:00"))
-        conn.execute("INSERT INTO descriptions (project_id, start_time, "
-                     "end_time, text, frame_path) VALUES (?,1,2,'A cue',?)",
-                     (pid, str(frame)))
+        conn.execute(
+            "CREATE TABLE projects (id INTEGER PRIMARY KEY, name "
+            "TEXT, video_path TEXT, video_duration REAL DEFAULT 0, "
+            "provider TEXT DEFAULT '', model TEXT DEFAULT '', "
+            "created_at TEXT, updated_at TEXT, metadata TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE descriptions (id INTEGER PRIMARY KEY, "
+            "project_id INTEGER, start_time REAL, end_time REAL, "
+            "text TEXT, edited INTEGER DEFAULT 0, created_at TEXT, "
+            "frame_path TEXT DEFAULT '')"
+        )
+        conn.execute(
+            "INSERT INTO projects VALUES (?,?,?,0,'','',?,?,'{}')",
+            (pid, name, str(video), "2026-09-01 10:00:00", "2026-09-01 10:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO descriptions (project_id, start_time, "
+            "end_time, text, frame_path) VALUES (?,1,2,'A cue',?)",
+            (pid, str(frame)),
+        )
         conn.commit()
     return video
 
@@ -128,8 +143,7 @@ def test_rename_moves_folder_and_paths_not_the_date():
     p = s.open_project(3)
     assert p.name == "Me at the zoo"
     assert Path(p.video_path).exists(), p.video_path
-    assert s.list_projects()[0]["updated_at"] == before, \
-        "a rename reordered the Open Project list"
+    assert s.list_projects()[0]["updated_at"] == before, "a rename reordered the Open Project list"
 
 
 def test_rename_of_an_open_video_follows_later():
@@ -137,14 +151,14 @@ def test_rename_of_an_open_video_follows_later():
     _legacy_project(s.projects_dir, 9, "old")
     s.migrate_layout()
     video = s.projects_dir / "old (9)" / "media" / "video.mp4"
-    handle = open(video, "rb")          # the player has it open
+    handle = open(video, "rb")  # the player has it open
     try:
         assert s.rename_project(9, "new")
         assert s.open_project(9).name == "new", "the name must change now"
         still_old = (s.projects_dir / "old (9)").is_dir()
     finally:
         handle.close()
-    if still_old:                       # Windows refused, as expected
+    if still_old:  # Windows refused, as expected
         assert s.migrate_layout() == 1, "next start did not catch up"
     assert (s.projects_dir / "new (9)" / "project.db").exists()
     assert Path(s.open_project(9).video_path).exists()
@@ -164,8 +178,12 @@ def test_ids_never_reused_across_layouts():
 def test_list_rows_carry_count_and_newest_first():
     s = fresh()
     a = s.create_project("First", "x")
-    s.save_descriptions([Description(start_time=1, end_time=2, text="t"),
-                         Description(start_time=3, end_time=4, text="u")])
+    s.save_descriptions(
+        [
+            Description(start_time=1, end_time=2, text="t"),
+            Description(start_time=3, end_time=4, text="u"),
+        ]
+    )
     time.sleep(1.1)
     s.create_project("Second", "y")
     rows = s.list_projects()
@@ -190,11 +208,14 @@ def test_tests_can_isolate_the_projects_folder():
 
 def test_open_dialog_label_and_rename_handler():
     import wx
+
     os.environ["ODC_PROJECTS_DIR"] = tempfile.mkdtemp(prefix="odc_t39_ui_")
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.ui.main_frame import MainFrame
+
     label = MainFrame._project_list_label(
-        {"name": "Sintel", "count": 79, "updated_at": "2026-09-28 11:30:05"})
+        {"name": "Sintel", "count": 79, "updated_at": "2026-09-28 11:30:05"}
+    )
     assert "Sintel" in label and "79" in label and "28/09/2026 11:30" in label, label
 
     frame = MainFrame()
@@ -233,19 +254,22 @@ def test_open_dialog_label_and_rename_handler():
 def main() -> int:
     check("a new project gets a named folder", test_new_project_gets_a_named_folder)
     check("names Windows refuses are made safe", test_windows_unsafe_names)
-    check("old projects move and keep their video and frames",
-          test_old_projects_move_and_keep_their_video)
-    check("rename moves the folder, rewrites paths, keeps the date",
-          test_rename_moves_folder_and_paths_not_the_date)
-    check("renaming a project whose video is open catches up next start",
-          test_rename_of_an_open_video_follows_later)
+    check(
+        "old projects move and keep their video and frames",
+        test_old_projects_move_and_keep_their_video,
+    )
+    check(
+        "rename moves the folder, rewrites paths, keeps the date",
+        test_rename_moves_folder_and_paths_not_the_date,
+    )
+    check(
+        "renaming a project whose video is open catches up next start",
+        test_rename_of_an_open_video_follows_later,
+    )
     check("ids are never reused across layouts", test_ids_never_reused_across_layouts)
-    check("list rows carry a count, newest first",
-          test_list_rows_carry_count_and_newest_first)
-    check("tests can isolate the projects folder",
-          test_tests_can_isolate_the_projects_folder)
-    check("Open Project label and the Rename handler",
-          test_open_dialog_label_and_rename_handler)
+    check("list rows carry a count, newest first", test_list_rows_carry_count_and_newest_first)
+    check("tests can isolate the projects folder", test_tests_can_isolate_the_projects_folder)
+    check("Open Project label and the Rename handler", test_open_dialog_label_and_rename_handler)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

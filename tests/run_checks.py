@@ -1,9 +1,14 @@
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.ai_engine import AIEngine, CustomProvider, FORMAT_ANTHROPIC
@@ -17,6 +22,7 @@ from omni_describer_custom.i18n.strings import I18n, t
 ok = 0
 fail = 0
 
+
 def check(name, fn):
     global ok, fail
     try:
@@ -28,9 +34,11 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 # 1. Settings store round-trip with temp dir
 import tempfile
 from pathlib import Path
+
 
 def test_settings():
     with tempfile.TemporaryDirectory() as d:
@@ -40,7 +48,10 @@ def test_settings():
         cfg = s2.get_ai_provider("gemini")
         assert cfg["api_key"] == "test-key-123", cfg
         assert cfg["model"] == "gemini-2.5-flash"
+
+
 check("settings_store encrypt/decrypt round-trip", test_settings)
+
 
 # 2. Prompt manager defaults
 def test_prompts():
@@ -51,7 +62,10 @@ def test_prompts():
         assert "default" in names, names
         text = pm.get_preset("default")
         assert text, "empty default prompt"
+
+
 check("prompt_manager defaults", test_prompts)
+
 
 # 3. Project store CRUD
 def test_project_store():
@@ -69,7 +83,10 @@ def test_project_store():
         assert len(lst) == 1 and lst[0]["name"] == "Test Proj"
         ps.delete_project(p.id)
         assert ps.open_project(p.id) is None
+
+
 check("project_store CRUD", test_project_store)
+
 
 # 4. CustomProvider anthropic payload shape (no network)
 def test_custom_provider():
@@ -77,7 +94,10 @@ def test_custom_provider():
     assert cp._detect_format() == FORMAT_ANTHROPIC, cp._detect_format()
     cp2 = CustomProvider(api_key="k", base_url="https://api.example.com/v1", model="m1")
     assert cp2._detect_format() != FORMAT_ANTHROPIC
+
+
 check("custom provider format detection", test_custom_provider)
+
 
 # 5. VTT parsing
 def test_vtt():
@@ -92,7 +112,10 @@ def test_vtt():
         texts = [s.text for s in segs]
         assert "Hello world" in texts, texts
         assert segs[0].start == 1.0 and segs[0].end == 3.0
+
+
 check("vtt parsing", test_vtt)
+
 
 # 6. i18n
 def test_i18n():
@@ -102,7 +125,10 @@ def test_i18n():
     assert t("main.ready") == "Ready"
     msg = t("status.no_api_key", provider="gemini")
     assert "gemini" in msg
+
+
 check("i18n translations", test_i18n)
+
 
 # 7. TTS engine init (no actual speech)
 def test_tts():
@@ -110,7 +136,10 @@ def test_tts():
     avail = eng.get_available_engines()
     print(f"  available TTS engines: {avail}")
     assert isinstance(avail, list)
+
+
 check("tts engine init", test_tts)
+
 
 # 8. AI engine provider mgmt
 def test_ai_engine():
@@ -121,6 +150,8 @@ def test_ai_engine():
         eng.describe_frame.__wrapped__ if hasattr(eng.describe_frame, "__wrapped__") else None
     except Exception:
         pass
+
+
 check("ai engine provider mgmt", test_ai_engine)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")

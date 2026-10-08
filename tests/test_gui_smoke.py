@@ -1,10 +1,16 @@
 """GUI smoke test: build every window/dialog, verify, then auto-close."""
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 sys.path.insert(0, ".")
 
@@ -12,6 +18,7 @@ import wx
 
 ok = 0
 fail = 0
+
 
 def check(name, fn):
     global ok, fail
@@ -23,6 +30,7 @@ def check(name, fn):
         print(f"FAIL: {name}: {e}")
         traceback.print_exc()
         fail += 1
+
 
 def run():
     from omni_describer_custom.ui.main_frame import MainFrame
@@ -51,9 +59,11 @@ def run():
 
     # Player + Editor + AskMore + SceneExplorer with a real temp project
     import tempfile
+
     with tempfile.TemporaryDirectory() as d:
         ps = ProjectStore(projects_dir=d)
         from omni_describer_custom.core.project_store import Description
+
         p = ps.create_project("GUITest", "nonexistent.mp4")
         p.video_duration = 60.0
         ps.add_description(Description(start_time=0.0, end_time=5.0, text="Test description"))
@@ -61,7 +71,9 @@ def run():
         player = PlayerWindow(frame, ps, TTSEngine({}), AIEngine())
         player.Show()
         wx.Yield()
-        assert player.current_desc_text.GetValue() == "Test description", player.current_desc_text.GetValue()
+        assert player.current_desc_text.GetValue() == "Test description", (
+            player.current_desc_text.GetValue()
+        )
 
         editor = EditorWindow(player, ps, TTSEngine({}))
         editor.Show()
@@ -85,7 +97,9 @@ def run():
     wx.Yield()
     print("ALL GUI WINDOWS CONSTRUCTED OK")
 
+
 check("GUI windows construct + display", run)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

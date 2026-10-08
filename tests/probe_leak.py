@@ -5,12 +5,15 @@ Each run drives MainFrame._process_video down a REAL failing path
 worker exit path suspected of missing loop.close(). Handles are measured
 with a correctly prototyped GetProcessHandleCount.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ctypes, sys, io, tempfile, shutil
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 import wx
 
@@ -36,7 +39,15 @@ from omni_describer_custom.ui.main_frame import MainFrame
 tmp = tempfile.mkdtemp(prefix="leak_probe2_")
 try:
     frame = MainFrame()
-    frame.ai_engine = type("E", (), {"describe_frames": staticmethod(lambda *a, **k: (_ for _ in ()).throw(RuntimeError("unreachable")))})()
+    frame.ai_engine = type(
+        "E",
+        (),
+        {
+            "describe_frames": staticmethod(
+                lambda *a, **k: (_ for _ in ()).throw(RuntimeError("unreachable"))
+            )
+        },
+    )()
     frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
     frame.settings = {"general.frame_rate": 1}
     frame._processing = True

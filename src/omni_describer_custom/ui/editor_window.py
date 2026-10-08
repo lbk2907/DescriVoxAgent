@@ -27,8 +27,7 @@ class EditorWindow(wx.Frame):
         self._loaded_desc = None  # description currently in the fields
         self._saved = False
 
-        super().__init__(parent, title=t("editor.title"),
-                         size=(800, 600))
+        super().__init__(parent, title=t("editor.title"), size=(800, 600))
 
         self._build_ui()
         self._load_descriptions()
@@ -50,8 +49,9 @@ class EditorWindow(wx.Frame):
         list_box = wx.StaticBox(panel, label=t("editor.select_desc"))
         list_sizer = wx.StaticBoxSizer(list_box, wx.VERTICAL)
 
-        self.desc_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL,
-                                     name="description_list")
+        self.desc_list = wx.ListCtrl(
+            panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL, name="description_list"
+        )
         self.desc_list.InsertColumn(0, t("editor.col_start"), width=70)
         self.desc_list.InsertColumn(1, t("editor.col_end"), width=70)
         self.desc_list.InsertColumn(2, t("editor.col_text"), width=500)
@@ -60,11 +60,21 @@ class EditorWindow(wx.Frame):
 
         # Time controls
         time_box = wx.BoxSizer(wx.HORIZONTAL)
-        time_box.Add(wx.StaticText(panel, label=t("editor.start_time"), name="start_label"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        time_box.Add(
+            wx.StaticText(panel, label=t("editor.start_time"), name="start_label"),
+            0,
+            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
+            5,
+        )
         self.start_time_ctrl = wx.TextCtrl(panel, value="0.0", size=(80, -1), name="start_time")
         time_box.Add(self.start_time_ctrl, 0, wx.ALL, 5)
 
-        time_box.Add(wx.StaticText(panel, label=t("editor.end_time"), name="end_label"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        time_box.Add(
+            wx.StaticText(panel, label=t("editor.end_time"), name="end_label"),
+            0,
+            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
+            5,
+        )
         self.end_time_ctrl = wx.TextCtrl(panel, value="5.0", size=(80, -1), name="end_time")
         time_box.Add(self.end_time_ctrl, 0, wx.ALL, 5)
 
@@ -74,8 +84,9 @@ class EditorWindow(wx.Frame):
         # Description text editor
         text_box = wx.StaticBox(panel, label=t("editor.text"))
         text_sizer = wx.StaticBoxSizer(text_box, wx.VERTICAL)
-        self.text_ctrl = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(-1, 150),
-                                     name="description_text")
+        self.text_ctrl = wx.TextCtrl(
+            panel, style=wx.TE_MULTILINE, size=(-1, 150), name="description_text"
+        )
         text_sizer.Add(self.text_ctrl, 1, wx.ALL | wx.EXPAND, 5)
         sizer.Add(text_sizer, 0, wx.ALL | wx.EXPAND, 10)
 
@@ -125,6 +136,7 @@ class EditorWindow(wx.Frame):
         self.status_text.SetFocus()
         try:
             from ..core.speech import announce as _speak_status
+
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -232,6 +244,7 @@ class EditorWindow(wx.Frame):
             return
         self._commit_fields()
         from ..core.project_store import Description as _Desc
+
         new_desc = _Desc(id=0, start_time=0.0, end_time=5.0, text="")
         self.store.add_description(new_desc)
         self._sort_descriptions()
@@ -244,8 +257,10 @@ class EditorWindow(wx.Frame):
         if idx == wx.NOT_FOUND:
             return
         from .dialogs import ask_yes_no
-        if not ask_yes_no(self, t("editor.confirm_delete"),
-                          t("editor.confirm_title"), default_no=True):
+
+        if not ask_yes_no(
+            self, t("editor.confirm_delete"), t("editor.confirm_title"), default_no=True
+        ):
             return
         self._commit_fields()
         desc = self.store.current.descriptions[idx]
@@ -260,6 +275,7 @@ class EditorWindow(wx.Frame):
         if not text:
             self._announce(t("editor.empty_text"))
             return
+
         # Generate AND play the audio in a background thread; a bare
         # speak() only writes a temp file and the user hears nothing.
         # v1.9.6: a failure was only logged — the user heard nothing
@@ -272,6 +288,7 @@ class EditorWindow(wx.Frame):
                 ok = False
             if not ok:
                 wx.CallAfter(self._announce, t("editor.tts_failed"))
+
         threading.Thread(target=speak, daemon=True).start()
 
     def save_edits(self) -> None:
@@ -292,5 +309,3 @@ class EditorWindow(wx.Frame):
         """Save and close."""
         self.save_edits()
         self.Destroy()
-
-

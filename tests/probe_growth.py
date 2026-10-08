@@ -4,12 +4,15 @@ One process, 100 REAL failing-URL runs (yt-dlp SourceError path), handle
 count read every 25 runs. Linear growth = real leak; plateau = transient
 retention (subprocess/GC artifacts), not a user-facing leak.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ctypes, sys, io, tempfile, shutil
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 import wx
 
@@ -35,7 +38,15 @@ from omni_describer_custom.ui.main_frame import MainFrame
 tmp = tempfile.mkdtemp(prefix="leak_grow_")
 try:
     frame = MainFrame()
-    frame.ai_engine = type("E", (), {"describe_frames": staticmethod(lambda *a, **k: (_ for _ in ()).throw(RuntimeError("unreachable")))})()
+    frame.ai_engine = type(
+        "E",
+        (),
+        {
+            "describe_frames": staticmethod(
+                lambda *a, **k: (_ for _ in ()).throw(RuntimeError("unreachable"))
+            )
+        },
+    )()
     frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
     frame.settings = {"general.frame_rate": 1}
     frame._processing = True

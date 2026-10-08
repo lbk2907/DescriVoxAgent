@@ -10,6 +10,7 @@ checked against the picture (v1.8.8).
    films. core/review.py; Settings "Check descriptions against the
    video", off by default (owner, 30 Sep 2026).
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -21,10 +22,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_t52_cfg_"))
 os.environ.setdefault("ODC_PROJECTS_DIR", tempfile.mkdtemp(prefix="odc_t52_prj_"))
@@ -62,6 +67,7 @@ def test_chosen_model_reaches_every_call():
     async def image(path, prompt, model=""):
         seen.append(model)
         return "x"
+
     prov.describe_video_full = video
     prov.describe_image = image
     asyncio.run(e.describe_video_full("v.mp4", "p"))
@@ -126,9 +132,23 @@ def test_answers_are_read_onto_real_frame_times():
 def _video() -> Path:
     out = TMP / "clip.mp4"
     if not out.exists():
-        subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
-                        "-i", "testsrc=size=320x240:rate=10:duration=60",
-                        "-c:v", "libx264", str(out)], check=True, timeout=180)
+        subprocess.run(
+            [
+                find_tool("ffmpeg"),
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=320x240:rate=10:duration=60",
+                "-c:v",
+                "libx264",
+                str(out),
+            ],
+            check=True,
+            timeout=180,
+        )
     return out
 
 
@@ -150,25 +170,32 @@ class FakeEngine:
 
 
 def test_review_moves_removes_and_never_loses_the_job():
-    pairs = [(10.0, "A kept line."), (20.0, "A moved line."),
-             (30.0, "An invented line."), (40.0, "A failed check.")]
-    engine = FakeEngine({
-        "A kept line.": '{"here": true, "best": "0:11.0"}',
-        "A moved line.": '{"here": false, "best": "0:36.4"}',
-        "An invented line.": '{"here": false, "best": "none"}',
-        "A failed check.": "",
-    }, fail=("A failed check.",))
+    pairs = [
+        (10.0, "A kept line."),
+        (20.0, "A moved line."),
+        (30.0, "An invented line."),
+        (40.0, "A failed check."),
+    ]
+    engine = FakeEngine(
+        {
+            "A kept line.": '{"here": true, "best": "0:11.0"}',
+            "A moved line.": '{"here": false, "best": "0:36.4"}',
+            "An invented line.": '{"here": false, "best": "none"}',
+            "A failed check.": "",
+        },
+        fail=("A failed check.",),
+    )
     before = set(Path(tempfile.gettempdir()).glob("odc_review_*"))
-    kept, summary = asyncio.run(review.review(engine, str(_video()), pairs,
-                                              "accurate", 60.0))
+    kept, summary = asyncio.run(review.review(engine, str(_video()), pairs, "accurate", 60.0))
     texts = [x for _, x in kept]
     assert "An invented line." not in texts
     assert "A failed check." in texts, "a failed check lost a description"
     moved = dict((x, t) for t, x in kept)["A moved line."]
     assert abs(moved - 36.4) < review.STEP, moved
     assert [t for t, _ in kept] == sorted(t for t, _ in kept)
-    assert summary == {"checked": 4, "moved": 1, "removed": 1, "failed": 1,
-                       "mode": "accurate"}, summary
+    assert summary == {"checked": 4, "moved": 1, "removed": 1, "failed": 1, "mode": "accurate"}, (
+        summary
+    )
     assert engine.calls == 4
     after = set(Path(tempfile.gettempdir()).glob("odc_review_*"))
     assert after <= before, "the frame folder was left behind"
@@ -179,8 +206,11 @@ def test_off_does_nothing_and_cancel_stops():
     kept, summary = asyncio.run(review.review(None, "none.mp4", pairs, "off", 60))
     assert kept == pairs and summary["checked"] == 0
     try:
-        asyncio.run(review.review(FakeEngine({}), str(_video()), pairs,
-                                  "accurate", 60.0, is_cancelled=lambda: True))
+        asyncio.run(
+            review.review(
+                FakeEngine({}), str(_video()), pairs, "accurate", 60.0, is_cancelled=lambda: True
+            )
+        )
         raise AssertionError("Cancel did not stop the check")
     except RuntimeError as e:
         assert "cancelled" in str(e)
@@ -189,14 +219,17 @@ def test_off_does_nothing_and_cancel_stops():
 # 4 ─────────────────────────────────────────────────────────────────
 def test_setting_is_off_by_default_and_saved():
     from omni_describer_custom.core.settings_store import SettingsStore
+
     assert SettingsStore.DEFAULTS["general"]["review_mode"] == "off"
     import wx
+
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
     store = SettingsStore()
     dlg = SettingsDialog(None, store)
     real_box = wx.MessageBox
-    wx.MessageBox = lambda *a, **k: wx.OK   # native modal (test_fixes11)
+    wx.MessageBox = lambda *a, **k: wx.OK  # native modal (test_fixes11)
     errors = []
     try:
         assert dlg.review_choice.GetSelection() == 0, "not Off for a new user"
@@ -204,11 +237,12 @@ def test_setting_is_off_by_default_and_saved():
 
         def drive():
             try:
-                dlg.review_choice.SetSelection(2)   # Most accurate
-                dlg._on_apply(None)                 # ends the modal
+                dlg.review_choice.SetSelection(2)  # Most accurate
+                dlg._on_apply(None)  # ends the modal
             except Exception as e:
                 errors.append(e)
                 dlg.EndModal(wx.ID_CANCEL)
+
         wx.CallAfter(drive)
         dlg.ShowModal()
     finally:
@@ -222,8 +256,10 @@ def test_setting_is_off_by_default_and_saved():
 
 def test_pipeline_runs_the_check_only_when_asked():
     import wx
+
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.ui.main_frame import MainFrame
+
     frame = MainFrame()
     try:
         logged = []
@@ -250,6 +286,7 @@ def test_pipeline_runs_the_check_only_when_asked():
 
 def test_temp_folders_are_swept():
     from omni_describer_custom.core import housekeeping
+
     assert "odc_review_" in housekeeping._OUR_PREFIXES
 
 
@@ -257,15 +294,14 @@ def main() -> int:
     check("the chosen model reaches every call", test_chosen_model_reaches_every_call)
     check("modes and auto", test_modes_and_auto)
     check("decisions match what was measured", test_decisions_match_what_was_measured)
-    check("answers are read onto real frame times",
-          test_answers_are_read_onto_real_frame_times)
-    check("the check moves, removes and never loses the job",
-          test_review_moves_removes_and_never_loses_the_job)
+    check("answers are read onto real frame times", test_answers_are_read_onto_real_frame_times)
+    check(
+        "the check moves, removes and never loses the job",
+        test_review_moves_removes_and_never_loses_the_job,
+    )
     check("off does nothing; Cancel stops", test_off_does_nothing_and_cancel_stops)
-    check("the setting is off by default and saved",
-          test_setting_is_off_by_default_and_saved)
-    check("the pipeline checks only when asked",
-          test_pipeline_runs_the_check_only_when_asked)
+    check("the setting is off by default and saved", test_setting_is_off_by_default_and_saved)
+    check("the pipeline checks only when asked", test_pipeline_runs_the_check_only_when_asked)
     check("temp folders are swept", test_temp_folders_are_swept)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

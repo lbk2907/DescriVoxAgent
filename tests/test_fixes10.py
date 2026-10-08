@@ -8,24 +8,31 @@ poll between frames, and the real partial save into SQLite. Also fixes
 worker's error paths too, and a 100-run growth probe shows handle use
 PLATEAUS (no unbounded leak) on the error path.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, asyncio, traceback, tempfile, shutil, time
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
 _app = None  # keep a reference: an unreferenced wx.App is garbage collected
 
+
 def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -35,29 +42,62 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def make_video(path: Path) -> None:
     """Real 3-second mp4 of random noise frames with audio (distinct
     perceptual hashes so scene dedupe keeps several frames)."""
     import random
+
     w, h, fps, dur = 320, 240, 10, 3
     raw = Path(str(path) + ".raw")
     raw.write_bytes(random.randbytes(w * h * 3 * fps * dur))
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error",
-             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}",
-             "-r", str(fps), "-i", str(raw),
-             "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
-             "-map", "0:v", "-map", "1:a",
-             "-c:v", "mpeg4", "-q:v", "3", "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-shortest", str(path)],
-            capture_output=True, check=True)
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-s",
+                f"{w}x{h}",
+                "-r",
+                str(fps),
+                "-i",
+                str(raw),
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=3",
+                "-map",
+                "0:v",
+                "-map",
+                "1:a",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "3",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(path),
+            ],
+            capture_output=True,
+            check=True,
+        )
     finally:
         raw.unlink(missing_ok=True)
+
 
 class SlowLoopbackAI:
     """REAL HTTP server (OpenAI-compatible vision format) that delays the
     first response so the test can cancel while a request is in flight."""
+
     def __init__(self, first_delay: float = 1.5):
         self.hits = 0
         self.first_delay = first_delay
@@ -84,9 +124,11 @@ class SlowLoopbackAI:
             data = await request.json()
             url = data["messages"][0]["content"][1]["image_url"]["url"]
             import base64
+
             base64.b64decode(url.split("base64,", 1)[1])
             return web.json_response(
-                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]})
+                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]}
+            )
 
         app = web.Application()
         app.router.add_post("/v1/chat/completions", handler)
@@ -117,8 +159,10 @@ class SlowLoopbackAI:
             self._thread.join(10)
             self._loop.close()
 
+
 def test_cancel_during_real_http_ai():
     import wx
+
     srv = SlowLoopbackAI(first_delay=8)
     tmp = tempfile.mkdtemp(prefix="cancel10_")
     frame = None
@@ -132,12 +176,10 @@ def test_cancel_during_real_http_ai():
         make_video(video)
 
         engine = AIEngine()
-        engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
-                            model="loop-model")
+        engine.set_provider("custom", api_key="k", base_url=srv.base_url(), model="loop-model")
         frame = MainFrame()
         frame.ai_engine = engine
-        frame.project_store = ProjectStore(
-            projects_dir=str(Path(tmp) / "projects"))
+        frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
         frame.settings = {"general.frame_rate": 1, "general.min_description_gap": 0}
         frame._processing = True
         # The player path is proven in test_fixes9; here the subject is the
@@ -145,8 +187,7 @@ def test_cancel_during_real_http_ai():
         frame._open_player = lambda *a, **k: player_opened.append(True)
 
         # Run the REAL worker pipeline on a real thread.
-        th = threading.Thread(target=frame._process_video,
-                              args=(str(video), "describe each frame"))
+        th = threading.Thread(target=frame._process_video, args=(str(video), "describe each frame"))
         th.start()
 
         # Cancel while the second (8 s) request is on the wire. v1.9.6: the
@@ -196,7 +237,11 @@ def test_cancel_during_real_http_ai():
         srv.stop()
         shutil.rmtree(tmp, ignore_errors=True)
 
-check("Cancel during REAL HTTP AI: worker stops between frames, partial save", test_cancel_during_real_http_ai)
+
+check(
+    "Cancel during REAL HTTP AI: worker stops between frames, partial save",
+    test_cancel_during_real_http_ai,
+)
 
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
@@ -205,4 +250,5 @@ print(f"TOTAL: {ok} passed, {fail} failed")
 sys.stdout.flush()
 sys.stderr.flush()
 import os
+
 os._exit(1 if fail else 0)

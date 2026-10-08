@@ -37,15 +37,18 @@ Runner = Callable[[list[str]], subprocess.CompletedProcess]
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+    return subprocess.run(
+        cmd, cwd=REPO, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
 
 
 def files(dist: Path, version: str) -> dict[str, Path]:
-    return {"zip": dist / app_update.zip_name(version),
-            "sums": dist / app_update.SUMS_NAME,
-            "sig": dist / app_update.SIG_NAME,
-            "notes": dist / f"release-notes-{version}.md"}
+    return {
+        "zip": dist / app_update.zip_name(version),
+        "sums": dist / app_update.SUMS_NAME,
+        "sig": dist / app_update.SIG_NAME,
+        "notes": dist / f"release-notes-{version}.md",
+    }
 
 
 def check_files(dist: Path, version: str) -> list[str]:
@@ -57,8 +60,7 @@ def check_files(dist: Path, version: str) -> list[str]:
     try:
         # The app refuses an unsigned or wrongly signed release: so do we.
         app_update.verify_signature(f["sums"].read_bytes(), f["sig"].read_bytes())
-        expected = app_update.expected_sha256(
-            f["sums"].read_text(encoding="utf-8"), f["zip"].name)
+        expected = app_update.expected_sha256(f["sums"].read_text(encoding="utf-8"), f["zip"].name)
     except app_update.UpdateError as e:
         return [str(e)]
     if app_update.sha256_of(f["zip"]) != expected:
@@ -85,8 +87,10 @@ def check_gh(run: Runner = _run) -> list[str]:
     except OSError:
         return ["the GitHub CLI (gh) is not installed"]
     if out.returncode != 0:
-        return ["gh is not logged in: the owner runs "
-                "gh auth login --hostname github.com --git-protocol https --web"]
+        return [
+            "gh is not logged in: the owner runs "
+            "gh auth login --hostname github.com --git-protocol https --web"
+        ]
     return []
 
 
@@ -96,9 +100,23 @@ def plan(version: str, dist: Path) -> list[list[str]]:
     return [
         ["git", "push", "origin", "main"],
         ["git", "push", "origin", tag],
-        ["gh", "release", "create", tag, str(f["zip"]), str(f["sums"]), str(f["sig"]),
-         "--repo", app_update.REPO, "--title", f"DescriVox Agent {version}",
-         "--notes-file", str(f["notes"]), "--verify-tag", "--latest"],
+        [
+            "gh",
+            "release",
+            "create",
+            tag,
+            str(f["zip"]),
+            str(f["sums"]),
+            str(f["sig"]),
+            "--repo",
+            app_update.REPO,
+            "--title",
+            f"DescriVox Agent {version}",
+            "--notes-file",
+            str(f["notes"]),
+            "--verify-tag",
+            "--latest",
+        ],
     ]
 
 
@@ -108,16 +126,22 @@ def main() -> int:
     import contracts as C
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--yes", action="store_true",
-                    help="publish (only after the owner said yes for this version)")
+    ap.add_argument(
+        "--yes",
+        action="store_true",
+        help="publish (only after the owner said yes for this version)",
+    )
     ap.add_argument("--dist", default=str(REPO / "dist"))
     args = ap.parse_args()
     version = E.version()
     dist = Path(args.dist)
 
     verdict = release_check.run()
-    problems = [] if verdict.verdict == C.VERIFIED else \
-        [f"release_check: {verdict.verdict} (must be VERIFIED)"]
+    problems = (
+        []
+        if verdict.verdict == C.VERIFIED
+        else [f"release_check: {verdict.verdict} (must be VERIFIED)"]
+    )
     problems += check_tag(version) + check_files(dist, version) + check_gh()
     print(f"Release v{version}")
     if problems:

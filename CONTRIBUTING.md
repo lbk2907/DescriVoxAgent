@@ -69,6 +69,11 @@ py -3.13 tests\test_fixes65.py
   and no failure is ever silent. Check by listening with the NVDA tools in `tools/`
   (see AGENTS.md), not by reading the code.
 - API keys never appear in code, logs, URLs or test fixtures.
+- Formatting: the code uses the standard `ruff format` style (line length 100, set in
+  `pyproject.toml`). Run `ruff format .` and `ruff check .` before you commit; CI fails if a
+  file is not formatted. The whole repository was formatted once (phase 37.5); that commit
+  is listed in `.git-blame-ignore-revs`, so GitHub's blame skips it. To do the same locally:
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 ## 5. Commits
 

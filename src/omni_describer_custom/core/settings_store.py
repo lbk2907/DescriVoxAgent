@@ -98,7 +98,9 @@ def _protect_secret_strict(text: str) -> str:
     """
     if win32crypt is not None:
         try:
-            blob = win32crypt.CryptProtectData(text.encode("utf-8"), "OmniDescriber", None, None, None, 0)
+            blob = win32crypt.CryptProtectData(
+                text.encode("utf-8"), "OmniDescriber", None, None, None, 0
+            )
             return _DPAPI_PREFIX + base64.b64encode(blob).decode("ascii")
         except Exception as e:
             raise SecretProtectError(f"DPAPI protect failed: {e}") from e
@@ -122,7 +124,7 @@ def _unprotect_secret_strict(encoded: str) -> str:
         if win32crypt is None:
             raise SecretUnprotectError("DPAPI blob but DPAPI is unavailable")
         try:
-            blob = base64.b64decode(encoded[len(_DPAPI_PREFIX):])
+            blob = base64.b64decode(encoded[len(_DPAPI_PREFIX) :])
             _desc, value = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
             return value.decode("utf-8") if isinstance(value, bytes) else str(value)
         except Exception as e:
@@ -156,9 +158,11 @@ def _merge_defaults(data: dict, defaults: dict, path: tuple = ()) -> None:
             data[key] = _deep_copy(dval)
         elif isinstance(dval, dict):
             if not isinstance(data[key], dict):
-                logger.warning("Settings: section %s was %s, not a table; "
-                               "reset to defaults", ".".join(path + (key,)),
-                               type(data[key]).__name__)
+                logger.warning(
+                    "Settings: section %s was %s, not a table; reset to defaults",
+                    ".".join(path + (key,)),
+                    type(data[key]).__name__,
+                )
                 data[key] = _deep_copy(dval)
             elif path + (key,) != ("ai", "providers"):
                 _merge_defaults(data[key], dval, path + (key,))
@@ -241,7 +245,11 @@ class SettingsStore:
                 # path; an existing saved choice is kept as it is.
                 "gemini": {"api_key": "", "model": "gemini-3.5-flash-lite"},
                 "openai": {"api_key": "", "model": "gpt-4o", "base_url": ""},
-                "glm": {"api_key": "", "model": "z-ai/glm-5.3-flash", "base_url": "https://openrouter.ai/api/v1"},
+                "glm": {
+                    "api_key": "",
+                    "model": "z-ai/glm-5.3-flash",
+                    "base_url": "https://openrouter.ai/api/v1",
+                },
                 "custom": {"api_key": "", "model": "", "base_url": "", "api_format": "auto"},
             },
         },
@@ -343,8 +351,7 @@ class SettingsStore:
         target = self.settings_file.with_name(f"settings.json.corrupt-{stamp}")
         n = 1
         while target.exists():
-            target = self.settings_file.with_name(
-                f"settings.json.corrupt-{stamp}-{n}")
+            target = self.settings_file.with_name(f"settings.json.corrupt-{stamp}-{n}")
             n += 1
         try:
             os.replace(self.settings_file, target)
@@ -352,12 +359,16 @@ class SettingsStore:
             try:
                 shutil.copy2(self.settings_file, target)
             except OSError as e:
-                logger.error("Settings file is corrupt and could not be "
-                             "set aside (%s); it will NOT be overwritten", e)
+                logger.error(
+                    "Settings file is corrupt and could not be "
+                    "set aside (%s); it will NOT be overwritten",
+                    e,
+                )
                 self._shared.save_blocked = True
                 return
-        logger.warning("Settings file was unreadable; kept it as %s and "
-                       "started from defaults", target.name)
+        logger.warning(
+            "Settings file was unreadable; kept it as %s and started from defaults", target.name
+        )
 
     def _load(self, disk: bytes | None = None):
         """Load settings from file (caller holds the shared lock)."""
@@ -372,8 +383,7 @@ class SettingsStore:
         try:
             loaded = json.loads(disk.decode("utf-8-sig"))
             if not isinstance(loaded, dict):
-                raise ValueError(f"top level is {type(loaded).__name__}, "
-                                 "not an object")
+                raise ValueError(f"top level is {type(loaded).__name__}, not an object")
         except Exception as e:
             logger.error("Settings load error: %s", e)
             self._set_aside_corrupt()
@@ -395,9 +405,13 @@ class SettingsStore:
             try:
                 cfg["api_key"] = _unprotect_secret_strict(enc_key)
             except SecretUnprotectError as e:
-                logger.error("API key for %s could not be decrypted (%s); "
-                             "the stored key is kept, re-enter it in "
-                             "Settings to replace it", provider, e)
+                logger.error(
+                    "API key for %s could not be decrypted (%s); "
+                    "the stored key is kept, re-enter it in "
+                    "Settings to replace it",
+                    provider,
+                    e,
+                )
                 cfg["api_key"] = ""
                 state.undecryptable[provider] = enc_key
         self._data = loaded
@@ -409,8 +423,9 @@ class SettingsStore:
         state = self._shared
         with state.lock:
             if state.save_blocked:
-                logger.error("Settings not saved: the settings file is "
-                             "corrupt and could not be set aside")
+                logger.error(
+                    "Settings not saved: the settings file is corrupt and could not be set aside"
+                )
                 return
             tmp_name = ""
             try:
@@ -423,8 +438,7 @@ class SettingsStore:
                         try:
                             cfg["api_key_enc"] = _protect_secret_strict(api_key)
                         except SecretProtectError as e:
-                            logger.error("API key for %s NOT saved: %s",
-                                         provider, e)
+                            logger.error("API key for %s NOT saved: %s", provider, e)
                             old = state.undecryptable.get(provider)
                             if old:
                                 cfg["api_key_enc"] = old
@@ -435,8 +449,8 @@ class SettingsStore:
                 payload = json.dumps(data, indent=2).encode("utf-8")
                 self.config_dir.mkdir(parents=True, exist_ok=True)
                 fd, tmp_name = tempfile.mkstemp(
-                    prefix="settings.json.", suffix=".tmp",
-                    dir=str(self.config_dir))
+                    prefix="settings.json.", suffix=".tmp", dir=str(self.config_dir)
+                )
                 with os.fdopen(fd, "wb") as f:
                     f.write(payload)
                     f.flush()

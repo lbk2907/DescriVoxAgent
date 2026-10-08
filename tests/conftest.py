@@ -21,6 +21,7 @@ test_build_smoke.py is excluded: it needs the PyInstaller bundle, so the
 bat gate does not run it either. probe_*.py and audit_i18n.py are manual
 diagnostics, not gate members.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import subprocess
 import sys
@@ -47,9 +48,7 @@ class GateItem(pytest.Item):
             timeout=900,
         )
         if proc.returncode != 0:
-            raise GateScriptFailed(
-                proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-            )
+            raise GateScriptFailed(proc.returncode, (proc.stdout or "") + (proc.stderr or ""))
 
     def repr_failure(self, excinfo):
         if isinstance(excinfo.value, GateScriptFailed):

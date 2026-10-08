@@ -28,15 +28,21 @@ def main() -> int:
         print(f"NOT TAGGED: the release is {v.verdict}")
         return 1
     ver = E.version()
-    bundle = {"version": ver, "commit": E.head(), "tree": E.git("rev-parse", "HEAD^{tree}"),
-              **v.as_dict()}
+    bundle = {
+        "version": ver,
+        "commit": E.head(),
+        "tree": E.git("rev-parse", "HEAD^{tree}"),
+        **v.as_dict(),
+    }
     bundle["attestation_sha256"] = C.digest(bundle)
     out = E.evidence_dir() / f"v{ver}.release.json"
     out.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
     tag = f"v{ver}"
     if not E.git("tag", "-l", tag):
-        msg = (f"DescriVox Agent {ver}\n\nrelease contract {v.digest[:12]}: VERIFIED\n"
-               f"evidence bundle sha256 {bundle['attestation_sha256']}\n")
+        msg = (
+            f"DescriVox Agent {ver}\n\nrelease contract {v.digest[:12]}: VERIFIED\n"
+            f"evidence bundle sha256 {bundle['attestation_sha256']}\n"
+        )
         subprocess.run(["git", "tag", "-a", tag, "-m", msg], cwd=E.REPO, check=True)
     print(f"TAGGED {tag} - evidence {out}")
     return 0

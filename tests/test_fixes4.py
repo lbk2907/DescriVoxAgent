@@ -1,18 +1,24 @@
 """Regression tests round 4: video processor diagnostics + robustness."""
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, traceback, tempfile, subprocess, shutil
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import asyncio
 
 ok = 0
 fail = 0
+
 
 def check(name, fn):
     global ok, fail
@@ -25,7 +31,9 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 from omni_describer_custom.core.video_processor import VideoProcessor
+
 
 # 1. stderr tail: banner dibuang, ralat sebenar dikekalkan, had panjang dihormati
 def test_stderr_tail():
@@ -45,7 +53,10 @@ def test_stderr_tail():
     # limit: output mesti <= limit aksara
     big = banner * 20
     assert len(vp._stderr_tail(big, limit=100)) <= 100
+
+
 check("_stderr_tail keeps real error, drops banner, honours limit", test_stderr_tail)
+
 
 # 2. ffprobe resolution: sebelah ffmpeg.exe jika ada, else find_tool
 # v1.6.5: fallback bukan lagi nama kosong "ffprobe" — ia melalui
@@ -70,7 +81,10 @@ def test_ffprobe_path():
         assert vp2._ffprobe_path() == fallback
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("ffprobe resolves next to ffmpeg.exe with bundled fallback", test_ffprobe_path)
+
 
 # 3. Sumber hilang: fail fast, pulangkan [] tanpa panggil ffmpeg
 def test_missing_source_fail_fast():
@@ -81,7 +95,12 @@ def test_missing_source_fail_fast():
         assert frames == []
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-check("extract_frames fails fast with clear reason for missing source", test_missing_source_fail_fast)
+
+
+check(
+    "extract_frames fails fast with clear reason for missing source", test_missing_source_fail_fast
+)
+
 
 # 4. Ekstraksi sebenar dengan ffmpeg sebenar (laluan happy end-to-end)
 def test_real_extraction():
@@ -94,8 +113,18 @@ def test_real_extraction():
     try:
         vid = Path(tmp) / "v.mp4"
         subprocess.run(
-            ["ffmpeg", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
-             "-y", str(vid)], capture_output=True, check=True)
+            [
+                "ffmpeg",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=2:size=320x240:rate=10",
+                "-y",
+                str(vid),
+            ],
+            capture_output=True,
+            check=True,
+        )
         vp = VideoProcessor(ffmpeg_path="ffmpeg", ytdlp_path="yt-dlp")
         info = asyncio.run(vp.get_video_info(str(vid)))
         assert info.width == 320 and info.height == 240, (info.width, info.height)
@@ -105,7 +134,10 @@ def test_real_extraction():
         assert Path(frames[0].path).exists()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("Real ffmpeg info + frame extraction works end-to-end", test_real_extraction)
+
 
 # 5. Input rosak: [] + bukan crash
 def test_corrupt_input():
@@ -123,7 +155,10 @@ def test_corrupt_input():
         assert frames == []
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
 check("Corrupt input returns [] without crash", test_corrupt_input)
 
 print(f"\nRESULT: {ok} passed, {fail} failed")
-if "pytest" not in sys.modules: sys.exit(1 if fail else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if fail else 0)

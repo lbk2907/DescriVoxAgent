@@ -40,6 +40,7 @@ import safe_keys  # noqa: E402  (guards every keystroke; import first)
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from e2e_projects import ProjectsGuard, all_dbs  # noqa: E402
+
 BRIDGE = "http://127.0.0.1:19281"
 APP_TITLE = "DescriVox Agent"
 
@@ -48,13 +49,13 @@ results: list[tuple[str, bool, str]] = []
 
 def record(stage: str, ok: bool, detail: str = "") -> bool:
     mark = "OK  " if ok else "FAIL"
-    print(f"  [{mark}] {stage}" + (f" — {detail}" if detail else ""),
-          flush=True)
+    print(f"  [{mark}] {stage}" + (f" — {detail}" if detail else ""), flush=True)
     results.append((stage, ok, detail))
     return ok
 
 
 # ── NVDA bridge ──────────────────────────────────────────────────
+
 
 def _bridge(path: str, timeout: float = 10.0) -> dict:
     with urllib.request.urlopen(f"{BRIDGE}{path}", timeout=timeout) as r:
@@ -75,8 +76,7 @@ def _completion_prefixes() -> list[str]:
     """The fixed start of the app's "processing complete" line, per language."""
     prefixes = []
     for f in (REPO / "src" / "omni_describer_custom" / "i18n" / "locales").glob("*.json"):
-        text = json.loads(f.read_text(encoding="utf-8")).get(
-            "status.processing_complete", "")
+        text = json.loads(f.read_text(encoding="utf-8")).get("status.processing_complete", "")
         head = text.split("{")[0].strip()
         if head:
             prefixes.append(head)
@@ -97,9 +97,20 @@ def _clip_seconds(clip: Path) -> float:
     ffprobe = REPO / "bin" / "ffprobe.exe"
     try:
         out = subprocess.run(
-            [str(ffprobe), "-v", "error", "-show_entries", "format=duration",
-             "-of", "csv=p=0", str(clip)],
-            capture_output=True, text=True, timeout=60).stdout
+            [
+                str(ffprobe),
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "csv=p=0",
+                str(clip),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        ).stdout
         return float(out.strip())
     except (OSError, ValueError, subprocess.SubprocessError):
         return 0.0
@@ -137,8 +148,10 @@ def focus_now() -> dict:
 
 # ── Driving the app ──────────────────────────────────────────────
 
+
 def launch(config_dir: Path):
     from pywinauto import Desktop
+
     exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
     if not exe.exists():
         print(f"No build at {exe}; run build.bat first")
@@ -154,8 +167,7 @@ def launch(config_dir: Path):
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         try:
-            win = desktop.window(title_re=f".*{APP_TITLE}.*",
-                                 visible_only=False)
+            win = desktop.window(title_re=f".*{APP_TITLE}.*", visible_only=False)
             if win.exists() and win.is_visible():
                 time.sleep(2.0)  # let the first paint settle
                 return proc, win
@@ -189,8 +201,7 @@ def status_log(win) -> str:
     return ""
 
 
-def focus_and_activate(win, label: str,
-                       max_tabs: int = 16) -> tuple[bool, str]:
+def focus_and_activate(win, label: str, max_tabs: int = 16) -> tuple[bool, str]:
     """Tab to a control, confirm it through NVDA, then press Enter.
 
     This is the journey the actual user takes, and it is the only one
@@ -209,6 +220,7 @@ def focus_and_activate(win, label: str,
     focus at every step, so a miss fails loudly instead of silently.
     """
     from pywinauto.keyboard import send_keys
+
     try:
         win.set_focus()
         time.sleep(0.8)
@@ -229,8 +241,7 @@ def focus_and_activate(win, label: str,
     return False, f"never reached '{label}'; tabbed through {seen}"
 
 
-def answer_file_dialog(path: Path, app_pid: int,
-                       timeout: float = 30.0) -> tuple[bool, str]:
+def answer_file_dialog(path: Path, app_pid: int, timeout: float = 30.0) -> tuple[bool, str]:
     """Put a path into the file dialog the app just opened.
 
     Type it. Focus already sits in the File name box when the dialog
@@ -285,10 +296,11 @@ def answer_file_dialog(path: Path, app_pid: int,
 
 # ── Checking the result ──────────────────────────────────────────
 
+
 def read_project(projects_dir: Path) -> dict:
     """Newest project: its row plus its descriptions."""
     # Both layouts: "project_N.db" (before v1.7.6) and "<name> (N)/project.db".
-    dbs = all_dbs(projects_dir)   # either project layout
+    dbs = all_dbs(projects_dir)  # either project layout
     if not dbs:
         return {}
     conn = sqlite3.connect(str(dbs[-1]))
@@ -296,8 +308,8 @@ def read_project(projects_dir: Path) -> dict:
     try:
         project = dict(conn.execute("SELECT * FROM projects").fetchone())
         rows = conn.execute(
-            "SELECT start_time, end_time, text FROM descriptions "
-            "ORDER BY start_time").fetchall()
+            "SELECT start_time, end_time, text FROM descriptions ORDER BY start_time"
+        ).fetchall()
         project["descriptions"] = [dict(r) for r in rows]
         project["_db"] = str(dbs[-1])
         return project
@@ -308,10 +320,10 @@ def read_project(projects_dir: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--clip", required=True, help="video to describe")
-    parser.add_argument("--config", default="",
-                        help="isolated config dir (must hold settings.json)")
-    parser.add_argument("--timeout", type=float, default=900.0,
-                        help="seconds to wait for the job")
+    parser.add_argument(
+        "--config", default="", help="isolated config dir (must hold settings.json)"
+    )
+    parser.add_argument("--timeout", type=float, default=900.0, help="seconds to wait for the job")
     args = parser.parse_args()
 
     clip = Path(args.clip).resolve()
@@ -340,8 +352,11 @@ def main() -> int:
     proc, win = launch(config_dir)
     record("frozen app started", True, win.window_text()[:50])
     startup_speech = spoken_since(mark)
-    record("NVDA spoke at startup", bool(startup_speech),
-           (startup_speech[0][:60] if startup_speech else "silence"))
+    record(
+        "NVDA spoke at startup",
+        bool(startup_speech),
+        (startup_speech[0][:60] if startup_speech else "silence"),
+    )
 
     try:
         print("\n== PICK THE VIDEO ==", flush=True)
@@ -354,12 +369,13 @@ def main() -> int:
         # The click and the dialog can both "succeed" without a file
         # being chosen. The app's own Status Log is the only proof.
         log_text = status_log(win)
-        record("the app recorded the file as selected",
-               clip.name in log_text,
-               log_text.strip().splitlines()[-1][:70] if log_text else "empty")
+        record(
+            "the app recorded the file as selected",
+            clip.name in log_text,
+            log_text.strip().splitlines()[-1][:70] if log_text else "empty",
+        )
         picked = spoken_since(mark)
-        record("NVDA followed the file choice", bool(picked),
-               " | ".join(picked)[:70])
+        record("NVDA followed the file choice", bool(picked), " | ".join(picked)[:70])
 
         print("\n== START THE JOB ==", flush=True)
         mark = speech_mark()
@@ -368,8 +384,11 @@ def main() -> int:
         record("Open clicked", ok, detail)
         time.sleep(6.0)
         after = status_log(win)
-        record("the job actually started", after != before,
-               after.strip().splitlines()[-1][:70] if after else "no change")
+        record(
+            "the job actually started",
+            after != before,
+            after.strip().splitlines()[-1][:70] if after else "no change",
+        )
 
         print("\n== WATCH IT WORK ==", flush=True)
         deadline = time.monotonic() + args.timeout
@@ -388,20 +407,24 @@ def main() -> int:
                 last_report = time.monotonic()
                 latest = phases[-1][:50] if phases else "(nothing)"
                 app_says = status_log(win).strip().splitlines()
-                print(f"    ... {int(deadline - time.monotonic())}s left | "
-                      f"app: {app_says[-1][:56] if app_says else '-'} | "
-                      f"NVDA: {latest}", flush=True)
+                print(
+                    f"    ... {int(deadline - time.monotonic())}s left | "
+                    f"app: {app_says[-1][:56] if app_says else '-'} | "
+                    f"NVDA: {latest}",
+                    flush=True,
+                )
             time.sleep(2.0)
 
         project = read_project(projects_dir) if projects_dir.exists() else {}
         descriptions = project.get("descriptions", [])
-        record("the job produced descriptions", bool(descriptions),
-               f"{len(descriptions)} cues")
+        record("the job produced descriptions", bool(descriptions), f"{len(descriptions)} cues")
         if descriptions:
             first = descriptions[0]
-            record("descriptions carry timestamps and text",
-                   first["text"].strip() != "" and first["end_time"] > 0,
-                   f'{first["start_time"]:.1f}s: {first["text"][:50]}')
+            record(
+                "descriptions carry timestamps and text",
+                first["text"].strip() != "" and first["end_time"] > 0,
+                f"{first['start_time']:.1f}s: {first['text'][:50]}",
+            )
             words = [len(d["text"].split()) for d in descriptions]
             longest = max(words)
             # The whole video must be described, not its first part.
@@ -411,19 +434,25 @@ def main() -> int:
             starts = sorted(float(d["start_time"]) for d in descriptions)
             edges = [0.0] + starts + [length]
             gap = max(b - a for a, b in zip(edges, edges[1:], strict=False))
-            record("descriptions cover the whole video",
-                   length > 0 and starts[-1] >= length - 90 and gap <= 120,
-                   f"last cue {starts[-1]:.0f}s of {length:.0f}s, "
-                   f"widest gap {gap:.0f}s")
+            record(
+                "descriptions cover the whole video",
+                length > 0 and starts[-1] >= length - 90 and gap <= 120,
+                f"last cue {starts[-1]:.0f}s of {length:.0f}s, widest gap {gap:.0f}s",
+            )
             # Owner's decision (28 Sep 2026): long cues are left as the
             # model writes them; the narration hold covers them. Reported,
             # not failed — models do not obey length requests (pitfall 14).
             over = sum(1 for w in words if w > 20)
-            print(f"  [NOTE] cue length: longest {longest} words, "
-                  f"{over} of {len(words)} over 20 (AD guideline is 12)",
-                  flush=True)
-        record("the project stored the video", bool(project.get("video_path")),
-               Path(project.get("video_path", "")).name)
+            print(
+                f"  [NOTE] cue length: longest {longest} words, "
+                f"{over} of {len(words)} over 20 (AD guideline is 12)",
+                flush=True,
+            )
+        record(
+            "the project stored the video",
+            bool(project.get("video_path")),
+            Path(project.get("video_path", "")).name,
+        )
 
         print("\n== WHAT NVDA ANNOUNCED ==", flush=True)
         unique: list[str] = []
@@ -432,38 +461,46 @@ def main() -> int:
                 unique.append(line)
         for line in unique[-14:]:
             print(f"    {line[:88]}", flush=True)
-        record("NVDA narrated the work", len(unique) >= 3,
-               f"{len(unique)} distinct announcements")
+        record("NVDA narrated the work", len(unique) >= 3, f"{len(unique)} distinct announcements")
         # v1.8.4: a change of phase must be SAID, not only shown in a
         # dialog whose focus stays on Cancel (pitfall 65). The app's own
         # "watching" line, in whichever language it runs.
-        watching = [line for line in unique
-                    if any(w in line for w in _locale_texts("video.phase_waiting"))]
-        record("NVDA announced the AI's wait by itself", bool(watching),
-               watching[0][:70] if watching else "never said")
+        watching = [
+            line for line in unique if any(w in line for w in _locale_texts("video.phase_waiting"))
+        ]
+        record(
+            "NVDA announced the AI's wait by itself",
+            bool(watching),
+            watching[0][:70] if watching else "never said",
+        )
 
         # A blind user must hear that it finished, not discover it.
         # Matched against the app's OWN completion text, in every
         # language it ships. Keywords matched other programs: on 29 Sep
         # 2026 "Indonesian" (TeamTalk, read by NVDA meanwhile) contains
         # "done", and the check passed on speech that was not the app's.
-        finished = [line for line in unique
-                    if any(p in line for p in _completion_prefixes())]
-        record("completion was announced, not silent", bool(finished),
-               finished[-1][:60] if finished else "nothing said about the end")
+        finished = [line for line in unique if any(p in line for p in _completion_prefixes())]
+        record(
+            "completion was announced, not silent",
+            bool(finished),
+            finished[-1][:60] if finished else "nothing said about the end",
+        )
 
         print("\n== ARTEFACTS ON DISK ==", flush=True)
         if project.get("_db"):
             db_file = Path(project["_db"])
-            media = (db_file.parent if db_file.name == "project.db"
-                     else db_file.with_suffix("")) / "media"
+            media = (
+                db_file.parent if db_file.name == "project.db" else db_file.with_suffix("")
+            ) / "media"
             if media.is_dir():
                 for item in sorted(media.iterdir()):
-                    print(f"    {item.name}: {item.stat().st_size} bytes",
-                          flush=True)
+                    print(f"    {item.name}: {item.stat().st_size} bytes", flush=True)
                 srt = media / "descriptions.srt"
-                record("SRT written beside the video", srt.exists(),
-                       f"{srt.stat().st_size} bytes" if srt.exists() else "")
+                record(
+                    "SRT written beside the video",
+                    srt.exists(),
+                    f"{srt.stat().st_size} bytes" if srt.exists() else "",
+                )
                 # v1.6.7's retry saving: the compressed upload copy must
                 # still be here. A second cleanup used to delete it at
                 # the end of every job in full-video mode.
@@ -472,23 +509,27 @@ def main() -> int:
                 # its 50 MB limit (smaller ones are sent or split as they
                 # are); Gemini sends the original. Otherwise there is no
                 # copy to survive.
-                settings = json.loads((config_dir / "settings.json")
-                                      .read_text(encoding="utf-8"))
+                settings = json.loads((config_dir / "settings.json").read_text(encoding="utf-8"))
                 provider = settings.get("ai", {}).get("default_provider")
                 # A video longer than one part is SPLIT, not compressed;
                 # split parts are temporary and there is no copy to keep.
-                chunk = float(settings.get("general", {}).get(
-                    "chunk_seconds", 600) or 600)
-                if provider == "glm" and clip.stat().st_size > 50 * 1024 * 1024                         and _clip_seconds(clip) <= chunk + 1.0:
-                    record("the compressed upload copy survived the job",
-                           bool(cached),
-                           f"{cached[0].name} "
-                           f"({cached[0].stat().st_size/1e6:.1f} MB)"
-                           if cached else "deleted by the parts cleanup")
+                chunk = float(settings.get("general", {}).get("chunk_seconds", 600) or 600)
+                if (
+                    provider == "glm"
+                    and clip.stat().st_size > 50 * 1024 * 1024
+                    and _clip_seconds(clip) <= chunk + 1.0
+                ):
+                    record(
+                        "the compressed upload copy survived the job",
+                        bool(cached),
+                        f"{cached[0].name} ({cached[0].stat().st_size / 1e6:.1f} MB)"
+                        if cached
+                        else "deleted by the parts cleanup",
+                    )
     finally:
         try:
             proc.terminate()
-            proc.wait(timeout=15)   # its files must be closed first
+            proc.wait(timeout=15)  # its files must be closed first
         except Exception:
             pass
         guard.cleanup()

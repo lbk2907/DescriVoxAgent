@@ -2,26 +2,26 @@
 Reuses the ~71 MB 60 s clip; forces 20 s chunks so the video is split
 into ~4 parts, each described in its own request, timestamps offset.
 Cost ~0.003 USD."""
+
 import asyncio
 import io
 import sys
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.ai_engine import AIEngine
 from omni_describer_custom.core.settings_store import SettingsStore
 
-BIG = Path.home() / "Documents" / "OmniDescriber" / "probe_video" / \
-    "e2e_big_60s.mp4"
+BIG = Path.home() / "Documents" / "OmniDescriber" / "probe_video" / "e2e_big_60s.mp4"
 
 
 def main() -> int:
     if not BIG.exists():
-        print("E2E_FAIL: missing big clip (run e2e_glm_video_compress "
-              "first)")
+        print("E2E_FAIL: missing big clip (run e2e_glm_video_compress first)")
         return 1
     print(f"input: {BIG.name} = {BIG.stat().st_size / 1e6:.1f} MB")
     store = SettingsStore()
@@ -30,9 +30,12 @@ def main() -> int:
         print("E2E_FAIL: no glm key")
         return 1
     engine = AIEngine()
-    engine.set_provider("glm", api_key=cfg["api_key"],
-                        base_url=cfg.get("base_url") or "",
-                        model=cfg.get("model") or "")
+    engine.set_provider(
+        "glm",
+        api_key=cfg["api_key"],
+        base_url=cfg.get("base_url") or "",
+        model=cfg.get("model") or "",
+    )
     statuses: list[str] = []
     parts: list[tuple[int, int]] = []
 
@@ -47,11 +50,15 @@ def main() -> int:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        pairs = loop.run_until_complete(engine.describe_video_full(
-            str(BIG), "Reply with one line per notable event in "
-            "[H:MM:SS] format.",
-            on_status=status, on_part=on_part,
-            chunk_seconds=20))
+        pairs = loop.run_until_complete(
+            engine.describe_video_full(
+                str(BIG),
+                "Reply with one line per notable event in [H:MM:SS] format.",
+                on_status=status,
+                on_part=on_part,
+                chunk_seconds=20,
+            )
+        )
     finally:
         loop.close()
     print(f"statuses: {statuses}")

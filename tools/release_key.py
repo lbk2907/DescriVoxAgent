@@ -22,24 +22,28 @@ import os
 import sys
 from pathlib import Path
 
-KEY_FILE = Path(os.environ.get("ODC_RELEASE_KEY") or
-                Path.home() / ".descrivox" / "release-signing.key")
+KEY_FILE = Path(
+    os.environ.get("ODC_RELEASE_KEY") or Path.home() / ".descrivox" / "release-signing.key"
+)
 
 
 def _signing_key():
     from nacl.signing import SigningKey
+
     if not KEY_FILE.exists():
-        raise SystemExit(f"no signing key at {KEY_FILE} "
-                         f"(python tools/release_key.py generate)")
+        raise SystemExit(f"no signing key at {KEY_FILE} (python tools/release_key.py generate)")
     try:
         return SigningKey(bytes.fromhex(KEY_FILE.read_text(encoding="ascii").strip()))
     except (ValueError, UnicodeDecodeError) as e:
-        raise SystemExit(f"the signing key at {KEY_FILE} is damaged ({type(e).__name__}); "
-                         f"restore it from the backup") from None
+        raise SystemExit(
+            f"the signing key at {KEY_FILE} is damaged ({type(e).__name__}); "
+            f"restore it from the backup"
+        ) from None
 
 
 def generate() -> str:
     from nacl.signing import SigningKey
+
     KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
     key = SigningKey.generate()
     try:

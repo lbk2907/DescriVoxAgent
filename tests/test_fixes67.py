@@ -8,13 +8,16 @@ line - both cut the current speech off. It also ran after the window
 was gone. Now the fallback only sets the status label (no focus move,
 no interrupting speech) and a closed window is left alone.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import traceback
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core import speech as speech_mod  # noqa: E402
@@ -139,10 +142,11 @@ def test_window_gone_does_nothing():
 
 def main() -> int:
     check("speech OK: queued, no fallback", test_speech_ok_no_fallback)
-    check("speech returns False: label only, no focus, no interrupt",
-          test_speech_false_never_interrupts)
-    check("speech raises: label only, no focus, no interrupt",
-          test_speech_raises_never_interrupts)
+    check(
+        "speech returns False: label only, no focus, no interrupt",
+        test_speech_false_never_interrupts,
+    )
+    check("speech raises: label only, no focus, no interrupt", test_speech_raises_never_interrupts)
     check("window gone: nothing happens", test_window_gone_does_nothing)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

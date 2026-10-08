@@ -7,6 +7,7 @@
 2. "If the agent is there, Ask More and Scene Explorer go away; if there
    is no agent, those two come back." Untested model: all three.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import subprocess
@@ -16,10 +17,14 @@ import time
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -53,27 +58,40 @@ def pump(n=20):
 def video() -> Path:
     out = TMP / "clip.mp4"
     if not out.exists():
-        subprocess.run([find_tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
-                        "-i", "testsrc=size=160x120:rate=5:duration=12",
-                        "-c:v", "libx264", str(out)], check=True, timeout=120)
+        subprocess.run(
+            [
+                find_tool("ffmpeg"),
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=160x120:rate=5:duration=12",
+                "-c:v",
+                "libx264",
+                str(out),
+            ],
+            check=True,
+            timeout=120,
+        )
     return out
 
 
 def player(provider="glm", passed=True, key=True):
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     settings = SettingsStore()
     settings.set("ai.default_provider", provider)
-    settings.set_ai_provider(provider, {"api_key": "k-test" if key else "",
-                                        "model": "some/model"})
+    settings.set_ai_provider(provider, {"api_key": "k-test" if key else "", "model": "some/model"})
     settings.set("ai.agent_models", ["some/model"] if passed else [])
     settings.set("player.volume", 100)
     store = ProjectStore()
     store.create_project("Modes", str(video()))
     store.persist_video_file(str(video()))
     store.set_video_duration(12.0)
-    store.save_descriptions([Description(start_time=2.0, end_time=4.0,
-                                         text="A test pattern.")])
+    store.save_descriptions([Description(start_time=2.0, end_time=4.0, text="A test pattern.")])
     w = PlayerWindow(None, store, TTSEngine({}), settings=settings)
     return w
 
@@ -128,6 +146,7 @@ def test_settings_change_is_followed():
 
 def test_explorer_says_why():
     from omni_describer_custom.ui.scene_explorer import SceneExplorer
+
     said = []
     ex = SceneExplorer(None, object(), "")
     try:
@@ -147,6 +166,7 @@ def test_explorer_says_why():
 def test_a_long_video_loads_about_600_frames():
     from omni_describer_custom.ui import scene_explorer as se
     from omni_describer_custom.core import timeline_io
+
     real = timeline_io._ffprobe_duration
     try:
         timeline_io._ffprobe_duration = lambda p: 1440.0
@@ -179,17 +199,18 @@ def test_keys_in_the_video_area():
         assert toggles == [True]
         w._on_video_key(_key(wx.WXK_RIGHT))
         assert w._position == 9.0 and said[-1] == t(
-            "player.slider_value", position="0:09", total="0:12"), (w._position, said)
+            "player.slider_value", position="0:09", total="0:12"
+        ), (w._position, said)
         w._on_video_key(_key(wx.WXK_LEFT, ctrl=True))
-        assert w._position == 0.0, w._position          # clamped at the start
+        assert w._position == 0.0, w._position  # clamped at the start
         w._on_video_key(_key(wx.WXK_RIGHT, ctrl=True))
         w._on_video_key(_key(wx.WXK_RIGHT, ctrl=True))
-        assert w._position == 12.0, w._position         # clamped at the end
+        assert w._position == 12.0, w._position  # clamped at the end
         assert w.position_slider.GetValue() == 12
-        w._slider_dur = 600.0                           # a 10-minute video
+        w._slider_dur = 600.0  # a 10-minute video
         w._position = 100.0
         w._on_video_key(_key(wx.WXK_RIGHT, ctrl=True, shift=True))
-        assert w._position == 160.0, w._position        # Ctrl+Shift: one minute
+        assert w._position == 160.0, w._position  # Ctrl+Shift: one minute
         w._on_video_key(_key(wx.WXK_LEFT, ctrl=True, shift=True))
         assert w._position == 100.0, w._position
         w._on_video_key(_key(wx.WXK_DOWN))
@@ -198,7 +219,7 @@ def test_keys_in_the_video_area():
         assert w._settings.get("player.volume") == 80
         for _ in range(5):
             w._on_video_key(_key(wx.WXK_UP))
-        assert w._volume == 100, w._volume              # never above 100
+        assert w._volume == 100, w._volume  # never above 100
     finally:
         w.Destroy()
         pump()
@@ -245,9 +266,9 @@ def test_quick_keys_restart_the_sound_once():
             w._change_volume(-10)
         w._seek_by(5)
         assert starts == [], starts
-        assert w._sound_timer.IsRunning()      # one restart, waiting
+        assert w._sound_timer.IsRunning()  # one restart, waiting
         w._sound_timer.Stop()
-        w._restart_sound_now()                  # what the timer does
+        w._restart_sound_now()  # what the timer does
         assert starts == [w._position], starts
         assert w._volume == 70
     finally:
@@ -261,19 +282,23 @@ def test_video_keys_keep_the_focus():
     status line (_announce moves it there), so the next arrow went to
     another control. In the video area the words are spoken in place."""
     from omni_describer_custom.core import speech
+
     w = player()
     spoken = []
     real = speech.get_speech
-    speech.get_speech = lambda: type("S", (), {"speak": lambda self, m, interrupt=True:
-                                               spoken.append(m) or True})()
+    speech.get_speech = lambda: type(
+        "S", (), {"speak": lambda self, m, interrupt=True: spoken.append(m) or True}
+    )()
     try:
         w._video_has_focus = lambda: True
         moved = []
         w.status_text.SetFocus = lambda: moved.append(True)
         w._change_volume(-10)
         w._seek_by(5)
-        assert spoken == [t("player.volume", pct=90), t(
-            "player.slider_value", position="0:05", total="0:12")], spoken
+        assert spoken == [
+            t("player.volume", pct=90),
+            t("player.slider_value", position="0:05", total="0:12"),
+        ], spoken
         assert not moved, "the focus left the video picture"
         assert w.status_text.GetLabel() == spoken[-1]
     finally:
@@ -287,8 +312,9 @@ def test_tab_leaves_the_video_area():
     takes every key for the arrows). Tab and Shift+Tab must move on."""
     w = player()
     went = []
-    w.video_panel.Navigate = lambda flags: went.append(
-        bool(flags & wx.NavigationKeyEvent.IsForward)) or True
+    w.video_panel.Navigate = lambda flags: (
+        went.append(bool(flags & wx.NavigationKeyEvent.IsForward)) or True
+    )
     try:
         for shift in (False, True):
             ev = wx.KeyEvent(wx.wxEVT_KEY_DOWN)
@@ -340,14 +366,14 @@ def test_f2_is_a_window_accelerator():
 
 def test_ffplay_gets_the_volume():
     src = Path("src/omni_describer_custom/ui/player_window.py").read_text(encoding="utf-8")
-    assert '"-volume", str(self._volume)' in src
+    src = "".join(src.split())  # whitespace-free: ruff format may wrap the list
+    assert '"-volume",str(self._volume)' in src
 
 
 def main() -> int:
     app = wx.App(False)
     check("agent ready: only the Agent button", test_agent_ready_hides_the_two_older_tools)
-    check("untested model: all three, then the agent alone",
-          test_untested_model_shows_all_three)
+    check("untested model: all three, then the agent alone", test_untested_model_shows_all_three)
     check("no agent: Ask More and Explore Scene", test_no_agent_shows_ask_more_and_explorer)
     check("a Settings change is followed", test_settings_change_is_followed)
     check("Scene Explorer says why it cannot describe", test_explorer_says_why)
@@ -359,8 +385,7 @@ def main() -> int:
     check("Tab leaves the video area", test_tab_leaves_the_video_area)
     check("F2 works on the video picture", test_f2_works_on_the_video_picture)
     check("F2 is a window accelerator", test_f2_is_a_window_accelerator)
-    check("video keys are taken before navigation",
-          test_video_keys_are_taken_before_navigation)
+    check("video keys are taken before navigation", test_video_keys_are_taken_before_navigation)
     del app
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

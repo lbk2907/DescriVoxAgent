@@ -27,9 +27,12 @@ from omni_describer_custom.core.tools import find_tool  # noqa: E402
 
 def fetch_title(url: str) -> str:
     out = subprocess.run(
-        [find_tool("yt-dlp"), "--no-playlist", "--skip-download",
-         "--print", "title", "--", url],
-        capture_output=True, text=True, encoding="utf-8", timeout=120)
+        [find_tool("yt-dlp"), "--no-playlist", "--skip-download", "--print", "title", "--", url],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
     lines = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
     return lines[-1] if out.returncode == 0 and lines else ""
 
@@ -37,8 +40,7 @@ def fetch_title(url: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--projects", default="",
-                        help="projects folder (default: the real one)")
+    parser.add_argument("--projects", default="", help="projects folder (default: the real one)")
     args = parser.parse_args()
 
     store = ProjectStore(args.projects)

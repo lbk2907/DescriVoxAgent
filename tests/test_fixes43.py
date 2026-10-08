@@ -15,6 +15,7 @@ The check found:
 
 These checks keep all four from coming back.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import ast
 import io
@@ -26,10 +27,14 @@ import tempfile
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "omni_describer_custom"
 sys.path.insert(0, str(ROOT / "src"))
@@ -53,18 +58,54 @@ def check(name, fn):
 
 # Calls whose string arguments are not shown to the user.
 _NOT_SHOWN = {
-    "t", "getLogger", "debug", "info", "warning", "error", "exception",
-    "critical", "startswith", "endswith", "join", "split", "replace",
-    "strip", "format", "get", "set", "setdefault", "Path", "open", "run",
-    "Popen", "glob", "rglob", "FindWindow", "SendMessageW", "strftime",
-    "strptime", "encode", "decode", "isinstance", "hasattr", "getattr",
-    "setattr", "Bind", "sub", "search", "match", "compile", "fullmatch",
-    "findall", "SetName", "SetCopyright",
+    "t",
+    "getLogger",
+    "debug",
+    "info",
+    "warning",
+    "error",
+    "exception",
+    "critical",
+    "startswith",
+    "endswith",
+    "join",
+    "split",
+    "replace",
+    "strip",
+    "format",
+    "get",
+    "set",
+    "setdefault",
+    "Path",
+    "open",
+    "run",
+    "Popen",
+    "glob",
+    "rglob",
+    "FindWindow",
+    "SendMessageW",
+    "strftime",
+    "strptime",
+    "encode",
+    "decode",
+    "isinstance",
+    "hasattr",
+    "getattr",
+    "setattr",
+    "Bind",
+    "sub",
+    "search",
+    "match",
+    "compile",
+    "fullmatch",
+    "findall",
+    "SetName",
+    "SetCopyright",
 }
 # Deliberate exceptions, each with its reason.
 _ALLOWED = {
-    "Say 'OK' in one word",   # the connection test's prompt to the AI
-    "Error starting application:\n",   # last resort if i18n itself failed
+    "Say 'OK' in one word",  # the connection test's prompt to the AI
+    "Error starting application:\n",  # last resort if i18n itself failed
     "DescriVox Agent",  # the product name (formerly Omni Describer Custom)
 }
 
@@ -81,23 +122,29 @@ def _shown_english():
             name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
             if name in _NOT_SHOWN:
                 continue
-            if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name) \
-                    and fn.value.id in ("logger", "logging", "os", "re", "json",
-                                        "subprocess"):
+            if (
+                isinstance(fn, ast.Attribute)
+                and isinstance(fn.value, ast.Name)
+                and fn.value.id in ("logger", "logging", "os", "re", "json", "subprocess")
+            ):
                 continue
-            args = list(node.args) + [k.value for k in node.keywords if k.arg
-                                      not in ("name", "style", "encoding",
-                                              "errors", "mode", "prefix",
-                                              "suffix", "dir")]
+            args = list(node.args) + [
+                k.value
+                for k in node.keywords
+                if k.arg
+                not in ("name", "style", "encoding", "errors", "mode", "prefix", "suffix", "dir")
+            ]
             for a in args:
                 if isinstance(a, ast.Constant) and isinstance(a.value, str):
                     parts = [a.value]
                 elif isinstance(a, ast.JoinedStr):
-                    parts = [v.value for v in a.values
-                             if isinstance(v, ast.Constant)]
+                    parts = [v.value for v in a.values if isinstance(v, ast.Constant)]
                 elif isinstance(a, ast.BinOp):
-                    parts = [x.value for x in ast.walk(a)
-                             if isinstance(x, ast.Constant) and isinstance(x.value, str)]
+                    parts = [
+                        x.value
+                        for x in ast.walk(a)
+                        if isinstance(x, ast.Constant) and isinstance(x.value, str)
+                    ]
                 else:
                     continue
                 for text in parts:
@@ -110,29 +157,36 @@ def _shown_english():
 
 def test_no_english_written_into_the_ui():
     found = _shown_english()
-    assert not found, ("user-facing text outside the language files — add a "
-                       "key to en.json and ms.json and use t():\n  "
-                       + "\n  ".join(found))
+    assert not found, (
+        "user-facing text outside the language files — add a "
+        "key to en.json and ms.json and use t():\n  " + "\n  ".join(found)
+    )
 
 
 def _locale(code):
-    data = json.loads((SRC / "i18n" / "locales" / f"{code}.json")
-                      .read_text(encoding="utf-8"))
+    data = json.loads((SRC / "i18n" / "locales" / f"{code}.json").read_text(encoding="utf-8"))
     data.pop("_meta", None)
     return data
 
 
 def test_every_key_is_used():
-    code = " ".join(p.read_text(encoding="utf-8")
-                    for p in list(SRC.rglob("*.py")) + [ROOT / "main.py"])
+    code = " ".join(
+        p.read_text(encoding="utf-8") for p in list(SRC.rglob("*.py")) + [ROOT / "main.py"]
+    )
     dynamic = set(re.findall(r't\(\s*f["\']([a-z_]+\.[a-z0-9_-]*)\{', code))
     # v2.0.2: "<key>:one" is the singular of <key>, used through it.
     base = lambda k: k[:-4] if k.endswith(":one") else k  # noqa: E731
-    unused = [k for k in _locale("en")
-              if f'"{base(k)}"' not in code and f"'{base(k)}'" not in code
-              and not any(base(k).startswith(d) for d in dynamic)]
-    assert not unused, (f"{len(unused)} keys nothing uses — a translator "
-                        f"would translate them for nothing: {unused[:10]}")
+    unused = [
+        k
+        for k in _locale("en")
+        if f'"{base(k)}"' not in code
+        and f"'{base(k)}'" not in code
+        and not any(base(k).startswith(d) for d in dynamic)
+    ]
+    assert not unused, (
+        f"{len(unused)} keys nothing uses — a translator "
+        f"would translate them for nothing: {unused[:10]}"
+    )
 
 
 def test_english_and_malay_match():
@@ -146,14 +200,26 @@ def test_english_and_malay_match():
 
 def test_user_folder_adds_and_corrects_languages():
     from omni_describer_custom.i18n import strings
+
     folder = Path(os.environ["ODC_LOCALES_DIR"])
-    (folder / "id.json").write_text(json.dumps({
-        "_meta": {"code": "id", "name": "Bahasa Indonesia"},
-        "main.ready": "Siap",
-    }), encoding="utf-8")
-    (folder / "ms.json").write_text(json.dumps({
-        "main.ready": "Sedia sekarang", "main.title": "",
-    }), encoding="utf-8")
+    (folder / "id.json").write_text(
+        json.dumps(
+            {
+                "_meta": {"code": "id", "name": "Bahasa Indonesia"},
+                "main.ready": "Siap",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (folder / "ms.json").write_text(
+        json.dumps(
+            {
+                "main.ready": "Sedia sekarang",
+                "main.title": "",
+            }
+        ),
+        encoding="utf-8",
+    )
     (folder / "zz.json").write_text("{ not json", encoding="utf-8")
     (folder / "id.missing.json").write_text("{}", encoding="utf-8")
     tables, metas = strings._load_locales()
@@ -170,14 +236,15 @@ def test_user_folder_adds_and_corrects_languages():
 
 def test_report_lists_what_is_left_to_translate():
     from omni_describer_custom.i18n import strings
+
     en = strings.EN_STRINGS
-    strings.I18n.add_translation("id", {"main.ready": "Siap",
-                                        "old.gone_key": "x"})
+    strings.I18n.add_translation("id", {"main.ready": "Siap", "old.gone_key": "x"})
     try:
         report = strings.missing_report("id")
         assert "main.ready" not in report["missing"]
-        assert report["missing"]["menu.file"] == en["menu.file"], \
+        assert report["missing"]["menu.file"] == en["menu.file"], (
             "a missing line must carry its English text"
+        )
         assert len(report["missing"]) == len(en) - 1
         assert report["obsolete"] == ["old.gone_key"]
         path, count = strings.write_missing_report("id")
@@ -187,20 +254,22 @@ def test_report_lists_what_is_left_to_translate():
         assert path.parent == strings.user_locales_dir()
     finally:
         strings.I18n._translations.pop("id", None)
-    assert strings.missing_report("ms")["missing"] == {}, \
-        "Malay should be complete"
+    assert strings.missing_report("ms")["missing"] == {}, "Malay should be complete"
 
 
 def test_menu_handler_and_filters():
     import wx
+
     app = wx.GetApp() or wx.App(False)
     from omni_describer_custom.i18n.strings import I18n, t, user_locales_dir
     from omni_describer_custom.ui.main_frame import MainFrame
+
     I18n.set_language("ms")
     assert "Semua fail" in t("filter.all_files")
     frame = MainFrame()
     shown = []
     from omni_describer_custom.ui import dialogs
+
     real = dialogs.ask_yes_no
     dialogs.ask_yes_no = lambda parent, msg, *a, **k: shown.append(msg) or False
     try:
@@ -208,8 +277,9 @@ def test_menu_handler_and_filters():
         I18n.set_language("ms")
         frame._on_language_report(None)
         assert shown and "semua baris sudah diterjemah" in shown[-1], shown
-        assert not (user_locales_dir() / "ms.missing.json").exists(), \
+        assert not (user_locales_dir() / "ms.missing.json").exists(), (
             "an empty report file was left behind"
+        )
         I18n.add_translation("id", {"main.ready": "Siap"})
         I18n.set_language("id")
         frame._on_language_report(None)
@@ -226,20 +296,18 @@ def test_menu_handler_and_filters():
 
 def test_gate_isolates_the_user_locales():
     gate = (ROOT / "run_gate.bat").read_text()
-    assert "set ODC_LOCALES_DIR=" in gate, \
-        "the gate would load the owner's own language files"
+    assert "set ODC_LOCALES_DIR=" in gate, "the gate would load the owner's own language files"
 
 
 def main() -> int:
     check("no English written into the UI", test_no_english_written_into_the_ui)
     check("every key is used", test_every_key_is_used)
     check("English and Malay match, placeholders too", test_english_and_malay_match)
-    check("the user folder adds and corrects languages",
-          test_user_folder_adds_and_corrects_languages)
-    check("the report lists what is left to translate",
-          test_report_lists_what_is_left_to_translate)
-    check("Translation Report menu and translated file filters",
-          test_menu_handler_and_filters)
+    check(
+        "the user folder adds and corrects languages", test_user_folder_adds_and_corrects_languages
+    )
+    check("the report lists what is left to translate", test_report_lists_what_is_left_to_translate)
+    check("Translation Report menu and translated file filters", test_menu_handler_and_filters)
     check("the gate isolates the user locales", test_gate_isolates_the_user_locales)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

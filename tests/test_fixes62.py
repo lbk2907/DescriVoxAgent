@@ -14,6 +14,7 @@ Found in an audit of the secondary windows:
 
 Every check below fails on the code before v1.9.6.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -27,10 +28,14 @@ import time
 import traceback
 import wave
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -82,6 +87,7 @@ class _Errors:
 
 def _ffmpeg() -> str:
     from omni_describer_custom.core.tools import find_tool
+
     return find_tool("ffmpeg")
 
 
@@ -90,10 +96,26 @@ def _clip(name: str, seconds: int) -> str:
     path = os.path.join(_WORK, name)
     if not os.path.exists(path):
         subprocess.run(
-            [_ffmpeg(), "-hide_banner", "-nostdin", "-y", "-v", "error",
-             "-f", "lavfi", "-i", f"testsrc=size=320x240:rate=25:d={seconds}",
-             "-c:v", "mpeg4", "-q:v", "5", path],
-            check=True, timeout=120)
+            [
+                _ffmpeg(),
+                "-hide_banner",
+                "-nostdin",
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"testsrc=size=320x240:rate=25:d={seconds}",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "5",
+                path,
+            ],
+            check=True,
+            timeout=120,
+        )
     return path
 
 
@@ -115,17 +137,25 @@ def _kill_strays() -> None:
     if sys.platform != "win32":
         return
     subprocess.run(
-        ["powershell", "-NoProfile", "-Command",
-         "Get-CimInstance Win32_Process -Filter \"Name='ffmpeg.exe'\" | "
-         f"Where-Object {{ $_.CommandLine -like '*{os.path.basename(_WORK)}*' }} | "
-         "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
-        capture_output=True, timeout=60)
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='ffmpeg.exe'\" | "
+            f"Where-Object {{ $_.CommandLine -like '*{os.path.basename(_WORK)}*' }} | "
+            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+        ],
+        capture_output=True,
+        timeout=60,
+    )
 
 
 # ── 1. Review: Cancel stops the frame extraction ───────────────────
 
+
 def test_frame_strip_stops_on_cancel():
     from omni_describer_custom.core.review import FrameStrip
+
     video = _long_video()
     before = set(os.listdir(tempfile.gettempdir()))
     flag = {"cancel": False}
@@ -146,13 +176,15 @@ def test_frame_strip_stops_on_cancel():
     pressed = time.monotonic()
     th.join(timeout=8)
     try:
-        assert not th.is_alive(), \
-            "FrameStrip kept decoding the whole video after Cancel"
+        assert not th.is_alive(), "FrameStrip kept decoding the whole video after Cancel"
         took = time.monotonic() - pressed
         assert took < 2.5, f"Cancel took {took:.1f}s to stop ffmpeg"
         assert outcome.get("error") == "cancelled", outcome
-        left = [n for n in set(os.listdir(tempfile.gettempdir())) - before
-                if n.startswith("odc_review_")]
+        left = [
+            n
+            for n in set(os.listdir(tempfile.gettempdir())) - before
+            if n.startswith("odc_review_")
+        ]
         assert not left, f"cancelled extraction left {left}"
     finally:
         _kill_strays()
@@ -160,6 +192,7 @@ def test_frame_strip_stops_on_cancel():
 
 def test_review_abandons_looks_in_flight():
     from omni_describer_custom.core import review as R
+
     video = _clip("short.mp4", 12)
     flag = {"cancel": False}
 
@@ -173,15 +206,23 @@ def test_review_abandons_looks_in_flight():
 
     def work():
         try:
-            asyncio.run(R.review(SlowEngine(), video, pairs, "accurate",
-                                 12.0, is_cancelled=lambda: flag["cancel"]))
+            asyncio.run(
+                R.review(
+                    SlowEngine(),
+                    video,
+                    pairs,
+                    "accurate",
+                    12.0,
+                    is_cancelled=lambda: flag["cancel"],
+                )
+            )
             outcome["error"] = "finished"
         except Exception as e:
             outcome["error"] = str(e)
 
     th = threading.Thread(target=work, daemon=True)
     th.start()
-    time.sleep(3.0)          # frames extracted, the looks are waiting
+    time.sleep(3.0)  # frames extracted, the looks are waiting
     flag["cancel"] = True
     pressed = time.monotonic()
     th.join(timeout=10)
@@ -192,6 +233,7 @@ def test_review_abandons_looks_in_flight():
 
 
 # ── 2. Audio export can be cancelled ───────────────────────────────
+
 
 def test_export_audio_cancels():
     from omni_describer_custom.core import timeline_io as T
@@ -212,8 +254,7 @@ def test_export_audio_cancels():
             return path
 
     out = os.path.join(_WORK, "export.mp3")
-    descs = [Description(start_time=i, end_time=i + 1, text=f"cue {i}")
-             for i in range(5)]
+    descs = [Description(start_time=i, end_time=i + 1, text=f"cue {i}") for i in range(5)]
     try:
         T.export_audio(descs, out, FakeTTS(), is_cancelled=lambda: True)
     except RuntimeError as e:
@@ -228,9 +269,11 @@ def test_export_audio_cancels():
 
 # ── 3. Settings closed while a worker is still running ─────────────
 
+
 def test_settings_results_after_close():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
     dlg = SettingsDialog(None, SettingsStore())
     dlg.Show()
     _drain()
@@ -238,8 +281,7 @@ def test_settings_results_after_close():
     _drain(rounds=6)
     # What a Fetch models / Test worker queues when it finishes late.
     dlg._show_test_result("late result")
-    dlg._apply_fetched_models([{"id": "a/b", "name": "B", "audio": False,
-                                "price_in": 0.1}])
+    dlg._apply_fetched_models([{"id": "a/b", "name": "B", "audio": False, "price_in": 0.1}])
     with _Errors() as errs:
         wx.CallAfter(dlg._show_test_result, "late")
         if hasattr(dlg, "_fetch_done"):
@@ -252,6 +294,7 @@ def test_settings_language_boxes_in_tab_order():
     """Pitfall 34: on screen in creation order, each box under its label."""
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
     dlg = SettingsDialog(None, SettingsStore())
     try:
         dlg.Show()
@@ -272,8 +315,10 @@ def test_settings_language_boxes_in_tab_order():
 
 # ── 4. Player: an announcement after the window closed ─────────────
 
+
 def _store():
     from omni_describer_custom.core.project_store import Description, ProjectStore
+
     store = ProjectStore(tempfile.mkdtemp(prefix="p_", dir=_WORK))
     store.create_project("t62", "C:/none.mp4")
     store.set_video_duration(90.0)
@@ -284,13 +329,14 @@ def _store():
 def test_player_announce_after_close():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     player = PlayerWindow(None, _store(), TTSEngine({}))
     player.Show()
     _drain(rounds=4)
     player._timer.Stop()
     player.Destroy()
     _drain(rounds=6)
-    player._announce("spoken")          # a speech thread finishing late
+    player._announce("spoken")  # a speech thread finishing late
     with _Errors() as errs:
         wx.CallAfter(lambda: player._announce("tts failed"))
         _drain(rounds=4)
@@ -298,6 +344,7 @@ def test_player_announce_after_close():
 
 
 # ── 5. Ask More: the answer arrives after Cancel ───────────────────
+
 
 def test_ask_more_reply_after_close():
     from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
@@ -317,7 +364,7 @@ def test_ask_more_reply_after_close():
     dlg.question_text.SetValue("what is on screen?")
     with _Errors() as errs:
         dlg._on_submit(None)
-        dlg._on_cancel(None)            # Esc: not modal here, so Destroy
+        dlg._on_cancel(None)  # Esc: not modal here, so Destroy
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             _drain(rounds=2)
@@ -327,24 +374,25 @@ def test_ask_more_reply_after_close():
 
 # ── 6. stop() during generation is not lost ────────────────────────
 
+
 def test_stop_during_generation_skips_playback():
     from omni_describer_custom.core.tts_engine import TTSEngine
+
     eng = TTSEngine({})
     played = []
 
     async def slow_speak(text, engine="", voice="", speed=0.0):
-        await asyncio.sleep(0.5)        # Edge TTS: a network round trip
+        await asyncio.sleep(0.5)  # Edge TTS: a network round trip
         fd, path = tempfile.mkstemp(suffix=".wav", prefix="odc_t62_")
         os.close(fd)
         return path
 
     eng.speak = slow_speak
     eng._play_file = lambda path, *a, **k: played.append(path) or True
-    th = threading.Thread(target=eng.speak_and_play, args=("hello", "sapi5"),
-                          daemon=True)
+    th = threading.Thread(target=eng.speak_and_play, args=("hello", "sapi5"), daemon=True)
     th.start()
     time.sleep(0.15)
-    eng.stop()                          # the user pressed Stop / closed
+    eng.stop()  # the user pressed Stop / closed
     th.join(timeout=5)
     assert not th.is_alive()
     assert not played, "the clip played in full after stop()"
@@ -353,6 +401,7 @@ def test_stop_during_generation_skips_playback():
 def test_scene_explorer_close_while_loading():
     """Closing during extraction stops it and leaves no odc_explorer_."""
     from omni_describer_custom.ui.scene_explorer import SceneExplorer
+
     # A video extension, so it is treated as a local file and goes
     # straight to the ffmpeg extraction (ffmpeg still reads the list).
     video = _long_video("long.mp4")
@@ -366,8 +415,11 @@ def test_scene_explorer_close_while_loading():
         deadline = time.monotonic() + 8
         while time.monotonic() < deadline:
             _drain(rounds=2)
-            left = [n for n in set(os.listdir(tempfile.gettempdir())) - before
-                    if n.startswith("odc_explorer_")]
+            left = [
+                n
+                for n in set(os.listdir(tempfile.gettempdir())) - before
+                if n.startswith("odc_explorer_")
+            ]
             if not left:
                 break
         _drain()
@@ -379,21 +431,21 @@ def test_scene_explorer_close_while_loading():
 def main() -> int:
     app = wx.App(False)
     try:
-        check("review: Cancel stops the frame extraction",
-              test_frame_strip_stops_on_cancel)
-        check("review: Cancel abandons the looks in flight",
-              test_review_abandons_looks_in_flight)
+        check("review: Cancel stops the frame extraction", test_frame_strip_stops_on_cancel)
+        check("review: Cancel abandons the looks in flight", test_review_abandons_looks_in_flight)
         check("audio export can be cancelled", test_export_audio_cancels)
-        check("Settings: late worker results after close",
-              test_settings_results_after_close)
-        check("Settings: language boxes laid out in Tab order",
-              test_settings_language_boxes_in_tab_order)
+        check("Settings: late worker results after close", test_settings_results_after_close)
+        check(
+            "Settings: language boxes laid out in Tab order",
+            test_settings_language_boxes_in_tab_order,
+        )
         check("Player: announcement after close", test_player_announce_after_close)
         check("Ask More: answer after Cancel", test_ask_more_reply_after_close)
-        check("TTS: stop() during generation skips playback",
-              test_stop_during_generation_skips_playback)
-        check("Scene Explorer: close while loading",
-              test_scene_explorer_close_while_loading)
+        check(
+            "TTS: stop() during generation skips playback",
+            test_stop_during_generation_skips_playback,
+        )
+        check("Scene Explorer: close while loading", test_scene_explorer_close_while_loading)
     finally:
         _kill_strays()
         _drain()

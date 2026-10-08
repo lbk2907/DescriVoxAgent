@@ -5,6 +5,7 @@ and do it automatically on every release." build.bat now runs
 tools/make_source_zip.py, which zips the committed files (git archive)
 and refuses a zip holding anything that is not source.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import subprocess
@@ -14,8 +15,10 @@ import traceback
 import zipfile
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "tools")
 
 import make_source_zip as msz  # noqa: E402
@@ -49,25 +52,33 @@ def test_clean_source_passes():
 
 
 def test_exe_and_build_output_are_refused():
-    path = _zip("bad.zip", {"p/DescriVox.exe": b"MZ\x00\x00",
-                            "p/dist/DescriVox/readme.txt": "x",
-                            "p/settings.json": "{}"})
+    path = _zip(
+        "bad.zip",
+        {
+            "p/DescriVox.exe": b"MZ\x00\x00",
+            "p/dist/DescriVox/readme.txt": "x",
+            "p/settings.json": "{}",
+        },
+    )
     found = msz.problems(path)
     assert len(found) == 3, found
 
 
 def test_binary_and_keys_are_refused():
     key = "sk-or-v1-" + "a" * 40
-    path = _zip("bad2.zip", {"p/blob.txt": b"abc\x00def",
-                             "p/conf.py": f"KEY = '{key}'\n"})
+    path = _zip("bad2.zip", {"p/blob.txt": b"abc\x00def", "p/conf.py": f"KEY = '{key}'\n"})
     found = msz.problems(path)
     assert any("binary" in f for f in found) and any("API key" in f for f in found), found
 
 
 def test_the_real_tool_makes_a_clean_zip():
     out = TMP / "real"
-    run = subprocess.run([sys.executable, "tools/make_source_zip.py", "--out", str(out)],
-                         capture_output=True, text=True, timeout=120)
+    run = subprocess.run(
+        [sys.executable, "tools/make_source_zip.py", "--out", str(out)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert run.returncode == 0 and "SOURCE_ZIP_OK" in run.stdout, run.stdout + run.stderr
     made = list(out.glob("DescriVox-Agent-source-v*.zip"))
     assert len(made) == 1 and msz.problems(made[0]) == []

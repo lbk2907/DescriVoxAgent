@@ -30,15 +30,17 @@ NOISE = {"DescriVox.spec"}
 
 def evidence_dir() -> Path:
     base = os.environ.get("ODC_EVIDENCE_DIR") or str(
-        Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "OmniDescriber" / "release")
+        Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "OmniDescriber" / "release"
+    )
     p = Path(base)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def git(*args: str) -> str:
-    return subprocess.run(["git", *args], cwd=REPO, capture_output=True,
-                          text=True, encoding="utf-8").stdout.strip()
+    return subprocess.run(
+        ["git", *args], cwd=REPO, capture_output=True, text=True, encoding="utf-8"
+    ).stdout.strip()
 
 
 def head() -> str:
@@ -60,13 +62,19 @@ def working_tree() -> str:
     changes included): the gate usually runs before the commit, and what
     matters is whether the released code is the code that was tested."""
     import tempfile
+
     with tempfile.TemporaryDirectory(prefix="odc_evidx_") as tmp:
         env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / "index"))
-        run = lambda *a: subprocess.run(["git", *a], cwd=REPO, env=env,  # noqa: E731
-                                        capture_output=True, text=True,
-                                        encoding="utf-8").stdout.strip()
+        run = lambda *a: subprocess.run(
+            ["git", *a],
+            cwd=REPO,
+            env=env,  # noqa: E731
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
         run("read-tree", "HEAD")
-        run("add", "-A")      # new files too (.gitignore respected)
+        run("add", "-A")  # new files too (.gitignore respected)
         return run("write-tree")
 
 
@@ -85,14 +93,21 @@ def sha256_file(path: Path) -> str:
 
 def version() -> str:
     import re
+
     text = (REPO / "src/omni_describer_custom/__init__.py").read_text(encoding="utf-8")
     return re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1)
 
 
 def record(kind: str, **data) -> dict:
-    entry = {"time": datetime.datetime.now().isoformat(timespec="seconds"),
-             "kind": kind, "commit": head(), "tree": working_tree(), "dirty": dirty(),
-             "version": version(), **data}
+    entry = {
+        "time": datetime.datetime.now().isoformat(timespec="seconds"),
+        "kind": kind,
+        "commit": head(),
+        "tree": working_tree(),
+        "dirty": dirty(),
+        "version": version(),
+        **data,
+    }
     with (evidence_dir() / "evidence.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return entry
@@ -117,15 +132,22 @@ def main() -> int:
         e = record("gate", ok=sys.argv[2:3] == ["0"])
     elif kind == "build":
         zip_path = Path(sys.argv[2])
-        e = record("build", ok=zip_path.exists(), zip=str(zip_path),
-                   zip_sha256=sha256_file(zip_path) if zip_path.exists() else "",
-                   exe_sha256=sha256_file(REPO / "dist/DescriVox/DescriVox.exe")
-                   if (REPO / "dist/DescriVox/DescriVox.exe").exists() else "")
+        e = record(
+            "build",
+            ok=zip_path.exists(),
+            zip=str(zip_path),
+            zip_sha256=sha256_file(zip_path) if zip_path.exists() else "",
+            exe_sha256=sha256_file(REPO / "dist/DescriVox/DescriVox.exe")
+            if (REPO / "dist/DescriVox/DescriVox.exe").exists()
+            else "",
+        )
     else:
         print("usage: evidence.py gate <0|1> | build <zip>")
         return 2
-    print(f"EVIDENCE {e['kind']} ok={e['ok']} commit={e['commit'][:8]}"
-          + (f" dirty={len(e['dirty'])}" if e["dirty"] else ""))
+    print(
+        f"EVIDENCE {e['kind']} ok={e['ok']} commit={e['commit'][:8]}"
+        + (f" dirty={len(e['dirty'])}" if e["dirty"] else "")
+    )
     return 0
 
 

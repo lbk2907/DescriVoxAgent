@@ -12,24 +12,31 @@ ffmpeg extraction, real HTTP loopback AI, real SQLite):
    saved with full-video timestamps, temp dir cleaned.
 2. cap absent/0 (default) -> every extracted frame is analysed (all hits).
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import sys, io, subprocess, threading, traceback, tempfile, shutil
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
 fail = 0
 _app = None  # keep a reference: an unreferenced wx.App is garbage collected
 
+
 def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -39,28 +46,61 @@ def check(name, fn):
         traceback.print_exc()
         fail += 1
 
+
 def make_video(path: Path) -> None:
     """Real 3-second mp4 of random noise frames with audio (distinct
     perceptual hashes so scene dedupe keeps several frames)."""
     import random
+
     w, h, fps, dur = 320, 240, 10, 3
     raw = Path(str(path) + ".raw")
     raw.write_bytes(random.randbytes(w * h * 3 * fps * dur))
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error",
-             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}",
-             "-r", str(fps), "-i", str(raw),
-             "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
-             "-map", "0:v", "-map", "1:a",
-             "-c:v", "mpeg4", "-q:v", "3", "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-shortest", str(path)],
-            capture_output=True, check=True)
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-s",
+                f"{w}x{h}",
+                "-r",
+                str(fps),
+                "-i",
+                str(raw),
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=3",
+                "-map",
+                "0:v",
+                "-map",
+                "1:a",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "3",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(path),
+            ],
+            capture_output=True,
+            check=True,
+        )
     finally:
         raw.unlink(missing_ok=True)
 
+
 class LoopbackAI:
     """REAL HTTP server (OpenAI-compatible vision format)."""
+
     def __init__(self):
         self.hits = 0
         self._ready = threading.Event()
@@ -73,6 +113,7 @@ class LoopbackAI:
 
     def _run(self):
         import asyncio
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         self._loop = loop
@@ -83,9 +124,11 @@ class LoopbackAI:
             data = await request.json()
             url = data["messages"][0]["content"][1]["image_url"]["url"]
             import base64
+
             base64.b64decode(url.split("base64,", 1)[1])
             return web.json_response(
-                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]})
+                {"choices": [{"message": {"content": f"loopback desc {self.hits}"}}]}
+            )
 
         app = web.Application()
         app.router.add_post("/v1/chat/completions", handler)
@@ -116,6 +159,7 @@ class LoopbackAI:
             self._thread.join(10)
             self._loop.close()
 
+
 def _make_frame(tmp: Path, cap: int | None):
     import wx  # noqa: F401 (checks the name still exists)
     from omni_describer_custom.core.ai_engine import AIEngine
@@ -126,8 +170,7 @@ def _make_frame(tmp: Path, cap: int | None):
     video = Path(tmp) / "in.mp4"
     make_video(video)
     engine = AIEngine()
-    engine.set_provider("custom", api_key="k", base_url=srv.base_url(),
-                        model="loop-model")
+    engine.set_provider("custom", api_key="k", base_url=srv.base_url(), model="loop-model")
     frame = MainFrame()
     frame.ai_engine = engine
     frame.project_store = ProjectStore(projects_dir=str(Path(tmp) / "projects"))
@@ -138,13 +181,14 @@ def _make_frame(tmp: Path, cap: int | None):
     frame._open_player = lambda *a, **k: None  # player path proven in fixes9
     return srv, video, frame
 
+
 def test_cap_limits_requests():
     import wx  # noqa: F401 (checks the name still exists)
+
     tmp = tempfile.mkdtemp(prefix="cap11_")
     try:
         srv, video, frame = _make_frame(Path(tmp), cap=2)
-        th = threading.Thread(target=frame._process_video,
-                              args=(str(video), "describe each frame"))
+        th = threading.Thread(target=frame._process_video, args=(str(video), "describe each frame"))
         th.start()
         th.join(120)
         assert not th.is_alive(), "worker did not finish"
@@ -153,8 +197,9 @@ def test_cap_limits_requests():
         proj = frame.project_store.current
         assert proj is not None, "project not created"
         texts = [d.text for d in proj.descriptions]
-        assert texts and all(t == f"loopback desc {i+1}" for i, t in enumerate(texts)), \
+        assert texts and all(t == f"loopback desc {i + 1}" for i, t in enumerate(texts)), (
             f"saved texts: {texts!r}"
+        )
         # Timestamps stay on the FULL-VIDEO timeline (early frames kept).
         starts = sorted(d.start_time for d in proj.descriptions)
         assert starts[0] == 0.0 and starts[-1] < 3.0, f"timestamps: {starts}"
@@ -173,25 +218,28 @@ def test_cap_limits_requests():
         frame.Destroy()
         shutil.rmtree(tmp, ignore_errors=True)
 
+
 def test_default_no_cap():
     import wx  # noqa: F401 (checks the name still exists)
+
     tmp = tempfile.mkdtemp(prefix="cap11b_")
     try:
         srv, video, frame = _make_frame(Path(tmp), cap=None)  # default: no cap
-        th = threading.Thread(target=frame._process_video,
-                              args=(str(video), "describe each frame"))
+        th = threading.Thread(target=frame._process_video, args=(str(video), "describe each frame"))
         th.start()
         th.join(120)
         assert not th.is_alive(), "worker did not finish"
         proj = frame.project_store.current
         assert proj is not None, "project not created"
         # Default behaviour unchanged: EVERY analysed frame was sent.
-        assert srv.hits == len(proj.descriptions) and srv.hits >= 2, \
+        assert srv.hits == len(proj.descriptions) and srv.hits >= 2, (
             f"hits={srv.hits} saved={len(proj.descriptions)}"
+        )
     finally:
         srv.stop()
         frame.Destroy()
         shutil.rmtree(tmp, ignore_errors=True)
+
 
 def test_settings_dialog_cap_roundtrip():
     """REAL SettingsDialog: widget -> store -> widget round-trip, plus both
@@ -200,6 +248,7 @@ def test_settings_dialog_cap_roundtrip():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.ui.settings_dialog import SettingsDialog
     from omni_describer_custom.i18n.strings import EN_STRINGS, MS_STRINGS
+
     tmp = tempfile.mkdtemp(prefix="cap11c_")
     dlg = None
     try:
@@ -218,7 +267,7 @@ def test_settings_dialog_cap_roundtrip():
         def drive():
             try:
                 dlg.frame_cap_spin.SetValue(75)
-                dlg._on_apply(None)   # ends the modal with ID_OK
+                dlg._on_apply(None)  # ends the modal with ID_OK
             except Exception as e:
                 errors.append(e)
                 dlg.EndModal(wx.ID_CANCEL)
@@ -227,15 +276,18 @@ def test_settings_dialog_cap_roundtrip():
         wx.CallLater(15000, lambda: dlg.EndModal(wx.ID_CANCEL))  # watchdog
         ret = dlg.ShowModal()
         wx.MessageBox = orig_box
-        dlg.Destroy(); dlg = None
+        dlg.Destroy()
+        dlg = None
         assert ret == wx.ID_OK and not errors, f"ret={ret} errors={errors}"
         reread = SettingsStore(config_dir=tmp)
-        assert reread.get("general.frame_cap") == 75, \
+        assert reread.get("general.frame_cap") == 75, (
             f"persisted: {reread.get('general.frame_cap')}"
+        )
         # Re-open: the dialog must load the stored value back.
         dlg2 = SettingsDialog(None, reread)
         assert dlg2.frame_cap_spin.GetValue() == 75, "dialog did not reload cap"
-        dlg2.Destroy(); dlg2 = None
+        dlg2.Destroy()
+        dlg2 = None
         # Both locales must carry the label key (missing key = English
         # fallback would silently break the Malay UI).
         assert "settings.frame_cap" in EN_STRINGS, "missing EN key"
@@ -248,9 +300,13 @@ def test_settings_dialog_cap_roundtrip():
                 pass
         shutil.rmtree(tmp, ignore_errors=True)
 
+
 check("frame_cap=2 limits REAL AI requests, keeps full-video timestamps", test_cap_limits_requests)
 check("default (no cap) analyses every frame - behaviour unchanged", test_default_no_cap)
-check("REAL Settings dialog round-trips frame_cap (widget -> store -> widget)", test_settings_dialog_cap_roundtrip)
+check(
+    "REAL Settings dialog round-trips frame_cap (widget -> store -> widget)",
+    test_settings_dialog_cap_roundtrip,
+)
 
 print()
 print(f"TOTAL: {ok} passed, {fail} failed")
@@ -259,4 +315,5 @@ print(f"TOTAL: {ok} passed, {fail} failed")
 sys.stdout.flush()
 sys.stderr.flush()
 import os
+
 os._exit(1 if fail else 0)

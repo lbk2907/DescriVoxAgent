@@ -12,6 +12,7 @@ AUDIO track ran only 9.25 seconds:
      bin/ three folders up (src/bin) instead of four: anything run from
      outside the repo root silently used a different ffmpeg.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -21,10 +22,14 @@ import tempfile
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -47,11 +52,29 @@ def check(name, fn):
 
 def _clip_with_short_audio() -> Path:
     path = Path(tempfile.mkdtemp(prefix="odc_t46_")) / "short_audio.mp4"
-    subprocess.run([find_tool("ffmpeg"), "-y", "-loglevel", "error",
-                    "-f", "lavfi", "-i", "testsrc=size=160x120:rate=10:duration=12",
-                    "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
-                    "-c:v", "libx264", "-c:a", "aac", str(path)],
-                   check=True, timeout=120)
+    subprocess.run(
+        [
+            find_tool("ffmpeg"),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=160x120:rate=10:duration=12",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=3",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            str(path),
+        ],
+        check=True,
+        timeout=120,
+    )
     return path
 
 
@@ -62,17 +85,20 @@ def test_short_audio_does_not_shorten_the_video():
 
     # Whatever the decode pass would say, metadata wins.
     prov._run_ffmpeg_cancellable = lambda *a, **k: (0, b"time=00:00:03.00")
-    assert abs(prov._probe_duration(clip) - 12.0) < 0.5, \
+    assert abs(prov._probe_duration(clip) - 12.0) < 0.5, (
         "the duration still follows a decode that stopped with the audio"
+    )
 
 
 def test_cues_after_the_sound_ends_are_kept():
     import asyncio
+
     clip = _clip_with_short_audio()
     prov = GLMProvider(api_key="k")
 
     async def reply(payload, timeout):
         return "[00:01] start\n[00:06] after the sound ends\n[00:11] near the end"
+
     prov._chat = reply
     cues = asyncio.run(prov.describe_video_full(str(clip), "p"))
     assert [t for t, _ in cues] == [1.0, 6.0, 11.0], cues
@@ -85,8 +111,9 @@ def test_bundled_ffmpeg_is_found_from_any_folder():
         found = Path(find_tool("ffmpeg"))
     finally:
         os.chdir(here)
-    assert found.parent == ROOT / "bin", \
+    assert found.parent == ROOT / "bin", (
         f"from another folder the app used {found}, not the pinned bin/"
+    )
 
 
 def test_a_busy_service_is_waited_for_and_named():
@@ -119,9 +146,16 @@ def test_a_busy_service_is_waited_for_and_named():
     ae._sleep_cancellable = no_wait
     try:
         try:
-            asyncio.run(ae._http_json(
-                "POST", f"http://127.0.0.1:{server.server_address[1]}/x",
-                label="Gemini", headers={}, payload={}, timeout=10))
+            asyncio.run(
+                ae._http_json(
+                    "POST",
+                    f"http://127.0.0.1:{server.server_address[1]}/x",
+                    label="Gemini",
+                    headers={},
+                    payload={},
+                    timeout=10,
+                )
+            )
             raise AssertionError("a busy service did not fail the call")
         except RuntimeError as e:
             message = str(e)
@@ -134,14 +168,15 @@ def test_a_busy_service_is_waited_for_and_named():
 
 
 def main() -> int:
-    check("a short audio track does not shorten the video",
-          test_short_audio_does_not_shorten_the_video)
-    check("cues after the sound ends are kept",
-          test_cues_after_the_sound_ends_are_kept)
-    check("the bundled ffmpeg is found from any folder",
-          test_bundled_ffmpeg_is_found_from_any_folder)
-    check("a busy service is waited for, and named",
-          test_a_busy_service_is_waited_for_and_named)
+    check(
+        "a short audio track does not shorten the video",
+        test_short_audio_does_not_shorten_the_video,
+    )
+    check("cues after the sound ends are kept", test_cues_after_the_sound_ends_are_kept)
+    check(
+        "the bundled ffmpeg is found from any folder", test_bundled_ffmpeg_is_found_from_any_folder
+    )
+    check("a busy service is waited for, and named", test_a_busy_service_is_waited_for_and_named)
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")
     return 1 if failed else 0

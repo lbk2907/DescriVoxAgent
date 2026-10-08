@@ -35,6 +35,7 @@ PLAY WHAT IS ALREADY DESCRIBED. The pieces existed but nothing joined
 them: importing an SRT made a project with no video, so the player
 opened with descriptions over silence.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -43,10 +44,14 @@ import tempfile
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 import wx  # noqa: E402
@@ -80,6 +85,7 @@ def _tmp() -> Path:
 
 # ── Resumable downloads ──────────────────────────────────────────
 
+
 def test_an_intermediate_stream_is_not_a_finished_video():
     """The silent-video bug, pinned.
 
@@ -88,11 +94,11 @@ def test_an_intermediate_stream_is_not_a_finished_video():
     while skipping the rest of the download.
     """
     d = _tmp()
-    for name in ("video.f616.mp4", "video.f251.webm",
-                 "video.mp4.part", "video.mp4.ytdl"):
+    for name in ("video.f616.mp4", "video.f251.webm", "video.mp4.part", "video.mp4.ytdl"):
         (d / name).write_bytes(b"x" * 100)
     assert VideoProcessor.completed_download(str(d)) == "", (
-        "an unmerged stream was reported as a finished download")
+        "an unmerged stream was reported as a finished download"
+    )
 
 
 def test_the_merged_video_is_found():
@@ -133,10 +139,12 @@ def test_partial_bytes_counts_what_can_be_resumed():
 def test_resolve_source_takes_a_download_directory():
     """Without out_dir threaded through, nothing else here matters."""
     import inspect
+
     sig = inspect.signature(VideoProcessor.resolve_source)
     assert "out_dir" in sig.parameters, (
         "resolve_source cannot be told where to download, so the "
-        "partial would be orphaned in a temp dir again")
+        "partial would be orphaned in a temp dir again"
+    )
 
 
 def test_the_pipeline_creates_the_project_before_downloading():
@@ -146,16 +154,18 @@ def test_the_pipeline_creates_the_project_before_downloading():
     before = text.split("_ensure_project_for(source)")[-1]
     first_resolve = before.find("vp.resolve_source")
     assert first_resolve > 0, (
-        "the download happens before the project exists, so there is "
-        "nowhere stable to resume into")
+        "the download happens before the project exists, so there is nowhere stable to resume into"
+    )
     assert text.count("out_dir=download_dir") == 2, (
-        "not every download path was given the project folder")
+        "not every download path was given the project folder"
+    )
 
 
 def _frame_with_store():
     """A MainFrame whose projects live in a throwaway directory."""
     from omni_describer_custom.core.project_store import ProjectStore
     from omni_describer_custom.ui.main_frame import MainFrame
+
     frame = MainFrame()
     frame.project_store = ProjectStore(projects_dir=str(_tmp()))
     return frame
@@ -185,25 +195,25 @@ def test_frame_mode_downloads_into_the_project_too():
     and finding the project's media folder empty.
     """
     import inspect
+
     sig = inspect.signature(VideoProcessor.extract_frames)
     assert "download_dir" in sig.parameters, (
-        "extract_frames cannot be told where to download, so frame "
-        "mode would not resume")
+        "extract_frames cannot be told where to download, so frame mode would not resume"
+    )
     text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
     call = text.split("vp.extract_frames(")[1][:500]
-    assert "download_dir=download_dir" in call, (
-        "frame mode still downloads to a throwaway temp dir")
+    assert "download_dir=download_dir" in call, "frame mode still downloads to a throwaway temp dir"
 
 
 def test_every_download_entry_point_was_covered():
     """Count them, so a fourth path cannot be added unnoticed."""
     text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
     entries = text.count("vp.resolve_source(") + text.count("vp.extract_frames(")
-    wired = text.count("out_dir=download_dir") + text.count(
-        "download_dir=download_dir")
+    wired = text.count("out_dir=download_dir") + text.count("download_dir=download_dir")
     assert entries == wired, (
         f"{entries} download entry points but only {wired} given the "
-        f"project folder — one of them still uses a temp dir")
+        f"project folder — one of them still uses a temp dir"
+    )
 
 
 def test_a_project_holding_a_partial_download_is_kept():
@@ -214,8 +224,7 @@ def test_a_project_holding_a_partial_download_is_kept():
     """
     frame = _frame_with_store()
     try:
-        media = Path(frame._ensure_project_for(
-            "https://example.com/watch?v=abc"))
+        media = Path(frame._ensure_project_for("https://example.com/watch?v=abc"))
         project_id = frame.project_store.current.id
         assert media.is_dir(), media
         # A download died halfway and left its partial behind.
@@ -224,7 +233,8 @@ def test_a_project_holding_a_partial_download_is_kept():
         frame._discard_project_if_empty()
         assert frame.project_store.current is not None, (
             "the project was deleted along with the partial download "
-            "that was supposed to be resumed")
+            "that was supposed to be resumed"
+        )
         assert frame.project_store.current.id == project_id
         assert (media / "video.f616.mp4.part").exists()
     finally:
@@ -235,13 +245,11 @@ def test_a_project_with_nothing_in_it_is_discarded():
     """Creating the project up front must not litter the list."""
     frame = _frame_with_store()
     try:
-        media = Path(frame._ensure_project_for(
-            "https://example.com/watch?v=xyz"))
+        media = Path(frame._ensure_project_for("https://example.com/watch?v=xyz"))
         assert media.is_dir()
         assert not any(media.iterdir()), "expected an empty media folder"
         frame._discard_project_if_empty()
-        assert frame.project_store.current is None, (
-            "an abandoned run left an empty project behind")
+        assert frame.project_store.current is None, "an abandoned run left an empty project behind"
     finally:
         _close(frame)
 
@@ -261,10 +269,8 @@ def test_a_different_video_never_lands_in_the_last_project():
         a_id = frame.project_store.current.id
         b_dir = frame._ensure_project_for("https://example.com/B")
         b_id = frame.project_store.current.id
-        assert a_id != b_id, (
-            "a second video reused the first video's project")
-        assert a_dir != b_dir, (
-            f"both videos download into the same folder: {a_dir}")
+        assert a_id != b_id, "a second video reused the first video's project"
+        assert a_dir != b_dir, f"both videos download into the same folder: {a_dir}"
     finally:
         _close(frame)
 
@@ -283,12 +289,13 @@ def test_asking_for_the_same_source_twice_reuses_the_project():
 
 
 def test_choosing_a_new_project_is_honoured():
-    """"Describe it again as a new project" must not reuse the old one."""
+    """ "Describe it again as a new project" must not reuse the old one."""
     text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
     after_no = text.split("# ID_NO: fall through")[1][:400]
     assert '_project_source = ""' in after_no, (
         "answering 'new project' to the duplicate prompt would still "
-        "download into the existing project's folder")
+        "download into the existing project's folder"
+    )
 
 
 def test_an_existing_project_is_reused_not_replaced():
@@ -300,17 +307,20 @@ def test_an_existing_project_is_reused_not_replaced():
         media = Path(frame._ensure_project_for("the-source"))
         assert frame.project_store.current.id == existing_id, (
             "a second project was created for a source that already had "
-            "one, so its partial download would be ignored")
+            "one, so its partial download would be ignored"
+        )
         assert media == frame.project_store.media_dir(existing_id)
         # Nothing this run created, so nothing this run may delete.
         frame._discard_project_if_empty()
         assert frame.project_store.current is not None, (
-            "the user's existing project was deleted by the tidy-up")
+            "the user's existing project was deleted by the tidy-up"
+        )
     finally:
         _close(frame)
 
 
 # ── The compressed upload copy ───────────────────────────────────
+
 
 def test_the_cache_name_follows_the_encode_settings():
     """Changing the recipe must not serve a stale encode."""
@@ -320,13 +330,15 @@ def test_the_cache_name_follows_the_encode_settings():
     source.write_bytes(b"x" * 1000)
     base = provider.upload_cache_name(source, 40_000_000)
     assert base == provider.upload_cache_name(source, 40_000_000), (
-        "the same job produced two different cache names")
+        "the same job produced two different cache names"
+    )
     assert base != provider.upload_cache_name(source, 20_000_000)
     original = provider._UPLOAD_FPS
     try:
         provider._UPLOAD_FPS = original + 1
         assert base != provider.upload_cache_name(source, 40_000_000), (
-            "bumping the frame rate still hits the old cached file")
+            "bumping the frame rate still hits the old cached file"
+        )
     finally:
         provider._UPLOAD_FPS = original
 
@@ -346,8 +358,7 @@ def test_a_cached_copy_is_not_deleted_after_use():
     assert provider.is_cached_upload(Path("upload_abc123.mp4")) is True
     assert provider.is_cached_upload(Path("clip.mp4")) is False
     # A half-written encode must never be kept or uploaded.
-    assert provider.is_cached_upload(
-        Path("upload_abc123.partial.mp4")) is False
+    assert provider.is_cached_upload(Path("upload_abc123.partial.mp4")) is False
 
 
 def test_staging_keeps_an_extension_ffmpeg_understands():
@@ -358,8 +369,7 @@ def test_staging_keeps_an_extension_ffmpeg_understands():
     """
     text = (SRC / "core" / "ai_engine.py").read_text(encoding="utf-8")
     body = text.split("def compress_video_for_upload")[1][:2000]
-    assert 'with_suffix(".part")' not in body, (
-        "the staging file has no real container extension")
+    assert 'with_suffix(".part")' not in body, "the staging file has no real container extension"
     assert ".partial" in body, "no staging name is used at all"
 
 
@@ -371,7 +381,8 @@ def test_a_failed_encode_never_deletes_the_directory():
     text = (SRC / "core" / "ai_engine.py").read_text(encoding="utf-8")
     body = text.split("def _compress_to")[1][:3000]
     assert "rmtree(out_dir" not in body, (
-        "a failed compression would delete the project's media folder")
+        "a failed compression would delete the project's media folder"
+    )
     assert "out.unlink" in body, "the half-written output is not cleaned up"
 
 
@@ -392,16 +403,18 @@ def test_the_parts_cleanup_spares_the_cached_upload():
     cleanup = text.split("part_dirs: set[Path] = set()")[1][:900]
     assert "is_cached_upload" in cleanup, (
         "the parts cleanup deletes cached upload copies, so the retry "
-        "saving is thrown away at the end of every job")
+        "saving is thrown away at the end of every job"
+    )
 
 
 def test_the_cache_log_line_says_where():
-    """"Kept" and "kept then deleted" must be distinguishable."""
+    """ "Kept" and "kept then deleted" must be distinguishable."""
     text = (SRC / "core" / "ai_engine.py").read_text(encoding="utf-8")
     block = text.split("kept for retries")[1][:300]
     assert "cached.name" not in block, (
         "the log records only the file name, so a cached copy written "
-        "to the wrong place looks identical to one written correctly")
+        "to the wrong place looks identical to one written correctly"
+    )
 
 
 def test_the_cache_directory_reaches_every_provider():
@@ -409,31 +422,38 @@ def test_the_cache_directory_reaches_every_provider():
     engine.upload_cache_dir = r"C:\somewhere"
     engine.set_provider("glm", api_key="k")
     assert engine.get_provider("glm").upload_cache_dir == r"C:\somewhere", (
-        "a provider created after the cache dir was set did not get it")
+        "a provider created after the cache dir was set did not get it"
+    )
     engine.upload_cache_dir = r"C:\elsewhere"
     assert engine.get_provider("glm").upload_cache_dir == r"C:\elsewhere", (
-        "changing the cache dir did not reach an existing provider")
+        "changing the cache dir did not reach an existing provider"
+    )
 
 
 def test_compression_falls_back_to_a_temp_dir():
     """No cache dir must behave exactly as it always did."""
     import inspect
+
     sig = inspect.signature(GLMProvider.compress_video_for_upload)
     assert sig.parameters["cache_dir"].default == "", (
-        "callers without a project would be forced into a cache")
+        "callers without a project would be forced into a cache"
+    )
 
 
 # ── Play a video that already has descriptions ───────────────────
 
+
 def test_sibling_subtitles_are_matched_by_exact_stem():
     """A loose .srt in the folder is somebody else's film."""
     from omni_describer_custom.ui.main_frame import MainFrame
+
     d = _tmp()
     video = d / "holiday.mp4"
     video.write_bytes(b"x")
     (d / "something_else.srt").write_text("1\n", encoding="utf-8")
     assert MainFrame._find_sibling_subtitles(video) is None, (
-        "an unrelated subtitle file was adopted")
+        "an unrelated subtitle file was adopted"
+    )
     wanted = d / "holiday.srt"
     wanted.write_text("1\n", encoding="utf-8")
     assert MainFrame._find_sibling_subtitles(video) == wanted
@@ -451,7 +471,8 @@ def test_opening_an_existing_pair_gives_the_player_both_halves():
     subs.write_text(
         "1\n00:00:01,000 --> 00:00:03,000\nA man walks in.\n\n"
         "2\n00:00:05,000 --> 00:00:07,000\nHe sits down.\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
 
     frame = MainFrame()
     opened = []
@@ -466,7 +487,8 @@ def test_opening_an_existing_pair_gives_the_player_both_halves():
         assert project.video_path, (
             "the project has descriptions but NO video — this is exactly "
             "the old Import Descriptions behaviour, descriptions over "
-            "silence")
+            "silence"
+        )
         assert Path(project.video_path).exists(), project.video_path
         assert opened, "the player was never opened"
     finally:
@@ -492,8 +514,8 @@ def test_the_button_sits_next_to_local_video_file_under_tab():
     """
     text = (SRC / "ui" / "main_frame.py").read_text(encoding="utf-8")
     assert "MoveAfterInTabOrder(self.btn_local)" in text, (
-        "the new button would be last under Tab despite sitting second "
-        "on screen")
+        "the new button would be last under Tab despite sitting second on screen"
+    )
 
 
 def test_the_button_is_disabled_while_a_job_runs():
@@ -504,14 +526,17 @@ def test_the_button_is_disabled_while_a_job_runs():
 
 def test_both_languages_describe_the_new_button():
     import json
+
     for code in ("en", "ms"):
-        data = json.loads((SRC / "i18n" / "locales" / f"{code}.json").read_text(
-            encoding="utf-8"))
-        for key in ("main.play_existing", "main.play_existing_hint",
-                    "main.play_existing_pick_video",
-                    "main.play_existing_pick_subs",
-                    "main.play_existing_found",
-                    "main.play_existing_ready"):
+        data = json.loads((SRC / "i18n" / "locales" / f"{code}.json").read_text(encoding="utf-8"))
+        for key in (
+            "main.play_existing",
+            "main.play_existing_hint",
+            "main.play_existing_pick_video",
+            "main.play_existing_pick_subs",
+            "main.play_existing_found",
+            "main.play_existing_ready",
+        ):
             assert data.get(key), f"{code}.json has no {key}"
         assert "{name}" in data["main.play_existing_found"]
         assert "{count}" in data["main.play_existing_ready"]
@@ -521,61 +546,80 @@ if __name__ == "__main__":
     os.environ.setdefault("ODC_CONFIG_DIR", tempfile.mkdtemp(prefix="odc_f28_cfg_"))
     _app = wx.App(False)
     print("Round 28: interrupted work survives\n")
-    check("an intermediate stream is not a finished video",
-          test_an_intermediate_stream_is_not_a_finished_video)
+    check(
+        "an intermediate stream is not a finished video",
+        test_an_intermediate_stream_is_not_a_finished_video,
+    )
     check("the merged video is found", test_the_merged_video_is_found)
     check("other containers still count", test_other_containers_still_count)
-    check("empty or missing directory is not a video",
-          test_an_empty_or_missing_directory_is_not_a_video)
+    check(
+        "empty or missing directory is not a video",
+        test_an_empty_or_missing_directory_is_not_a_video,
+    )
     check("a zero-byte file is not a video", test_a_zero_byte_file_is_not_a_video)
-    check("partial bytes counts what can be resumed",
-          test_partial_bytes_counts_what_can_be_resumed)
-    check("resolve_source takes a download directory",
-          test_resolve_source_takes_a_download_directory)
-    check("the project is created before downloading",
-          test_the_pipeline_creates_the_project_before_downloading)
-    check("frame mode downloads into the project too",
-          test_frame_mode_downloads_into_the_project_too)
-    check("every download entry point was covered",
-          test_every_download_entry_point_was_covered)
-    check("a project holding a partial is kept",
-          test_a_project_holding_a_partial_download_is_kept)
-    check("an empty project is discarded",
-          test_a_project_with_nothing_in_it_is_discarded)
-    check("a different video never lands in the last project",
-          test_a_different_video_never_lands_in_the_last_project)
-    check("the same source twice reuses the project",
-          test_asking_for_the_same_source_twice_reuses_the_project)
-    check("choosing a new project is honoured",
-          test_choosing_a_new_project_is_honoured)
-    check("an existing project is reused, not replaced",
-          test_an_existing_project_is_reused_not_replaced)
-    check("the cache name follows the encode settings",
-          test_the_cache_name_follows_the_encode_settings)
-    check("a changed source gets a new cache name",
-          test_a_changed_source_gets_a_new_cache_name)
-    check("a cached copy is not deleted after use",
-          test_a_cached_copy_is_not_deleted_after_use)
-    check("staging keeps an extension ffmpeg understands",
-          test_staging_keeps_an_extension_ffmpeg_understands)
-    check("a failed encode never deletes the directory",
-          test_a_failed_encode_never_deletes_the_directory)
-    check("the parts cleanup spares the cached upload",
-          test_the_parts_cleanup_spares_the_cached_upload)
+    check("partial bytes counts what can be resumed", test_partial_bytes_counts_what_can_be_resumed)
+    check(
+        "resolve_source takes a download directory", test_resolve_source_takes_a_download_directory
+    )
+    check(
+        "the project is created before downloading",
+        test_the_pipeline_creates_the_project_before_downloading,
+    )
+    check(
+        "frame mode downloads into the project too", test_frame_mode_downloads_into_the_project_too
+    )
+    check("every download entry point was covered", test_every_download_entry_point_was_covered)
+    check("a project holding a partial is kept", test_a_project_holding_a_partial_download_is_kept)
+    check("an empty project is discarded", test_a_project_with_nothing_in_it_is_discarded)
+    check(
+        "a different video never lands in the last project",
+        test_a_different_video_never_lands_in_the_last_project,
+    )
+    check(
+        "the same source twice reuses the project",
+        test_asking_for_the_same_source_twice_reuses_the_project,
+    )
+    check("choosing a new project is honoured", test_choosing_a_new_project_is_honoured)
+    check(
+        "an existing project is reused, not replaced",
+        test_an_existing_project_is_reused_not_replaced,
+    )
+    check(
+        "the cache name follows the encode settings",
+        test_the_cache_name_follows_the_encode_settings,
+    )
+    check("a changed source gets a new cache name", test_a_changed_source_gets_a_new_cache_name)
+    check("a cached copy is not deleted after use", test_a_cached_copy_is_not_deleted_after_use)
+    check(
+        "staging keeps an extension ffmpeg understands",
+        test_staging_keeps_an_extension_ffmpeg_understands,
+    )
+    check(
+        "a failed encode never deletes the directory",
+        test_a_failed_encode_never_deletes_the_directory,
+    )
+    check(
+        "the parts cleanup spares the cached upload",
+        test_the_parts_cleanup_spares_the_cached_upload,
+    )
     check("the cache log line says where", test_the_cache_log_line_says_where)
-    check("the cache directory reaches every provider",
-          test_the_cache_directory_reaches_every_provider)
-    check("compression falls back to a temp dir",
-          test_compression_falls_back_to_a_temp_dir)
-    check("sibling subtitles matched by exact stem",
-          test_sibling_subtitles_are_matched_by_exact_stem)
-    check("an existing pair gives the player both halves",
-          test_opening_an_existing_pair_gives_the_player_both_halves)
-    check("the button sits next to Local Video File",
-          test_the_button_sits_next_to_local_video_file_under_tab)
-    check("the button is disabled while a job runs",
-          test_the_button_is_disabled_while_a_job_runs)
-    check("both languages describe the new button",
-          test_both_languages_describe_the_new_button)
+    check(
+        "the cache directory reaches every provider",
+        test_the_cache_directory_reaches_every_provider,
+    )
+    check("compression falls back to a temp dir", test_compression_falls_back_to_a_temp_dir)
+    check(
+        "sibling subtitles matched by exact stem", test_sibling_subtitles_are_matched_by_exact_stem
+    )
+    check(
+        "an existing pair gives the player both halves",
+        test_opening_an_existing_pair_gives_the_player_both_halves,
+    )
+    check(
+        "the button sits next to Local Video File",
+        test_the_button_sits_next_to_local_video_file_under_tab,
+    )
+    check("the button is disabled while a job runs", test_the_button_is_disabled_while_a_job_runs)
+    check("both languages describe the new button", test_both_languages_describe_the_new_button)
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

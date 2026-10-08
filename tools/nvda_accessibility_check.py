@@ -82,32 +82,35 @@ def _sandbox_env() -> dict:
     languages, never the owner's (pitfall 19); this check only presses Tab."""
     import os
     import tempfile
+
     box = Path(tempfile.mkdtemp(prefix="odc_a11y_"))
-    return dict(os.environ, ODC_CONFIG_DIR=str(box / "config"),
-                ODC_PROJECTS_DIR=str(box / "projects"),
-                ODC_LOCALES_DIR=str(box / "locales"))
+    return dict(
+        os.environ,
+        ODC_CONFIG_DIR=str(box / "config"),
+        ODC_PROJECTS_DIR=str(box / "projects"),
+        ODC_LOCALES_DIR=str(box / "locales"),
+    )
 
 
 def launch(frozen: bool):
     from pywinauto import Desktop
+
     if frozen:
         exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
         if not exe.exists():
             raise SystemExit(f"no build at {exe}; run build.bat first")
-        proc = subprocess.Popen([str(exe)], cwd=str(exe.parent),
-                                env=_sandbox_env())
+        proc = subprocess.Popen([str(exe)], cwd=str(exe.parent), env=_sandbox_env())
     else:
         log_file = open(REPO / "_a11y_app_log.txt", "w", encoding="utf-8")
-        proc = subprocess.Popen([PY, "main.py"], cwd=str(REPO),
-                                env=_sandbox_env(),
-                                stdout=log_file, stderr=log_file)
+        proc = subprocess.Popen(
+            [PY, "main.py"], cwd=str(REPO), env=_sandbox_env(), stdout=log_file, stderr=log_file
+        )
     safe_keys.allow(proc.pid)
     desktop = Desktop(backend="uia")
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         try:
-            win = desktop.window(title_re=f".*{APP_TITLE_HINT}.*",
-                                 visible_only=False)
+            win = desktop.window(title_re=f".*{APP_TITLE_HINT}.*", visible_only=False)
             if win.exists() and win.is_visible():
                 return proc, win
         except Exception:
@@ -117,7 +120,7 @@ def launch(frozen: bool):
     raise SystemExit("the app window never appeared")
 
 
-FROZEN_APP_NAMES = {"descrivox"}               # NVDA's appName for the exe
+FROZEN_APP_NAMES = {"descrivox"}  # NVDA's appName for the exe
 SOURCE_APP_NAMES = {"python", "pythonw", "python3"}
 
 
@@ -146,6 +149,7 @@ def bring_to_front_and_nvda(win, expected: set[str]) -> bool:
     """
     import win32gui
     from pywinauto.keyboard import send_keys
+
     hwnd = win.handle
     try:
         win32gui.SetForegroundWindow(hwnd)
@@ -162,7 +166,7 @@ def bring_to_front_and_nvda(win, expected: set[str]) -> bool:
             return True
         try:
             send_keys("{TAB}")
-        except Exception as e:      # ForeignFocus or a pywinauto error
+        except Exception as e:  # ForeignFocus or a pywinauto error
             print(f"warm-up refused: {e}")
             return False
         time.sleep(0.9)
@@ -172,6 +176,7 @@ def bring_to_front_and_nvda(win, expected: set[str]) -> bool:
 def walk_controls(win, steps: int) -> list[dict]:
     """Tab through the window, recording focus and what NVDA said."""
     from pywinauto.keyboard import send_keys
+
     win.set_focus()
     time.sleep(1.5)
     seen: list[dict] = []
@@ -186,12 +191,14 @@ def walk_controls(win, steps: int) -> list[dict]:
         except Exception as e:
             obj = {"error": str(e)}
         spoken = speech_since(marker)
-        seen.append({
-            "step": index + 1,
-            "name": obj.get("name") or "",
-            "role": (obj.get("role") or {}).get("display", ""),
-            "spoken": spoken,
-        })
+        seen.append(
+            {
+                "step": index + 1,
+                "name": obj.get("name") or "",
+                "role": (obj.get("role") or {}).get("display", ""),
+                "spoken": spoken,
+            }
+        )
     return seen
 
 
@@ -208,11 +215,14 @@ def _check_pitfall_12(seen: list[dict]) -> list[str]:
       prompt: "... edit multi line You are writing audio description"
     """
     found: list[str] = []
-    combo = next((e for e in seen if e["role"] == "combo box"
-                  and "preset" in e["name"].lower()), None)
+    combo = next(
+        (e for e in seen if e["role"] == "combo box" and "preset" in e["name"].lower()), None
+    )
     if combo is None:
-        found.append("the prompt preset combo box was never reached — "
-                     "raise --steps, or it has lost its accessible name")
+        found.append(
+            "the prompt preset combo box was never reached — "
+            "raise --steps, or it has lost its accessible name"
+        )
     else:
         said = " ".join(combo["spoken"]).lower()
         # NVDA reads a combo box as "<name> combo box <value> collapsed".
@@ -220,13 +230,17 @@ def _check_pitfall_12(seen: list[dict]) -> list[str]:
         if "combo box collapsed" in said or "combo box  collapsed" in said:
             found.append(
                 "the preset combo announces NO selected value — this is "
-                "the v1.5.4 SetLabel regression; Open will refuse to run")
+                "the v1.5.4 SetLabel regression; Open will refuse to run"
+            )
 
-    prompt = next((e for e in seen if e["role"] == "edit"
-                   and "prompt to send" in e["name"].lower()), None)
+    prompt = next(
+        (e for e in seen if e["role"] == "edit" and "prompt to send" in e["name"].lower()), None
+    )
     if prompt is None:
-        found.append("the prompt edit box was never reached — raise "
-                     "--steps, or it has lost its accessible name")
+        found.append(
+            "the prompt edit box was never reached — raise "
+            "--steps, or it has lost its accessible name"
+        )
     else:
         said = " ".join(prompt["spoken"])
         label = prompt["name"].rstrip(":").strip()
@@ -237,21 +251,24 @@ def _check_pitfall_12(seen: list[dict]) -> list[str]:
         # role words instead.
         body = said
         if label and body.startswith(label):
-            body = body[len(label):]
+            body = body[len(label) :]
         body = body.lstrip(" :")
         for word in ("edit", "multi line", "read only"):
             body = body.strip()
             if body.startswith(word):
-                body = body[len(word):]
+                body = body[len(word) :]
         body = body.strip()
         if not body:
-            found.append("the prompt box is empty — no preset text was "
-                         f"loaded, so Open would send nothing (NVDA said: {said[:120]!r})")
+            found.append(
+                "the prompt box is empty — no preset text was "
+                f"loaded, so Open would send nothing (NVDA said: {said[:120]!r})"
+            )
         elif label and body.startswith(label):
             found.append(
                 f"the prompt box contains its own label ({label!r}) — "
                 f"SetLabel on a TextCtrl again; this text is sent to the "
-                f"AI as user notes")
+                f"AI as user notes"
+            )
     return found
 
 
@@ -261,28 +278,28 @@ def report(seen: list[dict]) -> int:
     print("-" * 100)
     for entry in seen:
         spoken = " | ".join(entry["spoken"]) or "(silence)"
-        print(f"{entry['step']:>3}  {entry['role']:<14} "
-              f"{entry['name'][:33]:<34} {spoken[:44]}")
+        print(f"{entry['step']:>3}  {entry['role']:<14} {entry['name'][:33]:<34} {spoken[:44]}")
 
         name = (entry["name"] or "").strip().lower()
         if name in _USELESS_NAMES:
             problems.append(
                 f"step {entry['step']}: a {entry['role'] or 'control'} with "
-                f"no usable name — NVDA cannot say what it is")
+                f"no usable name — NVDA cannot say what it is"
+            )
         if not entry["spoken"]:
             problems.append(
-                f"step {entry['step']}: NVDA said nothing when "
-                f"'{entry['name']}' took focus")
+                f"step {entry['step']}: NVDA said nothing when '{entry['name']}' took focus"
+            )
         # Pitfall 12: SetLabel() on a TextCtrl replaces its CONTENTS
         # with the label, so the control announces its own label as if
         # it were the user's text.
         for said in entry["spoken"]:
-            if entry["name"] and said.strip() == entry["name"].strip() and \
-                    entry["role"] == "edit":
+            if entry["name"] and said.strip() == entry["name"].strip() and entry["role"] == "edit":
                 problems.append(
                     f"step {entry['step']}: the edit box reads back its own "
                     f"label ('{entry['name']}') as content — SetLabel on a "
-                    f"TextCtrl again?")
+                    f"TextCtrl again?"
+                )
 
     problems += _check_pitfall_12(seen)
 
@@ -302,61 +319,89 @@ def evaluate_contract(seen: list[dict], contract: dict, digest: str):
     and spoken. A run where NVDA said nothing at all is INCONCLUSIVE."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import contracts as C
+
     v = C.Verdict(contract["contract_id"], digest)
     if not any(e["spoken"] for e in seen):
-        v.results.append(C.Result("anything_heard", C.UNKNOWN,
-                                  "NVDA said nothing at all (window not in front?)"))
+        v.results.append(
+            C.Result("anything_heard", C.UNKNOWN, "NVDA said nothing at all (window not in front?)")
+        )
         return v
     for want in contract.get("required", []):
-        hit = [e for e in seen if e["role"] == want["role"]
-               and (e["name"] or "").strip().startswith(want["name"])]
+        hit = [
+            e
+            for e in seen
+            if e["role"] == want["role"] and (e["name"] or "").strip().startswith(want["name"])
+        ]
         if not hit:
-            v.results.append(C.Result(f"{want['role']}:{want['name']}", C.FAIL,
-                                      "never reached by Tab"))
+            v.results.append(
+                C.Result(f"{want['role']}:{want['name']}", C.FAIL, "never reached by Tab")
+            )
         elif not any(e["spoken"] for e in hit):
-            v.results.append(C.Result(f"{want['role']}:{want['name']}", C.FAIL,
-                                      "reached but NVDA said nothing"))
+            v.results.append(
+                C.Result(f"{want['role']}:{want['name']}", C.FAIL, "reached but NVDA said nothing")
+            )
         else:
             v.results.append(C.Result(f"{want['role']}:{want['name']}", C.PASS, "heard"))
     if contract.get("no_unnamed_controls"):
         bad = [e["step"] for e in seen if (e["name"] or "").strip().lower() in _USELESS_NAMES]
-        v.results.append(C.Result("no_unnamed_controls", C.FAIL if bad else C.PASS,
-                                  f"steps {bad}" if bad else "every control named"))
+        v.results.append(
+            C.Result(
+                "no_unnamed_controls",
+                C.FAIL if bad else C.PASS,
+                f"steps {bad}" if bad else "every control named",
+            )
+        )
     if contract.get("no_silent_controls"):
         bad = [e["step"] for e in seen if not e["spoken"]]
-        v.results.append(C.Result("no_silent_controls", C.FAIL if bad else C.PASS,
-                                  f"silent at steps {bad}" if bad else "every control spoken"))
+        v.results.append(
+            C.Result(
+                "no_silent_controls",
+                C.FAIL if bad else C.PASS,
+                f"silent at steps {bad}" if bad else "every control spoken",
+            )
+        )
     return v
 
 
 def _record(frozen: bool, contract_id: str, digest: str, verdict: str, problems: int) -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import evidence as E
+
     exe = REPO / "dist" / "DescriVox" / "DescriVox.exe"
-    E.record("nvda", frozen=frozen, contract=contract_id, contract_digest=digest,
-             verdict=verdict, problems=problems,
-             exe_sha256=E.sha256_file(exe) if frozen and exe.exists() else "")
+    E.record(
+        "nvda",
+        frozen=frozen,
+        contract=contract_id,
+        contract_digest=digest,
+        verdict=verdict,
+        problems=problems,
+        exe_sha256=E.sha256_file(exe) if frozen and exe.exists() else "",
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--frozen", action="store_true",
-                        help="drive dist/DescriVox/DescriVox.exe")
-    parser.add_argument("--steps", type=int, default=14,
-                        help="how many Tab presses to record")
-    parser.add_argument("--contract", default="a11y-main",
-                        help="the frozen contract in contracts/ to judge the run by")
+    parser.add_argument("--frozen", action="store_true", help="drive dist/DescriVox/DescriVox.exe")
+    parser.add_argument("--steps", type=int, default=14, help="how many Tab presses to record")
+    parser.add_argument(
+        "--contract",
+        default="a11y-main",
+        help="the frozen contract in contracts/ to judge the run by",
+    )
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import contracts as C
+
     contract, digest = C.load(args.contract)
 
     alive, detail = bridge_alive()
     if not alive:
         _record(args.frozen, args.contract, digest, C.INCONCLUSIVE, 0)
         print(f"NVDA HTTP Bridge is not answering on {BRIDGE}: {detail}")
-        print("Start NVDA with the nvdaHttpBridge plugin loaded, then "
-              "run this again. Refusing to report a pass without it.")
+        print(
+            "Start NVDA with the nvdaHttpBridge plugin loaded, then "
+            "run this again. Refusing to report a pass without it."
+        )
         return 2
     print(f"Bridge up: {detail}")
 
@@ -365,8 +410,10 @@ def main() -> int:
         expected = FROZEN_APP_NAMES if args.frozen else SOURCE_APP_NAMES
         if not bring_to_front_and_nvda(win, expected):
             _record(args.frozen, args.contract, digest, C.INCONCLUSIVE, 0)
-            print(f"CONTRACT {args.contract}: {C.INCONCLUSIVE} (NVDA never "
-                  f"reached the app; nothing was judged - pitfall 103)")
+            print(
+                f"CONTRACT {args.contract}: {C.INCONCLUSIVE} (NVDA never "
+                f"reached the app; nothing was judged - pitfall 103)"
+            )
             return 2
         seen = walk_controls(win, args.steps)
         rc = report(seen)

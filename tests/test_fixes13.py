@@ -20,6 +20,7 @@ Covered here WITHOUT any network access:
 5. Bilingual strings: provider-neutral full-video wording and the new
    mm_file error key exist in BOTH languages.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -33,10 +34,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -48,6 +53,7 @@ def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -60,6 +66,7 @@ def check(name, fn):
 
 # ── 1. <think> stripping ─────────────────────────────────────────────
 
+
 def test_strip_think():
     from omni_describer_custom.core.ai_engine import _strip_think
 
@@ -71,9 +78,11 @@ def test_strip_think():
     assert _strip_think(trunc) == "", repr(_strip_think(trunc))
     assert _strip_think("") == ""
     # Multi-line timestamps after think survive intact
-    multi = ("<think>x</think>\n"
-             "[00:00] A red car drives past green hills.\n"
-             "[00:10] The narrator greets the audience.")
+    multi = (
+        "<think>x</think>\n"
+        "[00:00] A red car drives past green hills.\n"
+        "[00:10] The narrator greets the audience."
+    )
     out = _strip_think(multi)
     assert out.startswith("[00:00] A red car"), repr(out)
 
@@ -96,30 +105,48 @@ class _MiniMaxStub(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "file": {"file_id": "file_abc123", "bytes": length,
-                         "filename": "clip.mp4",
-                         "purpose": "video_understanding"},
-                "base_resp": {"status_code": 0, "status_msg": "success"},
-            }).encode())
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "file": {
+                            "file_id": "file_abc123",
+                            "bytes": length,
+                            "filename": "clip.mp4",
+                            "purpose": "video_understanding",
+                        },
+                        "base_resp": {"status_code": 0, "status_msg": "success"},
+                    }
+                ).encode()
+            )
             return
         if self.path.endswith("/v1/chat/completions"):
             payload = json.loads(body)
             _CHAT_SEEN.append(payload)
-            content = "<think>\nThe user wants a timestamped description.\n</think>\n" \
-                      "[00:00] A red car drives past green hills.\n" \
-                      "[00:10] The narrator greets the audience."
+            content = (
+                "<think>\nThe user wants a timestamped description.\n</think>\n"
+                "[00:00] A red car drives past green hills.\n"
+                "[00:10] The narrator greets the audience."
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "id": "resp1", "model": "MiniMax-M3",
-                "choices": [{"finish_reason": "stop", "index": 0,
-                             "message": {"role": "assistant",
-                                         "content": content}}],
-                "usage": {"total_tokens": 100},
-                "base_resp": {"status_code": 0, "status_msg": ""},
-            }).encode())
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "id": "resp1",
+                        "model": "MiniMax-M3",
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "index": 0,
+                                "message": {"role": "assistant", "content": content},
+                            }
+                        ],
+                        "usage": {"total_tokens": 100},
+                        "base_resp": {"status_code": 0, "status_msg": ""},
+                    }
+                ).encode()
+            )
             return
         self.send_response(404)
         self.end_headers()
@@ -141,12 +168,13 @@ def test_minimax_full_flow():
         progress: list[float] = []
 
         async def run():
-            prov = MiniMaxProvider(
-                api_key="test-key", base_url=f"http://127.0.0.1:{port}")
+            prov = MiniMaxProvider(api_key="test-key", base_url=f"http://127.0.0.1:{port}")
             return await prov.describe_video_full(
-                str(tmp), "Describe this video.",
+                str(tmp),
+                "Describe this video.",
                 on_status=statuses.append,
-                on_upload_progress=progress.append)
+                on_upload_progress=progress.append,
+            )
 
         pairs = asyncio.new_event_loop().run_until_complete(run())
 
@@ -191,14 +219,11 @@ def test_engine_wires_minimax():
 
         async def run():
             engine = AIEngine()
-            engine.set_provider(
-                "minimax", api_key="k",
-                base_url=f"http://127.0.0.1:{port}")
+            engine.set_provider("minimax", api_key="k", base_url=f"http://127.0.0.1:{port}")
             return await engine.describe_video_full(str(tmp), "Describe.")
 
         pairs = asyncio.new_event_loop().run_until_complete(run())
-        assert pairs and pairs[0][0] == 0.0 and pairs[0][1].startswith(
-            "A red car"), pairs
+        assert pairs and pairs[0][0] == 0.0 and pairs[0][1].startswith("A red car"), pairs
     finally:
         server.shutdown()
 
@@ -211,8 +236,7 @@ def test_engine_still_rejects_frame_only_providers():
     loop = asyncio.new_event_loop()
     try:
         try:
-            loop.run_until_complete(
-                engine.describe_video_full("x.mp4", "p"))
+            loop.run_until_complete(engine.describe_video_full("x.mp4", "p"))
         except ValueError as e:
             assert "full-video" in str(e), e
         else:
@@ -222,6 +246,7 @@ def test_engine_still_rejects_frame_only_providers():
 
 
 # ── 4. Settings UI ───────────────────────────────────────────────────
+
 
 def test_settings_minimax_ui():
     from unittest.mock import patch
@@ -252,8 +277,7 @@ def test_settings_minimax_ui():
 
         # Model list for minimax contains MiniMax-M3
         dlg.select_provider("minimax")
-        assert "MiniMax-M3" in dlg.model_choice.GetItems(), \
-            dlg.model_choice.GetItems()
+        assert "MiniMax-M3" in dlg.model_choice.GetItems(), dlg.model_choice.GetItems()
 
         # Persist minimax selection with video mode on
         dlg.video_mode_cb.SetValue(True)
@@ -268,13 +292,20 @@ def test_settings_minimax_ui():
 
 # ── 5. Bilingual strings ─────────────────────────────────────────────
 
+
 def test_bilingual_strings():
     from omni_describer_custom.i18n import strings as s
 
-    for key in ("video.mm_file_error", "video.phase_uploading",
-                "video.phase_processing", "video.phase_describing",
-                "video.uploading_progress", "video.parsed_count",
-                "status.analyzing_video", "settings.video_mode"):
+    for key in (
+        "video.mm_file_error",
+        "video.phase_uploading",
+        "video.phase_processing",
+        "video.phase_describing",
+        "video.uploading_progress",
+        "video.parsed_count",
+        "status.analyzing_video",
+        "settings.video_mode",
+    ):
         assert key in s.EN_STRINGS, key
         assert key in s.MS_STRINGS, key
 
@@ -287,8 +318,7 @@ def test_bilingual_strings():
 
     # Status phases remain distinct (screen-reader clarity) in both
     for table in (s.EN_STRINGS, s.MS_STRINGS):
-        phases = [table[f"video.phase_{p}"]
-                  for p in ("uploading", "processing", "describing")]
+        phases = [table[f"video.phase_{p}"] for p in ("uploading", "processing", "describing")]
         assert len(set(phases)) == 3, phases
 
 
@@ -298,10 +328,10 @@ if __name__ == "__main__":
     check("minimax think-stripping", test_strip_think)
     check("minimax full-video flow (loopback)", test_minimax_full_flow)
     check("engine wires minimax end to end", test_engine_wires_minimax)
-    check("engine still rejects frame-only providers",
-          test_engine_still_rejects_frame_only_providers)
+    check(
+        "engine still rejects frame-only providers", test_engine_still_rejects_frame_only_providers
+    )
     check("settings minimax UI + persistence", test_settings_minimax_ui)
-    check("bilingual strings neutral + mm_file error",
-          test_bilingual_strings)
+    check("bilingual strings neutral + mm_file error", test_bilingual_strings)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

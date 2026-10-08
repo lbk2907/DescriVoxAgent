@@ -16,6 +16,7 @@ Covered here WITHOUT any network access:
    contains z-ai/glm-5.3-flash, config persists via SettingsStore with
    the OpenRouter base_url default.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
@@ -29,10 +30,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace",
-                              line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -44,6 +49,7 @@ def check(name, fn):
     global ok, fail, _app
     try:
         import wx
+
         _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
@@ -55,6 +61,7 @@ def check(name, fn):
 
 
 # ── 1. Loopback that mimics the OpenAI-compatible contract ──────────
+
 
 class _GLMStub(BaseHTTPRequestHandler):
     captured: dict = {}
@@ -78,15 +85,19 @@ class _GLMStub(BaseHTTPRequestHandler):
             self.wfile.write(b'{"error":{"message":"bad key"}}')
             return
         reply = "Kucing duduk di atas meja."
-        payload = json.dumps({
-            "id": "chatcmpl-glm1",
-            "model": body.get("model", ""),
-            "choices": [
-                {"index": 0,
-                 "message": {"role": "assistant", "content": reply},
-                 "finish_reason": "stop"}
-            ],
-        }).encode()
+        payload = json.dumps(
+            {
+                "id": "chatcmpl-glm1",
+                "model": body.get("model", ""),
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": reply},
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+        ).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -105,6 +116,7 @@ def _run(coro_factory):
 
 def _make_image(tmp: Path) -> Path:
     from PIL import Image
+
     p = tmp / "glm_frame.jpg"
     Image.new("RGB", (64, 64), (200, 30, 30)).save(p, "JPEG")
     return p
@@ -120,11 +132,8 @@ def test_glm_describe_image():
         th = threading.Thread(target=server.serve_forever, daemon=True)
         th.start()
         try:
-            prov = GLMProvider(
-                api_key="sk-or-v1-test",
-                base_url=f"http://127.0.0.1:{port}")
-            text = _run(lambda: prov.describe_image(
-                str(img), "Describe this frame."))
+            prov = GLMProvider(api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
+            text = _run(lambda: prov.describe_image(str(img), "Describe this frame."))
             assert text == "Kucing duduk di atas meja.", text
             cap = _GLMStub.captured
             # OpenAI-compatible contract
@@ -149,8 +158,7 @@ def test_glm_ask_text():
     th = threading.Thread(target=server.serve_forever, daemon=True)
     th.start()
     try:
-        prov = GLMProvider(api_key="sk-or-v1-test",
-                           base_url=f"http://127.0.0.1:{port}")
+        prov = GLMProvider(api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
         text = _run(lambda: prov.ask_text("Say OK"))
         assert text == "Kucing duduk di atas meja.", text
         body = _GLMStub.captured["body"]
@@ -164,6 +172,7 @@ def test_glm_ask_text():
 
 # ── 3. Engine registry wiring ────────────────────────────────────────
 
+
 def test_engine_wires_glm():
     from omni_describer_custom.core.ai_engine import AIEngine, GLMProvider
 
@@ -176,17 +185,15 @@ def test_engine_wires_glm():
         with tempfile.TemporaryDirectory() as td:
             img = _make_image(Path(td))
             engine = AIEngine()
-            engine.set_provider(
-                "glm", api_key="sk-or-v1-test",
-                base_url=f"http://127.0.0.1:{port}")
-            desc = _run(lambda: engine.describe_frame(
-                str(img), "Describe this frame."))
+            engine.set_provider("glm", api_key="sk-or-v1-test", base_url=f"http://127.0.0.1:{port}")
+            desc = _run(lambda: engine.describe_frame(str(img), "Describe this frame."))
             assert desc == "Kucing duduk di atas meja.", desc
     finally:
         server.shutdown()
 
 
 # ── 4. Settings dialog + store ──────────────────────────────────────
+
 
 def test_settings_glm_ui():
     from omni_describer_custom.core.settings_store import SettingsStore
@@ -203,19 +210,23 @@ def test_settings_glm_ui():
             dlg.select_provider("glm")
             # v1.8.5: the label may say "Recommended: ..." first; the
             # id is still in it, and the VALUE saved is the bare id.
-            assert any("z-ai/glm-5.3-flash" in i
-                       for i in dlg.model_choice.GetItems()), \
+            assert any("z-ai/glm-5.3-flash" in i for i in dlg.model_choice.GetItems()), (
                 dlg.model_choice.GetItems()
+            )
             # default selection comes from the store preset
-            assert dlg._choice_value(dlg.model_choice) == \
-                "z-ai/glm-5.3-flash", dlg._choice_value(dlg.model_choice)
+            assert dlg._choice_value(dlg.model_choice) == "z-ai/glm-5.3-flash", dlg._choice_value(
+                dlg.model_choice
+            )
             # persist selection + key
             store.set("ai.default_provider", "glm")
-            store.set_ai_provider("glm", {
-                "api_key": "sk-or-v1-abc",
-                "model": "z-ai/glm-5.3-flash",
-                "base_url": "https://openrouter.ai/api/v1",
-            })
+            store.set_ai_provider(
+                "glm",
+                {
+                    "api_key": "sk-or-v1-abc",
+                    "model": "z-ai/glm-5.3-flash",
+                    "base_url": "https://openrouter.ai/api/v1",
+                },
+            )
             cfg = store.get_ai_provider("glm")
             assert cfg["api_key"] == "sk-or-v1-abc", cfg
             assert cfg["base_url"] == "https://openrouter.ai/api/v1", cfg
@@ -223,16 +234,14 @@ def test_settings_glm_ui():
             dlg.Destroy()
             dlg2 = SettingsDialog(frame, store)
             assert dlg2._selected_provider() == "glm"
-            assert dlg2._choice_value(dlg2.model_choice) == \
-                "z-ai/glm-5.3-flash"
+            assert dlg2._choice_value(dlg2.model_choice) == "z-ai/glm-5.3-flash"
             dlg2.Destroy()
         finally:
             frame.Destroy()
 
 
 def main() -> int:
-    check("glm describe_image (loopback, OpenAI contract)",
-          test_glm_describe_image)
+    check("glm describe_image (loopback, OpenAI contract)", test_glm_describe_image)
     check("glm ask_text (loopback)", test_glm_ask_text)
     check("engine wires glm end to end", test_engine_wires_glm)
     check("settings glm UI + persistence", test_settings_glm_ui)

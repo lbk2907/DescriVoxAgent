@@ -108,6 +108,7 @@ class SAPI5Engine(TTSEngineBase):
                 primary_sub_code = f"{language_code & 0x3FF}-{(language_code >> 10) & 0x3FF}"
                 try:
                     from pyttsx3.drivers.sapi5 import lcid_to_locale
+
                     languages = [lcid_to_locale(primary_sub_code)]
                 except Exception:
                     languages = ["en"]
@@ -117,7 +118,10 @@ class SAPI5Engine(TTSEngineBase):
                 age_attr = attr.GetAttribute("Age")
                 age = age_attr if age_attr in {"Child", "Teen", "Adult", "Senior"} else None
                 from pyttsx3.drivers.sapi5 import Voice
-                return Voice(id=voice_id, name=voice_name, languages=languages, gender=gender, age=age)
+
+                return Voice(
+                    id=voice_id, name=voice_name, languages=languages, gender=gender, age=age
+                )
 
             SAPI5Driver._toVoice = _patched_toVoice
 
@@ -186,16 +190,19 @@ class SAPI5Engine(TTSEngineBase):
             return []
         try:
             import win32com.client
+
             tts = win32com.client.Dispatch("SAPI.SpVoice")
             voice_tokens = tts.GetVoices()
             result = []
             for i in range(voice_tokens.Count):
                 voice = voice_tokens.Item(i)
-                result.append({
-                    "id": voice.Id,
-                    "name": voice.GetDescription(),
-                    "lang": "en",  # Will be refined if needed
-                })
+                result.append(
+                    {
+                        "id": voice.Id,
+                        "name": voice.GetDescription(),
+                        "lang": "en",  # Will be refined if needed
+                    }
+                )
             return result
         except Exception as e:
             logger.debug("win32com voice listing failed: %s", e)
@@ -215,6 +222,7 @@ class EdgeTTSEngine(TTSEngineBase):
     def _setup(self):
         try:
             import edge_tts  # noqa: F401 (availability check)
+
             self.available = True
             logger.info("Edge TTS engine available")
         except ImportError:
@@ -227,6 +235,7 @@ class EdgeTTSEngine(TTSEngineBase):
         tmp = None
         try:
             import edge_tts
+
             voice = voice or "en-US-JennyNeural"
             rate = f"{int((speed - 1) * 100):+d}%"
             tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
@@ -251,6 +260,7 @@ class EdgeTTSEngine(TTSEngineBase):
             return self._voices_cache
         try:
             import edge_tts
+
             voices = await edge_tts.list_voices()
             self._voices_cache = [
                 {"id": v["ShortName"], "name": v["FriendlyName"], "lang": v["Locale"]}
@@ -273,6 +283,7 @@ class OpenAITTSEngine(TTSEngineBase):
     def _setup(self):
         try:
             import openai
+
             key = os.environ.get("OPENAI_API_KEY", "")
             if key:
                 self._client = openai.AsyncOpenAI(api_key=key)
@@ -339,6 +350,7 @@ class PrismEngine(TTSEngineBase):
 
     def __init__(self):
         from .speech import get_speech
+
         self._speech = get_speech()
         self.available = self._speech.available
         # Asked of the live backend rather than assumed: Prism on SAPI
@@ -414,7 +426,9 @@ class TTSEngine:
         # reader is not in the automatic order: it is a deliberate
         # choice, and picking it for someone who did not ask would
         # override the narration voice they had already set.
-        preferred = self.settings.get("default_engine", "") if isinstance(self.settings, dict) else ""
+        preferred = (
+            self.settings.get("default_engine", "") if isinstance(self.settings, dict) else ""
+        )
         order = ([preferred] if preferred else []) + ["edge", "sapi5", "openai"]
         for name in order:
             if name and name in self._engines and self._engines[name].available:
@@ -497,9 +511,11 @@ class TTSEngine:
         if ext == ".wav" and sys.platform == "win32":
             try:
                 import winsound
+
                 duration = None
                 try:
                     import wave
+
                     with wave.open(path, "rb") as wf:
                         duration = wf.getnframes() / float(wf.getframerate())
                 except Exception:
@@ -517,8 +533,8 @@ class TTSEngine:
                 if self._stop_gen != gen:
                     return True  # stopped before it began
                 winsound.PlaySound(
-                    path, winsound.SND_FILENAME | winsound.SND_ASYNC
-                    | winsound.SND_NODEFAULT)
+                    path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
+                )
                 end = time.monotonic() + duration + 0.15
                 while time.monotonic() < end:
                     if self._stop_gen != gen:
@@ -531,6 +547,7 @@ class TTSEngine:
         if sys.platform == "win32":
             try:
                 import ctypes
+
                 winmm = ctypes.windll.winmm
                 with self._play_lock:
                     self._alias_seq += 1
@@ -544,8 +561,7 @@ class TTSEngine:
                     # the generation; this thread also closes it.
                     with self._play_lock:
                         self._mci_aliases.add(alias)
-                        gen = (self._stop_gen if start_gen is None
-                               else start_gen)
+                        gen = self._stop_gen if start_gen is None else start_gen
                     try:
                         if winmm.mciSendStringW(f"play {alias}", None, 0, 0) == 0:
                             buf = ctypes.create_unicode_buffer(64)
@@ -553,11 +569,9 @@ class TTSEngine:
                             time.sleep(0.05)
                             while time.monotonic() < deadline:
                                 if self._stop_gen != gen:
-                                    winmm.mciSendStringW(
-                                        f"stop {alias}", None, 0, 0)
+                                    winmm.mciSendStringW(f"stop {alias}", None, 0, 0)
                                     break
-                                if winmm.mciSendStringW(
-                                        f"status {alias} mode", buf, 64, 0) != 0:
+                                if winmm.mciSendStringW(f"status {alias} mode", buf, 64, 0) != 0:
                                     break
                                 if buf.value == "stopped":
                                     break
@@ -571,6 +585,7 @@ class TTSEngine:
                 logger.warning("MCI playback failed: %s", e)
 
         from .tools import find_tool
+
         for player in (find_tool("ffplay"),):
             try:
                 proc = subprocess.Popen(
@@ -579,8 +594,7 @@ class TTSEngine:
                 )
                 with self._play_lock:
                     self._ffplay_procs.add(proc)
-                    stopped = (start_gen is not None
-                               and self._stop_gen != start_gen)
+                    stopped = start_gen is not None and self._stop_gen != start_gen
                 if stopped:
                     proc.kill()  # stop() came before it was registered
                 try:
@@ -597,7 +611,9 @@ class TTSEngine:
                 logger.warning("%s playback failed: %s", player, e)
         return False
 
-    def speak_and_play(self, text: str, engine: str = "", voice: str = "", speed: float = 0.0) -> bool:
+    def speak_and_play(
+        self, text: str, engine: str = "", voice: str = "", speed: float = 0.0
+    ) -> bool:
         """Generate speech, play it through the speakers, and clean up.
 
         This is the audible path: the UI buttons should call this (directly
@@ -724,6 +740,7 @@ class TTSEngine:
         if sys.platform == "win32":
             try:
                 import winsound
+
                 winsound.PlaySound(None, 0)  # stops a sync SND_FILENAME play
             except Exception as e:
                 logger.debug("winsound stop failed: %s", e)

@@ -14,6 +14,7 @@ Covers:
  8. i18n: settings.desc_language present in EN and BM
 Run: python tests\\test_fixes17.py
 """
+
 from __future__ import annotations
 
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
@@ -46,30 +47,38 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 # ── 1. helpers ──────────────────────────────────────────────────────
 from omni_describer_custom.core.ai_engine import (
-    apply_output_language, language_directive, FULL_VIDEO_TS_PROMPT_SUFFIX)
+    apply_output_language,
+    language_directive,
+    FULL_VIDEO_TS_PROMPT_SUFFIX,
+)
 
 check("1a directive ms", "Bahasa Malaysia" in language_directive("ms"))
 check("1b directive en", "in English" in language_directive("en"))
 check("1c directive none", language_directive("fr") == "")
 p = "Describe the scene."
-check("1d apply ms", apply_output_language(p, "ms").startswith(p)
-      and "Bahasa Malaysia" in apply_output_language(p, "ms"))
+check(
+    "1d apply ms",
+    apply_output_language(p, "ms").startswith(p)
+    and "Bahasa Malaysia" in apply_output_language(p, "ms"),
+)
 check("1e apply en", "in English" in apply_output_language(p, "en"))
 check("1f apply empty lang = noop", apply_output_language(p, "") == p)
 once = apply_output_language(p, "ms")
 check("1g no double apply", apply_output_language(once, "ms") == once)
-check("1h full-video suffix same-language clause",
-      "SAME LANGUAGE" in FULL_VIDEO_TS_PROMPT_SUFFIX)
+check("1h full-video suffix same-language clause", "SAME LANGUAGE" in FULL_VIDEO_TS_PROMPT_SUFFIX)
 
 # ── 2. dispatch output_lang ─────────────────────────────────────────
 from omni_describer_custom.core.ai_engine import AIEngine
 
 eng = AIEngine()
 check("2a engine default output_lang empty", eng.output_lang == "")
-for m in ("describe_frame", "describe_frames", "describe_video_full",
-          "describe_video_frames_batch"):
-    check(f"2b sig {m}",
-          "output_lang" in inspect.signature(getattr(eng, m)).parameters)
+for m in (
+    "describe_frame",
+    "describe_frames",
+    "describe_video_full",
+    "describe_video_frames_batch",
+):
+    check(f"2b sig {m}", "output_lang" in inspect.signature(getattr(eng, m)).parameters)
 
 captured: dict[str, str] = {}
 
@@ -81,28 +90,37 @@ class _Prov:
         captured["frame"] = prompt
         return "ok"
 
-    async def describe_frames_batch(self, frames, prompt, model="",
-                                    on_progress=None, is_cancelled=None):
+    async def describe_frames_batch(
+        self, frames, prompt, model="", on_progress=None, is_cancelled=None
+    ):
         captured["frames"] = prompt
         return ["ok"] * len(frames)
 
-    async def describe_video_full(self, video_path, prompt, model="",
-                                  on_status=None, on_upload_progress=None,
-                                  is_cancelled=None, chunk_seconds=600,
-                                  on_part=None, on_split_progress=None):
+    async def describe_video_full(
+        self,
+        video_path,
+        prompt,
+        model="",
+        on_status=None,
+        on_upload_progress=None,
+        is_cancelled=None,
+        chunk_seconds=600,
+        on_part=None,
+        on_split_progress=None,
+    ):
         captured["full"] = prompt
         return [(0.0, "ok")]
 
-    async def describe_video_frames_batch(self, frames, prompt, model="",
-                                          on_status=None,
-                                          is_cancelled=None,
-                                          expected_times=None):
+    async def describe_video_frames_batch(
+        self, frames, prompt, model="", on_status=None, is_cancelled=None, expected_times=None
+    ):
         captured["fast"] = prompt
         return [(0.0, "ok")]
 
 
 eng._providers["mock"] = _Prov()  # type: ignore[assignment]
 eng._default_provider = "mock"
+
 
 async def _t2():
     await eng.describe_frame("x.jpg", "P1", output_lang="ms")
@@ -115,6 +133,7 @@ async def _t2():
     await eng.describe_frame("x.jpg", "P5")
     captured["frame_default_en"] = captured.pop("frame", "")
     eng.output_lang = ""
+
 
 asyncio.run(_t2())
 check("2c frame prompt wrapped", "Bahasa Malaysia" in captured.get("frame_ms", ""))
@@ -142,24 +161,28 @@ en_view = pm.get_presets()
 # v1.6.0: this used to look for "Describe everything", the old default's
 # wording — a phrase the audio-description presets now deliberately ban.
 # What it is really checking is that the EN view serves the ENGLISH text.
-check("3e language=en shows EN default",
-      "blind viewer" in en_view.get("default", "")
-      and "Huraikan" not in en_view.get("default", ""))
+check(
+    "3e language=en shows EN default",
+    "blind viewer" in en_view.get("default", "") and "Huraikan" not in en_view.get("default", ""),
+)
 
 # ── 4. settings dialog source contains desc_lang UI ─────────────────
-sd = (ROOT / "src" / "omni_describer_custom" / "ui" / "settings_dialog.py").read_text(encoding="utf-8")
+sd = (ROOT / "src" / "omni_describer_custom" / "ui" / "settings_dialog.py").read_text(
+    encoding="utf-8"
+)
 check("4a dialog desc_lang_choice UI", "desc_lang_choice" in sd)
-check("4b dialog saves general.description_language",
-      'general.description_language' in sd)
+check("4b dialog saves general.description_language", "general.description_language" in sd)
 check("4c dialog loads saved value", "desc_lang_choice.SetStringSelection" in sd)
 
 # ── 5. main_frame sets engine.output_lang ───────────────────────────
 mf = (ROOT / "src" / "omni_describer_custom" / "ui" / "main_frame.py").read_text(encoding="utf-8")
 check("5a main sets output_lang", "self.ai_engine.output_lang = desc_lang" in mf)
-check("5b main falls back to UI language", 'general.language' in mf)
+check("5b main falls back to UI language", "general.language" in mf)
 
 # ── 6. ask_more_dialog wraps ────────────────────────────────────────
-am = (ROOT / "src" / "omni_describer_custom" / "ui" / "ask_more_dialog.py").read_text(encoding="utf-8")
+am = (ROOT / "src" / "omni_describer_custom" / "ui" / "ask_more_dialog.py").read_text(
+    encoding="utf-8"
+)
 check("6a ask uses apply_output_language", "apply_output_language" in am)
 check("6b ask passes engine output_lang", "output_lang" in am)
 
@@ -171,8 +194,11 @@ check("7a cli apply_lang ms", "Bahasa Malaysia" in apply_lang(DESCRIPTOR_PROMPT,
 check("7b cli apply_lang noop", apply_lang("X", "") == "X")
 r = subprocess.run(
     [sys.executable, "-m", "video_describer", "describe", "--help"],
-    capture_output=True, text=True, cwd=str(ROOT), env={
-        **__import__("os").environ, "PYTHONPATH": str(ROOT)})
+    capture_output=True,
+    text=True,
+    cwd=str(ROOT),
+    env={**__import__("os").environ, "PYTHONPATH": str(ROOT)},
+)
 check("7c cli --lang arg", "--lang" in (r.stdout + r.stderr))
 
 # ── 8. i18n key ─────────────────────────────────────────────────────
@@ -186,4 +212,5 @@ print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
 if FAIL_NAMES:
     print("Failed:", ", ".join(FAIL_NAMES))
 shutil.rmtree(tmp, ignore_errors=True)
-if "pytest" not in sys.modules: sys.exit(1 if FAIL else 0)
+if "pytest" not in sys.modules:
+    sys.exit(1 if FAIL else 0)

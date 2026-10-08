@@ -10,6 +10,7 @@ The swap script is run for real here against a real waiting process:
 the first version of it never waited, because a PATH with Git first
 made "find" Git's find (the author's PC).
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import hashlib
 import io
@@ -25,8 +26,9 @@ import zipfile
 from pathlib import Path
 
 if "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "tools"))
@@ -58,12 +60,21 @@ def check(name, fn):
 
 def release_json(version="2.1.3", assets=True):
     names = [au.zip_name(version), au.SUMS_NAME, au.SIG_NAME] if assets else []
-    return {"tag_name": f"v{version}", "body": "- New: it updates itself.",
-            "html_url": f"https://github.com/{au.REPO}/releases/tag/v{version}",
-            "assets": [{"name": n, "size": 1234,
-                        "browser_download_url": (f"https://github.com/{au.REPO}/"
-                                                 f"releases/download/v{version}/{n}")}
-                       for n in names]}
+    return {
+        "tag_name": f"v{version}",
+        "body": "- New: it updates itself.",
+        "html_url": f"https://github.com/{au.REPO}/releases/tag/v{version}",
+        "assets": [
+            {
+                "name": n,
+                "size": 1234,
+                "browser_download_url": (
+                    f"https://github.com/{au.REPO}/releases/download/v{version}/{n}"
+                ),
+            }
+            for n in names
+        ],
+    }
 
 
 def make_zip(path: Path, members: dict[str, bytes]) -> Path:
@@ -74,12 +85,16 @@ def make_zip(path: Path, members: dict[str, bytes]) -> Path:
 
 
 def good_members(marker=b"new"):
-    return {"DescriVox/DescriVox.exe": b"MZ fake", "DescriVox/marker.txt": marker,
-            "DescriVox/_internal/lib.dll": b"x"}
+    return {
+        "DescriVox/DescriVox.exe": b"MZ fake",
+        "DescriVox/marker.txt": marker,
+        "DescriVox/_internal/lib.dll": b"x",
+    }
 
 
 def pump(seconds: float, until=lambda: False) -> None:
     import wx
+
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline and not until():
         wx.Yield()
@@ -87,6 +102,7 @@ def pump(seconds: float, until=lambda: False) -> None:
 
 
 # ── Checking ─────────────────────────────────────────────────────
+
 
 def test_parse_and_compare():
     rel = au.parse_release(release_json())
@@ -105,6 +121,7 @@ def test_parse_and_compare():
 
 
 # ── Download and unpack ──────────────────────────────────────────
+
 
 def _sign(data: bytes) -> bytes:
     tmp = Path(tempfile.mkdtemp(prefix="odc_t76_sig_")) / "sums"
@@ -126,6 +143,7 @@ def _fake_net(zip_bytes: bytes, sums_line: str, sig: bytes | None = None):
         Path(dest).write_bytes(zip_bytes)
         if on_progress:
             on_progress(len(zip_bytes), len(zip_bytes))
+
     return fetch, download_to
 
 
@@ -134,12 +152,14 @@ def test_download_verifies_checksum():
     tmp = Path(tempfile.mkdtemp(prefix="odc_t76_"))
     data = make_zip(tmp / "src.zip", good_members()).read_bytes()
     import dataclasses
+
     rel = dataclasses.replace(rel, zip_size=len(data))  # as GitHub reports it
     good = hashlib.sha256(data).hexdigest()
     fetch, dl = _fake_net(data, f"{good}  {au.zip_name('2.1.3')}\n")
     seen = []
-    path = au.download(rel, fetch=fetch, download_to=dl,
-                       on_progress=lambda d, t: seen.append((d, t)))
+    path = au.download(
+        rel, fetch=fetch, download_to=dl, on_progress=lambda d, t: seen.append((d, t))
+    )
     assert path.exists() and au.sha256_of(path) == good and seen
     path.unlink()
     fetch, dl = _fake_net(data, f"{'0' * 64}  {au.zip_name('2.1.3')}\n")
@@ -155,15 +175,19 @@ def test_signature_required():
     """Review HIGH: whoever can publish a release can publish matching
     checksums; only a SHA256SUMS.txt signed by the release key counts."""
     import dataclasses
+
     tmp = Path(tempfile.mkdtemp(prefix="odc_t76_"))
     data = make_zip(tmp / "src.zip", good_members()).read_bytes()
     rel = dataclasses.replace(au.parse_release(release_json()), zip_size=len(data))
     line = f"{hashlib.sha256(data).hexdigest()}  {au.zip_name('2.1.3')}\n"
     from nacl.signing import SigningKey
+
     forged = SigningKey.generate().sign(line.encode()).signature.hex().encode()
-    for label, sig in (("signed by another key", forged),
-                       ("garbage signature", b"zz"),
-                       ("signature of other text", _sign(b"something else"))):
+    for label, sig in (
+        ("signed by another key", forged),
+        ("garbage signature", b"zz"),
+        ("signature of other text", _sign(b"something else")),
+    ):
         fetch, dl = _fake_net(data, line, sig=sig)
         try:
             au.download(rel, fetch=fetch, download_to=dl)
@@ -187,6 +211,7 @@ def test_signature_required():
     assert not list(au.update_dir().glob("*.zip*")), "a refused download was kept"
     # The key built into the app is a real Ed25519 public key.
     from nacl.signing import VerifyKey
+
     VerifyKey(bytes.fromhex(REAL_PUBLIC_KEY))
 
 
@@ -198,10 +223,11 @@ def test_stage_refuses_bad_zips():
     assert staged == tmp / "DescriVox.new" / "DescriVox"
     assert (staged / "marker.txt").read_bytes() == b"new"
     for label, members in (
-            ("zip slip", {**good_members(), "DescriVox/../../evil.txt": b"x"}),
-            ("other folder", {**good_members(), "Other/x.txt": b"x"}),
-            ("absolute", {**good_members(), "/DescriVox/x.txt": b"x"}),
-            ("no exe", {"DescriVox/marker.txt": b"x"})):
+        ("zip slip", {**good_members(), "DescriVox/../../evil.txt": b"x"}),
+        ("other folder", {**good_members(), "Other/x.txt": b"x"}),
+        ("absolute", {**good_members(), "/DescriVox/x.txt": b"x"}),
+        ("no exe", {"DescriVox/marker.txt": b"x"}),
+    ):
         try:
             au.stage(make_zip(tmp / f"{label}.zip", members), app)
             raise AssertionError(f"{label}: accepted")
@@ -230,6 +256,7 @@ def test_can_self_install():
 
 # ── The swap, for real ───────────────────────────────────────────
 
+
 def _swap(case: str, new_exists: bool):
     root = Path(tempfile.mkdtemp(prefix="odc t76 ü "))  # space + non-ASCII
     app = root / "DescriVox"
@@ -247,8 +274,11 @@ def _swap(case: str, new_exists: bool):
     assert holder.poll() is not None, f"{case}: swapped while the app still ran"
     log = (au.update_dir() / "apply.log").read_text(encoding="utf-8")
     previous = root / "DescriVox.previous" / "marker.txt"
-    return (app / "marker.txt").read_text(), \
-        (previous.read_text() if previous.exists() else None), log
+    return (
+        (app / "marker.txt").read_text(),
+        (previous.read_text() if previous.exists() else None),
+        log,
+    )
 
 
 def test_swap_waits_then_replaces():
@@ -264,6 +294,7 @@ def test_swap_rolls_back():
 
 
 # ── Review findings (ecc:python-reviewer, 6 Oct 2026), test-first ──
+
 
 def test_review_timeout_starts_nothing():
     """HIGH: the app never exits -> the script must not start a 2nd copy."""
@@ -337,11 +368,14 @@ def test_review_urls_size_tag():
             pass
     good = release_json()
     for a in good["assets"]:
-        a["browser_download_url"] = (f"https://github.com/{au.REPO}/releases/"
-                                     f"download/v2.1.3/{a['name']}")
-    rel = au.parse_release(good)        # size 1234
+        a["browser_download_url"] = (
+            f"https://github.com/{au.REPO}/releases/download/v2.1.3/{a['name']}"
+        )
+    rel = au.parse_release(good)  # size 1234
     tmp = Path(tempfile.mkdtemp(prefix="odc_t76_"))
-    data = make_zip(tmp / "big.zip", {**good_members(), "DescriVox/pad.bin": os.urandom(5000)}).read_bytes()
+    data = make_zip(
+        tmp / "big.zip", {**good_members(), "DescriVox/pad.bin": os.urandom(5000)}
+    ).read_bytes()
     fetch, dl = _fake_net(data, f"{hashlib.sha256(data).hexdigest()}  {au.zip_name('2.1.3')}\n")
     try:
         au.download(rel, fetch=fetch, download_to=dl)
@@ -355,10 +389,16 @@ def test_local_source_loopback_only():
     real = os.environ.pop("ODC_UPDATE_SOURCE", None)
     try:
         assert au.latest_api() == au.LATEST_API
-        for bad in ("http://evil.example:80", "https://127.0.0.1:8000",
-                    "http://127.0.0.1.evil.example:80", "http://127.0.0.1",
-                    "http://127.0.0.1:80@evil.com", "http://[::1]:80",
-                    "http://localhost:80", "http://127.0.0.1:80/x"):
+        for bad in (
+            "http://evil.example:80",
+            "https://127.0.0.1:8000",
+            "http://127.0.0.1.evil.example:80",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80@evil.com",
+            "http://[::1]:80",
+            "http://localhost:80",
+            "http://127.0.0.1:80/x",
+        ):
             os.environ["ODC_UPDATE_SOURCE"] = bad
             assert au.latest_api() == au.LATEST_API, bad
         # Only in test mode: without ODC_UPDATE_DIR the switch is ignored.
@@ -380,6 +420,7 @@ def test_local_source_loopback_only():
 
             def log_message(self, *a):
                 pass
+
         srv = http.server.HTTPServer(("127.0.0.1", 0), Redirect)
         th.Thread(target=srv.handle_request, daemon=True).start()
         os.environ["ODC_UPDATE_SOURCE"] = f"http://127.0.0.1:{srv.server_port}"
@@ -394,11 +435,12 @@ def test_local_source_loopback_only():
         assert au.latest_api() == f"http://127.0.0.1:8765/repos/{au.REPO}/releases/latest"
         data = release_json()
         for a in data["assets"]:
-            a["browser_download_url"] = (f"http://127.0.0.1:8765/{au.REPO}/releases/"
-                                         f"download/v2.1.3/{a['name']}")
+            a["browser_download_url"] = (
+                f"http://127.0.0.1:8765/{au.REPO}/releases/download/v2.1.3/{a['name']}"
+            )
         assert au.parse_release(data).sig_url.endswith(au.SIG_NAME)
         try:
-            au.parse_release(release_json())   # GitHub URLs while local
+            au.parse_release(release_json())  # GitHub URLs while local
             raise AssertionError("mixed sources accepted")
         except UpdateError:
             pass
@@ -435,6 +477,7 @@ def test_review_unsafe_update_dir():
 
 def test_finish_pending():
     from omni_describer_custom.core.settings_store import SettingsStore
+
     s = SettingsStore()
     assert au.finish_pending(s, "2.1.2") is None
     au.update_dir().mkdir(parents=True, exist_ok=True)
@@ -448,10 +491,14 @@ def test_finish_pending():
 
 # ── Release files (build.bat) ────────────────────────────────────
 
+
 def test_release_files():
     import release_files as rf
-    log = ("# Changelog\n\n## What's new in v9.9.9\n\n- Updates itself.\n\n"
-           "## What's new in v9.9.8\n\n- Old.\n")
+
+    log = (
+        "# Changelog\n\n## What's new in v9.9.9\n\n- Updates itself.\n\n"
+        "## What's new in v9.9.8\n\n- Old.\n"
+    )
     assert rf.notes_for(log, "9.9.9") == "- Updates itself.\n"
     dist = Path(tempfile.mkdtemp(prefix="odc_t76_dist_"))
     archive = make_zip(dist / au.zip_name("9.9.9"), good_members())
@@ -462,6 +509,7 @@ def test_release_files():
     assert notes.read_text(encoding="utf-8") == "- Updates itself.\n"
     # The real CHANGELOG must carry the section the build will ask for.
     from omni_describer_custom import __version__
+
     real = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
     assert rf.notes_for(real, __version__).strip()
 
@@ -469,26 +517,31 @@ def test_release_files():
 def test_publish_preflight():
     """tools/publish_release.py refuses anything the updater would refuse."""
     import publish_release as pr
+
     dist = Path(tempfile.mkdtemp(prefix="odc_t76_pub_"))
     assert any("missing" in p for p in pr.check_files(dist, "9.9.9"))
     archive = make_zip(dist / au.zip_name("9.9.9"), good_members())
-    (dist / au.SUMS_NAME).write_text(f"{au.sha256_of(archive)}  {archive.name}\n",
-                                     encoding="utf-8")
+    (dist / au.SUMS_NAME).write_text(f"{au.sha256_of(archive)}  {archive.name}\n", encoding="utf-8")
     release_key.sign(dist / au.SUMS_NAME)
     (dist / "release-notes-9.9.9.md").write_text("- Updates itself.\n", encoding="utf-8")
     assert pr.check_files(dist, "9.9.9") == []
     (dist / au.SUMS_NAME).write_text(f"{'0' * 64}  {archive.name}\n", encoding="utf-8")
-    assert any("signature" in p for p in pr.check_files(dist, "9.9.9")), \
+    assert any("signature" in p for p in pr.check_files(dist, "9.9.9")), (
         "a changed SHA256SUMS.txt kept its old signature and passed"
+    )
     release_key.sign(dist / au.SUMS_NAME)
     assert pr.check_files(dist, "9.9.9"), "a zip not matching its checksum passed"
 
     class Out:
         def __init__(self, stdout="", returncode=0):
             self.stdout, self.returncode = stdout, returncode
+
     heads = {"HEAD": "abc", "v9.9.9": "abc"}
-    run = lambda cmd: Out(heads.get(cmd[-1], "") if cmd[1] != "rev-list"  # noqa: E731
-                          else heads.get(cmd[-1], ""))
+    run = lambda cmd: Out(
+        heads.get(cmd[-1], "")
+        if cmd[1] != "rev-list"  # noqa: E731
+        else heads.get(cmd[-1], "")
+    )
     assert pr.check_tag("9.9.9", run) == []
     heads["v9.9.9"] = "old"
     assert pr.check_tag("9.9.9", run) == ["tag v9.9.9 is not HEAD"]
@@ -498,15 +551,20 @@ def test_publish_preflight():
     assert steps[1] == ["git", "push", "origin", "v9.9.9"]
     create = steps[2]
     assert create[:4] == ["gh", "release", "create", "v9.9.9"]
-    assert str(dist / au.zip_name("9.9.9")) in create and \
-        str(dist / au.SUMS_NAME) in create and \
-        str(dist / au.SIG_NAME) in create and au.REPO in create
+    assert (
+        str(dist / au.zip_name("9.9.9")) in create
+        and str(dist / au.SUMS_NAME) in create
+        and str(dist / au.SIG_NAME) in create
+        and au.REPO in create
+    )
 
 
 # ── The window (accessibility + wiring) ──────────────────────────
 
+
 def test_gui():
     import wx
+
     app = wx.GetApp() or wx.App(False)  # noqa: F841
     from omni_describer_custom.i18n.strings import t
     from omni_describer_custom.ui import app_update_dialog as aud
@@ -524,8 +582,7 @@ def test_gui():
 
         rel = au.parse_release(release_json())
         dlg = aud.AppUpdateDialog(frame, frame.settings, check_on_open=False)
-        for ctrl in (dlg.install_btn, dlg.page_btn, dlg.skip_btn,
-                     dlg.check_btn, dlg.close_btn):
+        for ctrl in (dlg.install_btn, dlg.page_btn, dlg.skip_btn, dlg.check_btn, dlg.close_btn):
             assert ctrl.GetLabel().replace("&", "").strip(), "unlabelled button"
         for ctrl in (dlg.status_box, dlg.notes_box, dlg.gauge):
             assert ctrl.GetName().strip(), "control has no NVDA name"
@@ -556,6 +613,7 @@ def test_gui():
         def fake_show(self):
             opened["n"] += 1
             return wx.ID_CLOSE
+
         aud.AppUpdateDialog.ShowModal = fake_show
         au.newer_release = lambda fetch=None, current=None: None
         try:
@@ -571,6 +629,7 @@ def test_gui():
         def counting(fetch=None, current=None):
             asked["n"] += 1
             return rel
+
         au.newer_release = counting
         frame.settings.set("updates.check_app_at_start", False)
         frame.check_app_update_at_start()
@@ -627,27 +686,31 @@ def test_review_213_lows():
     offer that cannot open the dialog is still SPOKEN, not only written
     on the status bar (NVDA does not read status-bar changes)."""
     import wx
+
     app = wx.GetApp() or wx.App(False)  # noqa: F841
     from omni_describer_custom.ui.main_frame import MainFrame
     from omni_describer_custom.core import speech
+
     frame = MainFrame()
     spoken = []
 
     class FakeNVDA:
         """A screen reader IS running (the review's point: announce()
         is silent then, so it must not be what speaks this)."""
+
         available = True
         is_screen_reader = True
 
         def speak(self, text, interrupt=True):
             spoken.append((text, interrupt))
             return True
+
     real_get = speech.get_speech
     speech.get_speech = lambda: FakeNVDA()
     try:
         rel = au.parse_release(release_json())
         frame._show_app_update = lambda r: None
-        frame._offer_app_update(rel)        # the test frame is not active
+        frame._offer_app_update(rel)  # the test frame is not active
         assert any("2.1.3" in s for s, _i in spoken), spoken
         assert all(i is False for _s, i in spoken), "must not cut NVDA off"
     finally:
@@ -661,9 +724,11 @@ def test_review_213_lows():
 
 def test_settings_switch():
     import wx
+
     app = wx.GetApp() or wx.App(False)  # noqa: F841
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.ui import settings_dialog as sd
+
     s = SettingsStore()
     s.set("updates.check_app_at_start", True)
     dlg = sd.SettingsDialog(None, s)

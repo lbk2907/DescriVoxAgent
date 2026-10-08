@@ -20,6 +20,7 @@ one run in three, first as a hard interpreter crash (empty log), then as
    outer finally, covering a failure between the thread starting and
    those points.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
@@ -33,10 +34,14 @@ from pathlib import Path
 
 import wx
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 ok = 0
@@ -68,6 +73,7 @@ def _drain(rounds: int = 10, delay: float = 0.02) -> None:
 
 
 # ── 1. Cleanup landing inside the dialog constructor ─────────────────
+
 
 def test_close_during_dialog_construction():
     """The exact race: _close_download_progress runs while the dialog is
@@ -104,8 +110,7 @@ def test_close_during_dialog_construction():
         finally:
             mf.AccessibleProgressDialog = real_dialog
 
-        assert frame._dl_dialog is None, (
-            f"ghost dialog adopted after cleanup: {frame._dl_dialog!r}")
+        assert frame._dl_dialog is None, f"ghost dialog adopted after cleanup: {frame._dl_dialog!r}"
         assert destroyed, "newborn dialog was never destroyed"
         assert frame.IsEnabled(), "main window left disabled"
     finally:
@@ -127,8 +132,7 @@ def test_close_generation_counter():
         assert frame._dl_dialog is None
         before = frame._dl_close_gen
         frame._close_download_progress()  # nothing to close
-        assert frame._dl_close_gen == before + 1, (
-            "close counter did not advance on an empty close")
+        assert frame._dl_close_gen == before + 1, "close counter did not advance on an empty close"
     finally:
         _drain()
         try:
@@ -139,6 +143,7 @@ def test_close_generation_counter():
 
 
 # ── 2. Counter thread dies with the pipeline ─────────────────────────
+
 
 class _FailingStub(BaseHTTPRequestHandler):
     """Gemini Files API loopback that reports FAILED, so the full-video
@@ -153,14 +158,20 @@ class _FailingStub(BaseHTTPRequestHandler):
         if "uploadType=resumable" in self.path:
             self.send_response(200)
             self.send_header(
-                "X-Goog-Upload-URL",
-                f"http://127.0.0.1:{self.server.server_port}/upload")
+                "X-Goog-Upload-URL", f"http://127.0.0.1:{self.server.server_port}/upload"
+            )
             self.end_headers()
             return
         if self.path.startswith("/upload"):
-            body = json.dumps({"file": {"uri": "http://x/v1beta/files/bad1",
-                                        "name": "files/bad1",
-                                        "state": "PROCESSING"}}).encode()
+            body = json.dumps(
+                {
+                    "file": {
+                        "uri": "http://x/v1beta/files/bad1",
+                        "name": "files/bad1",
+                        "state": "PROCESSING",
+                    }
+                }
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -170,8 +181,9 @@ class _FailingStub(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        body = json.dumps({"name": "files/bad1", "state": "FAILED",
-                           "error": {"message": "unsupported codec"}})
+        body = json.dumps(
+            {"name": "files/bad1", "state": "FAILED", "error": {"message": "unsupported codec"}}
+        )
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -180,8 +192,7 @@ class _FailingStub(BaseHTTPRequestHandler):
 
 def _count_frames_threads() -> list[str]:
     # Python names worker threads after their target: "Thread-N (count_frames)"
-    return [th.name for th in threading.enumerate()
-            if "count_frames" in th.name and th.is_alive()]
+    return [th.name for th in threading.enumerate() if "count_frames" in th.name and th.is_alive()]
 
 
 def test_failed_run_leaves_nothing_behind():
@@ -193,7 +204,8 @@ def test_failed_run_leaves_nothing_behind():
     import omni_describer_custom.ui.player_window as pw_mod
 
     assert not _count_frames_threads(), (
-        f"counter thread leaked before the test: {_count_frames_threads()}")
+        f"counter thread leaked before the test: {_count_frames_threads()}"
+    )
 
     server = HTTPServer(("127.0.0.1", 0), _FailingStub)
     port = server.server_port
@@ -201,13 +213,12 @@ def test_failed_run_leaves_nothing_behind():
 
     frame = MainFrame()
     try:
-        frame.project_store = ProjectStore(
-            projects_dir=tempfile.mkdtemp(prefix="odc_f20_proj_"))
+        frame.project_store = ProjectStore(projects_dir=tempfile.mkdtemp(prefix="odc_f20_proj_"))
         frame.settings.set("ai.video_mode", "full")
         frame.settings.set("ai.default_provider", "gemini")
-        frame.settings.set_ai_provider("gemini", {
-            "api_key": "test-key",
-            "base_url": f"http://127.0.0.1:{port}/v1beta"})
+        frame.settings.set_ai_provider(
+            "gemini", {"api_key": "test-key", "base_url": f"http://127.0.0.1:{port}/v1beta"}
+        )
         video = Path(tempfile.mkdtemp(prefix="odc_f20_vid_")) / "clip.mp4"
         video.write_bytes(b"\x00" * 2048)
         frame._current_source = str(video)
@@ -218,6 +229,7 @@ def test_failed_run_leaves_nothing_behind():
                 width = 640
                 height = 360
                 duration = 42.0
+
             return I()
 
         async def fake_resolve(self, source, **k):
@@ -279,15 +291,14 @@ def test_dedupe_dialog_uses_real_phoenix_api():
     try:
         source = str(Path(tempfile.mkdtemp(prefix="odc_f20_dup_")) / "clip.mp4")
         Path(source).write_bytes(b"\x00" * 512)
-        frame.project_store = ProjectStore(
-            projects_dir=tempfile.mkdtemp(prefix="odc_f20_dupproj_"))
+        frame.project_store = ProjectStore(projects_dir=tempfile.mkdtemp(prefix="odc_f20_dupproj_"))
         frame.project_store.create_project("Already Done", source)
-        assert frame.project_store.find_project_by_source(source), \
+        assert frame.project_store.find_project_by_source(source), (
             "seeded project not findable by source"
+        )
 
         frame.settings.set("ai.default_provider", "glm")
-        frame.settings.set_ai_provider("glm", {"api_key": "sk-or-v1-test",
-                                               "model": "m"})
+        frame.settings.set_ai_provider("glm", {"api_key": "sk-or-v1-test", "model": "m"})
         frame._current_source = source
 
         # Answer the dedupe dialog with Cancel instead of blocking on a
@@ -296,8 +307,7 @@ def test_dedupe_dialog_uses_real_phoenix_api():
         wx.MessageDialog.ShowModal = lambda self: wx.ID_CANCEL
         frame._start_processing("Describe this video.")
 
-        assert not frame._processing, \
-            "Cancel on the dedupe dialog must not start processing"
+        assert not frame._processing, "Cancel on the dedupe dialog must not start processing"
     finally:
         wx.MessageDialog.ShowModal = real_show
         _drain()
@@ -314,23 +324,26 @@ def test_settings_isolated_from_user_config():
     from omni_describer_custom.core.settings_store import SettingsStore
 
     override = os.environ.get("ODC_CONFIG_DIR", "").strip()
-    assert override, ("ODC_CONFIG_DIR is not set: run this suite through "
-                      "run_gate.bat, which points settings at a temp dir")
+    assert override, (
+        "ODC_CONFIG_DIR is not set: run this suite through "
+        "run_gate.bat, which points settings at a temp dir"
+    )
     store = SettingsStore()
     assert str(store.settings_file).startswith(str(Path(override))), (
-        f"settings still resolve to {store.settings_file}, not {override}")
+        f"settings still resolve to {store.settings_file}, not {override}"
+    )
 
 
 if __name__ == "__main__":
-    check("cleanup during dialog construction leaves no ghost",
-          test_close_during_dialog_construction)
-    check("close counter advances with no dialog",
-          test_close_generation_counter)
-    check("failed run leaves no thread, dialog or disabled window",
-          test_failed_run_leaves_nothing_behind)
-    check("dedupe dialog uses real Phoenix label API",
-          test_dedupe_dialog_uses_real_phoenix_api)
-    check("settings isolated from the user's live config",
-          test_settings_isolated_from_user_config)
+    check(
+        "cleanup during dialog construction leaves no ghost", test_close_during_dialog_construction
+    )
+    check("close counter advances with no dialog", test_close_generation_counter)
+    check(
+        "failed run leaves no thread, dialog or disabled window",
+        test_failed_run_leaves_nothing_behind,
+    )
+    check("dedupe dialog uses real Phoenix label API", test_dedupe_dialog_uses_real_phoenix_api)
+    check("settings isolated from the user's live config", test_settings_isolated_from_user_config)
     print(f"\nRESULT: {ok} passed, {fail} failed")
     sys.exit(1 if fail else 0)

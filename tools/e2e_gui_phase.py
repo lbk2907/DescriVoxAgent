@@ -19,6 +19,7 @@ Lessons learned (keep for future runs):
 Run:
   python tools/e2e_gui_phase.py
 """
+
 import ctypes
 from ctypes import wintypes
 import io
@@ -32,8 +33,9 @@ import threading
 import time
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+sys.stdout = io.TextIOWrapper(
+    sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+)
 
 REPO = Path(r"C:\Users\USER\Documents\omni-describer-custom")
 PY = sys.executable
@@ -45,6 +47,7 @@ URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # "Me at the zoo" 19s
 # are only READ (copied once: the app needs the owner's encrypted key).
 import shutil as _shutil  # noqa: E402
 import tempfile as _tempfile  # noqa: E402
+
 _REAL_CONFIG = Path.home() / "AppData" / "Roaming" / "OmniDescriber"
 SANDBOX = Path(_tempfile.mkdtemp(prefix="odc_e2e_"))
 (SANDBOX / "config").mkdir()
@@ -54,11 +57,15 @@ for _name in ("settings.json", "openrouter_models.json", "gemini_models.json"):
 SETTINGS_JSON = SANDBOX / "config" / "settings.json"
 PROJECTS_DIR = SANDBOX / "projects"
 PROJECTS_DIR.mkdir()
-APP_ENV = dict(os.environ, ODC_CONFIG_DIR=str(SANDBOX / "config"),
-               ODC_PROJECTS_DIR=str(PROJECTS_DIR),
-               ODC_LOCALES_DIR=str(SANDBOX / "locales"))
+APP_ENV = dict(
+    os.environ,
+    ODC_CONFIG_DIR=str(SANDBOX / "config"),
+    ODC_PROJECTS_DIR=str(PROJECTS_DIR),
+    ODC_LOCALES_DIR=str(SANDBOX / "locales"),
+)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from e2e_projects import ProjectsGuard, newest_db  # noqa: E402
+
 SRT_OUT = SANDBOX / "e2e_gui_test.srt"
 # v1.5.5: was 10 s (to split the 19 s zoo video into 2 parts), but since
 # v1.5.3 the Settings spin control enforces min=60, so Apply clamps any
@@ -95,6 +102,7 @@ def log(msg: str) -> None:
 
 # ---------------------------------------------------------------- win32
 
+
 def _pid_of(hwnd) -> int:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
@@ -118,6 +126,7 @@ def _window_class(hwnd) -> str:
 
 # ---------------------------------------------------------------- pixels
 
+
 def _grab_window(hwnd):
     """Capture a window's own rendering via PrintWindow
     (PW_RENDERFULLCONTENT — includes DirectUI surfaces)."""
@@ -125,14 +134,19 @@ def _grab_window(hwnd):
     from PIL import Image
 
     class BIH(ctypes.Structure):
-        _fields_ = [("biSize", wt.DWORD), ("biWidth", wt.LONG),
-                    ("biHeight", wt.LONG), ("biPlanes", wt.WORD),
-                    ("biBitCount", wt.WORD), ("biCompression", wt.DWORD),
-                    ("biSizeImage", wt.DWORD),
-                    ("biXPelsPerMeter", wt.LONG),
-                    ("biYPelsPerMeter", wt.LONG),
-                    ("biClrUsed", wt.DWORD),
-                    ("biClrImportant", wt.DWORD)]
+        _fields_ = [
+            ("biSize", wt.DWORD),
+            ("biWidth", wt.LONG),
+            ("biHeight", wt.LONG),
+            ("biPlanes", wt.WORD),
+            ("biBitCount", wt.WORD),
+            ("biCompression", wt.DWORD),
+            ("biSizeImage", wt.DWORD),
+            ("biXPelsPerMeter", wt.LONG),
+            ("biYPelsPerMeter", wt.LONG),
+            ("biClrUsed", wt.DWORD),
+            ("biClrImportant", wt.DWORD),
+        ]
 
     class BI(ctypes.Structure):
         _fields_ = [("bmiHeader", BIH), ("bmiColors", wt.DWORD * 3)]
@@ -150,8 +164,13 @@ def _grab_window(hwnd):
     try:
         gdi32.CreateDIBSection.restype = wt.HBITMAP
         gdi32.CreateDIBSection.argtypes = [
-            wt.HDC, ctypes.c_void_p, wt.UINT,
-            ctypes.POINTER(ctypes.c_void_p), wt.HANDLE, wt.DWORD]
+            wt.HDC,
+            ctypes.c_void_p,
+            wt.UINT,
+            ctypes.POINTER(ctypes.c_void_p),
+            wt.HANDLE,
+            wt.DWORD,
+        ]
         gdi32.CreateCompatibleDC.restype = wt.HDC
         gdi32.CreateCompatibleDC.argtypes = [wt.HDC]
         gdi32.SelectObject.restype = wt.HGDIOBJ
@@ -166,8 +185,7 @@ def _grab_window(hwnd):
         bi.bmiHeader.biPlanes = 1
         bi.bmiHeader.biBitCount = 32
         bits = ctypes.c_void_p()
-        dib = gdi32.CreateDIBSection(hdc, ctypes.byref(bi), 0,
-                                     ctypes.byref(bits), None, 0)
+        dib = gdi32.CreateDIBSection(hdc, ctypes.byref(bi), 0, ctypes.byref(bits), None, 0)
         if not dib or not bits:
             return None
         mem = gdi32.CreateCompatibleDC(hdc)
@@ -209,8 +227,7 @@ def _bar_green_pct(im):
     return int(round(100.0 * (max(green) - min(green)) / span))
 
 
-def find_msgbox_win32(title: str, exclude_hwnd: int = 0,
-                      timeout: float = 120.0) -> int:
+def find_msgbox_win32(title: str, exclude_hwnd: int = 0, timeout: float = 120.0) -> int:
     """Find a visible message-box dialog (class #32770) of our process
     with an OK button child. Disambiguates from same-titled wx dialogs
     (which have no OK child). Proven via tools/debug_apply.py.
@@ -218,12 +235,14 @@ def find_msgbox_win32(title: str, exclude_hwnd: int = 0,
     deadline = time.time() + timeout
     while time.time() < deadline:
         for hwnd in enum_top_windows():
-            if (user32.IsWindowVisible(hwnd)
-                    and _pid_of(hwnd) == APP_PID
-                    and _window_class(hwnd) == "#32770"
-                    and _window_title(hwnd) == title
-                    and hwnd != exclude_hwnd
-                    and _has_button(hwnd, "OK")):
+            if (
+                user32.IsWindowVisible(hwnd)
+                and _pid_of(hwnd) == APP_PID
+                and _window_class(hwnd) == "#32770"
+                and _window_title(hwnd) == title
+                and hwnd != exclude_hwnd
+                and _has_button(hwnd, "OK")
+            ):
                 user32.SetForegroundWindow(hwnd)
                 return hwnd
         time.sleep(0.5)
@@ -232,35 +251,42 @@ def find_msgbox_win32(title: str, exclude_hwnd: int = 0,
 
 def _has_button(box_hwnd: int, label: str) -> bool:
     for child in enum_children(box_hwnd):
-        if (_window_class(child) == "Button"
-                and _window_title(child).replace("&", "") == label):
+        if _window_class(child) == "Button" and _window_title(child).replace("&", "") == label:
             return True
     return False
 
 
 def enum_top_windows():
     out = []
+
     @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
     def cb(hwnd, _lp):
         out.append(hwnd)
         return True
+
     user32.EnumWindows(cb, 0)
     return out
 
 
 def enum_children(hwnd):
     out = []
+
     @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
     def cb(child, _lp):
         out.append(child)
         return True
+
     user32.EnumChildWindows(hwnd, cb, 0)
     return out
 
 
-def find_dialog_win32(title: str, timeout: float = 30.0,
-                      cls: str = "#32770", exclude_hwnd: int = 0,
-                      text_sub: str = ""):
+def find_dialog_win32(
+    title: str,
+    timeout: float = 30.0,
+    cls: str = "#32770",
+    exclude_hwnd: int = 0,
+    text_sub: str = "",
+):
     """Poll for a visible Win32 dialog (wx dialog / message box) by
     title in our process. Optionally skip a known hwnd (e.g. the
     settings dialog itself, which is titled the same as its
@@ -269,15 +295,19 @@ def find_dialog_win32(title: str, timeout: float = 30.0,
     deadline = time.time() + timeout
     while time.time() < deadline:
         for hwnd in enum_top_windows():
-            if (user32.IsWindowVisible(hwnd)
-                    and _pid_of(hwnd) == APP_PID
-                    and _window_class(hwnd) == cls
-                    and _window_title(hwnd) == title
-                    and hwnd != exclude_hwnd):
+            if (
+                user32.IsWindowVisible(hwnd)
+                and _pid_of(hwnd) == APP_PID
+                and _window_class(hwnd) == cls
+                and _window_title(hwnd) == title
+                and hwnd != exclude_hwnd
+            ):
                 if text_sub:
-                    texts = [_window_title(c).lower() for c in
-                             enum_children(hwnd)
-                             if _window_class(c) == "Static"]
+                    texts = [
+                        _window_title(c).lower()
+                        for c in enum_children(hwnd)
+                        if _window_class(c) == "Static"
+                    ]
                     if not any(text_sub in t for t in texts):
                         continue
                 user32.SetForegroundWindow(hwnd)
@@ -292,9 +322,11 @@ def find_window_win32(title_sub: str, timeout: float = 30.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for hwnd in enum_top_windows():
-            if (user32.IsWindowVisible(hwnd)
-                    and _pid_of(hwnd) == APP_PID
-                    and title_sub in _window_title(hwnd)):
+            if (
+                user32.IsWindowVisible(hwnd)
+                and _pid_of(hwnd) == APP_PID
+                and title_sub in _window_title(hwnd)
+            ):
                 return hwnd
         time.sleep(0.5)
     raise RuntimeError(f"window '*{title_sub}*' not found (win32)")
@@ -306,10 +338,8 @@ def press_button(box_hwnd: int, label: str, timeout: float = 10.0) -> None:
     BM_CLICK = 0x00F5
     while time.time() < deadline:
         for child in enum_children(box_hwnd):
-            if (_window_class(child) == "Button"
-                    and _window_title(child).replace("&", "") == label):
-                user32.SendMessageTimeoutW(child, BM_CLICK, 0, 0,
-                                           0x0002, 5000, None)
+            if _window_class(child) == "Button" and _window_title(child).replace("&", "") == label:
+                user32.SendMessageTimeoutW(child, BM_CLICK, 0, 0, 0x0002, 5000, None)
                 log(f"clicked '{label}' (win32 BM_CLICK)")
                 return
         time.sleep(0.4)
@@ -319,12 +349,10 @@ def press_button(box_hwnd: int, label: str, timeout: float = 10.0) -> None:
 def set_edit_text(box_hwnd: int, text: str, index: int = 0) -> None:
     """Type into the Nth child Edit via WM_SETTEXT."""
     WM_SETTEXT = 0x000C
-    edits = [c for c in enum_children(box_hwnd)
-             if _window_class(c) == "Edit"]
+    edits = [c for c in enum_children(box_hwnd) if _window_class(c) == "Edit"]
     if not edits:
         raise RuntimeError("no Edit child found")
-    user32.SendMessageTimeoutW(edits[index], WM_SETTEXT, 0, text,
-                               0x0002, 5000, None)
+    user32.SendMessageTimeoutW(edits[index], WM_SETTEXT, 0, text, 0x0002, 5000, None)
     log(f"edit text set ({len(edits)} edit(s) found)")
 
 
@@ -336,13 +364,13 @@ def kill_stale() -> None:
             pids.add(_pid_of(hwnd))
     for pid in pids:
         log(f"killing stale instance pid={pid}")
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                       capture_output=True)
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
     if pids:
         time.sleep(2.0)
 
 
 # ---------------------------------------------------------------- UIA
+
 
 def find_main_uia(timeout: float = 40.0):
     deadline = time.time() + timeout
@@ -386,6 +414,7 @@ def toggle_state(ctl):
 
 # ---------------------------------------------------------------- steps
 
+
 def step_launch():
     global APP_PID
     log("== LAUNCH ==")
@@ -398,9 +427,13 @@ def step_launch():
     log(f"seeded general.chunk_seconds={CHUNK_SECONDS}")
     app_log = open(REPO / "_e2e_app_log.txt", "w", encoding="utf-8")
     proc = subprocess.Popen(
-        [PY, "main.py"], cwd=str(REPO), env=APP_ENV,
+        [PY, "main.py"],
+        cwd=str(REPO),
+        env=APP_ENV,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        stdout=app_log, stderr=app_log)
+        stdout=app_log,
+        stderr=app_log,
+    )
     APP_PID = proc.pid
     log(f"launched pid={APP_PID}")
     win = find_main_uia()
@@ -437,6 +470,7 @@ def step_settings(top) -> None:
             break
     sys.path.insert(0, str(REPO / "src"))
     from omni_describer_custom.core.settings_store import SettingsStore
+
     key = SettingsStore().get_ai_provider("glm").get("api_key", "")
     assert key.startswith("sk-or-v1-") and len(key) == 73, "bad key"
     key_field = None
@@ -535,8 +569,7 @@ def step_process() -> None:
         while not stop_flag.is_set():
             try:
                 for hwnd in enum_top_windows():
-                    if not (user32.IsWindowVisible(hwnd)
-                            and _pid_of(hwnd) == APP_PID):
+                    if not (user32.IsWindowVisible(hwnd) and _pid_of(hwnd) == APP_PID):
                         continue
                     title = _window_title(hwnd)
                     if "Downloading video" in title:
@@ -549,8 +582,7 @@ def step_process() -> None:
                         im = _grab_window(hwnd)
                         if im is not None:
                             gp = _bar_green_pct(im)
-                            if gp is not None and (not GREEN_PCTS
-                                                   or GREEN_PCTS[-1] != gp):
+                            if gp is not None and (not GREEN_PCTS or GREEN_PCTS[-1] != gp):
                                 GREEN_PCTS.append(gp)
                                 log(f"  dialog bar (pixels): {gp}%")
             except Exception as e:
@@ -573,10 +605,11 @@ def step_process() -> None:
             # Any of these proves _on_preset_open ran: the dedupe
             # prompt, the progress dialog, or the disabled Open button.
             for hwnd in enum_top_windows():
-                if (user32.IsWindowVisible(hwnd)
-                        and _pid_of(hwnd) == APP_PID
-                        and _window_title(hwnd) in ("Existing project found",
-                                                    "Downloading video")):
+                if (
+                    user32.IsWindowVisible(hwnd)
+                    and _pid_of(hwnd) == APP_PID
+                    and _window_title(hwnd) in ("Existing project found", "Downloading video")
+                ):
                     started = True
                     break
             if not started:
@@ -602,9 +635,11 @@ def step_process() -> None:
     deadline = time.time() + 12
     while time.time() < deadline and dedupe is None:
         for hwnd in enum_top_windows():
-            if (user32.IsWindowVisible(hwnd)
-                    and _pid_of(hwnd) == APP_PID
-                    and _window_title(hwnd) == "Existing project found"):
+            if (
+                user32.IsWindowVisible(hwnd)
+                and _pid_of(hwnd) == APP_PID
+                and _window_title(hwnd) == "Existing project found"
+            ):
                 dedupe = hwnd
                 break
         time.sleep(0.4)
@@ -627,8 +662,10 @@ def step_process() -> None:
         except Exception:
             pass
         time.sleep(1.0)
-    log("progress dialog 'Downloading video' " +
-        ("seen" if pd_seen else "NOT seen (may be too fast)"))
+    log(
+        "progress dialog 'Downloading video' "
+        + ("seen" if pd_seen else "NOT seen (may be too fast)")
+    )
     # 2) Outcome box: completion OR a transient AI/empty failure
     # (OpenRouter intermittently returns nothing; retry then).
     attempts = 0
@@ -651,8 +688,7 @@ def step_process() -> None:
             pass
         if fail is not None:
             attempts += 1
-            log(f"'Processing failed' box (attempt {attempts}): "
-                "empty AI response; OK + retry")
+            log(f"'Processing failed' box (attempt {attempts}): empty AI response; OK + retry")
             press_button(fail, "OK")
             time.sleep(2.0)
             if attempts > 2:
@@ -684,21 +720,23 @@ def step_process() -> None:
 
 def step_verify() -> None:
     log("== VERIFY DB ==")
-    db = newest_db(PROJECTS_DIR)   # either project layout
+    db = newest_db(PROJECTS_DIR)  # either project layout
     assert db, "no project db found"
     conn = sqlite3.connect(str(db))
     rows = conn.execute(
         "SELECT COUNT(*), MIN(start_time), MAX(end_time) FROM descriptions"
     ).fetchone()
     name, vp, dur = conn.execute(
-        "SELECT name, video_path, video_duration FROM projects "
-        "ORDER BY id DESC LIMIT 1"
+        "SELECT name, video_path, video_duration FROM projects ORDER BY id DESC LIMIT 1"
     ).fetchone()
-    texts = [r[0] for r in conn.execute(
-        "SELECT text FROM descriptions ORDER BY start_time").fetchall()]
+    texts = [
+        r[0] for r in conn.execute("SELECT text FROM descriptions ORDER BY start_time").fetchall()
+    ]
     conn.close()
-    log(f"db={db.name} project='{name[:50]}' rows={rows[0]} "
-        f"span={rows[1]}..{rows[2]} duration={dur}")
+    log(
+        f"db={db.name} project='{name[:50]}' rows={rows[0]} "
+        f"span={rows[1]}..{rows[2]} duration={dur}"
+    )
     for i, t in enumerate(texts):
         log(f"  desc[{i}]: {t[:70]!r}")
     assert rows[0] >= 1, "no descriptions in db"
@@ -734,19 +772,15 @@ def step_coverage() -> None:
     # Single part: the overall tick is 10 + 90*1/1 = 100 (the bar itself
     # caps at 99 so PD_AUTO_HIDE cannot hide it while saving runs).
     assert TITLE_PCTS, "dialog title percentage never observed"
-    assert max(TITLE_PCTS) >= 55, (
-        f"dialog title never reached the 55% part-1 tick: {TITLE_PCTS}")
-    assert GREEN_PCTS and max(GREEN_PCTS) >= 45, (
-        f"dialog bar fill never reached ~55%: {GREEN_PCTS}")
+    assert max(TITLE_PCTS) >= 55, f"dialog title never reached the 55% part-1 tick: {TITLE_PCTS}"
+    assert GREEN_PCTS and max(GREEN_PCTS) >= 45, f"dialog bar fill never reached ~55%: {GREEN_PCTS}"
     log("progress percentages captured OK (title + bar pixels)")
 
     db = newest_db(PROJECTS_DIR)
     assert db, "no project db"
     conn = sqlite3.connect(str(db))
-    starts = [r[0] for r in conn.execute(
-        "SELECT start_time FROM descriptions ORDER BY start_time")]
-    maxend = conn.execute(
-        "SELECT MAX(end_time) FROM descriptions").fetchone()[0]
+    starts = [r[0] for r in conn.execute("SELECT start_time FROM descriptions ORDER BY start_time")]
+    maxend = conn.execute("SELECT MAX(end_time) FROM descriptions").fetchone()[0]
     conn.close()
     assert starts, "no descriptions"
     first, last = starts[0], starts[-1]
@@ -766,9 +800,11 @@ def invoke_menu_item(label: str) -> None:
     the same dispatch a mouse click produces (no Down-count guessing)."""
     main_hwnd = None
     for hwnd in enum_top_windows():
-        if (_pid_of(hwnd) == APP_PID
-                and _window_class(hwnd) == "wxWindowNR"
-                and _window_title(hwnd) == APP_TITLE):
+        if (
+            _pid_of(hwnd) == APP_PID
+            and _window_class(hwnd) == "wxWindowNR"
+            and _window_title(hwnd) == APP_TITLE
+        ):
             main_hwnd = hwnd
             break
     assert main_hwnd, "main frame hwnd not found"

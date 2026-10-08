@@ -355,8 +355,8 @@ Flash. Agentic video works only through the Interactions API.
 
 ## Phase 37 — ruff bug-catching rules, stage by stage (owner 8 Oct 2026)
 
-ruff already runs in CI with bug rules only and no `ruff format` (keeps git blame; formatting would rewrite 169 of
-172 files). A wider read-only run found 111 warnings; each stage adds its rule to `pyproject.toml` once clean.
+ruff already ran in CI with bug rules only. A wider read-only run found 111 warnings; each stage adds its rule to
+`pyproject.toml` once clean. Afterwards the owner chose the standard `ruff format` style for the whole repo (37.5).
 
 - [x] 37.1 B023 (closure reads a loop variable): 12, all used within the same iteration (download pumps in
       video_processor.py, bench tools) - no real bug; marked `noqa` with that reason; B023 added to CI
@@ -370,7 +370,12 @@ ruff already runs in CI with bug rules only and no `ruff format` (keeps git blam
 - [x] 37.4 B905 zip() without strict= (17, 10 in the app): all made explicit `strict=False`, behaviour unchanged.
       Some truncate on purpose (frame hashes, tiles vs times); none was switched to strict=True, which could stop a
       job mid-way on an unforeseen edge case. New zip() calls must now choose (B905 in CI)
-- [ ] 37.5 Formatting stays off (decide later)
+- [x] 37.5 `ruff format` for the whole repo (owner, 8 Oct 2026: "repo standard ... semua orang boleh contribute dan
+      mudah untuk membaca code"), line length 100 (owner's choice; 88 would change ~21k lines, 100 ~18k). 178 files
+      reformatted; the AST of all 182 tracked .py files compared before/after: identical (docstrings re-indented
+      only). Three `noqa` comments moved to the line the formatter split them onto. Two tests that matched exact source
+      text (test_fixes23, test_fixes65) now ignore whitespace (pitfall 104). CI runs `ruff format --check .` (ruff pinned);
+      the commit is in `.git-blame-ignore-revs`
 - [ ] 37.6 Turn the ECC quality-gate hook back on (remove `post:quality-gate` from ECC_DISABLED_HOOKS in
       ~/.claude/settings.json) once 37.2-37.4 are done (owner's choice)
 

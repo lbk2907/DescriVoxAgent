@@ -8,15 +8,18 @@ failed with "Cannot connect to host 127.0.0.1" until it was found.
 
 setdefault: an isolation the caller already chose (the gate) wins.
 """
+
 import os
 import tempfile
 
-for _name, _prefix in (("ODC_CONFIG_DIR", "odc_tcfg_"),
-                       ("ODC_PROJECTS_DIR", "odc_tproj_"),
-                       ("ODC_LOCALES_DIR", "odc_tloc_"),
-                       ("ODC_TOOLS_DIR", "odc_ttools_"),
-                       ("ODC_EVIDENCE_DIR", "odc_tevid_"),
-                       ("ODC_UPDATE_DIR", "odc_tupd_")):
+for _name, _prefix in (
+    ("ODC_CONFIG_DIR", "odc_tcfg_"),
+    ("ODC_PROJECTS_DIR", "odc_tproj_"),
+    ("ODC_LOCALES_DIR", "odc_tloc_"),
+    ("ODC_TOOLS_DIR", "odc_ttools_"),
+    ("ODC_EVIDENCE_DIR", "odc_tevid_"),
+    ("ODC_UPDATE_DIR", "odc_tupd_"),
+):
     if not os.environ.get(_name):
         os.environ[_name] = tempfile.mkdtemp(prefix=_prefix)
 
@@ -24,4 +27,5 @@ for _name, _prefix in (("ODC_CONFIG_DIR", "odc_tcfg_"),
 # real one in ~/.descrivox (tools/release_key.py reads this variable).
 if not os.environ.get("ODC_RELEASE_KEY"):
     os.environ["ODC_RELEASE_KEY"] = os.path.join(
-        tempfile.mkdtemp(prefix="odc_tkey_"), "test-release.key")
+        tempfile.mkdtemp(prefix="odc_tkey_"), "test-release.key"
+    )

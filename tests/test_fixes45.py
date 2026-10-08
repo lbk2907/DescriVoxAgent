@@ -17,6 +17,7 @@ pressed by keyboard and listened to (29 Sep 2026). Seven faults:
 
 All checked here without sending a single keystroke.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import os
@@ -25,10 +26,14 @@ import tempfile
 import time
 import traceback
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 os.environ["ODC_CONFIG_DIR"] = tempfile.mkdtemp(prefix="odc_t45_cfg_")
 os.environ.setdefault("ODC_PROJECTS_DIR", tempfile.mkdtemp(prefix="odc_t45_prj_"))
@@ -68,6 +73,7 @@ class _Key:
 
 def _store_with_project():
     from omni_describer_custom.core.project_store import Description, ProjectStore
+
     store = ProjectStore(tempfile.mkdtemp(prefix="odc_t45_p_"))
     store.create_project("t45", "C:/none.mp4")
     store.set_video_duration(90.0)
@@ -79,6 +85,7 @@ def test_escape_closes_editor_and_ask_more():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
     from omni_describer_custom.ui.editor_window import EditorWindow
+
     store = _store_with_project()
     ed = EditorWindow(None, store, TTSEngine({}))
     ed.Show()
@@ -93,8 +100,9 @@ def test_escape_closes_editor_and_ask_more():
     assert closed["n"] == 1, "Esc did not close the editor"
     ask = AskMoreDialog(None, None, [], 0.0)
     try:
-        assert ask.GetEscapeId() == ask.cancel_btn.GetId(), \
+        assert ask.GetEscapeId() == ask.cancel_btn.GetId(), (
             "Esc is not wired to Ask More's Cancel button"
+        )
     finally:
         ask.Destroy()
 
@@ -102,6 +110,7 @@ def test_escape_closes_editor_and_ask_more():
 def test_ten_second_jumps_say_where_they_landed():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     store = _store_with_project()
     player = PlayerWindow(None, store, TTSEngine({}))
     player.Show()
@@ -122,6 +131,7 @@ def test_ten_second_jumps_say_where_they_landed():
 def test_scene_explorer_speaks_every_frame_and_names_its_boxes():
     from omni_describer_custom.ui.scene_explorer import SceneExplorer
     from PIL import Image
+
     folder = tempfile.mkdtemp(prefix="odc_t45_f_")
     frames = []
     for i, colour in enumerate(("red", "blue", "green")):
@@ -138,15 +148,18 @@ def test_scene_explorer_speaks_every_frame_and_names_its_boxes():
             ex._show_frame(idx)
             pump()
             focused = wx.Window.FindFocus()
-            assert focused in (ex.status_text, ex._status_alt), \
+            assert focused in (ex.status_text, ex._status_alt), (
                 "the frame change did not move focus to a status label"
+            )
             spoken.append((focused, focused.GetLabel()))
-        assert spoken[0][0] is not spoken[1][0] and spoken[1][0] is not spoken[2][0], \
+        assert spoken[0][0] is not spoken[1][0] and spoken[1][0] is not spoken[2][0], (
             "consecutive announcements reused the focused label; NVDA stays silent"
+        )
         assert all(str(i) in label for (_, label), i in zip(spoken, (2, 1, 2), strict=False))
         ex._list_objects()
         pump()
         assert "AI" in wx.Window.FindFocus().GetLabel(), "L was silent without an AI"
+
         class _Tab(_Key):
             def __init__(self, shift=False):
                 super().__init__(wx.WXK_TAB)
@@ -154,18 +167,22 @@ def test_scene_explorer_speaks_every_frame_and_names_its_boxes():
 
             def ShiftDown(self):
                 return self.shift
+
         ex.desc_text.SetFocus()
         pump()
         ex._on_key(_Tab())
         pump()
-        assert wx.Window.FindFocus() is ex.objects_text,             "Tab stayed in the Description box; the objects box is unreachable"
+        assert wx.Window.FindFocus() is ex.objects_text, (
+            "Tab stayed in the Description box; the objects box is unreachable"
+        )
         ex._on_key(_Tab(shift=True))
         pump()
         assert wx.Window.FindFocus() is ex.desc_text, "Shift+Tab did not go back"
         kids = list(ex.objects_text.GetParent().GetChildren())
         before = kids[kids.index(ex.objects_text) - 1]
-        assert isinstance(before, wx.StaticText) and before.GetLabel().strip(), \
+        assert isinstance(before, wx.StaticText) and before.GetLabel().strip(), (
             "the objects box has no label for NVDA"
+        )
     finally:
         ex.Destroy()
 
@@ -174,22 +191,26 @@ def test_speed_slider_is_named_speed_and_new_user_gets_a_provider():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.i18n.strings import t
     from omni_describer_custom.ui.settings_dialog import SettingsDialog
+
     store = SettingsStore()
     store.set("ai.default_provider", "")
     dlg = SettingsDialog(None, store)
     try:
         kids = list(dlg.speed_slider.GetParent().GetChildren())
         before = kids[kids.index(dlg.speed_slider) - 1]
-        assert isinstance(before, wx.StaticText) and \
-            before.GetLabel().strip() == t("settings.speed").strip(), \
-            f"NVDA would name the slider {before.GetLabel()!r}"
+        assert (
+            isinstance(before, wx.StaticText)
+            and before.GetLabel().strip() == t("settings.speed").strip()
+        ), f"NVDA would name the slider {before.GetLabel()!r}"
         assert not dlg.speed_slider.GetWindowStyleFlag() & wx.SL_LABELS
         dlg.speed_slider.SetValue(15)
         dlg.speed_slider.ProcessWindowEvent(
-            wx.CommandEvent(wx.EVT_SLIDER.typeId, dlg.speed_slider.GetId()))
+            wx.CommandEvent(wx.EVT_SLIDER.typeId, dlg.speed_slider.GetId())
+        )
         assert dlg.speed_value.GetLabel() == "1.5x", dlg.speed_value.GetLabel()
-        assert dlg._selected_provider() == "glm", \
+        assert dlg._selected_provider() == "glm", (
             f"a new user's provider is {dlg._selected_provider()!r}"
+        )
     finally:
         dlg.Destroy()
 
@@ -197,6 +218,7 @@ def test_speed_slider_is_named_speed_and_new_user_gets_a_provider():
 def test_yes_no_buttons_speak_the_app_language():
     from omni_describer_custom.i18n.strings import I18n
     from omni_describer_custom.ui import dialogs
+
     labels = {}
 
     class Fake:
@@ -235,6 +257,7 @@ def test_open_player_follows_a_language_switch():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.i18n.strings import I18n, t
     from omni_describer_custom.ui.player_window import PlayerWindow
+
     I18n.set_language("en")
     player = PlayerWindow(None, _store_with_project(), TTSEngine({}))
     try:
@@ -254,16 +277,17 @@ def test_open_player_follows_a_language_switch():
 def main() -> int:
     app = wx.App(False)
     check("Esc closes the editor and Ask More", test_escape_closes_editor_and_ask_more)
-    check("10-second jumps say where they landed",
-          test_ten_second_jumps_say_where_they_landed)
-    check("Scene Explorer speaks every frame and names its boxes",
-          test_scene_explorer_speaks_every_frame_and_names_its_boxes)
-    check("speed slider is named Speed; a new user gets a provider",
-          test_speed_slider_is_named_speed_and_new_user_gets_a_provider)
-    check("Yes/No buttons speak the app language",
-          test_yes_no_buttons_speak_the_app_language)
-    check("an open player follows a language switch",
-          test_open_player_follows_a_language_switch)
+    check("10-second jumps say where they landed", test_ten_second_jumps_say_where_they_landed)
+    check(
+        "Scene Explorer speaks every frame and names its boxes",
+        test_scene_explorer_speaks_every_frame_and_names_its_boxes,
+    )
+    check(
+        "speed slider is named Speed; a new user gets a provider",
+        test_speed_slider_is_named_speed_and_new_user_gets_a_provider,
+    )
+    check("Yes/No buttons speak the app language", test_yes_no_buttons_speak_the_app_language)
+    check("an open player follows a language switch", test_open_player_follows_a_language_switch)
     del app
     failed = [n for n, ok in results if not ok]
     print(f"\nRESULT: {len(results) - len(failed)} passed, {len(failed)} failed")

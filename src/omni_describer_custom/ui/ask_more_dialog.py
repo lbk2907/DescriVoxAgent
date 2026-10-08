@@ -19,9 +19,14 @@ logger = logging.getLogger(__name__)
 class AskMoreDialog(wx.Dialog):
     """Dialog for asking follow-up questions about a scene."""
 
-    def __init__(self, parent, ai_engine: AIEngine | None,
-                 descriptions=None, position: float = 0.0,
-                 video_path: str = ""):
+    def __init__(
+        self,
+        parent,
+        ai_engine: AIEngine | None,
+        descriptions=None,
+        position: float = 0.0,
+        video_path: str = "",
+    ):
         self.ai = ai_engine
         # v1.9.0: the question goes with the FRAME at the player's
         # position. Ask More only ever sent description text, so it
@@ -50,21 +55,30 @@ class AskMoreDialog(wx.Dialog):
         sizer.Add(self.status_text, 0, wx.ALL, 5)
 
         # History
-        sizer.Add(wx.StaticText(panel, label=t("askmore.history"), name="history_label"), 0, wx.ALL, 5)
-        self.history_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY,
-                                        size=(-1, 150), name="ask_history")
+        sizer.Add(
+            wx.StaticText(panel, label=t("askmore.history"), name="history_label"), 0, wx.ALL, 5
+        )
+        self.history_text = wx.TextCtrl(
+            panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(-1, 150), name="ask_history"
+        )
         sizer.Add(self.history_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Question
-        sizer.Add(wx.StaticText(panel, label=t("askmore.question"), name="question_label"), 0, wx.ALL, 5)
-        self.question_text = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER,
-                                         name="question_input")
+        sizer.Add(
+            wx.StaticText(panel, label=t("askmore.question"), name="question_label"), 0, wx.ALL, 5
+        )
+        self.question_text = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER, name="question_input")
         self.question_text.Bind(wx.EVT_TEXT_ENTER, self._on_submit)
         sizer.Add(self.question_text, 0, wx.ALL | wx.EXPAND, 5)
 
         # Time range
         time_row = wx.BoxSizer(wx.HORIZONTAL)
-        time_row.Add(wx.StaticText(panel, label=t("askmore.seconds"), name="seconds_label"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        time_row.Add(
+            wx.StaticText(panel, label=t("askmore.seconds"), name="seconds_label"),
+            0,
+            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
+            5,
+        )
         self.seconds_ctrl = wx.TextCtrl(panel, value="10", size=(60, -1), name="seconds_range")
         time_row.Add(self.seconds_ctrl, 0, wx.ALL, 5)
         time_row.AddStretchSpacer()
@@ -102,6 +116,7 @@ class AskMoreDialog(wx.Dialog):
         self.status_text.SetFocus()
         try:
             from ..core.speech import announce as _speak_status
+
             _speak_status(msg)
         except Exception:
             pass  # an announcement must never break the action itself
@@ -135,21 +150,22 @@ class AskMoreDialog(wx.Dialog):
         def ask():
             import asyncio
             from ..core.ai_engine import apply_output_language
-            q = apply_output_language(prompt, getattr(
-                self.ai, "output_lang", ""))
+
+            q = apply_output_language(prompt, getattr(self.ai, "output_lang", ""))
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 frame = self._frame_at_position()
                 if frame:
-                    past = "\n".join(
-                        f"{h['role']}: {h['content']}" for h in history or [])
-                    seen = (f"{past}\n\n{q}" if past else q)
-                    result = loop.run_until_complete(_run_cancellable(
-                        self.ai.ask_about_scene(frame, seen), closed))
+                    past = "\n".join(f"{h['role']}: {h['content']}" for h in history or [])
+                    seen = f"{past}\n\n{q}" if past else q
+                    result = loop.run_until_complete(
+                        _run_cancellable(self.ai.ask_about_scene(frame, seen), closed)
+                    )
                 else:
-                    result = loop.run_until_complete(_run_cancellable(
-                        self.ai.ask(q, history), closed))
+                    result = loop.run_until_complete(
+                        _run_cancellable(self.ai.ask(q, history), closed)
+                    )
                 # Record assistant reply so follow-ups keep context
                 self._history.append({"role": "assistant", "content": result})
                 wx.CallAfter(self._reply, t("ask.ai_prefix", result=result))
@@ -157,8 +173,7 @@ class AskMoreDialog(wx.Dialog):
                 if self._closed:
                     return
                 logger.error("Ask More failed: %s", e)
-                wx.CallAfter(self._reply, t(
-                    "ask.error", error=user_error_text(str(e))) + "\n\n")
+                wx.CallAfter(self._reply, t("ask.error", error=user_error_text(str(e))) + "\n\n")
             finally:
                 loop.close()
 
@@ -181,17 +196,34 @@ class AskMoreDialog(wx.Dialog):
         import os
         import subprocess
         import tempfile
+
         if not self._video or not os.path.exists(self._video):
             return ""
         from ..core.tools import find_tool
-        out = os.path.join(tempfile.gettempdir(),
-                           f"odc_ask_{os.getpid()}.jpg")
+
+        out = os.path.join(tempfile.gettempdir(), f"odc_ask_{os.getpid()}.jpg")
         try:
             subprocess.run(
-                [find_tool("ffmpeg"), "-hide_banner", "-nostdin", "-y",
-                 "-v", "error", "-ss", f"{max(0.0, self._position):.2f}",
-                 "-i", self._video, "-frames:v", "1", "-vf",
-                 "scale=960:-2", out], timeout=60, check=True)
+                [
+                    find_tool("ffmpeg"),
+                    "-hide_banner",
+                    "-nostdin",
+                    "-y",
+                    "-v",
+                    "error",
+                    "-ss",
+                    f"{max(0.0, self._position):.2f}",
+                    "-i",
+                    self._video,
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=960:-2",
+                    out,
+                ],
+                timeout=60,
+                check=True,
+            )
             return out if os.path.exists(out) else ""
         except Exception as e:
             logger.warning("Ask More: no frame at %.1fs: %s", self._position, e)
@@ -214,8 +246,11 @@ class AskMoreDialog(wx.Dialog):
         ]
         if not lines:
             return ""
-        return t("ask.context", position=f"{self._position:.1f}",
-                 seconds=f"{window:g}") + "\n" + "\n".join(lines)
+        return (
+            t("ask.context", position=f"{self._position:.1f}", seconds=f"{window:g}")
+            + "\n"
+            + "\n".join(lines)
+        )
 
     def _on_cancel(self, event):
         self._closed = True

@@ -1,4 +1,5 @@
 """Raw truth: EnumWindows via ctypes + hung check."""
+
 import sys
 import ctypes
 from ctypes import wintypes
@@ -7,6 +8,7 @@ user32 = ctypes.windll.user32
 pid_target = int(sys.argv[1]) if len(sys.argv) > 1 else 27764
 
 results = []
+
 
 @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 def cb(hwnd, lparam):
@@ -21,6 +23,7 @@ def cb(hwnd, lparam):
         hung = user32.IsHungAppWindow(hwnd)
         results.append((hwnd, buf.value, cls.value, bool(vis), bool(hung)))
     return True
+
 
 user32.EnumWindows(cb, 0)
 print(f"windows for PID {pid_target}: {len(results)}")

@@ -31,20 +31,28 @@ Two kinds of invention, and only one is caught by the filter:
                   -> prevented instead by the VAD, which never lets
                      music reach the model
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import sys
 import traceback
 from pathlib import Path
 
-if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
-if "pytest" not in sys.modules: sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace", line_buffering=True)
+if "pytest" not in sys.modules:
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+if "pytest" not in sys.modules:
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
 sys.path.insert(0, "src")
 
 from omni_describer_custom.core.video_processor import (  # noqa: E402
-    WHISPER_COMPRESSION_LIMIT, WHISPER_DECODE, VideoProcessor)
+    WHISPER_COMPRESSION_LIMIT,
+    WHISPER_DECODE,
+    VideoProcessor,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "omni_describer_custom"
@@ -73,6 +81,7 @@ class Seg:
 
 # ── The settings that stop the drift ─────────────────────────────
 
+
 def test_the_temperature_fallback_is_off():
     """The single source of run-to-run drift.
 
@@ -84,7 +93,8 @@ def test_the_temperature_fallback_is_off():
     temperature = WHISPER_DECODE.get("temperature")
     assert temperature == 0.0, f"temperature is {temperature!r}"
     assert not isinstance(temperature, (list, tuple)), (
-        "a sequence here IS the fallback; any element above 0.0 samples")
+        "a sequence here IS the fallback; any element above 0.0 samples"
+    )
 
 
 def test_one_bad_guess_cannot_steer_the_rest():
@@ -102,32 +112,37 @@ def test_music_never_reaches_the_model():
     params = WHISPER_DECODE.get("vad_parameters") or {}
     assert params.get("threshold") == 0.3, (
         "0.5 is the library default and was too strict for the quiet "
-        "passages in the cartoon and news audio")
+        "passages in the cartoon and news audio"
+    )
     assert params.get("speech_pad_ms", 0) >= 200, (
-        "without padding the first and last syllable of a line are cut")
+        "without padding the first and last syllable of a line are cut"
+    )
 
 
 def test_the_settings_actually_reach_whisper():
     """A constant nobody passes is decoration."""
     text = (SRC / "core" / "video_processor.py").read_text(encoding="utf-8")
-    assert "**WHISPER_DECODE" in text, (
-        "WHISPER_DECODE is defined but never handed to transcribe()")
+    assert "**WHISPER_DECODE" in text, "WHISPER_DECODE is defined but never handed to transcribe()"
     call = text.split("model.transcribe(")[1][:200]
     assert "WHISPER_DECODE" in call, call
 
 
 # ── The filter, and what it deliberately does not catch ──────────
 
+
 def test_a_repeat_loop_is_dropped():
     """27 seconds of "Mememememe" scored 29.7 on a real run."""
-    assert VideoProcessor._looks_hallucinated(
-        Seg("Me" * 150, compression_ratio=29.7)) is True
+    assert VideoProcessor._looks_hallucinated(Seg("Me" * 150, compression_ratio=29.7)) is True
 
 
 def test_real_speech_is_kept():
     for ratio in (1.7, 2.0, 2.3):
-        assert VideoProcessor._looks_hallucinated(
-            Seg("Kabar kamu gimana, Ocong?", compression_ratio=ratio)) is False, ratio
+        assert (
+            VideoProcessor._looks_hallucinated(
+                Seg("Kabar kamu gimana, Ocong?", compression_ratio=ratio)
+            )
+            is False
+        ), ratio
 
 
 def test_a_real_line_survives_its_windows_ratio():
@@ -136,10 +151,14 @@ def test_a_real_line_survives_its_windows_ratio():
     character says "Bra, bra, bra, bra", and all eight real lines in it
     were dropped. The ratio is judged per line now."""
     window = 2.79
-    for line in ("Kabar kamu gimana, Ocong?", "Aku kangen sama kamu, Ocong.",
-                 "Bra, bra, bra, bra, tolong, berhenti, talinya putus berhenti."):
-        assert VideoProcessor._looks_hallucinated(
-            Seg(line, compression_ratio=window)) is False, line
+    for line in (
+        "Kabar kamu gimana, Ocong?",
+        "Aku kangen sama kamu, Ocong.",
+        "Bra, bra, bra, bra, tolong, berhenti, talinya putus berhenti.",
+    ):
+        assert VideoProcessor._looks_hallucinated(Seg(line, compression_ratio=window)) is False, (
+            line
+        )
 
 
 def test_the_limit_is_whispers_own():
@@ -148,23 +167,23 @@ def test_the_limit_is_whispers_own():
 
 def test_a_segment_with_no_ratio_is_kept():
     """A backend that reports no ratio must not lose every segment."""
+
     class Bare:
         text = "hello"
+
     assert VideoProcessor._looks_hallucinated(Bare()) is False
-    assert VideoProcessor._looks_hallucinated(
-        Seg("hello", compression_ratio=None)) is False
-    assert VideoProcessor._looks_hallucinated(
-        Seg("hello", compression_ratio="broken")) is False
+    assert VideoProcessor._looks_hallucinated(Seg("hello", compression_ratio=None)) is False
+    assert VideoProcessor._looks_hallucinated(Seg("hello", compression_ratio="broken")) is False
 
 
 def test_the_filter_is_applied_and_counted():
     text = (SRC / "core" / "video_processor.py").read_text(encoding="utf-8")
     body = text.split("def _whisper_transcribe")[1][:2500]
-    assert "_looks_hallucinated" in body, (
-        "the filter exists but nothing calls it")
+    assert "_looks_hallucinated" in body, "the filter exists but nothing calls it"
     assert "dropped" in body, (
         "segments are discarded without saying how many, so a filter "
-        "that eats a whole transcript would look like silence")
+        "that eats a whole transcript would look like silence"
+    )
 
 
 def test_the_reason_for_each_setting_is_written_down():
@@ -177,28 +196,25 @@ def test_the_reason_for_each_setting_is_written_down():
     block = text.split("WHISPER_DECODE")[0][-2000:]
     for evidence in ("7", "35%", "Korean"):
         assert evidence in block, (
-            f"the measurement behind these settings does not mention "
-            f"{evidence!r}")
+            f"the measurement behind these settings does not mention {evidence!r}"
+        )
 
 
 if __name__ == "__main__":
     print("Round 31: a transcript that says the same thing twice\n")
-    check("the temperature fallback is off",
-          test_the_temperature_fallback_is_off)
-    check("one bad guess cannot steer the rest",
-          test_one_bad_guess_cannot_steer_the_rest)
+    check("the temperature fallback is off", test_the_temperature_fallback_is_off)
+    check("one bad guess cannot steer the rest", test_one_bad_guess_cannot_steer_the_rest)
     check("music never reaches the model", test_music_never_reaches_the_model)
-    check("the settings actually reach whisper",
-          test_the_settings_actually_reach_whisper)
+    check("the settings actually reach whisper", test_the_settings_actually_reach_whisper)
     check("a repeat loop is dropped", test_a_repeat_loop_is_dropped)
     check("real speech is kept", test_real_speech_is_kept)
     check("a real line survives its window's ratio", test_a_real_line_survives_its_windows_ratio)
     check("the limit is whisper's own", test_the_limit_is_whispers_own)
-    check("a segment with no ratio is kept",
-          test_a_segment_with_no_ratio_is_kept)
-    check("the filter is applied and counted",
-          test_the_filter_is_applied_and_counted)
-    check("the reason for each setting is written down",
-          test_the_reason_for_each_setting_is_written_down)
+    check("a segment with no ratio is kept", test_a_segment_with_no_ratio_is_kept)
+    check("the filter is applied and counted", test_the_filter_is_applied_and_counted)
+    check(
+        "the reason for each setting is written down",
+        test_the_reason_for_each_setting_is_written_down,
+    )
     print(f"\nRESULT: {ok_count} passed, {fail_count} failed")
     sys.exit(1 if fail_count else 0)

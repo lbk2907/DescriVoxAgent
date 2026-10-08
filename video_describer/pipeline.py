@@ -1,6 +1,7 @@
 """Pipeline orchestration: frames -> GLM (one request, all frames) ->
 parse -> SRT/JSON (+ optional TTS narration).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,13 +52,16 @@ async def run_pipeline(
 
     # Stage 2+3: one (auto-batched) GLM request + regex parse
     from .glm_describe import DESCRIPTOR_PROMPT, apply_lang
-    result.batches = max(
-        1, -(-len(result.frames) // max(1, max_frames_per_request)))
+
+    result.batches = max(1, -(-len(result.frames) // max(1, max_frames_per_request)))
     result.events = await describe_video(
-        result.frames, api_key,
-        base_url=base_url, model=model,
+        result.frames,
+        api_key,
+        base_url=base_url,
+        model=model,
         prompt=apply_lang(prompt or DESCRIPTOR_PROMPT, lang),
-        max_frames_per_request=max_frames_per_request)
+        max_frames_per_request=max_frames_per_request,
+    )
 
     # Stage 4: outputs
     written = write_outputs(result.events, out, video_path.stem)
@@ -67,13 +71,14 @@ async def run_pipeline(
 
     if tts:
         from .tts_narrator import synthesize_events
+
         audio_dir = out / "audio"
-        await synthesize_events(
-            result.events, audio_dir, engine=tts_engine, voice=tts_voice)
+        await synthesize_events(result.events, audio_dir, engine=tts_engine, voice=tts_voice)
         result.audio_dir = audio_dir
 
     if not keep_frames:
         import shutil
+
         shutil.rmtree(frames_dir, ignore_errors=True)
         result.frames = []
     return result
@@ -81,5 +86,4 @@ async def run_pipeline(
 
 def run_pipeline_sync(*args, **kwargs) -> PipelineResult:
     """Blocking wrapper for scripts and the stdlib API server."""
-    return asyncio.new_event_loop().run_until_complete(
-        run_pipeline(*args, **kwargs))
+    return asyncio.new_event_loop().run_until_complete(run_pipeline(*args, **kwargs))

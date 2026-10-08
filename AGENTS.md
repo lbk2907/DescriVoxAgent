@@ -89,7 +89,8 @@ How work is actually done here, step by step.
 4. **Implement** in the surrounding style (worker threads touch the UI only via
    `wx.CallAfter`; external programs only via `core/tools.find_tool()`; project
    paths only via `ProjectStore`; new temp prefixes `odc_*` registered in
-   `core/housekeeping.py`).
+   `core/housekeeping.py`). Run `ruff format .` and `ruff check .` (CI fails
+   on either; line length 100, phase 37.5).
 5. **Regression test that FAILS on the old code.** Prove it (e.g. `git stash`
    the `src/` change, run the test, see it fail, restore). Add the suite to the
    list in `run_gate.bat`. A new menu/button handler needs a check in
@@ -291,7 +292,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 | Settings, projects, files | 19, 38, 39, 50, 54, 56, 58 |
 | Speech, TTS, narration hold | 4, 24, 25, 26, 27, 28, 46, 47, 48 |
 | Player agent | 79, 82, 84, 86, 87 |
-| Testing, gate, GUI automation | 3, 5, 6, 9, 10, 18, 19, 40, 44, 55, 60, 64, 88, 91, 94 |
+| Testing, gate, GUI automation | 3, 5, 6, 9, 10, 18, 19, 40, 44, 55, 60, 64, 88, 91, 94, 104 |
 | Build and packaging | 17, 21, 22, 23, 36, 49 |
 | Self-update (cmd script) | 101, 102 |
 | Listening checks (NVDA) | 100, 103 |

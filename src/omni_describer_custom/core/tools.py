@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 # text is shown to the user, so it says what they lose, not what the
 # program is called internally.
 REQUIRED_TOOLS: dict[str, str] = {
-    "ffmpeg": "extracting frames, compressing video for upload, "
-              "reading embedded subtitles",
+    "ffmpeg": "extracting frames, compressing video for upload, reading embedded subtitles",
     "ffprobe": "reading a video's duration and frame rate",
     "ffplay": "playing the video's own sound in the player",
     "yt-dlp": "downloading from YouTube and fetching captions",
@@ -54,7 +53,7 @@ def _bundle_dirs() -> list[Path]:
         # repo's bin/ is FOUR levels up. This said three (src/bin), and
         # a script run from any other folder silently used whatever
         # ffmpeg was on PATH instead of the pinned one.
-        here.parent.parent.parent.parent / "bin",   # repo: <root>/bin
+        here.parent.parent.parent.parent / "bin",  # repo: <root>/bin
         here.parent.parent / "bin",
         Path(sys.executable).parent / "bin",  # next to the .exe
         Path.cwd() / "bin",
@@ -86,9 +85,9 @@ def user_tools_dir() -> Path:
 
 def read_updates_manifest() -> dict:
     import json
+
     try:
-        return json.loads((user_tools_dir() / UPDATES_MANIFEST)
-                          .read_text(encoding="utf-8"))
+        return json.loads((user_tools_dir() / UPDATES_MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -109,10 +108,14 @@ def _user_copy(name: str) -> str:
     if cached and cached[0] == key:
         return str(path) if cached[1] else ""
     import hashlib
+
     ok = hashlib.sha256(path.read_bytes()).hexdigest() == expected
     if not ok:
-        logger.error("Updated %s at %s no longer matches its verified "
-                     "SHA-256; using the bundled copy", name, path)
+        logger.error(
+            "Updated %s at %s no longer matches its verified SHA-256; using the bundled copy",
+            name,
+            path,
+        )
     _verified_cache[str(path)] = (key, ok)
     return str(path) if ok else ""
 
@@ -160,8 +163,7 @@ def tool_available(name: str) -> bool:
 
 def missing_tools() -> list[tuple[str, str]]:
     """(name, what it is needed for) for every tool that is absent."""
-    return [(name, why) for name, why in REQUIRED_TOOLS.items()
-            if not tool_available(name)]
+    return [(name, why) for name, why in REQUIRED_TOOLS.items() if not tool_available(name)]
 
 
 def log_tool_status() -> None:
@@ -173,12 +175,15 @@ def log_tool_status() -> None:
     for name in REQUIRED_TOOLS:
         path = find_tool(name)
         if os.path.isabs(path):
-            source = ("updated by user" if path == _user_copy(name) else
-                      "bundled" if any(str(d) in path for d in _bundle_dirs())
-                      else "system")
+            source = (
+                "updated by user"
+                if path == _user_copy(name)
+                else "bundled"
+                if any(str(d) in path for d in _bundle_dirs())
+                else "system"
+            )
             logger.info("Tool %s: %s (%s)", name, path, source)
         elif shutil.which(path):
             logger.info("Tool %s: %s (PATH)", name, shutil.which(path))
         else:
-            logger.error("Tool %s: NOT FOUND — needed for %s",
-                         name, REQUIRED_TOOLS[name])
+            logger.error("Tool %s: NOT FOUND — needed for %s", name, REQUIRED_TOOLS[name])

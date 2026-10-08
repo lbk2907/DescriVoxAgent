@@ -3,6 +3,7 @@
 Also audits: every button/control created with an empty or placeholder label.
 Standalone script, exits 1 on missing keys.
 """
+
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import re
 import sys
