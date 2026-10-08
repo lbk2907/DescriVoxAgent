@@ -1199,7 +1199,6 @@ class PlayerWindow(wx.Frame):
 
     def _make_agent(self):
         from ..core.agent import Agent, Context
-        from ..i18n.strings import I18n
         provider = self._settings.get("ai.default_provider", "") or "glm"
         cfg = self._settings.get_ai_provider(provider)
         proj = self.project

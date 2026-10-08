@@ -58,7 +58,7 @@ def test_ai_describe_frames_no_provider():
     except ValueError as e:
         assert "gemini" in str(e), str(e)
     except KeyError as e:
-        raise AssertionError(f"KeyError leaked to caller: {e}")
+        raise AssertionError(f"KeyError leaked to caller: {e}") from e
 check("describe_frames raises clean ValueError for unconfigured provider", test_ai_describe_frames_no_provider)
 
 # 3. SceneExplorer: latar belakang ekstraksi dengan video sebenar

@@ -2005,7 +2005,7 @@ class GLMProvider(AIProvider):
                         if not limit and self.is_too_large_error(err):
                             limit = int(getattr(self, "_last_body_bytes", 0) * 0.6)
                         if not limit or self.MAX_VIDEO_BYTES <= int(limit * 0.72):
-                            raise err
+                            raise err  # noqa: B904 - the provider's own error, as it came
                         logger.warning("part %d/%d: provider limit is %d bytes; "
                                        "compressing to fit and retrying",
                                        i + 1, total, limit)
@@ -2473,7 +2473,6 @@ class GLMProvider(AIProvider):
     ) -> Path:
         """Encode path into out at the upload settings. Raises on failure."""
         import shutil as _shutil
-        out_dir = out.parent
         duration = 1.0
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(
@@ -2481,7 +2480,7 @@ class GLMProvider(AIProvider):
                  str(path), "-f", "null", "-"],
                 is_cancelled, 600)
             m = None
-            for m in re.finditer(
+            for m in re.finditer(  # noqa: B007 - keeps the LAST match
                     r"time=(\d+):(\d+):(\d+(?:\.\d+)?)",
                     stderr_tail.decode("utf-8", "replace")):
                 pass  # keep the LAST time= (real duration, not the first)

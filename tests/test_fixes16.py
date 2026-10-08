@@ -105,7 +105,6 @@ def _long_video() -> str:
     run. A synthetic clip is made once and reused (low resolution, so
     it takes seconds). Returns "" only if ffmpeg itself is missing.
     """
-    import subprocess
     from omni_describer_custom.core.tools import find_tool
     path = os.path.join(tempfile.gettempdir(), "odc_t16_long_600s.mp4")
     if os.path.exists(path) and os.path.getsize(path) > 100_000:
@@ -233,7 +232,7 @@ def _t_gui() -> None:
 
 try:
     _t_gui()
-except Exception as e:
+except Exception:
     traceback.print_exc()
     FAIL += 1
     FAIL_NAMES.append("gui-suite")

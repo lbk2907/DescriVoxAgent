@@ -595,7 +595,7 @@ def test_network_errors_are_retried_then_reported():
     try:
         try:
             aio.run(prov._chat({"model": "m"}, timeout=5))
-            assert False, "a dead connection should raise, not return"
+            raise AssertionError("a dead connection should raise, not return")
         except RuntimeError as e:
             assert "after 3 attempts" in str(e), str(e)
             assert "connection reset" in str(e), \

@@ -35,7 +35,7 @@ def run():
     from omni_describer_custom.core.tts_engine import TTSEngine
     from omni_describer_custom.core.ai_engine import AIEngine
 
-    app = wx.App(False)
+    _app = wx.App(False)
 
     # MainFrame
     frame = MainFrame()

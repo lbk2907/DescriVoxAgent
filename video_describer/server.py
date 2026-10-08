@@ -110,7 +110,6 @@ class _Handler(BaseHTTPRequestHandler):
         if length <= 0:
             return self._send(400, {"error": "empty upload"})
         name = os.path.basename(qs.get("name") or "upload.mp4")
-        stem = Path(name).stem or "upload"
         work = _workdir()
         video = work / name
         remaining = length

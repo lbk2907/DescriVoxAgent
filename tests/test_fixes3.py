@@ -66,7 +66,7 @@ def test_askmore_history():
     from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
     from omni_describer_custom.core.ai_engine import AIEngine
 
-    app = wx.GetApp() or wx.App(False)
+    _app = wx.GetApp() or wx.App(False)
 
     class FakeEngine:
         async def ask(self, question, history=None, model=""):
@@ -94,7 +94,7 @@ def test_askmore_context_passed():
     import wx, time
     from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
 
-    app = wx.GetApp() or wx.App(False)
+    _app = wx.GetApp() or wx.App(False)
 
     received = {}
 

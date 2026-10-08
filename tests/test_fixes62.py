@@ -219,7 +219,7 @@ def test_export_audio_cancels():
     except RuntimeError as e:
         assert str(e) == "cancelled", f"wrong error: {e}"
     except TypeError as e:
-        raise AssertionError(f"export_audio cannot be cancelled: {e}")
+        raise AssertionError(f"export_audio cannot be cancelled: {e}") from e
     else:
         raise AssertionError("export_audio finished despite Cancel")
     assert FakeTTS.calls == 0, f"{FakeTTS.calls} cue(s) rendered after Cancel"

@@ -99,8 +99,6 @@ class SAPI5Engine(TTSEngineBase):
 
             # Monkey-patch: fix SAPI5 voice ID bug — Language attribute
             # sometimes returns "409;9" instead of just "409"
-            original_toVoice = SAPI5Driver._toVoice
-
             def _patched_toVoice(attr):
                 voice_id = attr.Id
                 voice_name = attr.GetDescription()

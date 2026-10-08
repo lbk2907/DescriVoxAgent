@@ -136,8 +136,8 @@ class _GeminiStub(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({
                 "file": {
-                    "uri": (f"http://generativelanguage.googleapis.com/v1beta/"
-                            f"files/demoabc123"),
+                    "uri": ("http://generativelanguage.googleapis.com/v1beta/"
+                            "files/demoabc123"),
                     "name": "files/demoabc123",
                     "state": "PROCESSING",
                 }

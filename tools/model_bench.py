@@ -1025,7 +1025,7 @@ def cmd_snap(args) -> int:
         variant = f"{clip.split('@')[0]}@{args.tag}"
         results[f"{args.model}|desc|{variant}|1"] = {
             "cues": [[t, x] for t, x, _ in new], "error": ""}
-        for new_i, (t, x, old_i) in enumerate(new):
+        for new_i, (t, _x, old_i) in enumerate(new):
             if abs(t - cues[old_i][0]) > 0.05:
                 continue
             for judge in ("z-ai/glm-5.3-flash", "google/gemini-3.8-flash"):

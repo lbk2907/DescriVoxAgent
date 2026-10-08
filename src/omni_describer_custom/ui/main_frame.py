@@ -162,8 +162,6 @@ class MainFrame(wx.Frame):
         outer.AddSpacer(8)
 
         # ── 2. Prompt preset row (ComboBox + Open button) ────────
-        preset_row = wx.BoxSizer(wx.HORIZONTAL)
-
         self.preset_label = wx.StaticText(
             panel,
             label=t("main.preset_hint"),

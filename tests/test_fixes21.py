@@ -956,6 +956,9 @@ def test_saved_preference_is_what_the_player_opens_with():
                 p.Destroy()
             except Exception:
                 pass
+        # Phase 37.2: `before` was saved and never put back, so later tests
+        # in this file ran with narration-pause OFF.
+        f.settings.set("player.pause_for_narration", before)
         _close(f)
 
 

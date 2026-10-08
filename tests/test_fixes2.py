@@ -75,7 +75,6 @@ def test_player_vlc_fallback():
             ps = ProjectStore(projects_dir=d)
             ps.create_project("VLCFallback", "nonexistent.mp4")
             ps.add_description(Description(start_time=0.0, end_time=5.0, text="D1"))
-            frame_holder = {}
             pw = PlayerWindow(None, ps, TTSEngine({}), AIEngine())
             # VLC not installed on this machine -> must fall back
             assert pw._vlc_available is False, "VLC unexpectedly available?"
@@ -106,7 +105,7 @@ def test_settings_voice_list():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.core.tts_engine import TTSEngine
 
-    app = wx.GetApp() or wx.App(False)
+    _app = wx.GetApp() or wx.App(False)
     with tempfile.TemporaryDirectory() as d:
         s = SettingsStore(config_dir=d)
         tts = TTSEngine({})
@@ -143,7 +142,7 @@ def test_settings_persist_voice_speed():
     from omni_describer_custom.core.settings_store import SettingsStore
     from omni_describer_custom.core.tts_engine import TTSEngine
 
-    app = wx.GetApp() or wx.App(False)
+    _app = wx.GetApp() or wx.App(False)
     with tempfile.TemporaryDirectory() as d:
         s = SettingsStore(config_dir=d)
         tts = TTSEngine({})

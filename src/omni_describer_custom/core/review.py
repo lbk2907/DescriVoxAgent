@@ -278,7 +278,7 @@ async def review(engine, video: str, pairs: list[tuple[float, str]],
         await asyncio.gather(*tasks, return_exceptions=True)
         strip.close()
     kept: list[tuple[float, str]] = []
-    for (t, text), (action, new_t) in zip(pairs, results):
+    for (_t, text), (action, new_t) in zip(pairs, results):
         summary["checked"] += 1
         if action == "drop":
             summary["removed"] += 1

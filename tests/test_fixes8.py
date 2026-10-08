@@ -31,7 +31,7 @@ def check(name, fn):
     global ok, fail
     try:
         import wx
-        app = wx.GetApp() or wx.App(False)
+        _app = wx.GetApp() or wx.App(False)
         fn()
         print(f"PASS: {name}")
         ok += 1
@@ -130,7 +130,7 @@ check("AI batch stops between frames on cancel; remaining marked", test_ai_cance
 def test_dialog_phases_via_real_frame():
     import wx
     from omni_describer_custom.i18n.strings import t
-    app = wx.GetApp()
+    _app = wx.GetApp()
     frame = MainFrame()
     msgs = {}
     try:
@@ -168,7 +168,7 @@ check("Real dialog: frame count, AI done/total, saving text, Cancel handling", t
 #    dir cleaned only at the end, descriptions reference copied frames.
 def test_full_pipeline_copies_frames():
     import wx
-    app = wx.GetApp()
+    _app = wx.GetApp()
     frame = MainFrame()
     tmp_src = tempfile.mkdtemp(prefix="odc8_src_")
     proj_dir = tempfile.mkdtemp(prefix="odc8_proj_")

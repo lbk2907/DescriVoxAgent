@@ -45,7 +45,7 @@ try:
 
     h0 = handles()
     N = 40
-    for i in range(N):
+    for _i in range(N):
         frame._dl_cancelled = False
         frame._ai_cancelled = False
         frame._process_video(str(bad), "prompt")

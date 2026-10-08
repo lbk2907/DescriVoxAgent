@@ -76,7 +76,7 @@ check("_format_progress renders percent, MB of MB, speed, ETA", test_format_prog
 def test_dialog_lifecycle():
     import wx
     from omni_describer_custom.ui.main_frame import MainFrame
-    app = wx.GetApp() or wx.App(False)
+    _app = wx.GetApp() or wx.App(False)
     frame = MainFrame()
     try:
         assert frame._dl_dialog is None, "dialog must start closed"

@@ -360,7 +360,10 @@ ruff already runs in CI with bug rules only and no `ruff format` (keeps git blam
 
 - [x] 37.1 B023 (closure reads a loop variable): 12, all used within the same iteration (download pumps in
       video_processor.py, bench tools) - no real bug; marked `noqa` with that reason; B023 added to CI
-- [ ] 37.2 F841, F811, F541, B007, B904, B011 (28): unused variables, duplicates, raise-from, assert False
+- [x] 37.2 F841, F811, F541, B007, B904, B011 (29 incl. video_describer/server.py): app leftovers removed (`out_dir`,
+      `original_toVoice`, an unused sizer, a duplicate import), two intentional cases noqa'd with reasons; ONE real test
+      bug: test_fixes21 saved the narration-pause setting and never restored it (now restored in `finally`); tests keep
+      `wx.App` alive as `_app`. Rules added to CI; review: behaviour-neutral
 - [ ] 37.3 F401 unused imports (54): remove; intentional ones (e.g. `import isolate`) marked noqa; check PyInstaller
 - [ ] 37.4 B905 zip() without strict= (17): case by case - strict=True raises on different lengths
 - [ ] 37.5 Formatting stays off (decide later)
