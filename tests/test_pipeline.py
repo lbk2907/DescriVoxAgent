@@ -19,7 +19,6 @@ import io
 import json
 import sys
 import threading
-import time
 import traceback
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer

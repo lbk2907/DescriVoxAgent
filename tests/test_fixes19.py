@@ -34,7 +34,7 @@ from omni_describer_custom.core.project_store import (  # noqa: E402
     ProjectStore, Description,
 )
 from omni_describer_custom.core.settings_store import (  # noqa: E402
-    SettingsStore, _protect_secret, _unprotect_secret, _simple_encrypt,
+    SettingsStore, _protect_secret, _unprotect_secret, _simple_encrypt,  # noqa: F401 (checks the name still exists)
 )
 from omni_describer_custom.core.prompt_manager import PromptManager  # noqa: E402
 from omni_describer_custom.core.ai_engine import snap_timestamps  # noqa: E402

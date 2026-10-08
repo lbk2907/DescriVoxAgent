@@ -11,7 +11,6 @@ import logging
 import sys
 
 import wx
-from typing import Any
 
 from ..core.ai_engine import user_error_text
 from ..i18n.strings import I18n, t
@@ -1207,4 +1206,3 @@ class SettingsDialog(wx.Dialog):
         I18n.set_language(lang)
 
 
-import threading as _threading

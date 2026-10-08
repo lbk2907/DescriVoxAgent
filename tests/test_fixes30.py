@@ -47,7 +47,7 @@ sys.path.insert(0, "src")
 from omni_describer_custom.core.ai_engine import (  # noqa: E402
     build_transcript_block)
 from omni_describer_custom.core.timeline_io import (  # noqa: E402
-    MIN_CUE_SECONDS, WORDS_PER_SECOND_AT_1X, silent_gaps, speaking_seconds)
+    MIN_CUE_SECONDS, WORDS_PER_SECOND_AT_1X, silent_gaps, speaking_seconds)  # noqa: F401 (checks the name still exists)
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "omni_describer_custom"

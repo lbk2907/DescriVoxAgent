@@ -1,7 +1,6 @@
 """Regression tests round 2: duration persist, TTS settings, VLC fallback."""
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
-import sys, io, traceback, tempfile, sqlite3
-from pathlib import Path
+import sys, io, traceback, tempfile
 
 if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)

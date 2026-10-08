@@ -7,16 +7,13 @@ Handles: video loading, frame extraction, scene change detection, transcript.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
-import os
 import re
-import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from .tools import find_tool
 

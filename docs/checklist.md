@@ -364,7 +364,9 @@ ruff already runs in CI with bug rules only and no `ruff format` (keeps git blam
       `original_toVoice`, an unused sizer, a duplicate import), two intentional cases noqa'd with reasons; ONE real test
       bug: test_fixes21 saved the narration-pause setting and never restored it (now restored in `finally`); tests keep
       `wx.App` alive as `_app`. Rules added to CI; review: behaviour-neutral
-- [ ] 37.3 F401 unused imports (54): remove; intentional ones (e.g. `import isolate`) marked noqa; check PyInstaller
+- [x] 37.3 F401 unused imports (56): 43 removed (stdlib/typing leftovers); 13 kept with a noqa reason - the
+      `edge_tts` availability check and test imports that check a name still exists; no test reached a removed
+      import through its module (grep); F401 in CI
 - [ ] 37.4 B905 zip() without strict= (17): case by case - strict=True raises on different lengths
 - [ ] 37.5 Formatting stays off (decide later)
 - [ ] 37.6 Turn the ECC quality-gate hook back on (remove `post:quality-gate` from ECC_DISABLED_HOOKS in

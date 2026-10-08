@@ -12,7 +12,7 @@ import wx
 
 from ..core.project_store import ProjectStore
 from ..core.tts_engine import TTSEngine
-from ..i18n.strings import I18n, t
+from ..i18n.strings import t
 
 logger = logging.getLogger(__name__)
 

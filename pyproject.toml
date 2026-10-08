@@ -58,4 +58,6 @@ extend-exclude = ["build", "dist", "bin", "projects"]
 # iteration, marked noqa with that reason).
 # 37.2: unused variables, duplicate imports, raise-from, assert False.
 select = ["E9", "F63", "F7", "F82", "B023",
-          "F841", "F811", "F541", "B007", "B904", "B011"]
+          "F841", "F811", "F541", "B007", "B904", "B011",
+          # 37.3: unused imports (intentional ones carry noqa with the reason)
+          "F401"]

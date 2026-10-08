@@ -2472,7 +2472,6 @@ class GLMProvider(AIProvider):
         is_cancelled: Callable[[], bool] | None = None,
     ) -> Path:
         """Encode path into out at the upload settings. Raises on failure."""
-        import shutil as _shutil
         duration = 1.0
         try:
             _ret, stderr_tail = self._run_ffmpeg_cancellable(

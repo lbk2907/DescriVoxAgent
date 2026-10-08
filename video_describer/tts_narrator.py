@@ -6,7 +6,6 @@ for players that read cue audio, plus optional concatenation.
 """
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 

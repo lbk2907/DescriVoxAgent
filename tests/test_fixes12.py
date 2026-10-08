@@ -205,7 +205,7 @@ def test_full_video_flow():
 
 
 def test_engine_rejects_non_gemini():
-    from omni_describer_custom.core.ai_engine import AIEngine, OpenAIProvider
+    from omni_describer_custom.core.ai_engine import AIEngine, OpenAIProvider  # noqa: F401 (checks the name still exists)
 
     engine = AIEngine()
     engine.set_provider("openai", api_key="k")

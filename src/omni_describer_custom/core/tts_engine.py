@@ -16,8 +16,6 @@ import threading
 import time
 import tempfile
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +214,7 @@ class EdgeTTSEngine(TTSEngineBase):
 
     def _setup(self):
         try:
-            import edge_tts
+            import edge_tts  # noqa: F401 (availability check)
             self.available = True
             logger.info("Edge TTS engine available")
         except ImportError:

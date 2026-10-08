@@ -172,7 +172,7 @@ check("REAL HTTP AI: wire format, auth, JPEG bytes, progress over the wire", tes
 # 2. REAL end-to-end acceptance: real video -> real extraction -> real AI
 #    HTTP -> real SQLite -> frames copied to project.
 def test_full_real_pipeline():
-    import wx
+    import wx  # noqa: F401 (checks the name still exists)
     srv = LoopbackAI()
     tmp = tempfile.mkdtemp(prefix="e2e_")
     try:

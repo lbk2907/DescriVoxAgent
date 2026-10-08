@@ -17,7 +17,6 @@ and a mismatch stops the build rather than guessing.
 from __future__ import annotations
 
 import hashlib
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

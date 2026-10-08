@@ -7,7 +7,6 @@ Manages prompt presets: CRUD, per-language, validation.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from .settings_store import SettingsStore
 

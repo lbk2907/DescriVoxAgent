@@ -5,7 +5,7 @@ Real-path tests: they run the actual yt-dlp binary against an actual URL
 No mocks substitute for the real acceptance path.
 """
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
-import sys, io, traceback, tempfile, subprocess, shutil, time
+import sys, io, traceback, tempfile, subprocess, shutil
 from pathlib import Path
 
 if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",

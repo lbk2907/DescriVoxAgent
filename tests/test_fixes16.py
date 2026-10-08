@@ -24,7 +24,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import traceback
 from pathlib import Path
@@ -222,7 +221,7 @@ def _t_gui() -> None:
     check("8b srt roundtrip", len(cues) == 2 and abs(cues[1].start_time - 61.5) < 0.01)
 
     # 9: i18n keys exist (EN current language)
-    from omni_describer_custom.i18n.strings import t, I18n
+    from omni_describer_custom.i18n.strings import t, I18n  # noqa: F401 (checks the name still exists)
     keys = ["project.remove_btn", "project.dedupe_open", "log.video_saved_at",
             "download.loading_info", "process.complete_with_video"]
     check("9 i18n keys present", all(t(k) != k for k in keys))

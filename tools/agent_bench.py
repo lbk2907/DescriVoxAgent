@@ -31,7 +31,6 @@ import argparse
 import asyncio
 import base64
 import json
-import os
 import subprocess
 import sys
 import time

@@ -15,12 +15,9 @@ Accessible for screen readers: labels, keyboard nav.
 from __future__ import annotations
 
 import logging
-import os
-import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import wx
 import wx.adv
@@ -30,9 +27,8 @@ from ..core.tts_engine import TTSEngine
 from ..core.project_store import ProjectStore
 from ..core.settings_store import SettingsStore
 from ..core.prompt_manager import PromptManager
-from ..core.video_processor import VideoProcessor, SourceError, DownloadProgress
+from ..core.video_processor import VideoProcessor, SourceError
 from ..i18n.strings import I18n, t
-from .settings_dialog import PROVIDER_MODELS
 from .progress_dialog import AccessibleProgressDialog
 
 logger = logging.getLogger(__name__)

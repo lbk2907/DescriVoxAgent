@@ -12,7 +12,6 @@ all 888 seconds. The app tried once and showed the raw English error.
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import asyncio
 import io
-import os
 import sys
 import tempfile
 import traceback

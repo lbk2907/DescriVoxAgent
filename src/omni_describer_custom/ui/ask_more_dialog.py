@@ -11,7 +11,7 @@ import threading
 import wx
 
 from ..core.ai_engine import AIEngine, _run_cancellable, user_error_text
-from ..i18n.strings import I18n, t
+from ..i18n.strings import t
 
 logger = logging.getLogger(__name__)
 

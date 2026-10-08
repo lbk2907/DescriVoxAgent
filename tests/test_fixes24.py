@@ -23,7 +23,6 @@ import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
 import io
 import json
 import sys
-import tempfile
 import traceback
 from pathlib import Path
 

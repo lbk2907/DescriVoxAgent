@@ -29,7 +29,7 @@ def check(name, fn):
         fail += 1
 
 # 1. Settings store round-trip with temp dir
-import tempfile, json
+import tempfile
 from pathlib import Path
 
 def test_settings():

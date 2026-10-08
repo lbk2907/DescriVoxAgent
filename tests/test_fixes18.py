@@ -59,7 +59,6 @@ sig_g = inspect.signature(GLMProvider.describe_video_full)
 ok("2b. GLM full-video default chunk 300",
    sig_g.parameters["chunk_seconds"].default == 300)
 
-from omni_describer_custom.core.settings_store import SettingsStore  # noqa: E402
 _store_src = inspect.getsource(
     sys.modules["omni_describer_custom.core.settings_store"])
 ok("2c. settings_store default chunk 300",

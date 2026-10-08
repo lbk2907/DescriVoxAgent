@@ -164,7 +164,7 @@ def _make_images(tmp: Path, n: int) -> list[str]:
 
 
 def test_glm_fast_batch_single():
-    import omni_describer_custom.core.ai_engine as ae
+    import omni_describer_custom.core.ai_engine as ae  # noqa: F401 (checks the name still exists)
     from omni_describer_custom.core.ai_engine import GLMProvider
 
     with tempfile.TemporaryDirectory() as td:

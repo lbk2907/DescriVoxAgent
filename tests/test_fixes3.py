@@ -1,7 +1,6 @@
 """Regression tests round 3: voice cache, ask-more history, apply close."""
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
-import sys, io, traceback, tempfile
-from pathlib import Path
+import sys, io, traceback
 
 if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
                               line_buffering=True)
@@ -64,7 +63,7 @@ check("EdgeTTSEngine voices cached after first fetch", test_edge_voice_cache)
 def test_askmore_history():
     import wx
     from omni_describer_custom.ui.ask_more_dialog import AskMoreDialog
-    from omni_describer_custom.core.ai_engine import AIEngine
+    from omni_describer_custom.core.ai_engine import AIEngine  # noqa: F401 (checks the name still exists)
 
     _app = wx.GetApp() or wx.App(False)
 

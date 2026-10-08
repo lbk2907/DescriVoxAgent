@@ -19,7 +19,7 @@ sys.path.insert(0, "src")
 from omni_describer_custom.core.ai_engine import (
     AIEngine,
     GLMProvider,
-    parse_gemini_timestamp_lines,
+    parse_gemini_timestamp_lines,  # noqa: F401 (checks the name still exists)
 )
 
 

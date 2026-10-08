@@ -13,7 +13,7 @@ ffmpeg extraction, real HTTP loopback AI, real SQLite):
 2. cap absent/0 (default) -> every extracted frame is analysed (all hits).
 """
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
-import sys, io, subprocess, threading, traceback, tempfile, shutil, time
+import sys, io, subprocess, threading, traceback, tempfile, shutil
 from pathlib import Path
 
 if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",
@@ -117,7 +117,7 @@ class LoopbackAI:
             self._loop.close()
 
 def _make_frame(tmp: Path, cap: int | None):
-    import wx
+    import wx  # noqa: F401 (checks the name still exists)
     from omni_describer_custom.core.ai_engine import AIEngine
     from omni_describer_custom.core.project_store import ProjectStore
     from omni_describer_custom.ui.main_frame import MainFrame
@@ -139,7 +139,7 @@ def _make_frame(tmp: Path, cap: int | None):
     return srv, video, frame
 
 def test_cap_limits_requests():
-    import wx
+    import wx  # noqa: F401 (checks the name still exists)
     tmp = tempfile.mkdtemp(prefix="cap11_")
     try:
         srv, video, frame = _make_frame(Path(tmp), cap=2)
@@ -174,7 +174,7 @@ def test_cap_limits_requests():
         shutil.rmtree(tmp, ignore_errors=True)
 
 def test_default_no_cap():
-    import wx
+    import wx  # noqa: F401 (checks the name still exists)
     tmp = tempfile.mkdtemp(prefix="cap11b_")
     try:
         srv, video, frame = _make_frame(Path(tmp), cap=None)  # default: no cap

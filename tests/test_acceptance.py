@@ -12,7 +12,7 @@ Network note: edge TTS needs internet; if offline the engine's own
 fallback chain uses sapi5 (offline). Either way sound must be produced.
 """
 import isolate  # noqa: F401  (first: never the owner's real data, pitfall 19)
-import sys, io, time, tempfile, shutil, os, traceback
+import sys, io, time, tempfile, shutil, traceback
 from pathlib import Path
 
 if "pytest" not in sys.modules: sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace",

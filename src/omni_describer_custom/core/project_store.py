@@ -6,7 +6,6 @@ Stores video descriptions, metadata, and project state.
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 import shutil
@@ -14,7 +13,6 @@ import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
