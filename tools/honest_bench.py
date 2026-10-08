@@ -49,7 +49,7 @@ def questions():
         return HARD
     if SET == "hard-ms":
         return [(c, k, q_ms, kw_ms, t) for (c, k, _q, _kw, t), (q_ms, kw_ms)
-                in zip(HARD, HARD_MS_TEXT)]
+                in zip(HARD, HARD_MS_TEXT, strict=False)]
     return [(c, k, q, kw, LENGTH[c] / 2) for c, k, q, kw in QUESTIONS]
 QUESTIONS = [
     # (clip, kind, question, keywords that make a PRESENT answer correct)

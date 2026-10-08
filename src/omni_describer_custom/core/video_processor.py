@@ -914,7 +914,7 @@ class VideoProcessor:
                 # Unknown hashes: never treat frames as duplicates,
                 # otherwise all frames would be dropped.
                 return 0.0
-            matches = sum(c1 == c2 for c1, c2 in zip(h1, h2))
+            matches = sum(c1 == c2 for c1, c2 in zip(h1, h2, strict=False))
             return matches / max(len(h1), len(h2))
 
         deduped = [frames[0]]

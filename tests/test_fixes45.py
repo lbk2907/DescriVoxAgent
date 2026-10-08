@@ -143,7 +143,7 @@ def test_scene_explorer_speaks_every_frame_and_names_its_boxes():
             spoken.append((focused, focused.GetLabel()))
         assert spoken[0][0] is not spoken[1][0] and spoken[1][0] is not spoken[2][0], \
             "consecutive announcements reused the focused label; NVDA stays silent"
-        assert all(str(i) in label for (_, label), i in zip(spoken, (2, 1, 2)))
+        assert all(str(i) in label for (_, label), i in zip(spoken, (2, 1, 2), strict=False))
         ex._list_objects()
         pump()
         assert "AI" in wx.Window.FindFocus().GetLabel(), "L was silent without an AI"

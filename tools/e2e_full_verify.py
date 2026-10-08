@@ -410,7 +410,7 @@ def main() -> int:
             length = _clip_seconds(clip)
             starts = sorted(float(d["start_time"]) for d in descriptions)
             edges = [0.0] + starts + [length]
-            gap = max(b - a for a, b in zip(edges, edges[1:]))
+            gap = max(b - a for a, b in zip(edges, edges[1:], strict=False))
             record("descriptions cover the whole video",
                    length > 0 and starts[-1] >= length - 90 and gap <= 120,
                    f"last cue {starts[-1]:.0f}s of {length:.0f}s, "

@@ -1418,7 +1418,7 @@ class PlayerWindow(wx.Frame):
                                                     p.old, p.text)
                 if not changed:
                     continue
-                for d, new_text in zip(descs, texts):
+                for d, new_text in zip(descs, texts, strict=False):
                     if d.text != new_text:
                         d.text, d.edited = new_text, True
                 folder = self.store.project_dir(proj.id)

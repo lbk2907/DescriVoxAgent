@@ -206,7 +206,7 @@ class FrameStrip:
         w, h = tiles[0].size
         sheet = Image.new("RGB", (w * 4, h * 3))
         draw = ImageDraw.Draw(sheet)
-        for i, (tile, at) in enumerate(zip(tiles, times)):
+        for i, (tile, at) in enumerate(zip(tiles, times, strict=False)):
             x, y = (i % 4) * w, (i // 4) * h
             sheet.paste(tile.resize((w, h)), (x, y))
             label = _clock(at)
@@ -278,7 +278,7 @@ async def review(engine, video: str, pairs: list[tuple[float, str]],
         await asyncio.gather(*tasks, return_exceptions=True)
         strip.close()
     kept: list[tuple[float, str]] = []
-    for (_t, text), (action, new_t) in zip(pairs, results):
+    for (_t, text), (action, new_t) in zip(pairs, results, strict=False):
         summary["checked"] += 1
         if action == "drop":
             summary["removed"] += 1

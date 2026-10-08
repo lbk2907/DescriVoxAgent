@@ -485,7 +485,7 @@ def finalize_frame_descriptions(frames, texts) -> list[tuple]:
     """(frame, cleaned text) pairs worth keeping: placeholders dropped,
     and a line identical to the previous one not said twice."""
     kept, last = [], ""
-    for frame, text in zip(frames, texts):
+    for frame, text in zip(frames, texts, strict=False):
         if is_placeholder_text(text):
             continue
         line = clean_frame_text(text)
@@ -1942,7 +1942,7 @@ class GLMProvider(AIProvider):
             # the next parts' speech. 0 = unknown (probe failed).
             ends = list(starts[1:len(parts)]) + [duration]
             part_lens = [max(0.0, e - s) if duration > 0 else 0.0
-                         for s, e in zip(starts, ends)]
+                         for s, e in zip(starts, ends, strict=False)]
             merged: list[tuple[float, str]] = []
             done_parts = 0
             prev_summary = ""
@@ -1973,7 +1973,7 @@ class GLMProvider(AIProvider):
                         logger.debug("on_eta raised", exc_info=True)
                 return cb
 
-            for i, (part, offset) in enumerate(zip(parts, starts)):
+            for i, (part, offset) in enumerate(zip(parts, starts, strict=False)):
                 if is_cancelled and is_cancelled():
                     raise RuntimeError("cancelled")
                 if on_part:

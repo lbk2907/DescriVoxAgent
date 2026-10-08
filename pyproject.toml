@@ -60,4 +60,7 @@ extend-exclude = ["build", "dist", "bin", "projects"]
 select = ["E9", "F63", "F7", "F82", "B023",
           "F841", "F811", "F541", "B007", "B904", "B011",
           # 37.3: unused imports (intentional ones carry noqa with the reason)
-          "F401"]
+          "F401",
+          # 37.4: every zip() states strict=; the 17 existing ones keep their
+          # old behaviour (strict=False) - none was made to raise.
+          "B905"]

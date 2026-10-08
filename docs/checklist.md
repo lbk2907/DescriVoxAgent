@@ -367,7 +367,9 @@ ruff already runs in CI with bug rules only and no `ruff format` (keeps git blam
 - [x] 37.3 F401 unused imports (56): 43 removed (stdlib/typing leftovers); 13 kept with a noqa reason - the
       `edge_tts` availability check and test imports that check a name still exists; no test reached a removed
       import through its module (grep); F401 in CI
-- [ ] 37.4 B905 zip() without strict= (17): case by case - strict=True raises on different lengths
+- [x] 37.4 B905 zip() without strict= (17, 10 in the app): all made explicit `strict=False`, behaviour unchanged.
+      Some truncate on purpose (frame hashes, tiles vs times); none was switched to strict=True, which could stop a
+      job mid-way on an unforeseen edge case. New zip() calls must now choose (B905 in CI)
 - [ ] 37.5 Formatting stays off (decide later)
 - [ ] 37.6 Turn the ECC quality-gate hook back on (remove `post:quality-gate` from ECC_DISABLED_HOOKS in
       ~/.claude/settings.json) once 37.2-37.4 are done (owner's choice)

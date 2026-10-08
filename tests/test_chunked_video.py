@@ -120,7 +120,7 @@ def main() -> int:
     # a tick at 10 + 90*done/total; the FINAL tick must be exactly 100.
     assert splits, "no on_split_progress ticks at all"
     assert splits[-1] == 100.0, splits[-5:]
-    assert all(a <= b for a, b in zip(splits, splits[1:])), (
+    assert all(a <= b for a, b in zip(splits, splits[1:], strict=False)), (
         "non-monotonic split progress", splits)
     # Part-completion ticks must be present: 3 parts → 40, 70, 100
     # (the split phase itself already reaches ~10%).

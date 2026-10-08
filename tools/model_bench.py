@@ -320,7 +320,7 @@ async def _describe_frames(model: str, clip: str, keys: dict) -> dict:
             str(CLIPS / f"{clip}.mp4"), fps=5, output_dir=str(folder))
         texts = await GLMProvider(api_key=keys["glm"]).describe_frames_batch(
             [f.path for f in frames], DEFAULT_PROMPTS["default"], model)
-        cues = [[round(f.timestamp, 2), txt.strip()] for f, txt in zip(frames, texts)
+        cues = [[round(f.timestamp, 2), txt.strip()] for f, txt in zip(frames, texts, strict=False)
                 if txt and not txt.startswith("(error")]
         errors = sum(1 for txt in texts if not txt or txt.startswith("(error"))
         return {"cues": cues, "error": "" if cues else f"{errors} frame errors",

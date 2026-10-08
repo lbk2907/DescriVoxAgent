@@ -351,7 +351,7 @@ def _mix(wavs: list[Path], delays_ms: list[int], dst: str | Path) -> None:
         return
     parts = []
     inputs = []
-    for i, (w, d) in enumerate(zip(wavs, delays_ms)):
+    for i, (w, d) in enumerate(zip(wavs, delays_ms, strict=False)):
         inputs += ["-i", str(w)]
         if d > 0:
             parts.append(f"[{i}:a]adelay={d}|{d}[d{i}]")
@@ -458,7 +458,7 @@ def export_audio(
 
         # Chunked mixing to keep ffmpeg command lines bounded
         chunk_size = 16
-        level = [c for _, c in sorted(zip(delays, clips), key=lambda x: x[0])]
+        level = [c for _, c in sorted(zip(delays, clips, strict=False), key=lambda x: x[0])]
         level_delays = sorted(delays)
         stage = 0
         while len(level) > 1:

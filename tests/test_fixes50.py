@@ -59,7 +59,7 @@ def test_at_most_one_frame_per_gap():
     frames = _frames([i * 0.2 for i in range(300)])          # 60 s
     kept = VideoProcessor.space_frames(frames, 4.0)
     assert len(kept) == 15, f"{len(kept)} frames kept for 60 s"
-    gaps = [b.timestamp - a.timestamp for a, b in zip(kept, kept[1:])]
+    gaps = [b.timestamp - a.timestamp for a, b in zip(kept, kept[1:], strict=False)]
     assert min(gaps) >= 4.0 - 1e-9, gaps
     assert kept[0].timestamp == 0.0, "the first change was dropped"
     # 0 turns it off: every frame is kept, as before.

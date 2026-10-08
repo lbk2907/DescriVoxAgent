@@ -148,7 +148,7 @@ class CharactersDialog(wx.Dialog):
                           t("cast.title")):
             self._say(t("cast.renamed_list_only", name=new))
             return
-        for d, text in zip(descs, texts):
+        for d, text in zip(descs, texts, strict=False):
             if d.text != text:
                 d.text = text
                 d.edited = True

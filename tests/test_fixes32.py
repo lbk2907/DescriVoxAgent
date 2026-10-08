@@ -71,7 +71,7 @@ def frames(times) -> list[Frame]:
 
 def biggest_gap(kept) -> float:
     times = sorted(f.timestamp for f in kept)
-    return max((b - a for a, b in zip(times, times[1:])), default=0.0)
+    return max((b - a for a, b in zip(times, times[1:], strict=False)), default=0.0)
 
 
 # ── The hole deduplication leaves ────────────────────────────────
