@@ -114,6 +114,15 @@ The full walkthrough is in the [user guide](docs/user-guide.md).
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.4
+
+- **A more accurate Gemini model.** With your own Google key, the app now recommends and starts
+  with **Gemini 3.5 Flash-Lite**: on four test clips it got 8 points fewer descriptions wrong
+  than 3.1 Flash-Lite (11.7% against 19.9%), as many descriptions and as fast. A model you
+  already chose is kept; pick 3.5 Flash-Lite in Settings > AI to use it. Gemini 3.7 and 3.8
+  Flash and Google's new "agentic video" were measured too and were not better here.
+- The first update you receive through **Help > Check for Updates**.
+
 ## What's new in v2.1.3
 
 - **DescriVox Agent updates itself.** **Help > Check for Updates** checks for a newer version,
@@ -132,15 +141,6 @@ were first tagged 1.6.10 and 1.6.11).
   (describing a video made another one) and that stayed in Open Project as "0
   descriptions". Now it asks for a name, then for the video (local file, YouTube or a
   direct URL); choose a preset and press Open, and the project gets your name.
-
-## What's new in v2.1.1
-
-- **Documentation to GitHub standard, all in English.** The guide shipped inside the app
-  folder is now in `_internal\docs`. On GitHub: `docs/` with English file names, a
-  security policy (`SECURITY.md`), issue forms for bug reports (with screen-reader fields)
-  and feature requests, and a pull request template. The README has badges, contents,
-  requirements and a quick start. The Malay user guide was removed; the app's interface
-  is unchanged and stays in English and Malay.
 
 ## Standalone video describer (CLI + HTTP API)
 

@@ -298,10 +298,10 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.3**, tag `v2.1.3`. Gate: compileall + 86 suites in
-  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.3; build
+- **Version 2.1.4**, tag `v2.1.4`. Gate: compileall + 87 suites in
+  `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.4; build
   `BUILD_ALL_OK` (+ source backup, signed SHA256SUMS.txt); frozen exe heard by
-  NVDA; judged by `tools/release_check.py` (checklist phases 34.1 and 35).
+  NVDA; judged by `tools/release_check.py` (checklist phase 36; 2.1.3: 34.1 and 35).
 - **Providers:** OpenRouter (`glm`, default model `z-ai/glm-5.3-flash`);
   Gemini direct (model list fetched from Google with Fetch models; recommended
   `gemini-3.5-flash-lite` since phase 36, before that 3.1 Flash-Lite); MiniMax; OpenAI (frame mode); custom

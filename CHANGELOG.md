@@ -2,7 +2,7 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
-## Unreleased
+## What's new in v2.1.4
 
 - **A more accurate Gemini model.** With your own Google key, the app now recommends and starts
   with **Gemini 3.5 Flash-Lite**: on four test clips it got 8 points fewer descriptions wrong

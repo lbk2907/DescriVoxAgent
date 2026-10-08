@@ -350,4 +350,5 @@ Flash. Agentic video works only through the Interactions API.
 - [x] 36.3 3.5 Flash-Lite is the direct Gemini default and recommendation (test_fixes77); OpenRouter and the agent unchanged
 - [ ] 36.4 The agent (F2) on 3.5 Flash-Lite (needs Gemini credit; the owner's prepayment ran out on 8 Oct)
 - [ ] 36.5 Why 3.7/3.8 Flash give so few descriptions (thinking vs the 8192-token output limit?)
+- [ ] 36.6 Release 2.1.4 (owner, 8 Oct 2026: "YA"), judged by the release contract; publish after the owner's yes
 
