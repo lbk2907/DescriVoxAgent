@@ -118,6 +118,8 @@ interface stays in English and Malay.
 - `tools/e2e_full_verify.py --clip <video>` — the frozen exe, a whole job.
 
 All need NVDA with the HTTP bridge (127.0.0.1:19281) and exit 2 without it.
+`tools/ci_nvda_smoke.py` is the exception: an experiment for GitHub CI only
+(phase 38) that reads NVDA's own speech log instead; never run it on a desktop in use.
 Keyboard automation must go through `tools/safe_keys.py`, which refuses to
 type unless the app under test is in front (keys once landed in the
 owner's chat program). Ask the owner before any run that types.

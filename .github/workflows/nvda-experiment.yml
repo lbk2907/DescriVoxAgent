@@ -1,0 +1,86 @@
+name: NVDA experiment
+
+# Phase 38.1 (9 Oct 2026, owner: "cuba experiment dulu"): can a GitHub
+# Windows runner hear the app through NVDA? Non-blocking on purpose: the
+# job never fails the commit; read the verdict in the "NVDA smoke" step.
+# Real accessibility verification stays on the owner's PC (AGENTS rule 2).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  NVDA_VERSION: "2026.2"
+
+jobs:
+  nvda:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install the app
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . "pywinauto==0.6.9"
+
+      - name: Download NVDA (official, signature checked)
+        shell: pwsh
+        run: |
+          $url = "https://download.nvaccess.org/releases/$env:NVDA_VERSION/nvda_$env:NVDA_VERSION.exe"
+          Invoke-WebRequest $url -OutFile nvda_setup.exe -MaximumRetryCount 3 -TimeoutSec 120
+          $sig = Get-AuthenticodeSignature nvda_setup.exe
+          "signature: $($sig.Status) / $($sig.SignerCertificate.Subject)"
+          (Get-FileHash nvda_setup.exe -Algorithm SHA256).Hash
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(^|, )O="?NV Access') {
+            throw "NVDA installer is not signed by NV Access"
+          }
+
+      - name: Start a portable NVDA (silence synth, speech logged)
+        shell: pwsh
+        run: |
+          Start-Process .\nvda_setup.exe -ArgumentList '--create-portable-silent','--portable-path=C:\nvda' -Wait
+          if (-not (Test-Path C:\nvda\nvda.exe)) { throw "the portable NVDA was not created" }
+          New-Item -ItemType Directory -Force C:\nvdacfg | Out-Null
+          @"
+          [general]
+          showWelcomeDialogAtStartup = False
+          loggingLevel = IO
+          [speech]
+          synth = silence
+          [update]
+          autoCheck = False
+          askedAllowUsageStats = True
+          allowUsageStats = False
+          "@ | Set-Content -Encoding utf8 C:\nvdacfg\nvda.ini
+          Start-Process C:\nvda\nvda.exe -ArgumentList '-c','C:\nvdacfg','--log-level=12','-f','C:\nvda.log','--disable-addons'
+          for ($i = 0; $i -lt 60; $i++) {
+            if ((Test-Path C:\nvda.log) -and (Select-String -Path C:\nvda.log -Pattern 'NVDA initialized' -Quiet)) { "NVDA up after $i s"; exit 0 }
+            Start-Sleep 1
+          }
+          Get-Content C:\nvda.log -ErrorAction SilentlyContinue | Select-Object -Last 40
+          throw "NVDA did not start"
+
+      - name: NVDA smoke
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tools/ci_nvda_smoke.py --log C:\nvda.log
+
+      - name: Keep the NVDA log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nvda-log
+          path: |
+            C:\nvda.log
+            _a11y_app_log.txt
+          if-no-files-found: ignore

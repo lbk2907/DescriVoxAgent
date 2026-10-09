@@ -380,3 +380,12 @@ ruff already ran in CI with bug rules only. A wider read-only run found 111 warn
       ~/.claude/settings.json now that the repo passes `ruff check` and `ruff format --check` (owner's choice).
       Takes effect in the next Claude Code session
 
+## Phase 38 — NVDA in CI, as an experiment (owner 9 Oct 2026: "cuba experiment dulu")
+
+The listening tools need the owner's local NVDA HTTP Bridge add-on (not public, never uploaded). Instead a
+GitHub runner starts a portable NVDA with the silence synth and `--log-level=12`, where NVDA logs each utterance
+as `Speaking [...]`; `tools/ci_nvda_smoke.py` reads that. Workflow `.github/workflows/nvda-experiment.yml`,
+`continue-on-error` so it never blocks. Real verification stays on the owner's PC (AGENTS rule 2).
+
+- [ ] 38.1 First runs: does NVDA start, speak the window name and most Tab stops? (VERIFIED / FAIL / INCONCLUSIVE)
+- [ ] 38.2 If stable over several runs: decide with the owner whether to keep it, make it blocking, or remove it
