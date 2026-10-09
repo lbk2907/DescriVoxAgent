@@ -33,6 +33,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install . "pywinauto==0.6.9"
 
+      # 38.1 run 1 (10 Oct 2026): without ffmpeg the app opens its
+      # "programs missing" box first, so every Tab stop landed there.
+      # The release ships them in bin\; here they come on PATH instead.
+      - name: Install ffmpeg, ffprobe and ffplay
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "choco install ffmpeg failed" }
+          foreach ($t in 'ffmpeg','ffprobe','ffplay') {
+            if (-not (Get-Command $t -ErrorAction SilentlyContinue)) { throw "$t is not on PATH" }
+          }
+
       - name: Download NVDA (official, signature checked)
         shell: pwsh
         run: |

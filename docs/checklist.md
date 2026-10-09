@@ -388,4 +388,7 @@ as `Speaking [...]`; `tools/ci_nvda_smoke.py` reads that. Workflow `.github/work
 `continue-on-error` so it never blocks. Real verification stays on the owner's PC (AGENTS rule 2).
 
 - [ ] 38.1 First runs: does NVDA start, speak the window name and most Tab stops? (VERIFIED / FAIL / INCONCLUSIVE)
+      Run 1 (10 Oct 2026, 3bd6901): NVDA started and spoke, but FAIL 12/12 Tab stops silent: the runner has no
+      ffmpeg, so the app opened its "programs missing" box first and Tab stayed there. Workflow now installs
+      ffmpeg/ffprobe/ffplay (choco) before the smoke step (owner's choice); run 2 pending
 - [ ] 38.2 If stable over several runs: decide with the owner whether to keep it, make it blocking, or remove it
