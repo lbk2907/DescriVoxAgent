@@ -118,9 +118,9 @@ phases 19 onwards in the [checklist](checklist.md). "—" = no release.
 | 34 | Ideas from Watch Skill | 2.1.3 (34.1); the rest later | Honest floor for the agent, on-screen-text OCR, scene-based frame selection, lessons from the owner's corrections — each measured under a frozen contract first |
 | 35 | The app updates itself | 2.1.3 | Help > Check for Updates: GitHub Releases, checked at every start, SHA-256 verified, folder swap with rollback; yt-dlp moves to its own item |
 | 36 | Newer Gemini models | 2.1.4 | Gemini 4 not in the API; 3.5/3.7/3.8 Flash and agentic video measured under frozen contracts; 3.5 Flash-Lite adopted for the direct Gemini path |
-| 37 | ruff bug rules, stage by stage | (2.1.5, planned) | B023, then F841/F811/B904..., F401, B905; then `ruff format` for the whole repo (line length 100, AST unchanged, blame-ignored); ECC quality-gate hook back on after |
+| 37 | ruff bug rules, stage by stage | 2.1.5 | B023, then F841/F811/B904..., F401, B905; then `ruff format` for the whole repo (line length 100, AST unchanged, blame-ignored); ECC quality-gate hook back on after |
 | 38 | NVDA in CI (experiment) | — | Can a GitHub runner hear the app? Portable NVDA 2026.2, silence synth, speech read from NVDA's own log (no Bridge add-on); non-blocking until stable |
-| 39 | Player seek with an unknown length | (2.1.5, planned) | User report: Left/Right jumped to 0:00 when the video length was unknown (timeline 0.1 s); a jump now stops at the end only when the end is known, the timeline grows with the position (test_fixes78) |
+| 39 | Player seek with an unknown length | 2.1.5 | User report: Left/Right jumped to 0:00 when the video length was unknown (timeline 0.1 s); a jump now stops at the end only when the end is known, the timeline grows with the position (test_fixes78) |
 
 Every release phase closed with gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, the exe heard
 through NVDA, a tag, and the old zip deleted.

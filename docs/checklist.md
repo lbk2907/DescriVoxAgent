@@ -411,4 +411,5 @@ clock kept counting while it played, so only a jump showed it. `seek_to` (agent,
       use the same jump (they went to 18 s on a 12 s clip and never moved the slider); the agent is told 0 (unknown),
       not 0.1 s; a non-number jump is ignored; the time label shows the position alone when the length is unknown.
       test_fixes78 has 8 checks, the 3 new ones failed first
+- [ ] 39.5 Release 2.1.5 (owner, 13 Oct 2026: "Release 2.1.5 sekarang"), judged by the release contract; publish after the owner's yes
 - [ ] 39.4 Ask the user which video it was (and whether VLC is installed), to learn why its length was unknown (ffprobe) - a second fix may be due

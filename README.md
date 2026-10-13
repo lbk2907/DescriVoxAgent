@@ -114,6 +114,14 @@ The full walkthrough is in the [user guide](docs/user-guide.md).
 Version numbers: the last digit stops at 9, so 1.6.9 is followed by 1.7.0 (1.7.0 and 1.7.1
 were first tagged 1.6.10 and 1.6.11).
 
+## What's new in v2.1.5
+
+- **Left and Right in the player no longer jump back to the start.** When the app could not
+  tell how long a video is (most often with VLC installed, which answered before it had read
+  the file), every arrow key and the 10-second buttons sent the video to 0:00. Jumps now go
+  where you asked; they stop at the end only when the end is really known. Reported by a user.
+- The 10-second buttons now stop at the end of the video and move the timeline with them.
+
 ## What's new in v2.1.4
 
 - **A more accurate Gemini model.** With your own Google key, the app now recommends and starts
@@ -134,13 +142,6 @@ were first tagged 1.6.10 and 1.6.11).
   downloader**. This is the last version you have to download by hand.
 - **The agent says when it cannot see something** (F2): "I cannot see that clearly", with the
   times it looked at, instead of a guess.
-
-## What's new in v2.1.2
-
-- **File > New Project is useful now.** It used to make an EMPTY project that nothing used
-  (describing a video made another one) and that stayed in Open Project as "0
-  descriptions". Now it asks for a name, then for the video (local file, YouTube or a
-  direct URL); choose a preset and press Open, and the project gets your name.
 
 ## Standalone video describer (CLI + HTTP API)
 

@@ -2,6 +2,14 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## What's new in v2.1.5
+
+- **Left and Right in the player no longer jump back to the start.** When the app could not
+  tell how long a video is (most often with VLC installed, which answered before it had read
+  the file), every arrow key and the 10-second buttons sent the video to 0:00. Jumps now go
+  where you asked; they stop at the end only when the end is really known. Reported by a user.
+- The 10-second buttons now stop at the end of the video and move the timeline with them.
+
 ## What's new in v2.1.4
 
 - **A more accurate Gemini model.** With your own Google key, the app now recommends and starts
