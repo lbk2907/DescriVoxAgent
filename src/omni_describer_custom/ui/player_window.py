@@ -7,6 +7,7 @@ VLC-based player with audio descriptions overlay.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from pathlib import Path
@@ -261,7 +262,12 @@ class PlayerWindow(wx.Frame):
                 self._vlc.set_hwnd(self.video_panel.GetHandle())
             self._vlc_media = self._vlc_instance.media_new(video_path)
             self._vlc.set_media(self._vlc_media)
-            self.project.video_duration = self._vlc_media.get_duration() / 1000.0
+            # VLC has not parsed the file yet here and usually says -1 (or
+            # 0): that overwrote ffprobe's good length, and every video then
+            # looked like an unknown length (13 Oct 2026, test_fixes78).
+            vlc_ms = self._vlc_media.get_duration()
+            if vlc_ms and vlc_ms > 0:
+                self.project.video_duration = vlc_ms / 1000.0
             # v1.3.0: auto-load the project's own SRT sidecar (if any) so
             # subtitles appear without any extra steps for the user.
             srt = self._project_srt_path()
@@ -639,14 +645,11 @@ class PlayerWindow(wx.Frame):
         self._update_time_label()
 
     def _update_time_label(self):
-        """Update time display."""
-        if self.project:
-            dur = self.project.video_duration
-        else:
-            dur = 0
+        """Update time display; the position alone when the length is unknown
+        (was "0:35 / 0:00")."""
+        dur = self._known_length()
         pos_str = self._format_time(self._position)
-        dur_str = self._format_time(dur)
-        txt = f"{pos_str} / {dur_str}"
+        txt = f"{pos_str} / {self._format_time(dur)}" if dur > 0 else pos_str
         if txt != self._last_time_txt:
             self._last_time_txt = txt
             self.time_label.SetLabel(txt)
@@ -667,6 +670,7 @@ class PlayerWindow(wx.Frame):
             if self._vlc.is_playing():
                 self._playing = True
                 self._position = self._vlc.get_time() / 1000.0
+                self._learn_length_from_vlc()
             elif self._playing and not self._paused_by_user:
                 # VLC stopped without user pause — end of media
                 self._playing = False
@@ -694,7 +698,7 @@ class PlayerWindow(wx.Frame):
         slider_val = int(self._position)
         if slider_val != self._last_slider_val:
             self._last_slider_val = slider_val
-            self.position_slider.SetValue(slider_val)
+            self._show_on_timeline(slider_val)
         self._maybe_narrate()
 
     def _update_sub_overlay(self):
@@ -986,21 +990,13 @@ class PlayerWindow(wx.Frame):
         self._set_play_label(False)
 
     def _on_rewind(self, event):
-        self._position = max(0, self._position - 10)
-        if self._vlc_available and self._vlc_media is not None:
-            self._vlc.set_time(int(self._position * 1000))
-        elif self._audio_backend == "ffplay":
-            self._start_ffplay(self._position)  # restart ffplay at new pos
-        self._update_desc_display()
+        # The same jump as the arrow keys (13 Oct 2026 review): the buttons
+        # never stopped at the end (18 s on a 12 s clip) nor moved the slider.
+        self._move_to(self._clamp_position(self._position - 10))
         self._announce_jump(self.rewind_btn)
 
     def _on_forward(self, event):
-        self._position += 10
-        if self._vlc_available and self._vlc_media is not None:
-            self._vlc.set_time(int(self._position * 1000))
-        elif self._audio_backend == "ffplay":
-            self._start_ffplay(self._position)  # restart ffplay at new pos
-        self._update_desc_display()
+        self._move_to(self._clamp_position(self._position + 10))
         self._announce_jump(self.forward_btn)
 
     def retranslate(self) -> None:
@@ -1032,12 +1028,12 @@ class PlayerWindow(wx.Frame):
         """v1.8.2: the 10-second buttons were silent — heard in a
         keyboard sweep. Say where the jump landed, then give focus back
         to the button so pressing it again jumps again."""
-        total = float(getattr(self, "_slider_dur", 0) or 0)
+        total = self._known_length()
         position = self._format_time(self._position)
         # "of 00:00" when the length is unknown would only confuse.
         self._announce(
             t("player.position", position=position, total=self._format_time(total))
-            if total >= 1
+            if total > 0
             else position
         )
         wx.CallLater(700, lambda: button and button.SetFocus())
@@ -1143,24 +1139,73 @@ class PlayerWindow(wx.Frame):
             return False
         return True
 
-    def _seek_by(self, delta: float) -> None:
-        """Jump by delta seconds and say where the video is now."""
-        total = float(self._slider_dur or 0)
-        pos = self._position + delta
-        pos = max(0.0, min(pos, total)) if total > 0 else max(0.0, pos)
+    def _known_length(self) -> float:
+        """The video's real length in seconds, or 0 when it is unknown.
+
+        Not _slider_dur: that is never 0 (0.1 when the length is unknown),
+        so holding a jump at it sent every Left/Right to 0:00 and ffplay
+        back to the start (user report, 13 Oct 2026; test_fixes78).
+        """
+        dur = float(self.project.video_duration or 0) if self.project else 0.0
+        return dur if dur > 0 else 0.0
+
+    def _learn_length_from_vlc(self) -> None:
+        """Once VLC has parsed a file whose length was unknown, keep it."""
+        if self._known_length() > 0 or self.project is None:
+            return
+        try:
+            ms = self._vlc.get_length()
+        except Exception:
+            return
+        if ms and ms > 0:
+            self.project.video_duration = ms / 1000.0
+            self._slider_dur = self.project.video_duration
+            self.position_slider.SetMax(max(1, int(round(self._slider_dur))))
+
+    def _clamp_position(self, seconds: float) -> float:
+        """Held at 0, and at the end only when the end is known. A value that
+        is not a number (an agent's bad answer) leaves the position as it is."""
+        try:
+            pos = float(seconds)
+        except (TypeError, ValueError):
+            return self._position
+        if not math.isfinite(pos):
+            return self._position
+        end = self._known_length()
+        pos = max(0.0, pos)
+        return min(pos, end) if end > 0 else pos
+
+    def _show_on_timeline(self, seconds: float) -> None:
+        """Move the slider; with an unknown length it grows to fit, a minute
+        at a time, so its range does not change every second."""
+        value = max(0, int(seconds))
+        if value > self.position_slider.GetMax():
+            self.position_slider.SetMax(value + 60)
+        self.position_slider.SetValue(value)
+
+    def _move_to(self, pos: float) -> None:
+        """Put playback, sound, slider and description at pos (already held
+        in range by _clamp_position). ffplay restarts once, after the last of
+        several quick jumps."""
         self._position = pos
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(pos * 1000))
         elif self._audio_backend == "ffplay" and self._playing:
             self._restart_sound_soon()
-        self.position_slider.SetValue(int(pos))
+        self._show_on_timeline(pos)
         self._update_desc_display()
+
+    def _seek_by(self, delta: float) -> None:
+        """Jump by delta seconds and say where the video is now."""
+        total = self._known_length()
+        pos = self._clamp_position(self._position + delta)
+        self._move_to(pos)
+        position = self._format_time(pos)
+        # "of 0:00" when the length is unknown would only confuse.
         self._announce(
-            t(
-                "player.slider_value",
-                position=self._format_time(pos),
-                total=self._format_time(total),
-            )
+            t("player.slider_value", position=position, total=self._format_time(total))
+            if total > 0
+            else position
         )
 
     def _change_volume(self, delta: int) -> None:
@@ -1263,7 +1308,8 @@ class PlayerWindow(wx.Frame):
         language = I18n.ai_language_name(I18n.current_language()) or "English"
         ctx = Context(
             video=proj.video_path,
-            length=float(proj.video_duration or self._slider_dur or 0),
+            # 0 = unknown; _slider_dur would have said 0.1 s (test_fixes78)
+            length=self._known_length(),
             descriptions=[(d.start_time, d.text) for d in proj.descriptions],
             get_position=lambda: float(self._position),
             seek=lambda at: wx.CallAfter(self.seek_to, at),
@@ -1332,14 +1378,13 @@ class PlayerWindow(wx.Frame):
     def seek_to(self, seconds: float) -> None:
         if not self:
             return  # the agent's CallAfter after the window closed
-        dur = float(self._slider_dur or 0)
-        self._position = max(0.0, min(float(seconds), dur or float(seconds)))
+        # The same 0.1 s trap as _seek_by when the length is unknown.
+        self._position = self._clamp_position(seconds)
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(self._position * 1000))
         elif self._audio_backend == "ffplay" and self._playing:
             self._start_ffplay(self._position)
-        if dur > 0:
-            self.position_slider.SetValue(int(self._position))
+        self._show_on_timeline(self._position)
         self._update_desc_display()
 
     def open_agent(self) -> None:

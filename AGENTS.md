@@ -195,7 +195,7 @@ src/omni_describer_custom/
     app_update_dialog.py    Check for Updates (the app itself)
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 87
+tests/                      one script per regression round; run_gate.bat lists 88
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -220,7 +220,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 87 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 88 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -299,7 +299,7 @@ historical double number, kept.) A pitfall may appear in more than one row.
 
 ## 9. Current status (update at each release)
 
-- **Version 2.1.4**, tag `v2.1.4`. Gate: compileall + 87 suites in
+- **Version 2.1.4**, tag `v2.1.4`. Gate: compileall + 88 suites in
   `run_gate.bat`; `GATE_ALL_PASS` twice in a row for 2.1.4; build
   `BUILD_ALL_OK` (+ source backup, signed SHA256SUMS.txt); frozen exe heard by
   NVDA; judged by `tools/release_check.py` (checklist phase 36; 2.1.3: 34.1 and 35).

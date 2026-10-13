@@ -390,5 +390,25 @@ as `Speaking [...]`; `tools/ci_nvda_smoke.py` reads that. Workflow `.github/work
 - [ ] 38.1 First runs: does NVDA start, speak the window name and most Tab stops? (VERIFIED / FAIL / INCONCLUSIVE)
       Run 1 (10 Oct 2026, 3bd6901): NVDA started and spoke, but FAIL 12/12 Tab stops silent: the runner has no
       ffmpeg, so the app opened its "programs missing" box first and Tab stayed there. Workflow now installs
-      ffmpeg/ffprobe/ffplay (choco) before the smoke step (owner's choice); run 2 pending
+      ffmpeg/ffprobe/ffplay (choco) before the smoke step (owner's choice).
+      Run 2 (10 Oct 2026, 2ba2211, run 37993148311): VERIFIED, window name spoken, speech after 12/12 Tabs
 - [ ] 38.2 If stable over several runs: decide with the owner whether to keep it, make it blocking, or remove it
+
+## Phase 39 — player Left/Right jumped to the start (user report via the owner, 13 Oct 2026)
+
+A user tried a short video: "dia bermula dari awal video semula", and NVDA said the position was 0. With the
+video length unknown (ffprobe could not measure it, `project.video_duration` 0) the timeline was built for 0.1 s,
+and `_seek_by` held every jump at that "end": 0:30 + 5 s became 0:00 and ffplay restarted with no `-ss`. The
+clock kept counting while it played, so only a jump showed it. `seek_to` (agent, Scene Explorer) had the same trap.
+
+- [x] 39.1 Test first: test_fixes78 failed on the old code ("Right from 0:30 went to 0.1", ffplay restarted at 0.1)
+- [x] 39.2 Fix: `_known_length()` is the project's real length (0 = unknown); a jump is held at the end only when
+      it is known; the timeline grows with the position; with no known length the jump says the position alone
+      (no "of 0:00"). test_fixes65 now sets the project's length for its 10-minute case
+- [x] 39.3 Review (ecc:python-reviewer) found the likely trigger: with VLC installed, the length was read from VLC
+      right after `media_new`, before it parsed the file: -1 ms overwrote ffprobe's good length, so every video
+      looked "unknown". Now only a length > 0 is taken, and one VLC learns later is kept. Also: the 10 s buttons
+      use the same jump (they went to 18 s on a 12 s clip and never moved the slider); the agent is told 0 (unknown),
+      not 0.1 s; a non-number jump is ignored; the time label shows the position alone when the length is unknown.
+      test_fixes78 has 8 checks, the 3 new ones failed first
+- [ ] 39.4 Ask the user which video it was (and whether VLC is installed), to learn why its length was unknown (ffprobe) - a second fix may be due

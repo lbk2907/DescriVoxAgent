@@ -207,7 +207,9 @@ def test_keys_in_the_video_area():
         w._on_video_key(_key(wx.WXK_RIGHT, ctrl=True))
         assert w._position == 12.0, w._position  # clamped at the end
         assert w.position_slider.GetValue() == 12
-        w._slider_dur = 600.0  # a 10-minute video
+        # A 10-minute video. Its length is the project's (test_fixes78:
+        # _slider_dur alone is 0.1 for an unknown length, not a real end).
+        w.project.video_duration = w._slider_dur = 600.0
         w._position = 100.0
         w._on_video_key(_key(wx.WXK_RIGHT, ctrl=True, shift=True))
         assert w._position == 160.0, w._position  # Ctrl+Shift: one minute
