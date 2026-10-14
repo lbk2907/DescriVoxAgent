@@ -2,6 +2,30 @@
 
 Every release since v1.5.1, newest first, as it appeared in the README at the time. The three most recent releases are also in README.md.
 
+## Unreleased
+
+- Replay narration after seeking backward, including the cue active at the destination.
+  Slider, button/arrow and agent seeks now share the same path; seeking while paused
+  no longer starts ffplay audio.
+- Add Save as, Update and Delete controls for custom prompt presets, with confirmations,
+  built-in preset protection and English/Malay/Indonesian labels. Edited text now replaces
+  the selected preset for the request instead of being appended as duplicate user notes.
+- Normalize low video volume across VLC and ffplay: 10% no longer maps to VLC's
+  near-silent cubic gain. Apply saved volume at playback startup and retry while audio
+  becomes ready; leave screen-reader and narration voice settings unchanged.
+- Make run, build and gate scripts locate their checkout automatically and share validated
+  Python 3.13 (64-bit) discovery, including virtual environments and paths with spaces.
+- Preserve launcher failure exit codes and stop the build if recording its evidence fails.
+- Add Bahasa Indonesia for the interface and AI description language, with an Indonesian
+  default Edge TTS voice and all 529 current locale strings translated.
+- Keep project changes tied to their own project when another project is opened.
+- Undo character renames in both descriptions and the project's character list.
+- Preserve the first narration's start time when exporting synchronized WAV or MP3 audio.
+- Limit dialogue-gap timing and narration budgets to the current video segment.
+- Preserve the previous settings file if protecting an API key fails during saving.
+- Remember original video sources separately from local playback paths, including after restart.
+- Run the regression gate from the checkout's folder using Python on PATH or `ODC_PYTHON`.
+
 ## What's new in v2.1.5
 
 - **Left and Right in the player no longer jump back to the start.** When the app could not

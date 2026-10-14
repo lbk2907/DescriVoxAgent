@@ -279,22 +279,31 @@ def silent_gaps(
     than min_seconds are dropped: there is no useful description that
     fits in half a second, and offering one invites the model to try.
     """
+    range_start = float(start)
+    range_end = float(end) if end is not None else None
+    if range_end is not None and range_end <= range_start:
+        return []
     spans = []
     for seg in segments or []:
         s = float(getattr(seg, "start", 0.0))
         e = float(getattr(seg, "end", s))
+        # The transcript covers the whole video, but a prompt's word
+        # budget must contain only silence inside the current part.
+        s = max(range_start, s)
+        if range_end is not None:
+            e = min(range_end, e)
         if e > s:
             spans.append((s, e))
     spans.sort()
 
     gaps: list[tuple[float, float]] = []
-    cursor = float(start)
+    cursor = range_start
     for s, e in spans:
         if s - cursor >= min_seconds:
             gaps.append((cursor, s))
         cursor = max(cursor, e)
-    if end is not None and float(end) - cursor >= min_seconds:
-        gaps.append((cursor, float(end)))
+    if range_end is not None and range_end - cursor >= min_seconds:
+        gaps.append((cursor, range_end))
     return gaps
 
 
@@ -506,6 +515,15 @@ def export_audio(
                 nxt_delays.append(base)
             level, level_delays = nxt, nxt_delays
             stage += 1
+
+        # Group mixes are relative to their earliest cue. Restore the
+        # final group's absolute position, including a single clip that
+        # never entered the mixing loop (or follows failed TTS cues).
+        if level_delays[0] > 0:
+            check_cancel()
+            aligned = tmp / "aligned.wav"
+            _mix([level[0]], [level_delays[0]], aligned)
+            level = [aligned]
 
         # Final encode to requested container/format
         check_cancel()

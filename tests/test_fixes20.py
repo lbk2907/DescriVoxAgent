@@ -212,6 +212,7 @@ def test_failed_run_leaves_nothing_behind():
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
     frame = MainFrame()
+    real_player = pw_mod.PlayerWindow
     try:
         frame.project_store = ProjectStore(projects_dir=tempfile.mkdtemp(prefix="odc_f20_proj_"))
         frame.settings.set("ai.video_mode", "full")
@@ -222,7 +223,15 @@ def test_failed_run_leaves_nothing_behind():
         video = Path(tempfile.mkdtemp(prefix="odc_f20_vid_")) / "clip.mp4"
         video.write_bytes(b"\x00" * 2048)
         frame._current_source = str(video)
-        pw_mod.PlayerWindow = lambda *a, **k: None
+
+        class NoPlayer:
+            def __init__(self, *a, **k):
+                pass
+
+            def Show(self):
+                pass
+
+        pw_mod.PlayerWindow = NoPlayer
 
         async def fake_info(self, source, **k):
             class I:
@@ -260,6 +269,7 @@ def test_failed_run_leaves_nothing_behind():
         assert frame._dl_dialog is None, "progress dialog left open"
         assert frame.IsEnabled(), "main window left disabled after error"
     finally:
+        pw_mod.PlayerWindow = real_player
         server.shutdown()
         try:
             frame._close_download_progress()

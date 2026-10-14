@@ -414,3 +414,120 @@ clock kept counting while it played, so only a jump showed it. `seek_to` (agent,
 - [x] 39.5 Release 2.1.5 - published 13 Oct 2026 (release_check VERIFIED, NVDA heard the exe: a11y-main VERIFIED;
       owner's yes). Gate x2 needed rests between runs: YouTube's bot check stopped back-to-back gates (test_fixes6/7/9)
 - [ ] 39.4 Ask the user which video it was (and whether VLC is installed), to learn why its length was unknown (ffprobe) - a second fix may be due
+
+## Phase 40 — Six review fixes (owner, 14 Oct 2026)
+
+- [x] 40.1 Project ownership and explicit new-project selection: test_fixes81 failed on old code;
+      8/8 headless checks pass after fixing close-before-switch and stale-player guards.
+- [x] 40.2 Complete character rename undo: test_fixes81 reproduces old cast/text divergence;
+      restores both and keeps the snapshot when cast restoration fails (8/8 suite).
+- [x] 40.3 Absolute audio export offsets: test_fixes79 initially had 11 failing subcases;
+      now 5/5 checks pass. Real ffmpeg waveform onsets for WAV and MP3 at 1s/2s measured
+      1.000023s/2.000023s with synthetic tones (no playback or provider requests).
+- [x] 40.4 Bounded transcript gaps: test_fixes79 checks segment bounds, overlaps, empty/reversed
+      ranges and unlimited end; included in the 5/5 passing suite.
+- [x] 40.5 Failed encryption aborts settings writes: test_fixes80 failed first, now 7/7;
+      existing test_fixes36 also passes 12/12 (change/clear/retry behavior retained).
+- [x] 40.6 Original source persistence and legacy migration: test_fixes80 failed first,
+      now 7/7, including a fresh store after media persistence and legacy databases.
+- [x] 40.7 Independent combined-diff review: no confirmed critical/high findings. Ruff format
+      (187 files unchanged), Ruff check, compileall and check_docs pass. New suites: 79 (5/5,
+      including real waveform measurement), 80 (7/7), 81 (8/8). Existing suites 36 (12/12),
+      41 (4/4), 50 (5/5), 73 (5/5) pass. The light CI selection initially had 13 passing
+      scripts and test_fixes33 failing because comtypes was absent; after installing project
+      dependencies test_fixes33 passes 13/13. The CI socket guard cannot run test_fixes79's
+      Windows asyncio loop (it blocks the loop's internal socket); ordinary execution passes.
+      Gate exposed outdated lambda PlayerWindow doubles in suites 12/20; changed those to
+      types and restored originals in finally. Both real GUI suites then pass (7/7 and 5/5).
+- [ ] 40.8 Full desktop gate and NVDA listening checks. Owner authorized 20 minutes with the
+      PC untouched. Full 91-suite run completed with GATE_FAIL; compileall and new suites
+      79/80/81 pass. Failures include unavailable bundled multimedia tools, YouTube HTTP 403,
+      an old test assuming VLC is unavailable, and test_fixes74 assuming a v1.9.7 tag that is
+      absent from this checkout. Early missing Python dependencies were installed, and the
+      affected fixture failures were rerun successfully as recorded above. This is NOT a
+      full gate pass; no commit, tag, build or release was made. NVDA bridge connection refused
+      (WinError 10061), so listening is NOT VERIFIED. Pinned FFmpeg download returns HTTP 404;
+      the optional waveform test uses imageio-ffmpeg without replacing bundled hashes.
+
+Environment notes: installed the declared Python dependencies plus pywinauto and
+imageio-ffmpeg for verification. No paid provider calls were made. Three test-fixture
+directories from an initial connection leak remain under TEMP (`odc_t80_oajpvcuu`,
+`odc_t80_owjjum29`, `odc_t80_wta8y8kd`): automatic approval rejected cleanup with
+`rejected: blocked by policy`, without a more specific reason. Cleanup was not retried.
+The fixture connection leak was corrected; subsequent regression runs cleaned their own files.
+
+## Phase 41 — Indonesian translation
+
+- [x] 41.1 Add all 529 Indonesian strings and locale metadata: `id.json` parses with
+      unique keys, no blank values and exactly the same keys as `en.json`.
+- [x] 41.2 Validate locale integration: `python -u tests/test_fixes24.py` passes 15/15.
+      Additional isolated runtime checks pass for Indonesian discovery, picker name,
+      voice metadata, translated labels, singular/plural formatting and AI output-language
+      instruction. Static checks confirm exact placeholder multiplicities and format specs,
+      accelerator counts, newline counts and matching Indonesian `:one` forms.
+- [x] 41.3 Update the language guide, user guide, README and Unreleased notes.
+      `python tools/check_docs.py` reports `DOCS_OK v2.1.5`; Ruff format check (187 files),
+      Ruff check and `git diff --check` pass.
+- [ ] 41.4 Full desktop gate and native-speaker NVDA listening verification. Not rerun for
+      this locale-only change: the previous desktop permission window has ended, and
+      phase 40.8 records the existing gate failures and unavailable NVDA bridge. The voice
+      metadata is validated locally; live Edge speech and Indonesian pronunciation have
+      not been tested. No paid provider calls, commit, push or PR creation.
+
+## Phase 42 — Portable Windows launchers
+
+- [x] 42.1 Reproduce hardcoded-path failures: the initial 8 tests in test_fixes82 all failed
+      before implementation (launcher/doc-check dispatch failed; resolver did not exist).
+- [x] 42.2 Run/build/gate share `tools/find_python.ps1`, validate Python 3.13/64-bit and
+      derive the checkout from script location. Direct discovery on this PC selected its
+      installed Python313 interpreter without an override.
+- [x] 42.3 `python -u tests/test_fixes82.py`: 11/11 pass, covering a full fixture build
+      (no real download/GUI), spaces in checkout and interpreter paths, app exit code,
+      failed docs, override priority/failure, active/project venv, launcher and PATH fallback,
+      missing Python and gate early failure. Existing suites 58 (3/3) and 73 (5/5) pass.
+      Ruff format (188 unchanged), Ruff check, check_docs and git diff --check pass.
+      README, developer/user guides, plan, Unreleased notes and pitfall 106 updated.
+- [ ] 42.4 Run the full desktop gate (requires a new quiet-PC permission window).
+
+## Phase 43 — Low video volume
+
+- [x] 43.1 Reproduce incorrect low gain and missing startup/retry behavior:
+      test_fixes83 initially has 5 failing and 2 passing tests before source changes.
+- [x] 43.2 Correct VLC volume mapping and startup application: test_fixes83 passes 7/7
+      after the fix (previously 5 failed). It covers all 101 integer percentages,
+      10% gain, exact 0/100 endpoints, saved/announced values, startup reapplication,
+      error return/exception retries and unchanged ffplay dispatch. Existing headless
+      suites 81 (8/8) and 58 (3/3), Ruff format/check, compileall, check_docs and
+      git diff --check pass. Registered suite 83 in the 93-suite gate.
+- [ ] 43.3 Full desktop gate and listening at 0/10/50/100 percent with NVDA.
+      The owner deferred desktop testing; no GUI, actual playback or NVDA automation
+      was run for this fix. Actual perceived loudness remains unverified. No commit
+      or release has been made.
+
+## Phase 44 — Custom prompt presets
+
+- [x] 44.1 Add localized preset management and use edited text as the submitted prompt.
+      Initial test_fixes84 run: 2 request-behavior failures and 7 missing-handler errors;
+      after implementation all 9 pass. Built-in presets are protected; updates/deletes
+      require confirmation; custom presets are scoped to interface language.
+- [x] 44.2 Test_fixes84 passes 9/9, including inspection of persisted settings.json and
+      cancellation/rejection paths. Locale suite 24 passes 15/15 with all 542 keys in
+      English, Malay and Indonesian; isolation suite 58 passes 3/3. Ruff format/check,
+      compileall, check_docs and git diff --check pass. Updated the guide, plan, Unreleased
+      notes and pitfall 108; added suite 84 to the 94-suite gate and actual handler checks
+      to test_fixes21. The desktop handler checks have not been run.
+- [ ] 44.3 Full desktop gate and NVDA verification (desktop testing remains deferred).
+      No GUI automation, paid AI calls, commit or release for this change.
+
+## Phase 45 — Narration after rewinding
+
+- [x] 45.1 Reproduce the seek-history bug: test_fixes85 initially failed 6 of its 7
+      test methods (8 failures including the three seek-route subcases).
+- [x] 45.2 Rearm active/future narration on backward seeks and share `_move_to` across
+      slider, buttons/arrows and agent. Paused ffplay slider no longer starts audio.
+      Test_fixes85 passes 7/7, including mocked TTS dispatch exactly once after rewind.
+- [x] 45.3 Existing headless suites 83 (7/7), 81 (8/8), 58 (3/3), Ruff format/check,
+      compileall and git diff --check pass. Updated guide, Unreleased notes, phase table
+      and pitfall 109; registered suite 85 in the 95-suite gate.
+- [ ] 45.4 Full desktop gate and actual NVDA/audio listening remain deferred at the
+      owner's request. No GUI automation, commit or release for this change.

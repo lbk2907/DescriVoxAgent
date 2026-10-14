@@ -43,6 +43,7 @@ class Project:
     created_at: str = ""
     updated_at: str = ""
     descriptions: list[Description] = field(default_factory=list)
+    source_path: str = ""
 
 
 class ProjectStore:
@@ -131,6 +132,20 @@ class ProjectStore:
         deleted while the app ran."""
         return closing(sqlite3.connect(str(db_path)))
 
+    @staticmethod
+    def _ensure_source_path(conn: sqlite3.Connection) -> None:
+        """Preserve the known source before an old database's path changes.
+
+        Old projects may already contain only a downloaded path. Keep that
+        known path; the original URL cannot be reconstructed reliably.
+        """
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(projects)")}
+        if "source_path" not in columns:
+            conn.execute("BEGIN")
+            conn.execute("ALTER TABLE projects ADD COLUMN source_path TEXT DEFAULT ''")
+            conn.execute("UPDATE projects SET source_path = COALESCE(video_path, '')")
+            conn.commit()
+
     # Highest id ever handed out. Ids are never reused: a new project
     # that inherited a deleted one's id also inherited whatever was
     # left in project_<id>/media, and a finished video.mp4 there was
@@ -183,6 +198,7 @@ class ProjectStore:
             model=model,
             created_at=now,
             updated_at=now,
+            source_path=video_path,
         )
 
         folder = self.projects_dir / self.folder_label(name, next_id)
@@ -194,6 +210,7 @@ class ProjectStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     video_path TEXT,
+                    source_path TEXT DEFAULT '',
                     video_duration REAL DEFAULT 0,
                     provider TEXT DEFAULT '',
                     model TEXT DEFAULT '',
@@ -216,8 +233,9 @@ class ProjectStore:
                 )
             """)
             conn.execute(
-                "INSERT INTO projects (id, name, video_path, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (next_id, name, video_path, provider, model, now, now),
+                "INSERT INTO projects (id, name, video_path, source_path, provider, model, "
+                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (next_id, name, video_path, video_path, provider, model, now, now),
             )
             conn.commit()
 
@@ -233,6 +251,7 @@ class ProjectStore:
             return None
 
         with self._connect(db_path) as conn:
+            self._ensure_source_path(conn)
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             desc_rows = (
@@ -255,6 +274,7 @@ class ProjectStore:
             model=row["model"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            source_path=row["source_path"],
         )
         project._db_path = str(db_path)
         self._current = project
@@ -308,6 +328,7 @@ class ProjectStore:
         self._current.video_path = video_path
         try:
             with self._connect(self._db_path(self._current.id)) as conn:
+                self._ensure_source_path(conn)
                 conn.execute(
                     "UPDATE projects SET video_path = ?, updated_at = ? WHERE id = ?",
                     (video_path, time.strftime("%Y-%m-%d %H:%M:%S"), self._current.id),
@@ -412,8 +433,8 @@ class ProjectStore:
     def find_project_by_source(self, source: str) -> dict | None:
         """v1.5.1: find an existing project created from this source.
 
-        Matches when the stored video_path (the original source saved at
-        creation time) equals the given source string. Used so pasting
+        Matches the original source or the current playable video_path.
+        Used so pasting
         the SAME YouTube link again offers to open the existing project
         instead of downloading and describing it a second time.
         Returns the list_projects() row (id, name, video_path, ...) or None.
@@ -421,10 +442,8 @@ class ProjectStore:
         if not source:
             return None
         for row in self.list_projects():
-            if (row.get("video_path") or "") == source:
+            if source in (row.get("source_path") or "", row.get("video_path") or ""):
                 return row
-            # Also match by the persisted media video file name for
-            # projects whose source was a URL (video saved as video.mp4).
         return None
 
     def _all_db_paths(self) -> list[Path]:
@@ -446,9 +465,10 @@ class ProjectStore:
         for db_path in self._all_db_paths():
             try:
                 with self._connect(db_path) as conn:
+                    self._ensure_source_path(conn)
                     conn.row_factory = sqlite3.Row
                     row = conn.execute(
-                        "SELECT id, name, video_path, provider, created_at, "
+                        "SELECT id, name, video_path, source_path, provider, created_at, "
                         "updated_at FROM projects "
                         "ORDER BY updated_at DESC"
                     ).fetchone()

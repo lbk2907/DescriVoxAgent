@@ -28,6 +28,18 @@ are in [model-comparison.md](model-comparison.md); what each release shipped is 
 
 ## 2. Open work
 
+### Phase 40 — Six review fixes (14 Oct 2026)
+
+The owner requested fixes for all six findings from the multi-agent review:
+project identity when switching to an empty project, complete character-rename undo,
+audio export's leading silence, bounded transcript gaps, preservation of encrypted
+keys on save failure, and persistent original video sources. Write isolated failing
+regressions before changing each implementation. Then review the combined diff, run
+the regressions and applicable existing suites, and run the full desktop gate and
+NVDA checks only after the owner has explicitly agreed to leave the PC untouched.
+Record evidence and any environment limitations in checklist phase 40. No release
+or publication is part of this change.
+
 Every item still unticked in the checklist, plus known limits recorded in the sources that
 have no checklist item.
 
@@ -121,9 +133,16 @@ phases 19 onwards in the [checklist](checklist.md). "—" = no release.
 | 37 | ruff bug rules, stage by stage | 2.1.5 | B023, then F841/F811/B904..., F401, B905; then `ruff format` for the whole repo (line length 100, AST unchanged, blame-ignored); ECC quality-gate hook back on after |
 | 38 | NVDA in CI (experiment) | — | Can a GitHub runner hear the app? Portable NVDA 2026.2, silence synth, speech read from NVDA's own log (no Bridge add-on); non-blocking until stable |
 | 39 | Player seek with an unknown length | 2.1.5 | User report: Left/Right jumped to 0:00 when the video length was unknown (timeline 0.1 s); a jump now stops at the end only when the end is known, the timeline grows with the position (test_fixes78) |
+| 40 | Six review fixes | Unreleased | Project identity, complete rename undo, synchronized audio offsets, bounded silence gaps, safe settings saves, and persistent original sources; evidence in checklist phase 40. |
+| 41 | Indonesian translation | Unreleased | Bundle all 529 locale strings, language metadata and an Indonesian default Edge voice; evidence in checklist phase 41. |
+| 42 | Portable Windows launchers | Unreleased | Shared Python discovery, checkout-relative paths and preserved exit codes; headless batch regressions in test_fixes82. |
+| 43 | Low video volume | Unreleased | Normalize VLC/ffplay gain and apply saved volume at playback startup; headless regressions in test_fixes83. |
+| 44 | Custom prompt presets | Unreleased | Save, update and delete custom presets; edited prompt used directly; coverage in test_fixes84 and desktop handlers in test_fixes21. |
+| 45 | Narration after rewinding | Unreleased | Rearm active/future cues on backward seeks across all controls; paused slider keeps audio paused; test_fixes85. |
 
 Every release phase closed with gate ×2 GATE_ALL_PASS, build BUILD_ALL_OK, the exe heard
 through NVDA, a tag, and the old zip deleted.
+
 
 ### 3.3 Two large plans
 
@@ -209,7 +228,7 @@ Things tried and NOT adopted, with the number. Do not retry without a new measur
 
 ## 6. How to add a plan
 
-1. A new phase continues the numbering: the next one is **Phase 40**. Never renumber.
+1. A new phase continues the numbering: the next one is **Phase 46**. Never renumber.
 2. Write a short entry here (phase, name, reason, date, who asked) and the detailed items
    in the [checklist](checklist.md) (`35.1`, `35.2`, ...).
 3. Tick `[x]` only with evidence: test output, numbers, a real run, or NVDA heard.
@@ -218,3 +237,43 @@ Things tried and NOT adopted, with the number. Do not retry without a new measur
    [model-comparison.md](model-comparison.md); rejected ones go in section 5 above.
 5. New features: ask the owner first. GUI/NVDA work: ask the owner to leave the PC.
 6. When a release ships: update the phase table here, CHANGELOG.md and the AGENTS.md status.
+
+## Phase 41 — Indonesian translation (2026-10-14, owner request)
+
+Bundle `id.json` with all English locale keys translated into Indonesian, including
+AI-language and default voice metadata. Preserve placeholders, menu accelerators and
+file filters. Validate with the existing locale suites and update the user documentation.
+Native-speaker listening with NVDA remains a separate verification step requiring a quiet PC.
+
+## Phase 42 — Portable Windows launchers (2026-10-14, owner request)
+
+Resolve the checkout from each batch file's location and share Python discovery between
+run, build and gate. Prefer an explicit interpreter, active/project virtual environments,
+then an installed Python 3.13 (64-bit). Reject incompatible interpreters clearly. First
+exercise the batch scripts from an unrelated directory using isolated fixture entry points,
+including paths with spaces, missing Python and application failure exit codes. No real GUI
+or build is needed for these launcher regressions.
+
+## Phase 43 — Low video volume (2026-10-14, owner request)
+
+Normalize the player's video-volume percentage to linear signal gain across VLC and
+ffplay. Compensate for VLC 3's cubic volume curve, keep zero silent and 100 unchanged,
+and apply saved volume before playback plus once audio becomes ready. Retry rejected
+requests on the existing UI timer. Do not change TTS or screen-reader volume. Prove
+the old behavior with headless regressions; actual listening and the full desktop gate
+remain deferred until a quiet-PC permission window is authorized.
+
+## Phase 44 — Custom prompt presets (2026-10-14, owner request)
+
+Add accessible Save as, Update and Delete controls next to the prompt editor, with
+localized validation and confirmations. Protect shipped presets and allow named custom
+presets per interface language. Send the edited text itself, not a duplicate of the
+original plus notes. Test persistence, cancel/reject paths and handler dispatch without
+GUI; add desktop handler coverage for the next authorized gate.
+
+## Phase 45 — Narration after rewinding (2026-10-14, owner request)
+
+On backward seeks, rearm the cue active at the destination and every later cue.
+Keep expired cues marked so seeking into a gap does not repeat old descriptions.
+Unify slider and agent seeks with the button/arrow path, preserving paused state.
+Use headless regressions including a mock speech sink; desktop listening remains deferred.

@@ -48,7 +48,7 @@ src/omni_describer_custom/
     editor_window.py, ask_more_dialog.py, scene_explorer.py,
     update_dialog.py, dialogs.py (Yes/No in the app's language)
   i18n/strings.py           t() and the loader
-  i18n/locales/{en,ms}.json every visible string, both languages
+  i18n/locales/{en,ms,id}.json visible strings in English, Malay and Indonesian
 tests/                      one script per regression round; run_gate.bat runs all
 tools/                      measurement, listening checks, E2E drivers, build helpers
 bin/                        bundled binaries (not in git; tools/fetch_binaries.py)
@@ -57,6 +57,30 @@ docs/                       every document (English); shipped inside the exe
 ```
 
 ## Documentation
+
+### Portable Windows scripts
+
+`run.bat`, `build.bat` and `run_gate.bat` use their own folder as the checkout root,
+so no username or fixed checkout path needs editing. All three call
+`tools/find_python.ps1` with Windows PowerShell. It chooses a **64-bit Python 3.13**
+in this order: `ODC_PYTHON`, activated `VIRTUAL_ENV`, the checkout's `.venv`,
+`py -3.13`, `python` on PATH, then the current user's standard Python313 installation.
+Windows Store aliases are skipped. An incompatible explicit override or virtual
+environment produces an error instead of silently using another environment.
+
+Set an override to an executable path only, without arguments or embedded quotes:
+
+```powershell
+$env:ODC_PYTHON = 'C:\Path with spaces\Python313\python.exe'
+.\run.bat
+```
+
+Dependencies must be installed in the chosen interpreter. The resolver does not install
+Python or packages. The Python package declares a broader minimum version; these Windows
+launcher/build scripts deliberately use the project's tested Python 3.13 environment.
+`build.bat` still needs the pinned multimedia binaries, and a release still requires
+the full gate and accessibility verification. Interpreter discovery does not fix a
+missing FFmpeg download upstream.
 
 | File | What it is |
 |---|---|
@@ -82,6 +106,11 @@ interface stays in English and Malay.
 - The gate: `run_gate.bat` → `GATE_ALL_PASS`. Commit only on that, and run it
   twice before a release: a failure that happens "sometimes" is a bug
   until proven otherwise (AGENTS rule 1).
+- The gate resolves the checkout from its own location and uses the shared Python resolver.
+  Set `ODC_PYTHON` to an interpreter path to override it (paths with spaces are supported).
+- Projects keep `source_path` separately from `video_path`. Legacy databases migrate
+  the known path when opened or listed; URLs already discarded by older versions cannot
+  be reconstructed. Close project-owned UI before switching the shared ProjectStore.
 - Tests are plain scripts that exit non-zero on failure. Several open real
   wx windows and speak through NVDA; run them with the PC left alone and
   NVDA quiet (the NVDA timing suite re-measures while other programs talk,

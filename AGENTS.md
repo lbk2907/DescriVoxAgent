@@ -195,7 +195,7 @@ src/omni_describer_custom/
     app_update_dialog.py    Check for Updates (the app itself)
     dialogs.py              shared dialogs (ask_yes_no, ...)
   i18n/strings.py           loader and t(); locales/en.json, locales/ms.json
-tests/                      one script per regression round; run_gate.bat lists 88
+tests/                      one script per regression round; run_gate.bat lists 95
 tools/                      benches, NVDA listening checks, E2E drivers, build helpers
 hooks/hook-prism.py         PyInstaller hook (pitfall 36)
 bin/                        bundled ffmpeg/ffprobe/ffplay/yt-dlp (NOT in git;
@@ -220,7 +220,7 @@ Python: `C:/Users/USER/AppData/Local/Programs/Python/Python313/python.exe`
 :: run the app from source
 run.bat
 
-:: full gate (compileall + 88 suites) -> GATE_ALL_PASS
+:: full gate (compileall + 95 suites) -> GATE_ALL_PASS
 run_gate.bat
 
 :: one suite
@@ -277,7 +277,7 @@ Every document is in English (owner's decision, 5 Oct 2026); `doc/` was renamed
 ## 8. Pitfalls by area
 
 Full text: `docs/pitfalls.md`. **Pitfall numbers are referenced from code
-comments: never renumber; add new ones at the end (next is 101).** (57b is a
+comments: never renumber; add new ones at the end (next is 110).** (57b is a
 historical double number, kept.) A pitfall may appear in more than one row.
 
 | Area | Pitfalls |
@@ -317,4 +317,3 @@ historical double number, kept.) A pitfall may appear in more than one row.
   Restore with `git clone <bundle> <dir>`.
 - **Code graph:** UML package + module views are in `docs/diagrams/`
   (PlantUML sources; regenerate with `omh codegraph uml`).
- 

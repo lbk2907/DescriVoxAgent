@@ -198,6 +198,19 @@ class MainFrame(wx.Frame):
         self._set_accessible_name(self.custom_prompt, t("main.custom_prompt"))
         outer.Add(self.custom_prompt, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, _BORDER)
 
+        preset_actions = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_preset_save_as = wx.Button(
+            panel, label=t("preset.save_as"), name=t("preset.save_as")
+        )
+        self.btn_preset_update = wx.Button(panel, label=t("preset.update"), name=t("preset.update"))
+        self.btn_preset_delete = wx.Button(panel, label=t("preset.delete"), name=t("preset.delete"))
+        self.btn_preset_save_as.Bind(wx.EVT_BUTTON, self._on_preset_save_as)
+        self.btn_preset_update.Bind(wx.EVT_BUTTON, self._on_preset_update)
+        self.btn_preset_delete.Bind(wx.EVT_BUTTON, self._on_preset_delete)
+        for button in (self.btn_preset_save_as, self.btn_preset_update, self.btn_preset_delete):
+            preset_actions.Add(button, 0, wx.RIGHT, 5)
+        outer.Add(preset_actions, 0, wx.LEFT | wx.RIGHT | wx.TOP, _BORDER)
+
         outer.AddSpacer(8)
 
         # ── 4. Status Log ────────────────────────────────────────
@@ -301,6 +314,13 @@ class MainFrame(wx.Frame):
         self.btn_exit.SetLabel(t("menu.exit"))
         self.preset_label.SetLabel(t("main.preset_hint"))
         self.custom_prompt_label.SetLabel(t("main.custom_prompt"))
+        for button, key in (
+            (self.btn_preset_save_as, "preset.save_as"),
+            (self.btn_preset_update, "preset.update"),
+            (self.btn_preset_delete, "preset.delete"),
+        ):
+            button.SetLabel(t(key))
+            button.SetName(t(key))
         self.log_label.SetLabel(t("main.status_log"))
         # Accessible names for screen readers follow the language too.
         # v1.5.6: NOT via SetLabel on these three. On MSW SetLabel eats
@@ -438,6 +458,7 @@ class MainFrame(wx.Frame):
         # Default policy: each import creates its own project so an
         # open project is never modified by accident.
         name = Path(path).stem or "Imported"
+        self._close_players()
         self.project_store.create_project(name, "")
         self.project_store.save_descriptions(descs)
         msg = t("impexp.imported", count=len(descs), name=name)
@@ -775,6 +796,7 @@ class MainFrame(wx.Frame):
             )
             return
         try:
+            self._close_players()
             self.project_store.create_project(video.stem, str(video))
             # Copy the video in, so the project still plays if the
             # original is moved or a USB stick is unplugged.
@@ -832,10 +854,9 @@ class MainFrame(wx.Frame):
             wx.MessageBox(t("main.no_preset"), t("settings.title"), wx.OK | wx.ICON_WARNING)
             return
 
-        # Get preset text
-        prompt = self.prompt_mgr.get_preset(preset_name)
-        if not prompt:
-            wx.MessageBox(t("main.no_preset"), t("settings.title"), wx.OK | wx.ICON_WARNING)
+        # The editor is the request, not notes appended to a hidden original.
+        prompt = self._prompt_editor_text()
+        if prompt is None:
             return
 
         # v1.6.0: the `foreign` preset exists to convey SPEECH the
@@ -861,14 +882,91 @@ class MainFrame(wx.Frame):
                     self.SetStatusText(t("status.ready"))
                     return
 
-        # Anything typed on top of the previewed preset counts as
-        # extra notes; ignore text identical to the preset itself.
-        custom = self.custom_prompt.GetValue().strip()
-        if custom and custom != prompt.strip():
-            prompt = f"{prompt}\n\nUser notes: {custom}"
-
         self._log(t("main.log_preset", name=preset_name))
         self._start_processing(prompt)
+
+    def _prompt_editor_text(self) -> str | None:
+        text = self.custom_prompt.GetValue().strip()
+        if not text or len(text) > 5000:
+            key = "preset.empty_text" if not text else "preset.long_text"
+            wx.MessageBox(t(key), t("main.prompt"), wx.OK | wx.ICON_WARNING)
+            return None
+        return text
+
+    def _preset_is_builtin(self, name: str) -> bool:
+        from ..core.prompt_manager import DEFAULT_PROMPTS
+
+        return name in DEFAULT_PROMPTS or f"{self.prompt_mgr.language}_{name}" in DEFAULT_PROMPTS
+
+    def _preset_notice(self, key: str, name: str) -> None:
+        from ..core.speech import get_speech
+
+        message = t(key, name=name)
+        self._log(message)
+        self.SetStatusText(message)
+        get_speech().speak(message, interrupt=False)
+
+    def _on_preset_save_as(self, event):
+        text = self._prompt_editor_text()
+        if text is None:
+            return
+        dlg = wx.TextEntryDialog(self, t("preset.name_prompt"), t("preset.save_as"))
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            name = dlg.GetValue().strip()
+        finally:
+            dlg.Destroy()
+        if not name or len(name) > 80 or any(ord(char) < 32 for char in name):
+            wx.MessageBox(t("preset.invalid_name"), t("main.prompt"), wx.OK | wx.ICON_WARNING)
+            return
+        if self._preset_is_builtin(name) or name.casefold() in {
+            value.casefold() for value in self.prompt_mgr.get_preset_names()
+        }:
+            wx.MessageBox(t("preset.name_exists"), t("main.prompt"), wx.OK | wx.ICON_WARNING)
+            return
+        self.prompt_mgr.set_preset(name, text)
+        self._refresh_prompt_list()
+        self.prompt_choice.SetStringSelection(name)
+        self._preview_preset(name)
+        self.prompt_choice.SetFocus()
+        self._preset_notice("preset.saved", name)
+
+    def _on_preset_update(self, event):
+        from .dialogs import ask_yes_no
+
+        name = self.prompt_choice.GetStringSelection()
+        if not name:
+            return
+        if self._preset_is_builtin(name):
+            wx.MessageBox(t("preset.builtin"), t("main.prompt"), wx.OK | wx.ICON_WARNING)
+            return
+        text = self._prompt_editor_text()
+        if text is None or not ask_yes_no(
+            self, t("preset.update_confirm", name=name), t("main.prompt"), default_no=True
+        ):
+            return
+        self.prompt_mgr.set_preset(name, text)
+        self._preset_notice("preset.saved", name)
+
+    def _on_preset_delete(self, event):
+        from .dialogs import ask_yes_no
+
+        name = self.prompt_choice.GetStringSelection()
+        if not name:
+            return
+        if self._preset_is_builtin(name):
+            wx.MessageBox(t("preset.builtin"), t("main.prompt"), wx.OK | wx.ICON_WARNING)
+            return
+        if not ask_yes_no(
+            self, t("preset.delete_confirm", name=name), t("main.prompt"), default_no=True
+        ):
+            return
+        self.prompt_mgr.delete_preset(name)
+        self._refresh_prompt_list()
+        self._preview_preset(self.prompt_choice.GetStringSelection())
+        self.prompt_choice.SetFocus()
+        self._preset_notice("preset.deleted", name)
 
     def _on_preset_selected(self, event):
         """A preset was picked: show its text and announce it."""
@@ -1146,11 +1244,14 @@ class MainFrame(wx.Frame):
         lb.SetSelection(0)
         dlg.CenterOnScreen()
         result = dlg.ShowModal()
+        proj_row = _selected() if result == wx.ID_OK else None
         dlg.Destroy()
 
         if result == wx.ID_OK:
-            proj_row = _selected()
             if proj_row:
+                # Close editors owned by the Player while the old project
+                # is still current: their close handlers may save changes.
+                self._close_players()
                 proj = self.project_store.open_project(proj_row["id"])
                 if proj:
                     self._after_project_opened(proj)
@@ -1575,6 +1676,7 @@ class MainFrame(wx.Frame):
             choice = dlg.ShowModal()
             dlg.Destroy()
             if choice == wx.ID_YES:
+                self._close_players()
                 proj = self.project_store.open_project(existing["id"])
                 if proj:
                     self.SetStatusText(t("main.log_project", name=proj.name))
@@ -1587,7 +1689,9 @@ class MainFrame(wx.Frame):
             # _ensure_project_for cannot decide to reuse it — the user
             # just said they wanted a separate one.
             self._project_source = ""
+            self._force_new_project_source = source
 
+        self._close_players()
         self._processing = True
         self._dl_cancelled = False
         self._dl_done = False
@@ -2134,9 +2238,14 @@ class MainFrame(wx.Frame):
             # this frame opened it for that source, or the project
             # still records the source as its video_path (true until
             # persist_video_file replaces it with the local copy).
-            owns_it = current is not None and (
-                getattr(self, "_project_source", "") == source
-                or (current.video_path or "") == source
+            owns_it = (
+                current is not None
+                and getattr(self, "_force_new_project_source", "") != source
+                and (
+                    getattr(self, "_project_source", "") == source
+                    or getattr(current, "source_path", "") == source
+                    or (current.video_path or "") == source
+                )
             )
             if not owns_it:
                 name = (
@@ -2151,6 +2260,7 @@ class MainFrame(wx.Frame):
                     name = pending[1]
                     self._pending_project_name = None
                 self.project_store.create_project(name, source)
+                self._force_new_project_source = ""
                 current = self.project_store.current
                 self._project_created_by_run = True
             if current is None:

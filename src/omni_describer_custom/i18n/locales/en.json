@@ -78,7 +78,7 @@
   "language": "Language:",
   "log.video_saved_at": "Video saved at: {path}",
   "main.btn_open": "Open",
-  "main.custom_prompt": "Prompt to send (from preset, editable):",
+  "main.custom_prompt": "Prompt to send (edit this text to replace the selected preset for this run):",
   "main.enter_url": "Enter video URL:",
   "main.enter_youtube": "Enter YouTube video URL:",
   "main.log_file": "File: {name}",
@@ -534,5 +534,18 @@
   "app_update.cannot_not_writable": "Windows does not let the app change its own folder (for example under Program Files). Use the download page, or move the DescriVox folder to a folder you own.",
   "app_update.startup_notice": "DescriVox Agent {version} is available. Help > Check for Updates to install it.",
   "app_update.done_ok": "DescriVox Agent was updated to {version}.",
-  "app_update.done_failed": "The update to {version} did not finish; this is still version {current}. The details are in {log}."
+  "app_update.done_failed": "The update to {version} did not finish; this is still version {current}. The details are in {log}.",
+  "preset.save_as": "Save preset &as...",
+  "preset.update": "&Update preset",
+  "preset.delete": "&Delete preset...",
+  "preset.name_prompt": "Name for the new preset (saved for the current interface language):",
+  "preset.invalid_name": "Enter a name of 1 to 80 characters on one line.",
+  "preset.name_exists": "That preset name already exists. Choose another name, or use Update preset.",
+  "preset.empty_text": "Enter the prompt text first.",
+  "preset.long_text": "The prompt is too long. Use at most 5000 characters.",
+  "preset.builtin": "Built-in presets cannot be updated or deleted here. Edit the text and use Save preset as to create your own copy.",
+  "preset.update_confirm": "Replace the saved text of preset {name} with the text in the editor?",
+  "preset.delete_confirm": "Delete custom preset {name}? This cannot be undone.",
+  "preset.saved": "Preset {name} saved.",
+  "preset.deleted": "Preset {name} deleted."
 }

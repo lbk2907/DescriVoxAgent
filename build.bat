@@ -3,25 +3,27 @@
 :: Output: dist\DescriVox\  (folder distribution - start with DescriVox.exe)
 :: Full pipeline: compile check -> PyInstaller -> exe smoke test -> zip
 
-setlocal
-cd /d "C:\Users\USER\Documents\omni-describer-custom"
-set PY=C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe
+setlocal DisableDelayedExpansion
+cd /d "%~dp0" || exit /b 1
+set "PY="
+for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\find_python.ps1"`) do set "PY=%%P"
+if not defined PY exit /b 1
 
 :: Owner, 6 Oct 2026: never build a release with documents left behind
 :: (version, CHANGELOG, README, AGENTS, plan, checklist, links).
-%PY% tools\check_docs.py
+"%PY%" tools\check_docs.py
 if errorlevel 1 (echo DOCS_FAIL & exit /b 1)
 
 echo === [1/6] external binaries ===
 :: ffmpeg/ffprobe/ffplay/yt-dlp are shipped inside the bundle (v1.6.5).
 :: They are ~217 MB so they are not in git; this fetches them into bin\
 :: when absent and fails the build rather than shipping a broken app.
-%PY% tools\fetch_binaries.py
+"%PY%" tools\fetch_binaries.py
 if errorlevel 1 (echo BINARIES_FAIL & exit /b 1)
 echo BINARIES_OK
 
 echo === [2/6] compile check ===
-%PY% -m compileall -q src main.py >nul 2>&1 && (echo COMPILE_PASS) || (echo COMPILE_FAIL & exit /b 1)
+"%PY%" -m compileall -q src main.py >nul 2>&1 && (echo COMPILE_PASS) || (echo COMPILE_FAIL & exit /b 1)
 
 :: NOTE: the flags below are the source of truth. PyInstaller
 :: REGENERATES DescriVox.spec from them on every run, so editing
@@ -29,8 +31,8 @@ echo === [2/6] compile check ===
 :: faster_whisper + ctranslate2 + onnxruntime add ~110 MB: local,
 :: free speech-to-text for a provider that cannot hear the video.
 echo === [3/6] PyInstaller ===
-if not exist %PY% (echo NO_PYTHON & exit /b 1)
-%PY% -m PyInstaller --noconfirm --clean --onedir --windowed ^
+if not exist "%PY%" (echo NO_PYTHON & exit /b 1)
+"%PY%" -m PyInstaller --noconfirm --clean --onedir --windowed ^
   --name DescriVox ^
   --paths src ^
   --add-data "docs;docs" ^
@@ -67,12 +69,12 @@ echo PYINSTALLER_OK
 :: because it recognises them as libraries. 189 MB of duplicate. Run
 :: this BEFORE the smoke test, so the test proves the app still starts
 :: without them.
-%PY% tools\dedupe_build.py
+"%PY%" tools\dedupe_build.py
 if errorlevel 1 (echo DEDUPE_FAIL & exit /b 1)
 
 echo === [4/6] exe smoke test ===
-if not exist "dist\DescriVox\DescriVox.exe" (echo EXE_MISSING & type "%TEMP%\pyinstaller_log" & exit /b 1)
-%PY% -u tests\test_build_smoke.py
+if not exist "dist\DescriVox\DescriVox.exe" (echo EXE_MISSING & type "%TEMP%\pyinstaller_odc.log" & exit /b 1)
+"%PY%" -u tests\test_build_smoke.py
 if errorlevel 1 (echo SMOKE_FAIL & exit /b 1)
 echo SMOKE_OK
 
@@ -83,18 +85,20 @@ copy /y NOTICE.md "dist\DescriVox\NOTICE.md" >nul
 if errorlevel 1 (echo NOTICE_COPY_FAIL & exit /b 1)
 
 echo === [5/6] zip ===
-%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/DescriVox-Agent-{v}-win64', 'zip', 'dist', 'DescriVox')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
+"%PY%" -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; import shutil; shutil.make_archive(f'dist/DescriVox-Agent-{v}-win64', 'zip', 'dist', 'DescriVox')" && (echo ZIP_OK) || (echo ZIP_FAIL & exit /b 1)
 dir dist\DescriVox-Agent-*-win64.zip
 :: 2.1.3: the in-app updater needs SHA256SUMS.txt beside the zip in the
 :: GitHub Release, and uses the CHANGELOG section as "What's new".
-%PY% tools\release_files.py
+"%PY%" tools\release_files.py
 if errorlevel 1 (echo RELEASE_FILES_FAIL & exit /b 1)
 echo === [6/6] source backup ===
 :: Owner, 3 Oct 2026: every release also backs up its source code -
 :: committed files only (git archive), checked for binaries and keys.
-%PY% tools\make_source_zip.py
+"%PY%" tools\make_source_zip.py
 if errorlevel 1 (echo SOURCE_ZIP_FAIL & exit /b 1)
 :: v2.1.3 (owner): the build is recorded for the release contract.
-for /f "delims=" %%V in ('%PY% -c "import sys; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; print(v)"') do set ODC_VER=%%V
-%PY% tools\evidence.py build "dist\DescriVox-Agent-%ODC_VER%-win64.zip"
+"%PY%" -c "import sys, runpy; sys.path.insert(0, 'src'); from omni_describer_custom import __version__ as v; sys.argv = ['tools/evidence.py', 'build', f'dist/DescriVox-Agent-{v}-win64.zip']; runpy.run_path('tools/evidence.py', run_name='__main__')"
+if errorlevel 1 (echo EVIDENCE_FAIL & exit /b 1)
+
 echo BUILD_ALL_OK
+exit /b 0

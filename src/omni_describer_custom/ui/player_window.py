@@ -69,6 +69,7 @@ class PlayerWindow(wx.Frame):
         self._position = 0.0  # Current playback position in seconds
         self._tick_at: float | None = None  # clock of the last position update
         self._volume = 100  # video sound, 0..100 (v1.9.7)
+        self._vlc_volume_pending = False
         self._vlc = None
         self._vlc_instance = None
         self._vlc_media = None
@@ -96,7 +97,7 @@ class PlayerWindow(wx.Frame):
         # v1.9.0: the agent (F2) lives for this Player session.
         self._agent = None
         self._agent_transcript: list[str] = []
-        self._agent_undo: list[list] = []
+        self._agent_undo: list[tuple[list, list | None]] = []
         self._agent_backup_done = False
         self._narrated: set[int] = set()  # description ids spoken during playback
         self._tts_thread: threading.Thread | None = None
@@ -668,6 +669,8 @@ class PlayerWindow(wx.Frame):
         if self._vlc_available and self._vlc is not None:
             # Sync position from real VLC playback
             if self._vlc.is_playing():
+                if self._vlc_volume_pending:
+                    self._apply_vlc_volume()
                 self._playing = True
                 self._position = self._vlc.get_time() / 1000.0
                 self._learn_length_from_vlc()
@@ -938,7 +941,11 @@ class PlayerWindow(wx.Frame):
         self._paused_by_user = False
         if self._vlc_available and self._vlc_media is not None:
             self._auto_paused = False
+            self._apply_vlc_volume()
             self._vlc.play()
+            # VLC creates its audio output asynchronously. Reapply once it is
+            # playing even if the pre-play request appeared to succeed.
+            self._vlc_volume_pending = True
             self._playing = True
             self._announce(t("player.playing"))
             self._set_play_label(True)
@@ -1040,12 +1047,7 @@ class PlayerWindow(wx.Frame):
 
     def _on_seek(self, event):
         # v1.9.6: the slider value IS the position in seconds.
-        self._position = float(self.position_slider.GetValue())
-        if self._vlc_available and self._vlc_media is not None:
-            self._vlc.set_time(int(self._position * 1000))
-        elif self._audio_backend == "ffplay":
-            self._start_ffplay(self._position)
-        self._update_desc_display()
+        self._move_to(self._clamp_position(float(self.position_slider.GetValue())))
 
     def _on_characters(self, event):
         """v2.1.0: Characters window; a rename there reaches the display."""
@@ -1183,10 +1185,24 @@ class PlayerWindow(wx.Frame):
             self.position_slider.SetMax(value + 60)
         self.position_slider.SetValue(value)
 
+    def _rearm_narration_for_seek(self, pos: float) -> None:
+        """Allow the destination cue and later cues to speak again after rewind.
+
+        Keep expired cues marked: the description display retains the previous
+        cue in gaps, and clearing everything would read that old cue again.
+        """
+        if pos < self._position and self.project:
+            self._narrated.difference_update(
+                desc.id
+                for desc in self.project.descriptions
+                if desc.start_time >= pos or desc.end_time > pos
+            )
+
     def _move_to(self, pos: float) -> None:
         """Put playback, sound, slider and description at pos (already held
         in range by _clamp_position). ffplay restarts once, after the last of
         several quick jumps."""
+        self._rearm_narration_for_seek(pos)
         self._position = pos
         if self._vlc_available and self._vlc_media is not None:
             self._vlc.set_time(int(pos * 1000))
@@ -1208,6 +1224,20 @@ class PlayerWindow(wx.Frame):
             else position
         )
 
+    def _apply_vlc_volume(self) -> None:
+        """Match ffplay's linear gain despite VLC 3's cubic volume curve.
+
+        VLC's Windows MMDevice output cubes its normalized volume. Passing
+        10 directly gives 0.001 gain (-60 dB); 46 gives about 0.1 (-20 dB).
+        Keep the saved/announced percentage independent of that backend value.
+        """
+        level = round(100 * (self._volume / 100) ** (1 / 3))
+        self._vlc_volume_pending = True
+        try:
+            self._vlc_volume_pending = self._vlc.audio_set_volume(level) != 0
+        except Exception:
+            logger.debug("VLC volume failed; retry when audio is ready", exc_info=True)
+
     def _change_volume(self, delta: int) -> None:
         """Video sound only; the screen reader's voice is not touched."""
         self._volume = max(0, min(100, self._volume + delta))
@@ -1217,10 +1247,7 @@ class PlayerWindow(wx.Frame):
             except Exception:
                 logger.debug("volume not saved", exc_info=True)
         if self._vlc_available and self._vlc is not None:
-            try:
-                self._vlc.audio_set_volume(self._volume)
-            except Exception:
-                logger.debug("VLC volume failed", exc_info=True)
+            self._apply_vlc_volume()
         elif self._audio_backend == "ffplay" and self._playing:
             self._restart_sound_soon()  # ffplay takes it at start
         self._announce(t("player.volume", pct=self._volume))
@@ -1379,13 +1406,7 @@ class PlayerWindow(wx.Frame):
         if not self:
             return  # the agent's CallAfter after the window closed
         # The same 0.1 s trap as _seek_by when the length is unknown.
-        self._position = self._clamp_position(seconds)
-        if self._vlc_available and self._vlc_media is not None:
-            self._vlc.set_time(int(self._position * 1000))
-        elif self._audio_backend == "ffplay" and self._playing:
-            self._start_ffplay(self._position)
-        self._show_on_timeline(self._position)
-        self._update_desc_display()
+        self._move_to(self._clamp_position(seconds))
 
     def open_agent(self) -> None:
         """F2: the agent, or Ask More (with the frame) when this model has
@@ -1501,10 +1522,15 @@ class PlayerWindow(wx.Frame):
         from ..core.project_store import Description
 
         proj = self.project
-        if not proj or not proposals:
+        if not proj or self.store.current is not proj or not proposals:
             return 0
         descs = proj.descriptions
-        self._agent_undo.append(copy.deepcopy(descs))
+        cast_before = None
+        if any(p.action == "rename" for p in proposals):
+            from ..core import characters as ch
+
+            cast_before = copy.deepcopy(ch.load_cast(self.store.project_dir(proj.id)))
+        self._agent_undo.append((copy.deepcopy(descs), cast_before))
         srt = self._project_srt_path()
         if not self._agent_backup_done and srt.exists():
             backup = srt.with_name(
@@ -1578,14 +1604,24 @@ class PlayerWindow(wx.Frame):
         return applied
 
     def undo_agent_changes(self) -> bool:
-        if not self._agent_undo or not self.project:
+        if not self._agent_undo or not self.project or self.store.current is not self.project:
             return False
-        self.project.descriptions = self._agent_undo.pop()
+        descriptions, cast_before = self._agent_undo[-1]
+        if cast_before is not None:
+            from ..core import characters as ch
+
+            if not ch.save_cast(self.store.project_dir(self.project.id), cast_before):
+                return False
+        self.project.descriptions = descriptions
         self._save_agent_descriptions()
+        self._agent_undo.pop()
         return True
 
     def _save_agent_descriptions(self) -> None:
         proj = self.project
+        if not proj or self.store.current is not proj:
+            logger.warning("Refused agent save from a Player for an inactive project")
+            return
         self.store.save_descriptions(proj.descriptions)
         try:
             from ..core.timeline_io import to_srt

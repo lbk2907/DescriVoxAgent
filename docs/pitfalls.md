@@ -453,3 +453,71 @@ test_fixes65 looked for an exact substring of `main_frame.py` /
 AST comparison cannot catch this. A test that checks source text strips the
 whitespace first (`"".join(src.split())`) and compares against a
 whitespace-free needle; better still, test the behaviour.
+
+### 105. Project identity, undo state, and absolute timelines must survive transitions
+
+14 Oct 2026 (phase 40): an empty project could replace the shared store's current
+project while an old Player remained open. Close project-owned windows before
+changing that store; guard later writes against stale Player identity. An explicit
+request for a new project must override source matching. Keep original source URLs
+separate from local media paths, and migrate only information actually present.
+
+Undo snapshots must include every modified domain: renaming a character changes
+both cue text and the cast. Restore both, and retain the snapshot if restoring the
+cast fails. A failed key-encryption operation must abort saving rather than replace
+a valid settings file with a payload missing its key.
+
+Chunked audio mixes use relative offsets internally; apply the final absolute
+start offset before encoding, including single-cue exports and skipped early TTS
+failures. Likewise, transcript gaps must be clipped to the requested time range
+before computing narration budgets. Regressions: test_fixes79, test_fixes80,
+and test_fixes81 (tests failed on the original code before the fixes).
+
+### 106. Windows launchers must locate both the checkout and the interpreter
+
+14 Oct 2026 (phase 42): `run.bat` and `build.bat` contained another user's absolute
+paths. Use `%~dp0` for the working directory, quote every interpreter invocation,
+and share discovery between run/build/gate. Validate version and architecture before
+running work. An explicitly selected environment must fail clearly if incompatible.
+Preserve the app's exit code across `pause`. Avoid nested CMD command substitution
+for complex Python snippets; build evidence now obtains the version and calls its
+recorder in the same Python process, with a checked exit status. Test the real batch
+control flow with harmless fixtures from unrelated directories, including spaces in
+both checkout and interpreter paths. `test_fixes82` reproduced the original failures.
+
+### 107. VLC and ffplay do not use the same percentage-to-gain curve
+
+14 Oct 2026 (phase 43): passing 10 directly to VLC 3's Windows MMDevice output
+produces gain 0.001 because it cubes the normalized volume; ffplay's startup volume
+is linear. Keep the persisted/announced value in the UI's 0..100 range and convert
+it at the VLC boundary with the inverse cube. Preserve exact zero and full volume.
+Reference: [VLC MMDevice VolumeSetLocked](https://github.com/videolan/vlc/blob/3.0.x/modules/audio_output/mmdevice.c).
+
+Also apply saved volume before play and once playback becomes active: VLC creates
+its audio output asynchronously. A rejected or exceptional volume request stays
+pending and retries on the existing UI timer using the latest value. No audio-worker
+callback may touch widgets, and video volume must not modify TTS/NVDA settings.
+Test_fixes83 proves mapping, startup, retry, bounds and unchanged ffplay behavior;
+headless tests are not a substitute for listening on the actual output device.
+
+### 108. An editable prompt preview must match the request
+
+14 Oct 2026 (phase 44): the prompt editor showed a full preset, but any edit was
+appended to the unchanged original as User notes. Removing an instruction therefore
+did not remove it from the request. The editor now supplies the prompt directly;
+the engine still appends its output-format and language requirements. Blank or
+overlong text is rejected. Saving is explicit, custom names are language-scoped,
+and built-in presets are protected from update/delete. Cancellation must leave
+stored text unchanged. Test_fixes84 covers request text and persistence; real desktop
+handler coverage is in test_fixes21 and requires the usual quiet-PC permission.
+
+### 109. Backward seeks must rearm narration as well as moving the video
+
+14 Oct 2026 (phase 45): narration IDs stayed in `_narrated` after a rewind, so replaying
+00:10 after reaching 00:50 skipped every previously spoken cue until 00:50. Before
+updating the position, remove the IDs of cues active at or starting after the backward
+seek destination. Keep expired IDs: the display retains an earlier cue through a gap,
+and clearing everything can repeat that old cue. Forward/no-op seeks keep the set.
+Route slider and agent seeks through `_move_to`, like buttons and arrows, so they share
+the reset and paused-audio behavior. Test_fixes85 reproduced the old failure and checks
+all routes, gap/end boundaries, silence while paused and a single TTS dispatch on replay.
