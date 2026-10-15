@@ -478,6 +478,7 @@ def test_process_video_full_branch_integration():
     video.write_bytes(b"\x00" * 2048)
 
     resolve_seen: list[str] = []
+    real_player = pw_mod.PlayerWindow
     frame = MainFrame()
     try:
         # Isolate user data BEFORE anything processes
@@ -595,6 +596,7 @@ def test_process_video_full_branch_integration():
             if failures:
                 raise AssertionError("; ".join(failures))
     finally:
+        pw_mod.PlayerWindow = real_player
         try:
             frame._close_download_progress()
         except Exception:
@@ -608,6 +610,9 @@ def test_error_path_failed_state():
     behind, and no misleading frame wording in full-video mode."""
     from omni_describer_custom.core.project_store import ProjectStore
     from omni_describer_custom.ui.main_frame import MainFrame
+    import omni_describer_custom.ui.player_window as pw_mod
+
+    real_player = pw_mod.PlayerWindow
 
     class FailingStub(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -666,9 +671,14 @@ def test_error_path_failed_state():
         video.write_bytes(b"\x00" * 2048)
         frame._current_source = str(video)
 
-        import omni_describer_custom.ui.player_window as pw_mod
+        class NoPlayer:
+            def __init__(self, *a, **k):
+                pass
 
-        pw_mod.PlayerWindow = lambda *a, **k: None
+            def Show(self):
+                pass
+
+        pw_mod.PlayerWindow = NoPlayer
 
         # Same observation fakes as the happy-path check (idempotent)
         async def fake_info(self, source, **k):
@@ -732,6 +742,7 @@ def test_error_path_failed_state():
         assert frame._dl_dialog is None, "progress dialog left open"
         assert frame.project_store.current is None, "project should not be created on failure"
     finally:
+        pw_mod.PlayerWindow = real_player
         server.shutdown()
         try:
             frame._close_download_progress()

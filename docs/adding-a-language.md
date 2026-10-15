@@ -6,6 +6,10 @@ coding agent.
 Since v1.6.2, adding a language means **adding one file**. No code changes, no build step,
 and no new prompts to write.
 
+English (`en`), Malay (`ms`) and Indonesian (`id`, **Bahasa Indonesia**) are bundled.
+Select Indonesian in Settings without creating a locale file. The `id.json` examples
+below also explain how to customize that translation in your user locale folder.
+
 ## In short (users of the .exe — since v1.8.0)
 
 Your own language files live in this folder, which **is never touched when the app is
@@ -107,7 +111,7 @@ Three rules:
 
 Some keys have a `...:one` twin, for example `main.log_generated` and
 `main.log_generated:one`. The second is used when `{count}` is 1, so English says
-"1 description", not "1 descriptions". If your language has no singular/plural form (Malay,
+"1 description", not "1 descriptions". If your language has no singular/plural form (Malay or Indonesian,
 for example), give both the same text. Keep `{count}` in both.
 
 ## You do NOT need to translate the AI prompts
@@ -148,13 +152,16 @@ counts as done.
 
 ## A complete example (developers)
 
+For a new language, replace `xx` below with its ISO code and translate the copied file.
+To improve bundled Indonesian, edit the existing `id.json` instead of overwriting it.
+
 ```bash
 cd src/omni_describer_custom/i18n/locales
-cp en.json id.json
-# edit id.json: change _meta, translate the values
+cp en.json xx.json
+# edit xx.json: change _meta, translate the values
 cd ../../../..
 run_gate.bat
 ```
 
-Done. Open the app, go to Settings, and "Bahasa Indonesia" is in the list. (Users of the
-.exe: put `id.json` in `%APPDATA%\OmniDescriber\locales\` — see the top of this page.)
+Open the app and select the new language in Settings. (Users of the .exe: put the
+language file in `%APPDATA%\OmniDescriber\locales\` — see the top of this page.)

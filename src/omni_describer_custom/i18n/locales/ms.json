@@ -78,7 +78,7 @@
   "language": "Bahasa:",
   "log.video_saved_at": "Video disimpan di: {path}",
   "main.btn_open": "Buka",
-  "main.custom_prompt": "Arahan untuk dihantar (dari preset, boleh disunting):",
+  "main.custom_prompt": "Arahan untuk dihantar (edit teks ini untuk menggantikan preset yang dipilih bagi proses ini):",
   "main.enter_url": "Masukkan URL video:",
   "main.enter_youtube": "Masukkan URL video YouTube:",
   "main.log_file": "Fail: {name}",
@@ -534,5 +534,18 @@
   "app_update.cannot_not_writable": "Windows tidak membenarkan app menukar foldernya sendiri (contohnya di bawah Program Files). Gunakan halaman muat turun, atau pindahkan folder DescriVox ke folder milik awak.",
   "app_update.startup_notice": "DescriVox Agent {version} sudah ada. Bantuan > Semak Kemas Kini untuk memasangnya.",
   "app_update.done_ok": "DescriVox Agent sudah dikemas kini ke {version}.",
-  "app_update.done_failed": "Kemas kini ke {version} tidak selesai; ini masih versi {current}. Butirannya dalam {log}."
+  "app_update.done_failed": "Kemas kini ke {version} tidak selesai; ini masih versi {current}. Butirannya dalam {log}.",
+  "preset.save_as": "Simpan preset &sebagai...",
+  "preset.update": "&Kemas kini preset",
+  "preset.delete": "&Padam preset...",
+  "preset.name_prompt": "Nama preset baharu (disimpan untuk bahasa antara muka semasa):",
+  "preset.invalid_name": "Masukkan nama sepanjang 1 hingga 80 aksara dalam satu baris.",
+  "preset.name_exists": "Nama preset itu sudah wujud. Pilih nama lain, atau gunakan Kemas kini preset.",
+  "preset.empty_text": "Masukkan teks arahan dahulu.",
+  "preset.long_text": "Arahan terlalu panjang. Gunakan paling banyak 5000 aksara.",
+  "preset.builtin": "Preset terbina dalam tidak boleh dikemas kini atau dipadam di sini. Edit teks dan gunakan Simpan preset sebagai untuk membuat salinan sendiri.",
+  "preset.update_confirm": "Gantikan teks tersimpan bagi preset {name} dengan teks dalam editor?",
+  "preset.delete_confirm": "Padam preset tersuai {name}? Tindakan ini tidak boleh dibatalkan.",
+  "preset.saved": "Preset {name} disimpan.",
+  "preset.deleted": "Preset {name} dipadam."
 }

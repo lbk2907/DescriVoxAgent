@@ -438,10 +438,11 @@ class SettingsStore:
                         try:
                             cfg["api_key_enc"] = _protect_secret_strict(api_key)
                         except SecretProtectError as e:
-                            logger.error("API key for %s NOT saved: %s", provider, e)
-                            old = state.undecryptable.get(provider)
-                            if old:
-                                cfg["api_key_enc"] = old
+                            # A successfully decrypted key no longer has its
+                            # encrypted blob in memory. Writing this payload
+                            # would erase the last good key on disk.
+                            logger.error("Settings NOT saved: API key for %s: %s", provider, e)
+                            return
                     elif provider in state.undecryptable:
                         # Never drop a key blob just because this
                         # machine cannot read it.

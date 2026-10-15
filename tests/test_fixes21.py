@@ -1192,6 +1192,31 @@ def test_prompt_box_holds_the_preset_not_a_label():
         _close(f)
 
 
+def test_custom_preset_handlers():
+    """Exercise the actual new buttons' handlers; no AI request is sent."""
+    from unittest.mock import patch
+
+    f = _frame()
+    try:
+        f._preset_notice = lambda *args: None
+        name = "handler-custom-preset"
+        f.custom_prompt.ChangeValue("Describe the visible text only.")
+        with stub_modals(text=name):
+            f._on_preset_save_as(None)
+        assert f.prompt_choice.GetStringSelection() == name
+        assert f.prompt_mgr.get_preset(name) == "Describe the visible text only."
+        f.custom_prompt.ChangeValue("Describe the visible actions only.")
+        with patch("omni_describer_custom.ui.dialogs.ask_yes_no", return_value=True):
+            f._on_preset_update(None)
+            assert f.prompt_mgr.get_preset(name) == "Describe the visible actions only."
+            f._on_preset_delete(None)
+        assert name not in f.prompt_mgr.get_preset_names()
+        for button in (f.btn_preset_save_as, f.btn_preset_update, f.btn_preset_delete):
+            assert button.GetLabel() and button.GetName()
+    finally:
+        _close(f)
+
+
 def test_open_sends_the_preset_without_invented_notes():
     """The exact string handed to the pipeline must be the preset."""
     f = _frame()
@@ -1290,6 +1315,7 @@ if __name__ == "__main__":
     check("ask more cancel closes cleanly", test_ask_more_cancel_closes_cleanly)
     check("fresh launch has a preset selected", test_fresh_launch_has_a_preset_selected)
     check("prompt box holds the preset, not a label", test_prompt_box_holds_the_preset_not_a_label)
+    check("custom preset handlers save, update and delete", test_custom_preset_handlers)
     check(
         "Open sends the preset without invented notes",
         test_open_sends_the_preset_without_invented_notes,

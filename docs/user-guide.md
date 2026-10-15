@@ -78,6 +78,17 @@ the real cause of every failure.
    app's own language (**Settings > General > Language**); the
    **Description language** setting only decides the language the AI
    writes in.
+   You can edit the prompt text below the preset list. **Open** uses that edited
+   text as the prompt; it does not append it to the original preset. The AI engine
+   still adds its required output format and description-language instructions.
+   Edits alone are temporary: selecting another preset replaces the editor text.
+   Use **Save preset as...** to keep your text under a new name (1–80 characters),
+   **Update preset** to replace a custom preset after confirmation, or **Delete
+   preset...** to remove it after confirmation. Built-in presets are protected;
+   save a copy to customize one. Custom presets are stored for the current interface
+   language and remain available after restarting. Prompt text must contain 1–5000
+   characters. In Indonesian the buttons are **Simpan preset sebagai...**,
+   **Perbarui preset**, and **Hapus preset...**.
 3. A progress dialog accompanies the whole process: download (real
    percentage, MB, speed, ETA), merging, then either uploading and the
    AI watching the video, or extracting and analysing still pictures,
@@ -118,6 +129,10 @@ The File menu has four timeline functions:
   leaves no half-written file); voice, speed, and engine follow your
   audio settings.
 
+  Leading silence is preserved: if the first description starts at 10 seconds,
+  the exported audio also waits 10 seconds before speaking, including when there
+  is only one description or an earlier description could not be synthesized.
+
 A common "describe by time" use: accept an SRT of descriptions
 provided by someone else (or type your own in the simple text format),
 import it, pick the same source video, and the player reads the
@@ -145,7 +160,7 @@ Output**.
 
 ### General tab
 
-- **Language**: the language of the app itself (English, Malay, or a
+- **Language**: the language of the app itself (English, Malay, Indonesian, or a
   language file you added).
 - **Description language (AI answers)**: the language the AI writes
   in.
@@ -351,6 +366,12 @@ Every video you process is saved as a **project**: the video, the AI's
 descriptions and the SRT file. Opening a project again does NOT call
 the AI again, which saves time and cost.
 
+The original source is saved separately from the local playback file, so a processed
+URL can be recognized after restarting the app. Older projects whose original URL
+was already replaced by a local path cannot recover that URL automatically; open
+them from **File > Open Project...**. Switching projects closes the previous Player
+and saves its editor before changing the active project, even if the new project is empty.
+
 A project is created for you when you describe a video, named after the
 video. To choose the name yourself, use **File > New Project...**: type
 a name, then choose where the video is (Local Video File, YouTube Video
@@ -398,6 +419,17 @@ descriptions are kept.
 - **Keep all, only fix timing**: nothing is removed.
 
 ## Your own language (Help > Translation Report)
+
+When running a source checkout on Windows, start `run.bat` from the checkout folder.
+It detects that folder and a compatible Python 3.13 (64-bit) installation automatically.
+Python dependencies and the external multimedia tools are still required; see the
+[developer guide](developer-guide.md#portable-windows-scripts) for interpreter selection.
+
+Bahasa Indonesia is bundled with the app. Select it in **Settings > General > Language**.
+To generate descriptions in Indonesian too, also select it in **Description language
+(AI answers)**. In the Indonesian interface these labels are **Pengaturan > Umum > Bahasa**
+and **Bahasa deskripsi (jawaban AI)**. The default Edge voice for Indonesian is
+`id-ID-GadisNeural`; a screen reader uses its own voice settings.
 
 Language files you make or correct live in
 `%APPDATA%\OmniDescriber\locales\` and survive updates. After an
@@ -470,7 +502,13 @@ points to this menu.
   plays or pauses; **Left/Right** jump 5 seconds, with **Ctrl** 10
   seconds, with **Ctrl+Shift** one minute, and the new position is said ("1:09 of 24:30"); **Up/Down**
   change the video's volume in steps of 10% (the screen reader's voice
-  is not changed). The volume is remembered.
+  is not changed). The volume is remembered and applied when playback starts.
+  The percentage controls video signal gain consistently across VLC and ffplay:
+  0% is silent, 10% is low volume, and 100% leaves the original level unchanged.
+  Actual loudness also depends on the recording and your Windows/speaker volume.
+  Seeking backward allows descriptions at the destination and later to be read again.
+  Descriptions that ended before that point stay marked as read. This works with the
+  arrow keys, rewind button, timeline slider and agent; seeking while paused stays paused.
 - **Description Editor**, **Ask More...**, **Explore Scene...** and
   **Agent (F2)** open the windows described below. Since 1.9.7 the
   Player shows EITHER the agent OR the two older tools: when the agent
@@ -497,6 +535,9 @@ the first change and **Undo last changes** is always there. Every step
 is spoken. The conversation is remembered until the Player closes;
 character names are remembered for the project. If one question costs
 more than a couple of cents, it asks before continuing.
+
+Undoing an accepted character rename restores both the descriptions and the previous
+character list. A text-only undo leaves separately edited character information alone.
 
 **Check the whole video** (a button in the agent window) goes through
 every description, a minute of video at a time, and gives ONE list of

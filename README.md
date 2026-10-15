@@ -9,7 +9,7 @@
 **AI audio description for blind and visually impaired people.** DescriVox Agent downloads
 or opens a video, has an AI describe what is SEEN at each moment, and plays the video with
 the descriptions spoken in sync. Everything is operated by keyboard and announced to the
-screen reader; the interface is in English and Malay.
+screen reader; the interface is in English, Malay and Indonesian.
 
 *Formerly **Omni Describer Custom** (renamed in v2.0.0). Settings, keys and projects keep
 their old folders (`%APPDATA%\OmniDescriber`, `Documents\OmniDescriber`), so nothing is lost
@@ -78,6 +78,12 @@ feature:
 - About 750 MB of disk space for the app folder.
 
 ## Installing
+
+From a source checkout on Windows, use `run.bat` to launch or `build.bat` to package.
+These scripts find the checkout and Python 3.13 (64-bit) automatically, including an
+active virtual environment or local `.venv`. Dependencies must be installed first;
+builds also require the pinned binaries fetched into `bin`. See
+[portable Windows scripts](docs/developer-guide.md#portable-windows-scripts).
 
 1. Download `DescriVox-Agent-<version>-win64.zip` (about 305 MB).
 2. Unzip it anywhere and run `DescriVox.exe`. Nothing else is needed: ffmpeg, ffprobe,

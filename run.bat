@@ -1,18 +1,17 @@
 @echo off
-:: DescriVox Agent launcher — uses Python 3.13 explicitly
-:: This ensures aiohttp and all deps are found
+:: Run from this checkout, regardless of the caller's current directory.
+setlocal DisableDelayedExpansion
+cd /d "%~dp0" || exit /b 1
 
-set PYTHON=C:\Users\USER\AppData\Local\Programs\Python\Python313\python.exe
-
-if not exist "%PYTHON%" (
-    echo [ERROR] Python 3.13 not found at %PYTHON%
-    pause
-    exit /b 1
-)
+set "PY="
+for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\find_python.ps1"`) do set "PY=%%P"
+if not defined PY exit /b 1
 
 echo Starting DescriVox Agent...
-"%PYTHON%" "%~dp0main.py"
-if errorlevel 1 (
-    echo [ERROR] Application exited with error code %errorlevel%
+"%PY%" "%~dp0main.py"
+set "RESULT=%errorlevel%"
+if not "%RESULT%"=="0" (
+    echo [ERROR] Application exited with error code %RESULT%
     pause
 )
+exit /b %RESULT%
